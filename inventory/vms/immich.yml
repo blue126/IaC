@@ -1,0 +1,30 @@
+---
+# Inventory entry for application VMs.
+immich:
+  hosts:
+    immich-node:
+      ansible_host: 192.168.1.100
+      ansible_user: ubuntu
+      ansible_ssh_pass: ubuntu
+      ansible_become_password: ubuntu
+      ansible_ssh_common_args: '-o PreferredAuthentications=password'
+      immich_vm_id: 101
+      immich_vm_name: immich-node
+      immich_vm_memory: 8192
+      immich_vm_cores: 2
+      immich_vm_ip: 192.168.1.100
+      immich_vm_prefix: 24
+      immich_vm_gateway: 192.168.1.1
+      immich_vm_dns_servers:
+        - 192.168.1.1
+      immich_vm_password: ubuntu
+      immich_app_dir: /opt/immich
+      immich_upload_dir: "{{ immich_app_dir }}/library"
+      immich_db_dir: "{{ immich_app_dir }}/postgres"
+      immich_env_path: "{{ immich_app_dir }}/.env"
+      immich_compose_path: "{{ immich_app_dir }}/docker-compose.yml"
+      immich_compose_source: "https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml"
+      immich_version: release
+      immich_db_username: postgres
+      immich_db_name: immich
+      immich_db_password: admin

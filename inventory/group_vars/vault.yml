@@ -1,0 +1,9 @@
+# Encrypted variables for Proxmox cluster
+# Create this file using: ansible-vault create group_vars/vault.yml
+# Edit this file using: ansible-vault edit group_vars/vault.yml
+
+# Replace 'your-actual-password' with your real Proxmox root password
+vault_proxmox_password: "Admin123..."
+
+# Proxmox API credentials (if using API instead of SSH)
+vault_proxmox_api_password: "your-actual-password"

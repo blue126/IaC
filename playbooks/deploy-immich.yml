@@ -1,0 +1,215 @@
+# Playbook to provision an Immich VM, install Docker, and deploy the Immich stack.
+# Expected variable inputs (edit under inventory/vms/immich.yml for host immich-node):
+#   - immich_vm_*: VM ID, name, CPU, memory, IP/prefix, gateway, DNS, password
+#   - immich_app_dir derivatives: compose root, uploads, database, .env path
+#   - immich_version and DB credentials used when rendering the Immich .env file
+# Common cluster-level settings (inventory/group_vars/proxmox_cluster.yml):
+#   - proxmox_node_primary: node running qm commands
+#   - cloudinit_snippet_*: snippet storage path used to enable password auth
+
+- name: Provision Immich VM on Proxmox
+  hosts: proxmox_cluster
+  gather_facts: false
+  become: true
+  run_once: true
+  vars:
+    immich_vm_id: "{{ hostvars['immich-node'].immich_vm_id }}"
+    immich_vm_name: "{{ hostvars['immich-node'].immich_vm_name }}"
+    immich_vm_memory: "{{ hostvars['immich-node'].immich_vm_memory }}"
+    immich_vm_cores: "{{ hostvars['immich-node'].immich_vm_cores }}"
+    immich_vm_ip: "{{ hostvars['immich-node'].immich_vm_ip }}"
+    immich_vm_prefix: "{{ hostvars['immich-node'].immich_vm_prefix }}"
+    immich_vm_gateway: "{{ hostvars['immich-node'].immich_vm_gateway }}"
+    immich_vm_dns_servers: "{{ hostvars['immich-node'].immich_vm_dns_servers }}"
+    immich_vm_ip_with_prefix: "{{ immich_vm_ip }}/{{ immich_vm_prefix }}"
+    immich_vm_dns: "{{ immich_vm_dns_servers | join(' ') }}"
+  tasks:
+    - name: Check if Immich VM already exists
+      command: qm status {{ immich_vm_id }}
+      register: immich_vm_status
+      failed_when: false
+      changed_when: false
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Clone template for Immich VM
+      command: >-
+        qm clone {{ vm_template_id }} {{ immich_vm_id }}
+        --name {{ immich_vm_name }}
+        --full
+        --storage {{ hostvars[proxmox_node_primary].proxmox_storage }}
+      when: immich_vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Configure vCPU and memory for Immich VM
+      command: >-
+        qm set {{ immich_vm_id }}
+        --cores {{ immich_vm_cores }}
+        --memory {{ immich_vm_memory }}
+      when: immich_vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Configure cloud-init networking for Immich VM
+      command: >-
+        qm set {{ immich_vm_id }}
+        --ipconfig0 ip={{ immich_vm_ip_with_prefix }},gw={{ immich_vm_gateway }}
+        --nameserver "{{ immich_vm_dns }}"
+      when: immich_vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Configure cloud-init credentials for Immich VM
+      command: >-
+        qm set {{ immich_vm_id }}
+        --ciuser ubuntu
+        --cipassword ubuntu
+      when: immich_vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Attach shared cloud-init snippet for password auth
+      command: qm set {{ immich_vm_id }} --cicustom "user={{ cloudinit_snippet_storage }}"
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Ensure QEMU guest agent stays enabled
+      command: qm set {{ immich_vm_id }} --agent enabled=1
+      when: immich_vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Start Immich VM if it was just created
+      command: qm start {{ immich_vm_id }}
+      when: immich_vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Wait for Immich VM to report as running
+      command: qm status {{ immich_vm_id }}
+      register: immich_vm_running
+      retries: 10
+      delay: 6
+      until: "'status: running' in immich_vm_running.stdout"
+      changed_when: false
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Wait for SSH on Immich VM
+      wait_for:
+        host: "{{ immich_vm_ip }}"
+        port: 22
+        delay: 5
+        timeout: 300
+      delegate_to: localhost
+      become: false
+
+- name: Install Docker Engine on Immich VM
+  hosts: immich-node
+  become: true
+  tasks:
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        update_cache: true
+        state: present
+
+    - name: Add Docker GPG apt key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: Install Docker Engine packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        update_cache: true
+        state: present
+
+    - name: Ensure docker service is enabled and running
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add login user to docker group
+      user:
+        name: "{{ ansible_user | default('ubuntu') }}"
+        groups: docker
+        append: true
+
+    - name: Verify docker CLI availability
+      command: docker --version
+      register: docker_cli_version
+      changed_when: false
+
+    - name: Verify docker compose plugin availability
+      command: docker compose version
+      register: docker_compose_version
+      changed_when: false
+
+- name: Deploy Immich stack via Docker Compose
+  hosts: immich-node
+  become: true
+  vars:
+    immich_host_user: "{{ ansible_user | default('ubuntu') }}"
+  tasks:
+    - name: Ensure Immich application directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ immich_host_user }}"
+        group: "{{ immich_host_user }}"
+        mode: "0755"
+      loop:
+        - "{{ immich_app_dir }}"
+        - "{{ immich_upload_dir }}"
+        - "{{ immich_db_dir }}"
+
+    - name: Download official Immich docker-compose.yml
+      get_url:
+        url: "{{ immich_compose_source }}"
+        dest: "{{ immich_compose_path }}"
+        mode: "0644"
+        owner: "{{ immich_host_user }}"
+        group: "{{ immich_host_user }}"
+      register: immich_compose_file
+
+    - name: Render Immich environment configuration
+      template:
+        src: ../templates/immich/env.j2
+        dest: "{{ immich_env_path }}"
+        mode: "0640"
+        owner: "{{ immich_host_user }}"
+        group: "{{ immich_host_user }}"
+
+    - name: Pull Immich container images
+      command: docker compose pull
+      args:
+        chdir: "{{ immich_app_dir }}"
+      become_user: "{{ immich_host_user }}"
+
+    - name: Launch Immich stack
+      command: docker compose up -d
+      args:
+        chdir: "{{ immich_app_dir }}"
+      become_user: "{{ immich_host_user }}"
+
+    - name: Show Immich service status
+      command: docker compose ps
+      args:
+        chdir: "{{ immich_app_dir }}"
+      register: immich_compose_status
+      changed_when: false
+      become_user: "{{ immich_host_user }}"
+
+    - name: Display Immich services
+      debug:
+        var: immich_compose_status.stdout
