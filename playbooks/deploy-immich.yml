@@ -13,83 +13,81 @@
   become: true
   run_once: true
   vars:
-    immich_vm_id: "{{ hostvars['immich-node'].immich_vm_id }}"
-    immich_vm_name: "{{ hostvars['immich-node'].immich_vm_name }}"
-    immich_vm_memory: "{{ hostvars['immich-node'].immich_vm_memory }}"
-    immich_vm_cores: "{{ hostvars['immich-node'].immich_vm_cores }}"
-    immich_vm_ip: "{{ hostvars['immich-node'].immich_vm_ip }}"
-    immich_vm_prefix: "{{ hostvars['immich-node'].immich_vm_prefix }}"
-    immich_vm_gateway: "{{ hostvars['immich-node'].immich_vm_gateway }}"
-    immich_vm_dns_servers: "{{ hostvars['immich-node'].immich_vm_dns_servers }}"
-    immich_vm_ip_with_prefix: "{{ immich_vm_ip }}/{{ immich_vm_prefix }}"
-    immich_vm_dns: "{{ immich_vm_dns_servers | join(' ') }}"
+    vmid: "{{ hostvars['immich-node'].vmid }}"
+    vm_name: "{{ hostvars['immich-node'].hostname }}"
+    vm_cores: "{{ hostvars['immich-node'].cores }}"
+    vm_memory: "{{ hostvars['immich-node'].memory }}"
+    vm_ip: "{{ hostvars['immich-node'].ip }}"
+    vm_netmask: "{{ hostvars['immich-node'].netmask }}"
+    vm_ip_with_prefix: "{{ vm_ip }}/{{ vm_netmask }}"
+    vm_dns: "{{ vm_dns_servers | join(' ') }}"
   tasks:
     - name: Check if Immich VM already exists
-      command: qm status {{ immich_vm_id }}
-      register: immich_vm_status
+      command: qm status {{ vmid }}
+      register: vm_status
       failed_when: false
       changed_when: false
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Clone template for Immich VM
       command: >-
-        qm clone {{ vm_template_id }} {{ immich_vm_id }}
-        --name {{ immich_vm_name }}
+        qm clone {{ vm_template_id }} {{ vmid }}
+        --name {{ vm_name }}
         --full
         --storage {{ hostvars[proxmox_node_primary].proxmox_storage }}
-      when: immich_vm_status.rc != 0
+      when: vm_status.rc != 0
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Configure vCPU and memory for Immich VM
       command: >-
-        qm set {{ immich_vm_id }}
-        --cores {{ immich_vm_cores }}
-        --memory {{ immich_vm_memory }}
-      when: immich_vm_status.rc != 0
+        qm set {{ vmid }}
+        --cores {{ vm_cores }}
+        --memory {{ vm_memory }}
+      when: vm_status.rc != 0
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Configure cloud-init networking for Immich VM
       command: >-
-        qm set {{ immich_vm_id }}
-        --ipconfig0 ip={{ immich_vm_ip_with_prefix }},gw={{ immich_vm_gateway }}
-        --nameserver "{{ immich_vm_dns }}"
-      when: immich_vm_status.rc != 0
+        qm set {{ vmid }}
+        --ipconfig0 ip={{ vm_ip_with_prefix }},gw={{ vm_gateway }}
+        --nameserver "{{ vm_dns }}"
+      when: vm_status.rc != 0
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Configure cloud-init credentials for Immich VM
       command: >-
-        qm set {{ immich_vm_id }}
-        --ciuser ubuntu
-        --cipassword ubuntu
-      when: immich_vm_status.rc != 0
+        qm set {{ vmid }}
+        --ciuser {{ vm_ciuser }}
+        --cipassword {{ vm_cipassword }}
+      when: vm_status.rc != 0
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Attach shared cloud-init snippet for password auth
-      command: qm set {{ immich_vm_id }} --cicustom "user={{ cloudinit_snippet_storage }}"
-      delegate_to: "{{ proxmox_node_primary }}"
+      command: qm set {{ vmid }} --cicustom "user={{ cloudinit_snippet_storage }}"
+      when: vm_status.rc != 0
 
     - name: Ensure QEMU guest agent stays enabled
-      command: qm set {{ immich_vm_id }} --agent enabled=1
-      when: immich_vm_status.rc != 0
+      command: qm set {{ vmid }} --agent enabled=1
+      when: vm_status.rc != 0
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Start Immich VM if it was just created
-      command: qm start {{ immich_vm_id }}
-      when: immich_vm_status.rc != 0
+      command: qm start {{ vmid }}
+      when: vm_status.rc != 0
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Wait for Immich VM to report as running
-      command: qm status {{ immich_vm_id }}
-      register: immich_vm_running
+      command: qm status {{ vmid }}
+      register: vm_running
       retries: 10
       delay: 6
-      until: "'status: running' in immich_vm_running.stdout"
+      until: "'status: running' in vm_running.stdout"
       changed_when: false
       delegate_to: "{{ proxmox_node_primary }}"
 
     - name: Wait for SSH on Immich VM
       wait_for:
-        host: "{{ immich_vm_ip }}"
+        host: "{{ vm_ip }}"
         port: 22
         delay: 5
         timeout: 300

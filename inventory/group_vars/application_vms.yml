@@ -1,0 +1,23 @@
+# Common variables for all application VMs (Immich, Samba, etc.)
+# These settings are shared across VMs and can be overridden in host_vars if needed.
+
+# Ansible connection settings
+ansible_user: ubuntu
+ansible_ssh_pass: ubuntu
+ansible_become_password: ubuntu
+ansible_ssh_common_args: '-o PreferredAuthentications=password'
+
+# cloud-init configuration
+vm_ciuser: ubuntu
+vm_cipassword: ubuntu
+vm_ssh_pwauth: true
+
+# VM template and storage defaults
+vm_template_id: 9000
+vm_storage_pool: vmdata
+
+# Default network configuration
+vm_gateway: 192.168.1.1
+vm_dns_servers:
+  - 192.168.1.1
+vm_netmask: 24

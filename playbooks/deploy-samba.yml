@@ -1,0 +1,163 @@
+# Playbook to provision a Samba VM, install Samba, and configure file sharing.
+# Expected variable inputs (edit under inventory/vms/samba.yml for host samba-node):
+#   - vmid, hostname, ip, gateway, dns_servers, netmask
+#   - vm_cores, vm_memory, template_id
+#   - ciuser, cipassword, ssh_pwauth
+#   - samba_share_dir, samba_share_name, samba_guest_ok
+# Common cluster-level settings (inventory/group_vars/proxmox_cluster.yml):
+#   - proxmox_node_primary: node running qm commands
+#   - cloudinit_snippet_storage: snippet storage path used to enable password auth
+
+- name: Provision Samba VM on Proxmox
+  hosts: proxmox_cluster
+  gather_facts: false
+  become: true
+  run_once: true
+  vars:
+    vmid: "{{ hostvars['samba-node'].vmid }}"
+    vm_name: "{{ hostvars['samba-node'].hostname }}"
+    vm_cores: "{{ hostvars['samba-node'].cores }}"
+    vm_memory: "{{ hostvars['samba-node'].memory }}"
+    vm_ip: "{{ hostvars['samba-node'].ip }}"
+    vm_netmask: "{{ hostvars['samba-node'].netmask }}"
+    vm_ip_with_prefix: "{{ vm_ip }}/{{ vm_netmask }}"
+    vm_dns: "{{ vm_dns_servers | join(' ') }}"
+  tasks:
+    - name: Check if Samba VM already exists
+      command: qm status {{ vmid }}
+      register: vm_status
+      failed_when: false
+      changed_when: false
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Clone template for Samba VM
+      command: >-
+        qm clone {{ vm_template_id }} {{ vmid }}
+        --name {{ vm_name }}
+        --full
+        --storage {{ hostvars[proxmox_node_primary].proxmox_storage }}
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Configure vCPU and memory for Samba VM
+      command: >-
+        qm set {{ vmid }}
+        --cores {{ vm_cores }}
+        --memory {{ vm_memory }}
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Configure cloud-init networking for Samba VM
+      command: >-
+        qm set {{ vmid }}
+        --ipconfig0 ip={{ vm_ip_with_prefix }},gw={{ vm_gateway }}
+        --nameserver "{{ vm_dns }}"
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Configure cloud-init credentials for Samba VM
+      command: >-
+        qm set {{ vmid }}
+        --ciuser {{ vm_ciuser }}
+        --cipassword {{ vm_cipassword }}
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Attach shared cloud-init snippet for password auth
+      command: qm set {{ vmid }} --cicustom "user={{ cloudinit_snippet_storage }}"
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Ensure QEMU guest agent stays enabled
+      command: qm set {{ vmid }} --agent enabled=1
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Start Samba VM if it was just created
+      command: qm start {{ vmid }}
+      when: vm_status.rc != 0
+      delegate_to: "{{ proxmox_node_primary }}"
+
+    - name: Wait for VM to be ready
+      pause:
+        seconds: 30
+      when: vm_status.rc != 0
+
+- name: Initialize Samba VM system
+  hosts: samba
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Wait for SSH to be available
+      wait_for_connection:
+        timeout: 300
+        delay: 5
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install ACL package
+      apt:
+        name: acl
+        state: present
+
+- name: Deploy and configure Samba
+  hosts: samba
+  gather_facts: true
+  become: true
+  vars:
+    samba_share_dir: "{{ hostvars['samba-node'].samba_share_dir }}"
+    samba_share_name: "{{ hostvars['samba-node'].samba_share_name }}"
+    samba_guest_ok: "{{ hostvars['samba-node'].samba_guest_ok }}"
+    hostname: "{{ hostvars['samba-node'].hostname }}"
+  tasks:
+    - name: Install Samba packages
+      apt:
+        name:
+          - samba
+          - samba-common-bin
+        state: present
+
+    - name: Create Samba share directory
+      file:
+        path: "{{ samba_share_dir }}"
+        state: directory
+        mode: '0777'
+        owner: nobody
+        group: nogroup
+
+    - name: Backup original smb.conf
+      copy:
+        src: /etc/samba/smb.conf
+        dest: /etc/samba/smb.conf.bak
+        remote_src: yes
+        force: no
+
+    - name: Deploy custom smb.conf
+      template:
+        src: ../templates/samba/smb.conf.j2
+        dest: /etc/samba/smb.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart Samba
+
+    - name: Ensure Samba services are enabled and started
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - smbd
+        - nmbd
+
+  handlers:
+    - name: Restart Samba
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - smbd
+        - nmbd

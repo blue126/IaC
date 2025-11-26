@@ -3,21 +3,13 @@
 immich:
   hosts:
     immich-node:
-      ansible_host: 192.168.1.100
-      ansible_user: ubuntu
-      ansible_ssh_pass: ubuntu
-      ansible_become_password: ubuntu
-      ansible_ssh_common_args: '-o PreferredAuthentications=password'
-      immich_vm_id: 101
-      immich_vm_name: immich-node
-      immich_vm_memory: 8192
-      immich_vm_cores: 2
-      immich_vm_ip: 192.168.1.100
-      immich_vm_prefix: 24
-      immich_vm_gateway: 192.168.1.1
-      immich_vm_dns_servers:
-        - 192.168.1.1
-      immich_vm_password: ubuntu
+      ansible_host: 192.168.1.101
+      vmid: 101
+      hostname: immich
+      cores: 2
+      memory: 8192
+      ip: 192.168.1.101
+      netmask: 24
       immich_app_dir: /opt/immich
       immich_upload_dir: "{{ immich_app_dir }}/library"
       immich_db_dir: "{{ immich_app_dir }}/postgres"

@@ -1,0 +1,15 @@
+samba:
+  hosts:
+    samba-node:
+      ansible_host: 192.168.1.102
+      vmid: 102
+      hostname: samba
+      cores: 1
+      memory: 512
+      ip: 192.168.1.102
+      netmask: 24
+      disk_size: 64G
+      zvol_name: vm-102-disk-0
+      samba_share_dir: /root/samba
+      samba_share_name: sambashare
+      samba_guest_ok: yes
