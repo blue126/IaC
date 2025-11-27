@@ -10,6 +10,6 @@ samba:
       netmask: 24
       disk_size: 64G
       zvol_name: vm-102-disk-0
-      samba_share_dir: /root/samba
+      samba_share_dir: /home/ubuntu/samba
       samba_share_name: sambashare
       samba_guest_ok: yes

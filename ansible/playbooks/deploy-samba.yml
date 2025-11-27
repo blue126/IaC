@@ -125,8 +125,8 @@
         path: "{{ samba_share_dir }}"
         state: directory
         mode: '0777'
-        owner: nobody
-        group: nogroup
+        owner: ubuntu
+        group: ubuntu
 
     - name: Backup original smb.conf
       copy:
