@@ -15,7 +15,7 @@ vm_template_name: ubuntu-24.04-template
 vm_template_id: 9000
 vm_template_memory: 8192
 vm_template_cores: 2
-vm_template_disk_size: 50G
+vm_template_disk_size: 20G
 
 # Ubuntu cloud-init image settings
 # Update these values if you need to source a different Ubuntu cloud image.

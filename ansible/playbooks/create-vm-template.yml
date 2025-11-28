@@ -19,6 +19,22 @@
         timeout: 300
       when: not cloud_image_stat.stat.exists
 
+    - name: Install libguestfs-tools
+      apt:
+        name: libguestfs-tools
+        state: present
+        update_cache: yes
+
+    - name: Customize Ubuntu image (install agent, update grub, reset machine-id)
+      command: >
+        virt-customize -a /var/lib/vz/images/{{ ubuntu_cloud_image_file }}
+        --install qemu-guest-agent
+        --run-command "sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"quiet console=tty0 console=ttyS0,115200\"/' /etc/default/grub"
+        --run-command "update-grub"
+        --run-command "truncate -s 0 /etc/machine-id"
+      register: virt_customize_result
+      changed_when: "'Finishing off' in virt_customize_result.stdout"
+
     - name: Check if VM template already exists
       command: qm status {{ vm_template_id }}
       register: vm_exists
@@ -31,6 +47,9 @@
         --name {{ vm_template_name }}
         --memory {{ vm_template_memory }}
         --cores {{ vm_template_cores }}
+        --bios ovmf
+        --machine q35
+        --efidisk0 {{ proxmox_storage }}:0,efitype=4m
         --net0 virtio,bridge={{ proxmox_bridge }}
         --scsihw virtio-scsi-pci
         --scsi0 {{ proxmox_storage }}:0,import-from=/var/lib/vz/images/{{ ubuntu_cloud_image_file }}

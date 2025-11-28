@@ -21,12 +21,14 @@ terraform apply
 Define VM resources using the `proxmox-vm` module:
 
 ```hcl
-module "example_vm" {
+module "dev_vm" {
   source = "../modules/proxmox-vm"
   
-  vmid     = 103
-  hostname = "example"
-  cores    = 2
-  memory   = 2048
+  vm_name       = "dev-vm-01"
+  target_node   = "pve0"
+  cores         = 2
+  memory        = 2048
+  storage_pool  = "local-zfs"
+  cicustom_path = "user=local:snippets/cloud-init-ubuntu2404.yml"
 }
 ```

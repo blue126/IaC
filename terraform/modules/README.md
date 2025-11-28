@@ -7,8 +7,8 @@ Reusable Terraform modules for infrastructure components.
 ### `proxmox-vm/`
 Creates Proxmox VMs with standardized configurations.
 
-**Inputs**: vmid, hostname, cores, memory, disk, network  
-**Outputs**: vm_id, vm_ip
+**Inputs**: `vm_name`, `target_node`, `template_name`, `cores`, `memory`, `storage_pool`, `disk_size`, `network_bridge`, `cicustom_path`
+**Outputs**: `vm_id`, `default_ip`
 
 ### `network/`
 Manages network configurations (VLANs, subnets, routing).

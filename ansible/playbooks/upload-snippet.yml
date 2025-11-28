@@ -1,0 +1,17 @@
+---
+- name: Upload Cloud-Init Snippet
+  hosts: pve0
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Ensure snippets directory exists
+      file:
+        path: /var/lib/vz/snippets
+        state: directory
+        mode: '0755'
+
+    - name: Upload snippet
+      copy:
+        src: ../files/cloud-init-ubuntu.yml
+        dest: /var/lib/vz/snippets/cloud-init-ubuntu.yml
+        mode: '0640'

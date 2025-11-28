@@ -4,7 +4,7 @@ This directory contains Terraform configurations for infrastructure provisioning
 
 ## Directory Structure
 
-- **`proxmox/`** - Proxmox VE infrastructure definitions
+- **`proxmox/`** - Proxmox VE environment (calls `proxmox-vm` module)
 - **`esxi/`** - VMware ESXi infrastructure definitions (planned)
 - **`modules/`** - Reusable Terraform modules
   - `proxmox-vm/` - Proxmox VM creation module
