@@ -23,57 +23,27 @@
     version: "{{ netbox_git_version }}"
     force: yes
 
-
-
-- name: Create env directory
-  file:
-    path: "{{ netbox_install_dir }}/env"
-    state: directory
-    mode: '0755'
-
-- name: Create environment files
-  copy:
-    dest: "{{ netbox_install_dir }}/env/{{ item.file }}"
-    content: "{{ item.content }}"
-  loop:
-    - file: netbox.env
-      content: |
-        ALLOWED_HOSTS='*'
-        DB_HOST=postgres
-        DB_USER=netbox
-        DB_PASSWORD=netbox
-        REDIS_HOST=redis
-        REDIS_PASSWORD=netbox
-        REDIS_CACHE_HOST=redis-cache
-        REDIS_CACHE_PASSWORD=netbox
-    - file: postgres.env
-      content: |
-        POSTGRES_DB=netbox
-        POSTGRES_USER=netbox
-        POSTGRES_PASSWORD=netbox
-    - file: redis.env
-      content: |
-        REDIS_PASSWORD=netbox
-    - file: redis-cache.env
-      content: |
-        REDIS_PASSWORD=netbox
-
 - name: Create docker-compose.override.yml
   copy:
     dest: "{{ netbox_install_dir }}/docker-compose.override.yml"
     content: |
       services:
         netbox:
+          image: netboxcommunity/netbox:v4.1.11
+          user: "unit:root"
           ports:
             - "{{ netbox_port }}:8080"
-          healthcheck:
-            start_period: 300s
           environment:
-            - SECRET_KEY={{ lookup('password', 'credentials/netbox_secret.key length=50 chars=ascii_letters,digits') }}
             - SUPERUSER_NAME=admin
             - SUPERUSER_EMAIL=admin@example.com
             - SUPERUSER_PASSWORD=admin
             - SUPERUSER_API_TOKEN=0123456789abcdef0123456789abcdef01234567
+        netbox-worker:
+          image: netboxcommunity/netbox:v4.1.11
+          user: "unit:root"
+        netbox-housekeeping:
+          image: netboxcommunity/netbox:v4.1.11
+          user: "unit:root"
 
 - name: Pull Netbox images
   command: docker compose pull
