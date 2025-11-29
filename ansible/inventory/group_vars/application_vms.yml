@@ -5,7 +5,7 @@
 ansible_user: ubuntu
 ansible_ssh_pass: ubuntu
 ansible_become_password: ubuntu
-ansible_ssh_common_args: '-o PreferredAuthentications=password'
+#ansible_ssh_common_args: '-o PreferredAuthentications=password'
 
 # cloud-init configuration
 vm_ciuser: ubuntu

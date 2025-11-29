@@ -1,8 +1,10 @@
 .terraform/
+.terraform.lock.hcl
 *.tfstate
 *.tfstate.backup
-.venv/
-.agent/
+venv/
 __pycache__/
 *.pyc
 .DS_Store
+.env
+ansible/credentials/

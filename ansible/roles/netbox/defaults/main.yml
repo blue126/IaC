@@ -1,0 +1,5 @@
+---
+netbox_git_repo: "https://github.com/netbox-community/netbox-docker.git"
+netbox_git_version: "release"  # or a specific tag like "2.6.0"
+netbox_install_dir: "/opt/netbox-docker"
+netbox_port: 8000
