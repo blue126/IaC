@@ -1,7 +1,7 @@
 variable "netbox_url" {
   type        = string
   description = "The URL of the Netbox instance"
-  default     = "http://192.168.1.104:8000" # Netbox 的地址
+  default     = "http://192.168.1.104:8080" # Netbox 的地址
 }
 
 variable "netbox_token" {

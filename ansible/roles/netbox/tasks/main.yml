@@ -34,8 +34,9 @@
           ports:
             - "{{ netbox_port }}:8080"
           environment:
+            - SKIP_SUPERUSER=false
             - SUPERUSER_NAME=admin
-            - SUPERUSER_EMAIL=admin@example.com
+            - SUPERUSER_EMAIL=fanweiblue@gmail.com
             - SUPERUSER_PASSWORD=admin
             - SUPERUSER_API_TOKEN=0123456789abcdef0123456789abcdef01234567
         netbox-worker:
@@ -54,3 +55,16 @@
   command: docker compose up -d
   args:
     chdir: "{{ netbox_install_dir }}"
+  async: 600
+  poll: 10
+
+- name: Wait for Netbox to become healthy
+  shell: docker compose ps | grep netbox | grep healthy
+  args:
+    chdir: "{{ netbox_install_dir }}"
+  register: compose_status
+  until: compose_status.rc == 0
+  retries: 60
+  delay: 10
+  changed_when: false
+

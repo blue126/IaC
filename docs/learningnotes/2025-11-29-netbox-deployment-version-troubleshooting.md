@@ -217,3 +217,31 @@ curl -s http://192.168.1.104:8080/login/ | grep -o '<title>.*</title>'
 - [ ] 使用 Terraform 向 Netbox 添加基础设施资源
 - [ ] 集成 LDAP/SSO 认证
 - [ ] 配置自动备份脚本
+
+## 8. Ansible 异步任务与超时处理 (Async & Poll)
+
+### 8.1 问题现象
+在执行 `docker compose up -d` 时，Ansible 任务超时失败，尽管命令最终在后台成功执行。
+
+### 8.2 原因分析
+- **依赖等待**: `netbox-worker` 服务配置了 `depends_on: netbox (condition: service_healthy)`。
+- **数据库迁移**: Netbox 首次启动需执行数据库迁移，耗时数分钟，在此期间状态为 `unhealthy`。
+- **阻塞机制**: `docker compose up -d` 会等待所有服务依赖满足并启动后才退出。因此，它会阻塞直到 Netbox 迁移完成且变健康。
+- **SSH/连接超时**: 如果阻塞时间超过 Ansible 或 SSH 的默认超时设置，任务会被判定失败。
+
+### 8.3 解决方案：使用 `async` 和 `poll`
+在 Ansible 任务中添加异步控制参数：
+
+```yaml
+- name: Start Netbox
+  command: docker compose up -d
+  args:
+    chdir: "{{ netbox_install_dir }}"
+  async: 600  # 最大允许运行时间（秒），这里设为 10 分钟
+  poll: 10    # 轮询检查频率（秒），每 10 秒检查一次任务状态
+```
+
+- **async**: 指定任务的最大运行时间。如果超过这个时间任务还没完成，Ansible 会将其标记为失败。这允许任务运行时间超过 SSH 会话的超时限制。
+- **poll**: 指定 Ansible 检查任务状态的频率。
+  - `poll > 0`: Ansible 会阻塞并定期检查，直到任务完成或超时（这是我们需要的行为）。
+  - `poll: 0`: "Fire and forget" 模式，Ansible 启动任务后立即继续执行后续任务，不等待结果（不适用于此场景，因为我们需要确认服务启动成功）。
