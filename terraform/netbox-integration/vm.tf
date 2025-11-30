@@ -2,7 +2,7 @@
 
 # Netbox VM
 resource "netbox_virtual_machine" "netbox" {
-  name         = "netbox-01"
+  name         = "netbox"
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   vcpus        = 2        # 来源: terraform/proxmox/netbox.tf cores=2
