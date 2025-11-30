@@ -10,3 +10,91 @@
   become: true
   roles:
     - samba
+
+- name: Verify Samba Deployment
+  hosts: samba
+  become: true
+  tags: [verify]
+  tasks:
+    # Wait for SMB port to be listening
+    - name: Wait for SMB port to be ready
+      wait_for:
+        port: 445
+        timeout: 30
+      register: smb_port_result
+
+    # Wait for NetBIOS port
+    - name: Wait for NetBIOS port to be ready
+      wait_for:
+        port: 139
+        timeout: 30
+      register: netbios_port_result
+
+    # Check smbd service status
+    - name: Check smbd service status
+      systemd:
+        name: smbd
+      register: smbd_status
+
+    # Check nmbd service status
+    - name: Check nmbd service status
+      systemd:
+        name: nmbd
+      register: nmbd_status
+
+    # Assert both services are running
+    - name: Assert Samba services are running
+      assert:
+        that:
+          - smbd_status.status.ActiveState == "active"
+          - smbd_status.status.SubState == "running"
+          - nmbd_status.status.ActiveState == "active"
+          - nmbd_status.status.SubState == "running"
+        fail_msg: "❌ One or more Samba services are not running properly"
+        success_msg: "✅ All Samba services (smbd, nmbd) are active and running"
+
+    # Verify share directory exists
+    - name: Check share directory
+      stat:
+        path: "{{ samba_share_dir }}"
+      register: share_dir_stat
+
+    - name: Assert share directory exists
+      assert:
+        that:
+          - share_dir_stat.stat.exists
+          - share_dir_stat.stat.isdir
+        fail_msg: "❌ Samba share directory does not exist: {{ samba_share_dir }}"
+        success_msg: "✅ Samba share directory exists: {{ samba_share_dir }}"
+
+    # Test smbclient connectivity (list shares)
+    - name: Test Samba share listing
+      shell: smbclient -L localhost -N
+      register: smbclient_result
+      changed_when: false
+      failed_when: false
+
+    - name: Verify share is listed
+      assert:
+        that:
+          - smbclient_result.rc == 0
+          - samba_share_name in smbclient_result.stdout
+        fail_msg: "❌ Samba share '{{ samba_share_name }}' not accessible"
+        success_msg: "✅ Samba share '{{ samba_share_name }}' is accessible"
+
+    # Display deployment summary
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Samba Deployment Successful"
+          - "========================================="
+          - "smbd Status: {{ smbd_status.status.ActiveState }}"
+          - "nmbd Status: {{ nmbd_status.status.ActiveState }}"
+          - "SMB Port (445): {{ 'Listening' if smb_port_result is success else 'Not ready' }}"
+          - "NetBIOS Port (139): {{ 'Listening' if netbios_port_result is success else 'Not ready' }}"
+          - "Share Name: {{ samba_share_name }}"
+          - "Share Path: {{ samba_share_dir }}"
+          - "Server: {{ ansible_host }}"
+          - "Access: smb://{{ ansible_host }}/{{ samba_share_name }}"
+          - "========================================="

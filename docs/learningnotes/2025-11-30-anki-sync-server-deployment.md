@@ -163,27 +163,145 @@ WantedBy=multi-user.target  # Auto-start on boot
 
 ---
 
-## Part 5: Security & User Management
+## Part 5: Automated Deployment Verification
 
-### Three Types of "Users" in This System
+### Why Add Verification Steps?
 
-| Type | Purpose | Example | Can Login? |
-|------|---------|---------|------------|
-| **System User** | Run service process | `anki` | ❌ No (`nologin` shell) |
-| **SSH User** | Ansible connection | `root` | ✅ Yes |
-| **Sync User** | Anki app authentication | `ankiuser` | N/A (app-level) |
+**Benefits of automated verification**:
+- ✅ Catch deployment failures immediately
+- ✅ Validate service is actually working (not just "deployed")
+- ✅ Provide clear success/failure feedback
+- ✅ Enable CI/CD integration (automated testing)
+- ✅ Document expected service behavior
 
-**Why create dedicated system user?**
+### Implementation Pattern
+
+We added a second play in `deploy-anki.yml` dedicated to verification:
+
+```yaml
+- name: Deploy Anki Sync Server
+  hosts: anki
+  roles:
+    - anki-sync-server
+
+- name: Verify Anki Sync Server Deployment
+  hosts: anki
+  tags: [verify]
+  tasks:
+    # Wait for service to start
+    - name: Wait for service to be ready
+      wait_for:
+        port: 8080
+        timeout: 30
+    
+    # Check systemd status
+    - name: Check service status
+      systemd:
+        name: anki-sync-server
+      register: service_status
+    
+    # Assert expected state
+    - name: Assert service is running
+      assert:
+        that:
+          - service_status.status.ActiveState == "active"
+          - service_status.status.SubState == "running"
+    
+    # Test HTTP connectivity
+    - name: Test HTTP endpoint
+      uri:
+        url: "http://localhost:8080/"
+        status_code: [200, 404, 405]
 ```
-root runs service  → Compromised service = full system control
-anki runs service  → Compromised service = limited to /opt/anki-syncserver/
+
+### Key Ansible Modules for Verification
+
+| Module | Purpose | Example |
+|--------|---------|---------|
+| `wait_for` | Wait for port/file to be ready | Wait for port 8080 to listen |
+| `systemd` | Query service status | Check if service is active |
+| `assert` | Enforce conditions | Fail if service not running |
+| `uri` | Test HTTP endpoints | Verify web service responds |
+| `stat` | Check file/directory | Verify config file exists |
+
+### Running Verification
+
+```bash
+# Full deployment + verification
+ansible-playbook playbooks/deploy-anki.yml
+
+# Only run verification (skip deployment)
+ansible-playbook playbooks/deploy-anki.yml --tags verify
 ```
 
-This is the **principle of least privilege**.
+**Use case for `--tags verify`**:
+- After manual fixes on the server
+- Periodic health checks
+- Troubleshooting without redeploying
+
+### Verification Output Example
+
+```
+TASK [Assert service is running] ***********************
+ok: [anki-node] => {
+    "changed": false,
+    "msg": "✅ Anki Sync Server is active and running"
+}
+
+TASK [Display deployment summary] **********************
+ok: [anki-node] => {
+    "msg": [
+        "=========================================",
+        "✅ Anki Sync Server Deployment Successful",
+        "=========================================",
+        "Service Status: active",
+        "Listening Port: 8080",
+        "Server URL: http://192.168.1.100:8080",
+        "HTTP Response: 404",
+        "========================================="
+    ]
+}
+```
 
 ---
 
-## Part 6: Deployment Flow
+## Part 6: Security & User Management (Homelab Simplified)
+
+### Initial Design vs Final Implementation
+
+**Originally planned** (production best practice):
+- Create dedicated `anki` system user
+- Run service as `anki` (not root)
+- Use `become_user` to switch users
+
+**Problem encountered**:
+```bash
+FAILED! => {"msg": "MODULE FAILURE: /bin/sh: 1: sudo: not found"}
+```
+
+**Root cause**: Debian LXC minimal install doesn't include `sudo` by default.
+
+**Solutions considered**:
+1. Install sudo: `apt install sudo`
+2. Simplify for homelab: Use root directly
+
+**Final decision**: Use root for homelab simplicity
+- ✅ LXC already provides isolation
+- ✅ No external network exposure
+- ✅ Reduces complexity for learning environment
+- ⚠️ Production would use dedicated user + sudo
+
+### Final User Configuration
+
+| Type | Purpose | Example | Notes |
+|------|---------|---------|-------|
+| **SSH User** | Ansible connection | `root` | Direct access to LXC |
+| **Service User** | Run process | `root` | Simplified for homelab |
+| **Sync User** | App authentication | `anki:anki` | Application-level credential |
+
+---
+
+## Part 7: Deployment Flow
 
 ### Step-by-Step Execution
 ```bash
@@ -193,13 +311,13 @@ ansible-playbook playbooks/deploy-anki.yml
 
 ### What Happens Internally
 1. **Install dependencies**: python3, venv, pip
-2. **Create system user**: `anki` (no login)
-3. **Create directory**: `/opt/anki-syncserver/` (owned by `anki`)
-4. **Create venv**: `python3 -m venv /opt/anki-syncserver/venv`
-5. **Install anki**: `pip install anki` in venv
-6. **Deploy service**: Render template → `/etc/systemd/system/`
-7. **Enable & start**: `systemctl enable --now anki-sync-server`
-8. **Handler (if config changed)**: Restart service
+2. **Create directory**: `/opt/anki-syncserver/` (owned by root for homelab)
+3. **Create venv**: `python3 -m venv /opt/anki-syncserver/venv`
+4. **Install anki**: `pip install anki` in venv
+5. **Deploy service**: Render template → `/etc/systemd/system/anki-sync-server.service`
+6. **Enable & start**: `systemctl enable --now anki-sync-server`
+7. **Handler (if config changed)**: Restart service
+8. **Verify deployment**: Wait for port, check status, test HTTP, display summary
 
 ### Verification Commands
 ```bash
@@ -215,7 +333,7 @@ ansible anki -m shell -a "journalctl -u anki-sync-server -n 50"
 
 ---
 
-## Part 7: Client Configuration
+## Part 8: Client Configuration
 
 ### Anki Desktop Settings
 1. Tools → Preferences → Syncing
@@ -230,7 +348,7 @@ ansible anki -m shell -a "journalctl -u anki-sync-server -n 50"
 
 ---
 
-## Lessons Learned
+## Part 9: Lessons Learned
 
 ### 1. **Follow Official Documentation**
 - Initially considered building from source
@@ -247,14 +365,27 @@ ansible anki -m shell -a "journalctl -u anki-sync-server -n 50"
 - Inventory overrides for actual values
 - Secrets management (considered ansible-vault for future)
 
-### 4. **Idempotency**
+### 4. **Idempotency & Verification**
 - Handlers ensure services only restart when needed
 - `creates` parameter in commands prevents re-execution
 - Ansible's declarative nature enables safe re-runs
+- **Automated verification catches deployment issues immediately**
+
+### 5. **Port Discovery**
+- Initially configured port 27701 (based on assumption)
+- Discovered Anki Sync Server defaults to 8080 (from logs)
+- Lesson: Always verify actual service behavior, not just configuration
+- Updated all references (inventory, templates, docs) to 8080
+
+### 6. **Homelab vs Production Trade-offs**
+- Skipped dedicated system user (would need sudo in LXC)
+- Run as root for simplicity in isolated homelab environment
+- Documented the trade-off in learning notes
+- Production deployment would use proper user isolation
 
 ---
 
-## Troubleshooting Reference
+## Part 10: Troubleshooting Reference
 
 ### Service won't start
 ```bash
@@ -273,8 +404,20 @@ ss -tlnp | grep 8080
 # Verify directory ownership
 ls -ld /opt/anki-syncserver/
 
-# Should be: drwxr-xr-x anki anki
+# Should be: drwxr-xr-x root root (in homelab setup)
 ```
+
+### sudo not found error
+```
+MODULE FAILURE: /bin/sh: 1: sudo: not found
+```
+
+**Solution options**:
+1. Install sudo: `ansible anki -m raw -a "apt install -y sudo" -u root`
+2. Use root directly (homelab): Remove `become_user` directives
+3. Use `su` command: `shell: su - user -c "command"`
+
+We chose option 2 for simplicity.
 
 ### Can't connect from client
 ```bash
@@ -288,16 +431,17 @@ iptables -L -n
 
 ---
 
-## Next Steps
+## Part 11: Next Steps
 
 1. **SSL/TLS**: Add reverse proxy (nginx) with Let's Encrypt
 2. **Backup**: Automate backup of `/opt/anki-syncserver/` data
 3. **Monitoring**: Add health checks and alerting
 4. **Multiple users**: Test with additional `SYNC_USER2`, `SYNC_USER3`
+5. **Apply verification pattern to other services**: Add similar verification to Samba, Immich, Netbox playbooks
 
 ---
 
-## References
+## Part 12: References
 
 - [Anki Sync Server Official Docs](https://docs.ankiweb.net/sync-server.html)
 - [Ansible Best Practices](https://docs.ansible.com/ansible/latest/user_guide/playbooks_best_practices.html)
