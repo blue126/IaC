@@ -37,31 +37,60 @@
 - security: user + map to guest = Bad User（允许匿名访问）
 - 共享段落：path, browseable, writable, guest ok, create mask 0777
 
-### 3. 创建部署 Playbook
+### 3. Terraform 创建 VM（取代原先 Ansible VM 创建）
+**文件**: `terraform/proxmox/samba.tf`
+
+当前 VM 由 Terraform 模块 `modules/proxmox-vm` 管理，而不再通过 Ansible Play 克隆模板。模块参数（节选）：
+```hcl
+module "samba" {
+  source      = "../modules/proxmox-vm"
+  vm_name     = "samba"
+  target_node = "pve0"
+  vmid        = 102
+  cores       = 1
+  memory      = 512
+  disk_size   = "50G"
+  bios        = "ovmf"
+  machine     = "q35"
+  cicustom    = "user=local:snippets/ubuntu-password.yml"  # Cloud-Init user snippet
+  ip_address  = "ip=192.168.1.102/24,gw=192.168.1.1"
+  storage_pool = var.storage_pool
+  sshkeys       = var.sshkeys
+}
+```
+
+执行示例：
+```bash
+cd terraform/proxmox
+terraform plan -target=module.samba
+terraform apply -target=module.samba
+```
+
+变更要点：
+- VM 生命周期（创建/规格更新/删除）统一交给 Terraform；Ansible 仅负责操作系统与应用配置。
+- 磁盘大小现在在代码中为 50G（原文档未列出，已补充），与 NetBox 映射时需换算为 51200MB。
+- Cloud-Init 参数（用户/密码/IP）通过模块变量传入，不再在 Ansible 层克隆时指定。
+- 模块输出 `samba_ip` 可用于后续动态引用（如后期生成 inventory）。
+
+### 4. 创建部署 Playbook（软件与共享配置）
 **文件**: `playbooks/deploy-samba.yml`
 
-三段式架构：
-- **Play 1 - Proxmox VM 创建**:
-  - 克隆模板（vm_template_id: 9000，从 group_vars 读取）
-  - 配置 CPU/内存（1核/512MB）
-  - 配置 cloud-init 网络（静态 IP 192.168.1.102）
-  - 配置 cloud-init 认证（vm_ciuser/vm_cipassword，从 group_vars 读取）
-  - 挂载 cloud-init snippet
-  - 启动 VM
-
-- **Play 2 - 系统初始化**:
+阶段划分（现行架构）：
+- **阶段 1 - VM 已由 Terraform 提前创建**（不在本 playbook 内执行）。
+- **阶段 2 - 系统初始化**:
   - 等待 SSH 可达
   - 更新 apt 缓存
   - 安装 acl（Ansible become 依赖）
-
-- **Play 3 - Samba 部署**:
+- **阶段 3 - Samba 部署**:
   - 安装 samba 和 samba-common-bin
   - 创建共享目录 /root/samba（777 权限，nobody:nogroup）
   - 备份原始 smb.conf
   - 部署自定义 smb.conf
   - 启动并启用 smbd/nmbd 服务
 
-### 4. cloud-init snippet 版本控制
+对比旧版：删除了“Play 1”中通过 Ansible 克隆模板与设定资源的流程，避免与 Terraform 产生漂移或重复控制。
+
+### 5. cloud-init snippet 版本控制
 **文件**: `files/cloud-init/ubuntu-password.yml`
 
 将 Proxmox 上的 cloud-init snippet 拉取到代码库，便于版本管理和跨环境复用。
@@ -79,7 +108,7 @@
 - 为 immich.yml 添加 `template_id: 9000`
 - 修改 deploy-immich.yml，将 `{{ vm_template_id }}` 改为 `{{ template_id }}`，从 hostvars 读取
 
-**最终解决**（重构后）:
+**最终解决**（重构后）：
 - 将 `template_id` 统一为 `vm_template_id`，提取到 `group_vars/application_vms.yml`
 - 所有 VM 配置变量标准化：vmid, hostname, cores, memory, ip, netmask
 - 共同配置（认证、网络、模板）统一管理在 group_vars
@@ -359,4 +388,6 @@ git push origin master
 
 ---
 
-**总结**: 通过 IaC 方式成功实现 Samba Server 自动化部署，复用了 Immich VM 的模板克隆、cloud-init 配置等机制。主要难点在认证配置对齐和权限调整，已全部解决并总结为最佳实践。
+## 九、经验总结
+
+通过 IaC 方式成功实现 Samba Server 自动化部署，复用了 Immich VM 的模板克隆、cloud-init 配置等机制。主要难点在认证配置对齐和权限调整，已全部解决并总结为最佳实践。

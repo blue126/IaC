@@ -9,4 +9,8 @@ Project documentation and guides.
 
 ## Documents
 
-- [Samba VM Deployment](SAMBA_VM_DEPLOYMENT.md) - Complete guide with troubleshooting
+### Deployment Guides
+- [Netbox Deployment](deployment/netbox_deployment.md) - NetBox app + provider usage
+- [Proxmox VM Provisioning](deployment/proxmox_vm_deployment.md) - Terraform VM modules & Cloud-Init
+- [Samba File Server](deployment/SAMBA_VM_DEPLOYMENT.md) - SMB/NetBIOS 配置与匿名共享
+- [Immich Deployment](deployment/immich_deployment.md) - 照片与 ML 分析服务栈

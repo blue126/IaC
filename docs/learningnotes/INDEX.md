@@ -6,6 +6,15 @@ This directory contains learning notes and troubleshooting logs for the Infrastr
 
 ### 2025-11-30
 
+- **[LXC 与 VM 网络桥接拓扑学习笔记](./2025-11-30-lxc-vm-network-bridge.md)**
+  - **Tags**: Linux Bridge, LXC, VM Networking, Netbox, Cable Modeling
+  - **Summary**: Explains how VMs and LXC containers attach to vmbr1 using veth/tap, validates bridge mode vs port mapping, and documents NetBox modeling with interfaces and cables.
+
+- **[Ansible 部署验证模式与 Immich 模块化重构](./2025-11-30-ansible-deployment-verification.md)**
+  - **Tags**: Ansible, Verification, Health Checks, Immich, Service Patterns
+  - **Summary**: Patterns for post-deployment verification (ports, services, HTTP, DB) and refactoring Immich into a reusable role structure.
+
+
 - **[Terraform Proxmox Provider Crash & Versioning](./2025-11-30-terraform-proxmox-provider-crash.md)**
   - **Tags**: Terraform, Proxmox, Provider, Versioning, Troubleshooting
   - **Summary**: Troubleshooting a crash with the Terraform Proxmox provider, focusing on version compatibility issues and resolution strategies.
