@@ -1,0 +1,70 @@
+---
+# Playbook to deploy Anki Sync Server
+# Configuration is now handled by Ansible.
+#
+# Expected variable inputs (inventory/pve-lxc/anki.yml):
+#   - anki_port (default: 8080)
+#   - anki_sync_users (list of "username:password" strings)
+
+- name: Deploy Anki Sync Server
+  hosts: anki
+  gather_facts: true
+  become: true
+  roles:
+    - anki-sync-server
+
+- name: Verify Anki Sync Server Deployment
+  hosts: anki
+  gather_facts: false
+  become: true
+  tags:
+    - verify  # Allow running only verification with --tags verify
+  vars:
+    # Read anki_port from inventory, default to 8080 if not defined
+    anki_port: "{{ hostvars[inventory_hostname].anki_port | default(8080) }}"
+  tasks:
+    # Wait up to 30 seconds for the service to start listening on the port
+    - name: Wait for service to be ready
+      wait_for:
+        port: "{{ anki_port }}"      # Port number to check
+        host: 0.0.0.0                # Listen on all interfaces
+        delay: 2                     # Wait 2 seconds before first check
+        timeout: 30                  # Fail if not ready within 30 seconds
+      
+    # Query systemd for service status information
+    - name: Check service status
+      systemd:
+        name: anki-sync-server
+      register: service_status       # Store result in variable for later use
+      
+    # Verify service is in the correct state, fail if not
+    - name: Assert service is running
+      assert:
+        that:
+          # Both conditions must be true
+          - service_status.status.ActiveState == "active"    # Service is enabled
+          - service_status.status.SubState == "running"      # Process is actually running
+        fail_msg: "❌ Anki Sync Server is not running correctly"
+        success_msg: "✅ Anki Sync Server is active and running"
+    
+    # Try to connect to HTTP endpoint to verify it's responding
+    - name: Test HTTP endpoint accessibility
+      uri:
+        url: "http://localhost:{{ anki_port }}/"
+        timeout: 5
+        status_code: [200, 404, 405]  # Accept these codes (Anki may return 404/405 for root path)
+      register: http_test
+      failed_when: false              # Don't fail task even if HTTP check fails
+    
+    # Print summary of deployment status
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Anki Sync Server Deployment Successful"
+          - "========================================="
+          - "Service Status: {{ service_status.status.ActiveState }}"
+          - "Listening Port: {{ anki_port }}"
+          - "Server URL: http://{{ ansible_host }}:{{ anki_port }}"
+          - "HTTP Response: {{ http_test.status | default('N/A') }}"
+          - "========================================="

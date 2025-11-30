@@ -1,0 +1,45 @@
+---
+# Tasks for deploying Anki Sync Server using pip method
+- name: Install Python3 and venv
+  apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+    state: present
+    update_cache: yes
+
+- name: Create install directory
+  file:
+    path: "{{ anki_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create Python virtual environment
+  command:
+    cmd: python3 -m venv {{ anki_venv_path }}
+    creates: "{{ anki_venv_path }}/bin/python"
+
+- name: Install anki package via pip
+  pip:
+    name: anki
+    virtualenv: "{{ anki_venv_path }}"
+    state: present
+
+- name: Deploy systemd service file
+  template:
+    src: anki-sync-server.service.j2
+    dest: /etc/systemd/system/anki-sync-server.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart anki-sync-server
+
+- name: Enable and start anki-sync-server service
+  systemd:
+    name: anki-sync-server
+    enabled: yes
+    state: started
+    daemon_reload: yes
