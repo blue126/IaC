@@ -1,0 +1,8 @@
+---
+# Handlers for Immich role
+
+- name: Restart Immich stack
+  command: docker compose up -d --force-recreate
+  args:
+    chdir: "{{ immich_app_dir }}"
+  become_user: "{{ immich_host_user }}"

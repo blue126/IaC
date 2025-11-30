@@ -1,0 +1,48 @@
+---
+# Main tasks for deploying Immich
+
+- name: Ensure Immich application directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ immich_host_user }}"
+    group: "{{ immich_host_user }}"
+    mode: "0755"
+  loop:
+    - "{{ immich_app_dir }}"
+    - "{{ immich_upload_dir }}"
+    - "{{ immich_db_dir }}"
+
+- name: Download official Immich docker-compose.yml
+  get_url:
+    url: "{{ immich_compose_source }}"
+    dest: "{{ immich_compose_path }}"
+    mode: "0644"
+    owner: "{{ immich_host_user }}"
+    group: "{{ immich_host_user }}"
+  register: immich_compose_file
+
+- name: Render Immich environment configuration
+  template:
+    src: env.j2
+    dest: "{{ immich_env_path }}"
+    mode: "0640"
+    owner: "{{ immich_host_user }}"
+    group: "{{ immich_host_user }}"
+  notify: Restart Immich stack
+
+- name: Pull Immich container images
+  command: docker compose pull
+  args:
+    chdir: "{{ immich_app_dir }}"
+  become_user: "{{ immich_host_user }}"
+  register: pull_result
+  changed_when: "'Pulling' in pull_result.stderr or 'Downloaded' in pull_result.stderr"
+
+- name: Launch Immich stack
+  command: docker compose up -d
+  args:
+    chdir: "{{ immich_app_dir }}"
+  become_user: "{{ immich_host_user }}"
+  register: compose_up_result
+  changed_when: "'Started' in compose_up_result.stderr or 'Created' in compose_up_result.stderr"

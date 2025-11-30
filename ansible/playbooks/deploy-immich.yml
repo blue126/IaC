@@ -5,120 +5,115 @@
 #   - immich_app_dir derivatives: compose root, uploads, database, .env path
 #   - immich_version and DB credentials used when rendering the Immich .env file
 
-- name: Install Docker Engine on Immich VM
+- name: Deploy Immich Service
   hosts: immich-node
   become: true
-  tasks:
-    - name: Install prerequisite packages
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-        update_cache: true
-        state: present
+  roles:
+    - docker
+    - immich
 
-    - name: Add Docker GPG apt key
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
-
-    - name: Add Docker apt repository
-      apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-        filename: docker
-        state: present
-
-    - name: Install Docker Engine packages
-      apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
-        update_cache: true
-        state: present
-
-    - name: Ensure docker service is enabled and running
-      service:
-        name: docker
-        state: started
-        enabled: true
-
-    - name: Add login user to docker group
-      user:
-        name: "{{ ansible_user | default('ubuntu') }}"
-        groups: docker
-        append: true
-
-    - name: Verify docker CLI availability
-      command: docker --version
-      register: docker_cli_version
-      changed_when: false
-
-    - name: Verify docker compose plugin availability
-      command: docker compose version
-      register: docker_compose_version
-      changed_when: false
-
-- name: Deploy Immich stack via Docker Compose
+- name: Verify Immich Deployment
   hosts: immich-node
   become: true
+  tags: [verify]
   vars:
     immich_host_user: "{{ ansible_user | default('ubuntu') }}"
   tasks:
-    - name: Ensure Immich application directories exist
-      file:
-        path: "{{ item }}"
-        state: directory
-        owner: "{{ immich_host_user }}"
-        group: "{{ immich_host_user }}"
-        mode: "0755"
-      loop:
-        - "{{ immich_app_dir }}"
-        - "{{ immich_upload_dir }}"
-        - "{{ immich_db_dir }}"
+    # Wait for Immich web server port
+    - name: Wait for Immich web server to be ready
+      wait_for:
+        port: 2283
+        timeout: 60
+      register: immich_port_result
 
-    - name: Download official Immich docker-compose.yml
-      get_url:
-        url: "{{ immich_compose_source }}"
-        dest: "{{ immich_compose_path }}"
-        mode: "0644"
-        owner: "{{ immich_host_user }}"
-        group: "{{ immich_host_user }}"
-      register: immich_compose_file
+    # Check Docker service status
+    - name: Check Docker service status
+      systemd:
+        name: docker
+      register: docker_status
 
-    - name: Render Immich environment configuration
-      template:
-        src: ../templates/immich/env.j2
-        dest: "{{ immich_env_path }}"
-        mode: "0640"
-        owner: "{{ immich_host_user }}"
-        group: "{{ immich_host_user }}"
+    - name: Assert Docker service is running
+      assert:
+        that:
+          - docker_status.status.ActiveState == "active"
+          - docker_status.status.SubState == "running"
+        fail_msg: "❌ Docker service is not running"
+        success_msg: "✅ Docker service is active and running"
 
-    - name: Pull Immich container images
-      command: docker compose pull
-      args:
-        chdir: "{{ immich_app_dir }}"
-      become_user: "{{ immich_host_user }}"
-
-    - name: Launch Immich stack
-      command: docker compose up -d
-      args:
-        chdir: "{{ immich_app_dir }}"
-      become_user: "{{ immich_host_user }}"
-
-    - name: Show Immich service status
+    # Get Docker Compose services status
+    - name: Get Immich containers status
       command: docker compose ps
       args:
         chdir: "{{ immich_app_dir }}"
-      register: immich_compose_status
-      changed_when: false
       become_user: "{{ immich_host_user }}"
+      register: compose_ps_result
+      changed_when: false
 
-    - name: Display Immich services
+    # Check for running containers
+    - name: Count running containers
+      shell: docker compose ps --status running | grep -c "Up" || true
+      args:
+        chdir: "{{ immich_app_dir }}"
+      become_user: "{{ immich_host_user }}"
+      register: running_count
+      changed_when: false
+
+    - name: Assert containers are running
+      assert:
+        that:
+          - running_count.stdout | int > 0
+        fail_msg: "❌ No Immich containers are running"
+        success_msg: "✅ Immich containers are running ({{ running_count.stdout }} found)"
+
+    # Test HTTP endpoint
+    - name: Test Immich web interface
+      uri:
+        url: "http://localhost:2283"
+        method: GET
+        status_code: [200, 302, 301]
+        timeout: 10
+      register: immich_http_result
+
+    - name: Assert Immich web interface is accessible
+      assert:
+        that:
+          - immich_http_result.status in [200, 301, 302]
+        fail_msg: "❌ Immich web interface not accessible"
+        success_msg: "✅ Immich web interface is accessible (HTTP {{ immich_http_result.status }})"
+
+    # Check database connectivity (via immich-server container)
+    - name: Test database connectivity
+      command: >
+        docker compose exec -T immich-server 
+        sh -c 'pg_isready -h immich_postgres -U {{ immich_db_username }}'
+      args:
+        chdir: "{{ immich_app_dir }}"
+      become_user: "{{ immich_host_user }}"
+      register: db_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert database is accessible
+      assert:
+        that:
+          - db_check.rc == 0
+          - "'accepting connections' in db_check.stdout"
+        fail_msg: "❌ PostgreSQL database is not accessible"
+        success_msg: "✅ PostgreSQL database is accepting connections"
+
+    # Display deployment summary
+    - name: Display deployment summary
       debug:
-        var: immich_compose_status.stdout
+        msg:
+          - "========================================="
+          - "✅ Immich Deployment Successful"
+          - "========================================="
+          - "Docker Status: {{ docker_status.status.ActiveState }}"
+          - "Containers Running: {{ running_count.stdout }}"
+          - "Web Server Port (2283): {{ 'Listening' if immich_port_result is success else 'Not ready' }}"
+          - "HTTP Status: {{ immich_http_result.status }}"
+          - "Database: {{ 'Connected' if db_check.rc == 0 else 'Not connected' }}"
+          - "Web Interface: http://{{ ansible_host }}:2283"
+          - "Upload Directory: {{ immich_upload_dir }}"
+          - "Database Directory: {{ immich_db_dir }}"
+          - "========================================="
