@@ -3,9 +3,13 @@
 This repository contains Infrastructure as Code for managing a Proxmox VE cluster using Ansible and Terraform.
 
 ## Project Overview
-- **Ansible**: Configuration management for Proxmox VMs and applications (Netbox, Samba, Immich)
-- **Terraform**: Infrastructure provisioning for Proxmox VMs and Netbox resources
+- **Terraform**: VM provisioning on Proxmox and Netbox resource management
+- **Ansible**: Application configuration management (Docker, Netbox, Samba, Immich)
 - **Netbox**: IPAM and DCIM source of truth
+
+### Separation of Concerns
+- **Provisioning (Terraform)**: Creates and manages VM infrastructure (CPU, memory, disk, network)
+- **Configuration (Ansible)**: Installs and configures applications on provisioned VMs
 
 ## Repository Structure
 ```
@@ -91,8 +95,8 @@ ansible proxmox_cluster -m ping
 ## Prerequisites
 - Proxmox VE cluster configured and accessible
 - Ansible 2.16+ installed
-- SSH access to Proxmox nodes
-- Ubuntu 24.04 VM template (ID 9000)
+- Terraform 1.5+ installed
+- SSH access to Proxmox nodes and VMs
 
 ## Documentation
 - [Netbox Deployment Guide](docs/netbox_deployment.md)
