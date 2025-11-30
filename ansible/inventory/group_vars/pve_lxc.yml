@@ -1,0 +1,12 @@
+# Common variables for Proxmox LXC containers (Anki, etc.)
+# These settings are shared across LXC containers and can be overridden in host_vars if needed.
+
+# Ansible connection settings
+ansible_user: root
+# SSH key authentication is used for LXC containers
+
+# Default network configuration
+lxc_gateway: 192.168.1.1
+lxc_dns_servers:
+  - 192.168.1.1
+lxc_netmask: 24

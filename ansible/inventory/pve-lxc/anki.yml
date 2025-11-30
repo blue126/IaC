@@ -1,0 +1,9 @@
+---
+anki:
+  hosts:
+    anki-node:
+      ansible_host: 192.168.1.100
+      ansible_user: root
+      # Anki Sync Server configuration
+      anki_port: 27701
+      anki_data_dir: /var/lib/anki-sync-server

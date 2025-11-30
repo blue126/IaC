@@ -4,6 +4,6 @@ output "vm_id" {
 }
 
 output "default_ip" {
-  description = "The default IP address of the VM"
-  value       = proxmox_vm_qemu.vm.default_ipv4_address
+  description = "The IP configuration of the VM"
+  value       = "${var.ip_address} (Proxmox VM)"
 }
