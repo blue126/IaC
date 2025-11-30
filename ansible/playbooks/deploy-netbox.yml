@@ -5,3 +5,122 @@
   roles:
     - docker
     - netbox
+
+- name: Verify Netbox Deployment
+  hosts: netbox
+  become: yes
+  tags: [verify]
+  tasks:
+    # Wait for Netbox web port
+    - name: Wait for Netbox web server to be ready
+      wait_for:
+        port: "{{ netbox_port | default(8080) }}"
+        timeout: 60
+      register: netbox_port_result
+
+    # Check Docker service status
+    - name: Check Docker service status
+      systemd:
+        name: docker
+      register: docker_status
+
+    - name: Assert Docker service is running
+      assert:
+        that:
+          - docker_status.status.ActiveState == "active"
+          - docker_status.status.SubState == "running"
+        fail_msg: "❌ Docker service is not running"
+        success_msg: "✅ Docker service is active and running"
+
+    # Check Netbox containers health
+    - name: Get Netbox containers status
+      command: docker compose ps
+      args:
+        chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
+      register: compose_ps_result
+      changed_when: false
+
+    - name: Check for healthy containers
+      shell: docker compose ps | grep -E "netbox.*healthy" | wc -l
+      args:
+        chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
+      register: healthy_count
+      changed_when: false
+
+    - name: Assert Netbox containers are healthy
+      assert:
+        that:
+          - healthy_count.stdout | int > 0
+        fail_msg: "❌ No healthy Netbox containers found"
+        success_msg: "✅ Netbox containers are healthy ({{ healthy_count.stdout }} found)"
+
+    # Test HTTP endpoint
+    - name: Test Netbox web interface
+      uri:
+        url: "http://localhost:{{ netbox_port | default(8080) }}"
+        method: GET
+        status_code: [200, 302]
+        timeout: 10
+      register: netbox_http_result
+
+    - name: Assert Netbox web interface is accessible
+      assert:
+        that:
+          - netbox_http_result.status in [200, 302]
+        fail_msg: "❌ Netbox web interface not accessible"
+        success_msg: "✅ Netbox web interface is accessible (HTTP {{ netbox_http_result.status }})"
+
+    # Test API endpoint
+    - name: Test Netbox login page
+      uri:
+        url: "http://localhost:{{ netbox_port | default(8080) }}/login/"
+        method: GET
+        status_code: [200]
+        timeout: 10
+      register: netbox_login_result
+
+    - name: Assert Netbox login page is accessible
+      assert:
+        that:
+          - netbox_login_result.status == 200
+        fail_msg: "❌ Netbox login page not accessible"
+        success_msg: "✅ Netbox login page is accessible"
+
+    # Check PostgreSQL connectivity
+    - name: Test database connectivity
+      shell: >
+        docker compose exec -T postgres 
+        pg_isready -U netbox -d netbox
+      args:
+        chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
+      register: db_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert database is accessible
+      assert:
+        that:
+          - db_check.rc == 0
+          - "'accepting connections' in db_check.stdout"
+        fail_msg: "❌ PostgreSQL database is not accessible"
+        success_msg: "✅ PostgreSQL database is accepting connections"
+
+    # Display deployment summary
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Netbox Deployment Successful"
+          - "========================================="
+          - "Docker Status: {{ docker_status.status.ActiveState }}"
+          - "Healthy Containers: {{ healthy_count.stdout }}"
+          - "Web Server Port ({{ netbox_port | default(8080) }}): {{ 'Listening' if netbox_port_result is success else 'Not ready' }}"
+          - "HTTP Status: {{ netbox_http_result.status }}"
+          - "Login Page Status: {{ netbox_login_result.status }}"
+          - "Database: {{ 'Connected' if db_check.rc == 0 else 'Not connected' }}"
+          - "Web Interface: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}"
+          - "API Endpoint: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}/api/"
+          - "Superuser: {{ netbox_superuser_name | default('admin') }}"
+          - "Password: {{ netbox_superuser_password | default('admin') }}"
+          - "Install Directory: {{ netbox_install_dir | default('/opt/netbox-docker') }}"
+          - "========================================="
