@@ -79,3 +79,27 @@ variable "ip_address" {
   type        = string
   default     = null
 }
+
+variable "bios" {
+  description = "BIOS type (seabios or ovmf)"
+  type        = string
+  default     = "ovmf"
+}
+
+variable "machine" {
+  description = "Machine type (i440fx or q35)"
+  type        = string
+  default     = "q35"
+}
+
+variable "cicustom" {
+  description = "Cloud-Init custom snippet"
+  type        = string
+  default     = "user=local:snippets/cloud-init-ubuntu.yml"
+}
+
+variable "efidisk_storage" {
+  description = "Storage pool for EFI disk (defaults to storage_pool if null)"
+  type        = string
+  default     = null
+}

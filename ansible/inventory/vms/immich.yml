@@ -4,12 +4,6 @@ immich:
   hosts:
     immich-node:
       ansible_host: 192.168.1.101
-      vmid: 101
-      hostname: immich
-      cores: 2
-      memory: 8192
-      ip: 192.168.1.101
-      netmask: 24
       immich_app_dir: /opt/immich
       immich_upload_dir: "{{ immich_app_dir }}/library"
       immich_db_dir: "{{ immich_app_dir }}/postgres"

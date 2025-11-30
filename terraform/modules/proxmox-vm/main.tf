@@ -14,8 +14,8 @@ resource "proxmox_vm_qemu" "vm" {
   full_clone  = var.full_clone
 
   # System Settings
-  bios    = "ovmf"
-  machine = "q35"
+  bios    = var.bios
+  machine = var.machine
   agent   = var.agent
   
   # Serial Console for Copy-Paste
@@ -49,10 +49,13 @@ resource "proxmox_vm_qemu" "vm" {
     discard = true
   }
 
-  # EFI Disk
-  efidisk {
-    efitype = "4m"
-    storage = var.storage_pool
+  # EFI Disk (Only for OVMF)
+  dynamic "efidisk" {
+    for_each = var.bios == "ovmf" ? [1] : []
+    content {
+      efitype = "4m"
+      storage = var.efidisk_storage != null ? var.efidisk_storage : var.storage_pool
+    }
   }
 
   # Cloud-Init Disk
@@ -65,6 +68,15 @@ resource "proxmox_vm_qemu" "vm" {
   # Cloud-Init Settings
   os_type   = "cloud-init"
   ciuser    = var.ciuser
+  cicustom  = var.cicustom
   sshkeys   = var.sshkeys
   ipconfig0 = var.ip_address != null ? var.ip_address : "ip=dhcp"
+
+  lifecycle {
+    ignore_changes = [
+      clone,
+      full_clone,
+      efidisk,
+    ]
+  }
 }

@@ -12,6 +12,21 @@ variable "pm_password" {
   description = "Proxmox Password"
   type        = string
   sensitive   = true
+  default     = null
+}
+
+variable "pm_api_token_id" {
+  description = "Proxmox API Token ID"
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "pm_api_token_secret" {
+  description = "Proxmox API Token Secret"
+  type        = string
+  sensitive   = true
+  default     = null
 }
 
 variable "target_node" {
@@ -35,4 +50,34 @@ variable "vm_name" {
 variable "sshkeys" {
   description = "SSH Public Keys"
   type        = string
+}
+
+variable "vmid" {
+  description = "Proxmox VM ID (set to 0 to auto-assign)"
+  type        = number
+  default     = 0
+}
+
+variable "cores" {
+  description = "Number of CPU cores"
+  type        = number
+  default     = 2
+}
+
+variable "memory" {
+  description = "Memory in MB"
+  type        = number
+  default     = 4096
+}
+
+variable "disk_size" {
+  description = "Disk size (e.g., 20G)"
+  type        = string
+  default     = "20G"
+}
+
+variable "ip_config" {
+  description = "IP configuration string (e.g., ip=1.2.3.4/24,gw=1.2.3.1)"
+  type        = string
+  default     = "ip=dhcp"
 }

@@ -1,0 +1,8 @@
+---
+- name: Restart Samba
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - smbd
+    - nmbd

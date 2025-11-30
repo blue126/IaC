@@ -1,0 +1,50 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install ACL package
+  apt:
+    name: acl
+    state: present
+
+- name: Install Samba packages
+  apt:
+    name:
+      - samba
+      - samba-common-bin
+    state: present
+
+- name: Create Samba share directory
+  file:
+    path: "{{ samba_share_dir }}"
+    state: directory
+    mode: '0777'
+    owner: ubuntu
+    group: ubuntu
+
+- name: Backup original smb.conf
+  copy:
+    src: /etc/samba/smb.conf
+    dest: /etc/samba/smb.conf.bak
+    remote_src: yes
+    force: no
+
+- name: Deploy custom smb.conf
+  template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Samba
+
+- name: Ensure Samba services are enabled and started
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - smbd
+    - nmbd

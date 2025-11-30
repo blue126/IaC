@@ -1,6 +1,0 @@
-# Host-specific variables for pve1
-# ZFS storage configuration for this node
-proxmox_storage: local-zfs  # Multi-disk ZFS pool
-# Alternative storage pools (if available):
-# proxmox_storage: data      # Additional ZFS pool for VMs
-# proxmox_storage: tank      # Common name for ZFS pools

@@ -1,6 +1,0 @@
-# Host-specific variables for pve0
-# ZFS storage configuration for this node
-# Update with the storage ID reported by `pvesm status` on pve0.
-proxmox_storage: vmdata
-# Alternative storage pools (if available):
-# proxmox_storage: rpool     # Common ZFS root pool name

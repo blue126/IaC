@@ -1,6 +1,6 @@
 ---
 - name: Deploy Netbox Service
-  hosts: netbox-01
+  hosts: netbox
   become: yes
   roles:
     - docker
