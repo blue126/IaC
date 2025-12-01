@@ -33,22 +33,6 @@
     cmd: npm install -g pnpm
   changed_when: false
 
-- name: Create homepage system user
-  ansible.builtin.user:
-    name: "{{ homepage_user }}"
-    system: yes
-    shell: /bin/bash
-    home: "{{ homepage_install_dir }}"
-    create_home: no
-
-- name: Create homepage installation directory
-  ansible.builtin.file:
-    path: "{{ homepage_install_dir }}"
-    state: directory
-    owner: "{{ homepage_user }}"
-    group: "{{ homepage_group }}"
-    mode: '0755'
-
 - name: Check if Homepage repository exists
   ansible.builtin.stat:
     path: "{{ homepage_install_dir }}/.git"
@@ -58,55 +42,56 @@
   ansible.builtin.shell:
     cmd: git clone https://github.com/gethomepage/homepage.git {{ homepage_install_dir }}
   when: not git_repo.stat.exists
-  notify: Rebuild Homepage
+  notify: 
+    - Install Homepage dependencies
+    - Build Homepage
+    - Restart Homepage
 
 - name: Update Homepage repository
   ansible.builtin.shell:
     cmd: cd {{ homepage_install_dir }} && git fetch origin && git checkout {{ homepage_version }} && git pull
   when: git_repo.stat.exists
-  notify: Rebuild Homepage
+  register: git_pull
+  changed_when: "'Already up to date' not in git_pull.stdout"
+  notify: 
+    - Install Homepage dependencies
+    - Build Homepage
+    - Restart Homepage
 
-- name: Set ownership of Homepage directory
-  ansible.builtin.file:
-    path: "{{ homepage_install_dir }}"
-    owner: "{{ homepage_user }}"
-    group: "{{ homepage_group }}"
-    recurse: yes
+# Dependencies and Build are now triggered by handlers only when code changes
+# But we need to ensure they run at least once if not installed
+- name: Check if node_modules exists
+  ansible.builtin.stat:
+    path: "{{ homepage_install_dir }}/node_modules"
+  register: node_modules
 
-- name: Install Homepage dependencies
+- name: Initial Install Homepage dependencies
   ansible.builtin.command:
     cmd: pnpm install
     chdir: "{{ homepage_install_dir }}"
-  become_user: "{{ homepage_user }}"
-  changed_when: false
+  when: not node_modules.stat.exists
 
-- name: Build Homepage
+- name: Check if build exists
+  ansible.builtin.stat:
+    path: "{{ homepage_install_dir }}/.next"
+  register: next_build
+
+- name: Initial Build Homepage
   ansible.builtin.command:
     cmd: pnpm build
     chdir: "{{ homepage_install_dir }}"
-  become_user: "{{ homepage_user }}"
-  changed_when: false
+  when: not next_build.stat.exists
 
-- name: Check if config directory exists
-  ansible.builtin.stat:
-    path: "{{ homepage_install_dir }}/config"
-  register: config_dir
-
-- name: Copy skeleton config if not exists
-  ansible.builtin.copy:
-    src: "{{ homepage_install_dir }}/src/skeleton/"
-    dest: "{{ homepage_install_dir }}/config/"
-    remote_src: yes
-    owner: "{{ homepage_user }}"
-    group: "{{ homepage_group }}"
-  when: not config_dir.stat.exists
+# Import configuration tasks
+- name: Import configuration tasks
+  ansible.builtin.import_tasks: config.yml
+  tags: [config]
 
 - name: Deploy Homepage systemd service
   ansible.builtin.template:
     src: homepage.service.j2
     dest: /etc/systemd/system/homepage.service
-    mode: '0644'
-  notify:
+  notify: 
     - Reload systemd
     - Restart Homepage
 
@@ -119,7 +104,7 @@
 
 - name: Wait for Homepage to be ready
   ansible.builtin.uri:
-    url: "http://localhost:{{ homepage_port }}"
+    url: "http://127.0.0.1:{{ homepage_port }}"
     status_code: 200
   register: result
   until: result.status == 200

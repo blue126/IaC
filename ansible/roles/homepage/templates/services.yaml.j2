@@ -1,0 +1,71 @@
+---
+- Infrastructure:
+    - Proxmox VE:
+        icon: proxmox.png
+        href: https://192.168.1.50:8006
+        description: Virtualization Platform
+        widget:
+          type: proxmox
+          url: https://192.168.1.50:8006
+          username: {{ proxmox_pve0_api_user | default('root@pam') }}
+          password: {{ proxmox_pve0_api_password | default('') }}
+          insecure: true
+
+    - Netbox:
+        icon: netbox.png
+        href: http://192.168.1.104:8000
+        description: Infrastructure Source of Truth
+        ping: 192.168.1.104
+        proxmoxNode: pve0
+        proxmoxVMID: 104
+        proxmoxType: qemu
+
+- Applications:
+    - Homepage:
+        icon: homepage.png
+        href: http://192.168.1.103:3000
+        description: Dashboard
+        ping: 192.168.1.103
+        proxmoxNode: pve0
+        proxmoxVMID: 103
+        proxmoxType: lxc
+
+    - Immich:
+        icon: immich.png
+        href: http://192.168.1.101:2283
+        description: Photo Management
+        ping: 192.168.1.101
+        proxmoxNode: pve0
+        proxmoxVMID: 101
+        proxmoxType: qemu
+        widget:
+          type: immich
+          url: http://192.168.1.101:2283
+          key: {{ immich_api_key | default('') }}
+          version: 2
+
+    - Samba Share:
+        icon: samba-server.png
+        href: smb://192.168.1.102/sambashare
+        description: File Sharing
+        ping: 192.168.1.102
+        proxmoxNode: pve0
+        proxmoxVMID: 102
+        proxmoxType: qemu
+
+    - Anki Sync Server:
+        icon: etesync.png
+        href: http://192.168.1.100:8080
+        description: Flashcard Sync
+        ping: 192.168.1.100
+        proxmoxNode: pve0
+        proxmoxVMID: 100
+        proxmoxType: lxc
+
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: http://192.168.1.1:3000
+        ping: 192.168.1.1
+        widget:
+          type: adguard
+          url: http://192.168.1.1:3000

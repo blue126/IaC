@@ -1,0 +1,48 @@
+---
+- name: Check if config directory exists
+  ansible.builtin.file:
+    path: "{{ homepage_install_dir }}/config"
+    state: directory
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0755'
+
+- name: Deploy Homepage settings
+  ansible.builtin.template:
+    src: settings.yaml.j2
+    dest: "{{ homepage_install_dir }}/config/settings.yaml"
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0644'
+
+- name: Deploy Homepage services
+  ansible.builtin.template:
+    src: services.yaml.j2
+    dest: "{{ homepage_install_dir }}/config/services.yaml"
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0644'
+
+- name: Deploy Homepage widgets
+  ansible.builtin.template:
+    src: widgets.yaml.j2
+    dest: "{{ homepage_install_dir }}/config/widgets.yaml"
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0644'
+
+- name: Deploy Homepage proxmox config
+  ansible.builtin.template:
+    src: proxmox.yaml.j2
+    dest: "{{ homepage_install_dir }}/config/proxmox.yaml"
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0644'
+
+- name: Deploy Homepage bookmarks
+  ansible.builtin.template:
+    src: bookmarks.yaml.j2
+    dest: "{{ homepage_install_dir }}/config/bookmarks.yaml"
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0644'

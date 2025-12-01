@@ -1,28 +1,31 @@
 # NetBox 集成 Terraform 模块目录说明
 
 ## 背景与目标
-当前阶段：通过 Terraform “主动写入 (push)” 将由 Terraform/其它自动化实际管理或存在的基础设施对象登记到 NetBox，使 NetBox 用于结构、关系、查询与文档展示。
+NetBox 在本仓库中定位为 Single Source of Truth (SSOT)：集中存放 Homelab 的所有资产信息与相互关系（物理/虚拟/服务/网络）。最终目标工作流是：
 
-未来规划：将引入“受控读取 (pull)” 能力，选择性从 NetBox 读取不作为 Terraform 权威来源的补充数据（如标签、备注、自定义字段），用于增强自动化编排与校验；读取过程中保持字段“所有权”边界，避免双向同时写同一属性导致漂移。
+- 从 NetBox 创建/维护资源 → Terraform 读取（pull）→ Terraform 在实际平台上创建/变更 → Ansible 进行软件层配置与验证。
+
+当前阶段：在逐步过渡到“NetBox→Terraform→Ansible”的模式过程中，Terraform 仍承担将已存在或由 IaC 管控的对象登记到 NetBox（push）的职责，以建立完整的资产基线。随着 pull 能力完善，Terraform 将以 NetBox 为输入来源进行资源编排，避免双向同时写同一属性导致漂移。
 
 角色分工（可演进）：
-- Terraform：权威来源（authoritative）字段：规格类（CPU/内存/磁盘）、拓扑存在性（是否有该 VM）、IP 分配（当由 IaC 管控）。
-- NetBox：补充/协作字段：业务标签、责任人、应用分组、自定义注释、运行级别等。
-- 双向策略：仅从 NetBox 拉取“非权威”字段，写回时严格限定 Terraform 拥有字段，避免覆盖人工输入。
+- NetBox：SSOT，维护资产目录与关系；业务标签、责任人、应用分组、自定义注释、运行级别等协作字段在此维护。
+- Terraform：以 NetBox 为输入进行资源编排；对其“权威”范围内的字段进行落地（CPU/内存/磁盘、拓扑存在性、由 IaC 管控的 IP 分配等）。
+- Ansible：应用层安装、配置、校验与运行时验证；与 NetBox/Terraform 的记录进行一致性比对。
+- 双向策略：从 NetBox 拉取非 Terraform 权威字段用于编排与校验；写回时严格限定 Terraform 拥有字段，避免覆盖人工输入。
 
 字段所有权建议（当前约定，可在将来 pull 功能实现时更新）：
 | 字段类别 | 当前写入来源 | 未来是否可读回 | 说明 |
 | -------- | ------------ | -------------- | ---- |
 | CPU/内存/磁盘 | Terraform | 是（校验） | 读回仅用于比对漂移，不反写调整 |
 | VM / LXC 存在性 | Terraform | 否 | 由 IaC 创建，即权威 |
-| 接口与 Cable 拓扑 | Terraform | 是（可视化比对） | 差异提示而非自动更改 |
+| 接口与 Cable 拓扑 | Terraform | 是（可视化比对） | 差异提示而非自动更改（当前 provider 对 VM 接口连线有限制） |
 | 服务端口列表 | Terraform | 是（警报/冲突检测） | 未来可结合 NetBox 标签联动 |
 | 标签/自定义字段 | NetBox 手工 | 是（采集） | 不覆盖人工维护内容 |
 | 备注/描述 | 双方，但分段 | 是 | 约定描述前缀区分来源（如 Terraform: …）|
 
 安全与合规：不在 NetBox 存放任何凭据；API Token 以变量方式传入。读取功能上线后亦不获取敏感字段。
 
-当前登记范围：物理节点、虚拟机 / LXC、接口、IP、服务端口、桥接连接（cable）。暂不包含：VLAN、前缀、机柜、供应商资产编号等扩展对象（将来扩展时需重新定义字段所有权）。
+当前登记范围：物理节点、虚拟机 / LXC、接口、IP、服务端口；桥接连接（cable）在设备接口（dcim.interface）层面可建模，但因 provider 限制暂不对虚拟机接口（virtualization.vminterface）进行 cable 建模。暂不包含：VLAN、前缀、机柜、供应商资产编号等扩展对象（将来扩展时需重新定义字段所有权）。
 
 期望收益：
 1. 快速回答“服务运行在哪个节点 / 哪条桥？”
@@ -31,7 +34,9 @@
 4. 形成容量与拓扑基线，支持后期漂移比对。
 5. 为后期 pull 功能预留清晰的字段边界。
 
-更新策略：Terraform 侧资产变更（新增/迁移/删减）→ 更新相应文件 → `terraform apply` 推送；后期读取（pull）能力上线时新增校验脚本对比权威字段与展示字段差异。
+更新策略：
+- 目标工作流：NetBox 新增/修改 → Terraform 读取（pull）生成计划 → 应用到实际平台 → Ansible 完成配置与验证。
+- 过渡阶段：Terraform 侧资产变更（新增/迁移/删减）→ 更新相应文件 → `terraform apply` 将变更同步到 NetBox（push），并逐步引入从 NetBox 的读取与校验脚本以减小漂移。
 
 本目录用于通过 Terraform 将 Homelab 的 Proxmox 物理节点、虚拟机、LXC 容器以及其上运行的服务与网络拓扑同步到 NetBox，实现“物理 → 虚拟 → 服务”分层建模。文件拆分遵循最小职责与明确依赖顺序，便于维护与扩展。
 
@@ -97,7 +102,7 @@ main.tf → pvecluster.tf → infrastructure.tf → vm.tf & containers.tf → se
              ├─(cable)─[VM samba eth0]
              └─(cable)─[LXC anki eth0]
 ```
-所有虚拟计算节点通过同一二层广播域 `vmbr1` 获得独立 IP（192.168.1.100/101/102/104）。
+所有虚拟计算节点通过同一二层广播域 `vmbr1` 获得独立 IP（192.168.1.100/101/102/104）。目前仅在设备接口侧（dcim.interface）记录桥接拓扑；虚拟机接口的 cable 建模因 provider 限制暂不启用。
 
 ## 七、与 Ansible 的对应关系
 - Ansible 中的宿主组：`proxmox_cluster`（包含 pve0/pve1/pve2） ↔ 本目录 `infrastructure.tf` 物理节点。
@@ -118,7 +123,7 @@ main.tf → pvecluster.tf → infrastructure.tf → vm.tf & containers.tf → se
 | Duplicate resource | 文件重命名后旧文件未删除 | 确认只保留一个定义 (grep 资源名) |
 | 初始化失败 provider | versions.tf 漏写或版本不兼容 | 添加/更新 `required_providers` |
 | IP 无法绑定 | 接口对象引用错误 | 核对 `interface_id` 与 `object_type` 匹配 |
-| Cable 无法创建 | termination 类型错误 | 使用 `dcim.interface` 与 `virtualization.vminterface` |
+| Cable 无法创建 | provider 限制或 termination 类型错误 | 设备侧使用 `dcim.interface`；虚拟机侧 `virtualization.vminterface` 目前不被 cable 端点支持，暂不创建 VM 接口 cable |
 
 ---
 最后更新：2025-11-30。若新增层次请保持“物理 → 虚拟 → 服务 → 拓扑连接”结构，不要在单文件中混合多层资源。

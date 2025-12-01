@@ -2,10 +2,16 @@
 # Default variables for Homepage role
 homepage_version: "main"  # Git branch or tag
 homepage_install_dir: /opt/homepage
-homepage_user: homepage
-homepage_group: homepage
+homepage_user: root
+homepage_group: root
 homepage_port: 3000
 homepage_allowed_hosts: "{{ ansible_host }}:{{ homepage_port }}"
+
+# API Keys and Credentials (override in inventory/vault)
+proxmox_api_user: "root@pam"
+proxmox_api_password: ""
+netbox_api_token: ""
+immich_api_key: ""
 
 # Node.js version (Debian 12 default is sufficient)
 nodejs_version: "18"

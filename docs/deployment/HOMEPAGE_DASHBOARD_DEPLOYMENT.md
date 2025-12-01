@@ -70,6 +70,13 @@ homepage:
       ansible_host: 192.168.1.103
       # Homepage dashboard configuration
       homepage_port: 3000
+
+      # Application Credentials
+      proxmox_pve0_api_user: "root@pam!terraform"
+      proxmox_pve0_api_password: "secret"
+      proxmox_pve1_api_user: "PLACEHOLDER"
+      proxmox_pve1_api_password: "PLACEHOLDER"
+      immich_api_key: "key"
 ```
 
 **文件**: `ansible/inventory/hosts.yml` (更新)
@@ -379,36 +386,63 @@ ansible/inventory/hosts.yml                    # 添加 homepage 到 pve_lxc 组
 └── bookmarks.yaml   # 书签
 ```
 
-### 2. 添加服务示例
+### 2. 配置 Proxmox 集成
+编辑 `/opt/homepage/config/proxmox.yaml`:
+```yaml
+pve0:
+  url: https://192.168.1.50:8006
+  token: {{ proxmox_pve0_api_user }}
+  secret: {{ proxmox_pve0_api_password }}
+  insecure: true
+
+pve1:
+  url: https://192.168.1.51:8006
+  token: {{ proxmox_pve1_api_user }}
+  secret: {{ proxmox_pve1_api_password }}
+  insecure: true
+```
+
+### 3. 添加服务示例
 
 编辑 `/opt/homepage/config/services.yaml`:
 ```yaml
 - Infrastructure:
-    - Proxmox:
+    - Proxmox VE:
         icon: proxmox.png
-        href: https://192.168.1.10:8006
-        description: Proxmox VE 管理界面
+        href: https://192.168.1.50:8006
+        description: Proxmox VE Cluster
+        widget:
+          type: proxmox
+          url: https://192.168.1.50:8006
+          username: {{ proxmox_pve0_api_user }}
+          password: {{ proxmox_pve0_api_password }}
+          node: pve0
+          insecure: true
 
     - Netbox:
         icon: netbox.png
         href: http://192.168.1.104:8000
         description: 基础设施管理
+        proxmoxNode: pve0
+        proxmoxVMID: 104
+        proxmoxType: qemu
 
 - Applications:
     - Immich:
         icon: immich.png
         href: http://192.168.1.101:2283
         description: 照片管理
-
-    - Samba:
-        icon: samba.png
-        href: smb://192.168.1.102/sambashare
-        description: 文件共享
+        proxmoxNode: pve0
+        proxmoxVMID: 101
+        proxmoxType: qemu
 
     - Anki Sync:
         icon: anki.png
         href: http://192.168.1.100:8080
         description: Anki 同步服务器
+        proxmoxNode: pve0
+        proxmoxVMID: 100
+        proxmoxType: lxc
 ```
 
 ### 3. 重启服务使配置生效

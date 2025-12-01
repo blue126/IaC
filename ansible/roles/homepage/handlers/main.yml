@@ -1,6 +1,16 @@
 ---
 # Handlers for Homepage role
 
+- name: Install Homepage dependencies
+  ansible.builtin.command:
+    cmd: pnpm install
+    chdir: "{{ homepage_install_dir }}"
+  
+- name: Build Homepage
+  ansible.builtin.command:
+    cmd: pnpm build
+    chdir: "{{ homepage_install_dir }}"
+
 - name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: yes
@@ -14,4 +24,4 @@
   ansible.builtin.command:
     cmd: pnpm build
     chdir: "{{ homepage_install_dir }}"
-  become_user: "{{ homepage_user }}"
+  notify: Restart Homepage
