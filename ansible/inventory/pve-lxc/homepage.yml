@@ -13,4 +13,6 @@ homepage:
       proxmox_pve1_api_password: "PLACEHOLDER_SECRET"
       proxmox_pve2_api_user: "PLACEHOLDER_USER"
       proxmox_pve2_api_password: "PLACEHOLDER_SECRET"
+      tailscale_device_id: "n9rsyfnzLp11CNTRL"
+      tailscale_api_key: "tskey-api-kfCu8zoGxZ11CNTRL-wk6JXiuBsmKTWF621ycWmK1aHWxN8twoK"
       immich_api_key: "DRlBBIVhjywVSgPr8mFZT5qugiT490e1CQAvYk60"
