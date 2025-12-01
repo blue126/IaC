@@ -1,7 +1,7 @@
 # Playbook to install Docker and deploy the Immich stack.
 # Provisioning is now handled by Terraform.
 #
-# Expected variable inputs (inventory/vms/immich.yml):
+# Expected variable inputs (inventory/pve_vms/immich.yml):
 #   - immich_app_dir derivatives: compose root, uploads, database, .env path
 #   - immich_version and DB credentials used when rendering the Immich .env file
 

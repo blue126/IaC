@@ -2,7 +2,7 @@
 # Playbook to deploy Anki Sync Server
 # Configuration is now handled by Ansible.
 #
-# Expected variable inputs (inventory/pve-lxc/anki.yml):
+# Expected variable inputs (inventory/pve_lxc/anki.yml):
 #   - anki_port (default: 8080)
 #   - anki_sync_users (list of "username:password" strings)
 

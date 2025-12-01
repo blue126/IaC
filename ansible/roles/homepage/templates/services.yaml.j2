@@ -7,8 +7,8 @@
         widget:
           type: proxmox
           url: https://192.168.1.50:8006
-          username: {{ proxmox_pve0_api_user }}
-          password: {{ proxmox_pve0_api_password }}
+          username: {{ proxmox_api_user }}
+          password: {{ proxmox_api_password }}
           node: pve0
           insecure: true
 
@@ -17,7 +17,7 @@
             icon: oracle.png
             href: ssh://ubuntu@152.67.113.23
             description: OCI Compute Instance
-            ping: 152.67.113.23
+            ping: 100.114.121.121
 
     - Netbox:
         icon: netbox.png

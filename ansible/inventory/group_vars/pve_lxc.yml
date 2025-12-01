@@ -10,3 +10,6 @@ lxc_gateway: 192.168.1.1
 lxc_dns_servers:
   - 192.168.1.1
 lxc_netmask: 24
+
+# Tailscale
+

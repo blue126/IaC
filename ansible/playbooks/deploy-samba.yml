@@ -1,7 +1,7 @@
 # Playbook to configure Samba file sharing.
 # Provisioning is now handled by Terraform.
 #
-# Expected variable inputs (inventory/vms/samba.yml):
+# Expected variable inputs (inventory/pve_vms/samba.yml):
 #   - samba_share_dir, samba_share_name, samba_guest_ok
 
 - name: Deploy Samba

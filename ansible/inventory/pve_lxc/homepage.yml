@@ -5,14 +5,12 @@ homepage:
       ansible_host: 192.168.1.103
       # Homepage dashboard configuration
       homepage_port: 3000
+      proxmox_vmid: 103
+      proxmox_node: pve0
       
       # Application Credentials (fill in securely)
-      proxmox_pve0_api_user: "root@pam!terraform"
-      proxmox_pve0_api_password: "e095389a-ba15-48ea-b64e-54812523aa5b"
-      proxmox_pve1_api_user: "PLACEHOLDER_USER"
-      proxmox_pve1_api_password: "PLACEHOLDER_SECRET"
-      proxmox_pve2_api_user: "PLACEHOLDER_USER"
-      proxmox_pve2_api_password: "PLACEHOLDER_SECRET"
+      proxmox_api_user: "root@pam!homepage"
+      proxmox_api_password: "28b55958-24db-4698-a6b5-b7dc7f9af156"
       tailscale_device_id: "n9rsyfnzLp11CNTRL"
       tailscale_api_key: "tskey-api-kfCu8zoGxZ11CNTRL-wk6JXiuBsmKTWF621ycWmK1aHWxN8twoK"
       immich_api_key: "DRlBBIVhjywVSgPr8mFZT5qugiT490e1CQAvYk60"

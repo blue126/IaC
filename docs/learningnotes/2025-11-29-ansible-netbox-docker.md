@@ -18,11 +18,11 @@
 ## 2. 架构决策 (Architecture Decisions)
 
 ### 2.1 Inventory 组织
-我们将 VM 的定义从物理机 Inventory (`hosts.yml`) 中分离出来，放入 `inventory/vms/` 目录。
+我们将 VM 的定义从物理机 Inventory (`hosts.yml`) 中分离出来，放入 `inventory/pve_vms/` 目录。
 *   **目的**: 清晰区分"物理基础设施"（Proxmox 节点）和"虚拟应用设施"（VMs）。
 *   **结构**:
     ```yaml
-    # inventory/vms/netbox.yml
+    # inventory/pve_vms/netbox.yml
     application_vms:
       hosts:
         netbox-01: ...

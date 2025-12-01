@@ -60,7 +60,7 @@ terraform apply
 **重要**: 内存必须设置为 4GB,低于此值会导致 `pnpm build` 过程卡死。
 
 ### 2. 创建 Ansible Inventory
-**文件**: `ansible/inventory/pve-lxc/homepage.yml`
+**文件**: `ansible/inventory/pve_lxc/homepage.yml`
 
 ```yaml
 ---
@@ -79,7 +79,7 @@ homepage:
       immich_api_key: "key"
 ```
 
-**文件**: `ansible/inventory/hosts.yml` (更新)
+**文件**: `ansible/inventory/groups.yml` (更新)
 
 在 `pve_lxc` 组下添加:
 ```yaml
@@ -360,7 +360,7 @@ curl -I http://192.168.1.103:3000
 新增文件:
 ```
 terraform/proxmox/homepage.tf                  # LXC 创建配置
-ansible/inventory/pve-lxc/homepage.yml         # Inventory 配置
+ansible/inventory/pve_lxc/homepage.yml         # Inventory 配置
 ansible/roles/homepage/defaults/main.yml       # 默认变量
 ansible/roles/homepage/tasks/main.yml          # 安装任务
 ansible/roles/homepage/templates/homepage.service.j2  # systemd 服务
@@ -370,7 +370,7 @@ ansible/playbooks/deploy-homepage.yml          # 部署 playbook
 
 修改文件:
 ```
-ansible/inventory/hosts.yml                    # 添加 homepage 到 pve_lxc 组
+ansible/inventory/groups.yml                    # 添加 homepage 到 pve_lxc 组
 ```
 
 ---
@@ -561,7 +561,7 @@ git commit -m "Add Homepage dashboard deployment
 - Deploy Homepage from source using pnpm
 - Configure systemd service for auto-start
 - Set memory to 4GB for Next.js builds
-- Add to pve-lxc inventory group"
+- Add to pve_lxc inventory group"
 
 git push origin master
 ```

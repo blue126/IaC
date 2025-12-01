@@ -122,7 +122,7 @@ handlers:
 anki_sync_users:
   - "user:pass"
 
-# inventory/pve-lxc/anki.yml (environment-specific)
+# inventory/pve_lxc/anki.yml (environment-specific)
 anki_sync_users:
   - "ankiuser:MyPassword123"
 ```

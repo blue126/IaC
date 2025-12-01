@@ -1,18 +1,18 @@
 ---
 pve0:
   url: https://192.168.1.50:8006
-  token: {{ proxmox_pve0_api_user | default('root@pam') }}
-  secret: {{ proxmox_pve0_api_password | default('') }}
+  token: {{ proxmox_api_user | default('root@pam') }}
+  secret: {{ proxmox_api_password | default('') }}
   insecure: true
 
 pve1:
   url: https://192.168.1.51:8006
-  token: {{ proxmox_pve1_api_user | default('PLACEHOLDER_USER') }}
-  secret: {{ proxmox_pve1_api_password | default('PLACEHOLDER_SECRET') }}
+  token: {{ proxmox_api_user | default('') }}
+  secret: {{ proxmox_api_password | default('') }}
   insecure: true
 
 pve2:
   url: https://192.168.1.52:8006
-  token: {{ proxmox_pve2_api_user | default('PLACEHOLDER_USER') }}
-  secret: {{ proxmox_pve2_api_password | default('PLACEHOLDER_SECRET') }}
+  token: {{ proxmox_api_user | default('') }}
+  secret: {{ proxmox_api_password | default('') }}
   insecure: true

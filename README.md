@@ -21,8 +21,8 @@ Terraform (Provision) → Ansible (Configure) → Verify (Health Check)
 ```
 ├── ansible/
 │   ├── inventory/
-│   │   ├── pve-vms/         # VM inventory (Netbox, Samba, Immich)
-│   │   └── pve-lxc/         # LXC inventory (Anki Sync Server)
+│   │   ├── pve_vms/         # VM inventory (Netbox, Samba, Immich)
+│   │   └── pve_lxc/         # LXC inventory (Anki Sync Server)
 │   ├── playbooks/           # Deployment playbooks with verification
 │   └── roles/               # Modular service roles
 │       ├── docker/          # Docker engine installation

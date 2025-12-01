@@ -1,0 +1,179 @@
+oci_core_instance.oracle_cloud_ubuntu2404: Refreshing state... [id=ocid1.instance.oc1.ap-sydney-1.anzxsljr5andnfyc67jrfzx4x5ks4l2kvqglt2k4k27gnsv5ycsyboqtilkq]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # oci_core_instance.oracle_cloud_ubuntu2404 must be replaced
+-/+ resource "oci_core_instance" "oracle_cloud_ubuntu2404" {
+      ~ boot_volume_id                      = "ocid1.bootvolume.oc1.ap-sydney-1.abzxsljrb2gxfy2ihzznhlwrqqe7dckbj76sitouqkinsnc6tqwl6kamsxeq" -> (known after apply)
+      + capacity_reservation_id             = (known after apply)
+      + compute_cluster_id                  = (known after apply)
+      + dedicated_vm_host_id                = (known after apply)
+      ~ defined_tags                        = {
+          - "Oracle-Tags.CreatedBy" = "default/fanweiblue@gmail.com"
+          - "Oracle-Tags.CreatedOn" = "2025-11-15T02:41:54.335Z"
+        } -> (known after apply)
+      ~ display_name                        = "instance-20251115-1335" -> "oracle-cloud-ubuntu2404"
+      ~ extended_metadata                   = {} -> (known after apply)
+      ~ fault_domain                        = "FAULT-DOMAIN-2" -> (known after apply)
+      ~ freeform_tags                       = {} -> (known after apply)
+      ~ hostname_label                      = "instance-20251115-1335" -> (known after apply)
+      ~ id                                  = "ocid1.instance.oc1.ap-sydney-1.anzxsljr5andnfyc67jrfzx4x5ks4l2kvqglt2k4k27gnsv5ycsyboqtilkq" -> (known after apply)
+      ~ image                               = "ocid1.image.oc1.ap-sydney-1.aaaaaaaay46dnss2xv46ueh6osq5q6u33h5bateig3az4e6eo24ru2vb4zea" -> (known after apply)
+      + instance_configuration_id           = (known after apply)
+      + ipxe_script                         = (known after apply)
+      + is_ai_enterprise_enabled            = (known after apply)
+      ~ is_cross_numa_node                  = false -> (known after apply)
+      + is_pv_encryption_in_transit_enabled = (known after apply)
+      ~ launch_mode                         = "PARAVIRTUALIZED" -> (known after apply)
+      ~ metadata                            = { # forces replacement
+          ~ "ssh_authorized_keys" = <<-EOT
+                ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJylcil893j333uvvXG0bNYpifXy7J0rI1sHyCXa6mfC will fan@WillPC
+            EOT
+        }
+      ~ private_ip                          = "10.0.0.180" -> (known after apply)
+      ~ public_ip                           = "152.67.113.23" -> (known after apply)
+      ~ region                              = "ap-sydney-1" -> (known after apply)
+      ~ security_attributes                 = {} -> (known after apply)
+      ~ security_attributes_state           = "STABLE" -> (known after apply)
+      ~ state                               = "RUNNING" -> (known after apply)
+      ~ subnet_id                           = "ocid1.subnet.oc1.ap-sydney-1.aaaaaaaal2432iozkhc324kjnrlxfmtoa5dz7v37m62xlkceb5lypbp3kbmq" -> (known after apply)
+      ~ system_tags                         = {} -> (known after apply)
+      ~ time_created                        = "2025-11-15 02:41:54.755 +0000 UTC" -> (known after apply)
+      + time_maintenance_reboot_due         = (known after apply)
+        # (3 unchanged attributes hidden)
+
+      ~ agent_config (known after apply)
+      - agent_config {
+          - are_all_plugins_disabled = false -> null
+          - is_management_disabled   = false -> null
+          - is_monitoring_disabled   = false -> null
+
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Vulnerability Scanning" -> null
+            }
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Management Agent" -> null
+            }
+          - plugins_config {
+              - desired_state = "ENABLED" -> null
+              - name          = "Custom Logs Monitoring" -> null
+            }
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Compute RDMA GPU Monitoring" -> null
+            }
+          - plugins_config {
+              - desired_state = "ENABLED" -> null
+              - name          = "Compute Instance Monitoring" -> null
+            }
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Compute HPC RDMA Auto-Configuration" -> null
+            }
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Compute HPC RDMA Authentication" -> null
+            }
+          - plugins_config {
+              - desired_state = "ENABLED" -> null
+              - name          = "Cloud Guard Workload Protection" -> null
+            }
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Block Volume Management" -> null
+            }
+          - plugins_config {
+              - desired_state = "DISABLED" -> null
+              - name          = "Bastion" -> null
+            }
+        }
+
+      ~ availability_config (known after apply)
+      - availability_config {
+          - is_live_migration_preferred = false -> null
+          - recovery_action             = "RESTORE_INSTANCE" -> null
+        }
+
+      ~ create_vnic_details {
+          ~ assign_ipv6ip             = false -> (known after apply)
+          - assign_private_dns_record = false -> null
+          ~ defined_tags              = {
+              - "Oracle-Tags.CreatedBy" = "default/fanweiblue@gmail.com"
+              - "Oracle-Tags.CreatedOn" = "2025-11-15T02:41:54.433Z"
+            } -> (known after apply)
+          ~ display_name              = "instance-20251115-1335" -> (known after apply)
+          ~ freeform_tags             = {} -> (known after apply)
+          ~ hostname_label            = "instance-20251115-1335" -> (known after apply)
+          ~ nsg_ids                   = [] -> (known after apply)
+          ~ private_ip                = "10.0.0.180" -> (known after apply)
+          ~ security_attributes       = {} -> (known after apply)
+          ~ skip_source_dest_check    = false -> (known after apply)
+          + subnet_cidr               = (known after apply)
+          + vlan_id                   = (known after apply)
+            # (2 unchanged attributes hidden)
+
+          ~ ipv6address_ipv6subnet_cidr_pair_details (known after apply)
+        }
+
+      ~ instance_options (known after apply)
+      - instance_options {
+          - are_legacy_imds_endpoints_disabled = false -> null
+        }
+
+      ~ launch_options (known after apply)
+      - launch_options {
+          - boot_volume_type                    = "PARAVIRTUALIZED" -> null
+          - firmware                            = "UEFI_64" -> null
+          - is_consistent_volume_naming_enabled = true -> null
+          - is_pv_encryption_in_transit_enabled = true -> null
+          - network_type                        = "PARAVIRTUALIZED" -> null
+          - remote_data_volume_type             = "PARAVIRTUALIZED" -> null
+        }
+
+      ~ launch_volume_attachments (known after apply)
+
+      ~ licensing_configs (known after apply)
+
+      ~ placement_constraint_details (known after apply)
+
+      ~ platform_config (known after apply)
+
+      ~ preemptible_instance_config (known after apply)
+
+      ~ shape_config {
+          + baseline_ocpu_utilization     = (known after apply)
+          + gpu_description               = (known after apply)
+          ~ gpus                          = 0 -> (known after apply)
+          + local_disk_description        = (known after apply)
+          ~ local_disks                   = 0 -> (known after apply)
+          ~ local_disks_total_size_in_gbs = 0 -> (known after apply)
+          ~ max_vnic_attachments          = 4 -> (known after apply)
+          ~ networking_bandwidth_in_gbps  = 4 -> (known after apply)
+          ~ nvmes                         = 0 -> (known after apply)
+          ~ processor_description         = "3.0 GHz Ampere® Altra™" -> (known after apply)
+          + resource_management           = (known after apply)
+          ~ vcpus                         = 4 -> (known after apply)
+            # (2 unchanged attributes hidden)
+        }
+
+      ~ source_details {
+          ~ boot_volume_vpus_per_gb         = "120" -> (known after apply)
+          - is_preserve_boot_volume_enabled = false -> null
+            # (4 unchanged attributes hidden)
+
+          ~ instance_source_image_filter_details (known after apply)
+        }
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

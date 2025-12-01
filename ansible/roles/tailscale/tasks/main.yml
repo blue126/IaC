@@ -1,9 +1,51 @@
 ---
+- name: Configure /dev/net/tun passthrough for LXC (on Proxmox Host)
+  delegate_to: "{{ proxmox_node }}"
+  blockinfile:
+    path: "/etc/pve/lxc/{{ proxmox_vmid }}.conf"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - TAILSCALE"
+    block: |
+      lxc.cgroup2.devices.allow: c 10:200 rwm
+      lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+  when:
+    - ansible_facts.virtualization_type == 'lxc'
+    - proxmox_vmid is defined
+    - proxmox_node is defined
+  register: lxc_config_update
+
+- name: Prevent Proxmox from overwriting resolv.conf (LXC only)
+  file:
+    path: /etc/.pve-ignore.resolv.conf
+    state: touch
+  when: ansible_facts.virtualization_type == 'lxc'
+
+- name: Ensure valid DNS resolver (LXC only)
+  copy:
+    dest: /etc/resolv.conf
+    content: "nameserver 8.8.8.8"
+  when: ansible_facts.virtualization_type == 'lxc'
+
+- name: Restart LXC container to apply changes
+  delegate_to: "{{ proxmox_node }}"
+  command: "pct reboot {{ proxmox_vmid }}"
+  when: lxc_config_update.changed
+
+- name: Wait for container to come back up
+  wait_for_connection:
+    delay: 10
+    timeout: 60
+  when: lxc_config_update.changed
+
 - name: Check if Tailscale is installed
   command: tailscale --version
   register: tailscale_check
   ignore_errors: true
   changed_when: false
+
+- name: Install curl
+  package:
+    name: curl
+    state: present
 
 - name: Install Tailscale
   shell: curl -fsSL https://tailscale.com/install.sh | sh
@@ -17,17 +59,24 @@
     state: present
     reload: yes
 
+- name: Check for /dev/net/tun
+  stat:
+    path: /dev/net/tun
+  register: tun_device
+
 - name: Bring up Tailscale
   command: tailscale up --authkey={{ tailscale_auth_key }} --ssh --reset --accept-risk=lose-ssh
+  when: tun_device.stat.exists
   register: tailscale_up
   changed_when: "'Success' in tailscale_up.stdout"
-  # Don't re-run if already up (logic can be improved, but simple for now)
 
 - name: Get Tailscale IPv4
   command: tailscale ip -4
   register: tailscale_ip
   changed_when: false
+  when: tun_device.stat.exists
 
 - name: Display Tailscale Info
   debug:
     msg: "Device: {{ inventory_hostname }} | Tailscale IP: {{ tailscale_ip.stdout }}"
+  when: tun_device.stat.exists

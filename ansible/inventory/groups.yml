@@ -1,0 +1,19 @@
+---
+all:
+  children:
+    proxmox_cluster:
+    pve_lxc:
+      children:
+        anki:
+        homepage:
+    pve_vms:
+      children:
+        immich:
+        netbox:
+        samba:
+    oci:
+    tailscale:
+      children:
+        proxmox_cluster:
+        pve_lxc:
+        oci:
