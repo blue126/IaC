@@ -18,7 +18,7 @@
     reload: yes
 
 - name: Bring up Tailscale
-  command: tailscale up --authkey={{ tailscale_auth_key }} --ssh
+  command: tailscale up --authkey={{ tailscale_auth_key }} --ssh --reset --accept-risk=lose-ssh
   register: tailscale_up
   changed_when: "'Success' in tailscale_up.stdout"
   # Don't re-run if already up (logic can be improved, but simple for now)

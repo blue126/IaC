@@ -1,6 +1,6 @@
 ---
 - name: Install Tailscale on Proxmox Cluster
-  hosts: proxmox_cluster
+  hosts: proxmox_cluster,oci,oci
   become: true
   roles:
     - tailscale
