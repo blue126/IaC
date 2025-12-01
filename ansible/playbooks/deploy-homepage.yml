@@ -1,0 +1,20 @@
+---
+# Deploy Homepage dashboard
+- name: Deploy Homepage
+  hosts: homepage
+  roles:
+    - homepage
+  
+  post_tasks:
+    - name: Verify Homepage is running
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:{{ homepage_port }}"
+        status_code: 200
+      register: homepage_status
+    
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "Homepage deployment completed successfully!"
+          - "Access URL: http://{{ ansible_host }}:{{ homepage_port }}"
+          - "Installation directory: /opt/homepage"

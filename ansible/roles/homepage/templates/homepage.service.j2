@@ -1,0 +1,17 @@
+[Unit]
+Description=Homepage Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User={{ homepage_user }}
+Group={{ homepage_group }}
+WorkingDirectory={{ homepage_install_dir }}
+Environment="HOMEPAGE_ALLOWED_HOSTS={{ homepage_allowed_hosts }}"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/pnpm start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

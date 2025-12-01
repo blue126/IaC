@@ -1,0 +1,131 @@
+---
+# Install and configure Homepage dashboard from source
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - git
+      - curl
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: yes
+
+- name: Add NodeSource GPG key
+  ansible.builtin.apt_key:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    state: present
+
+- name: Add NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64] https://deb.nodesource.com/node_{{ nodejs_version }}.x nodistro main"
+    state: present
+    filename: nodesource
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: yes
+
+- name: Install pnpm globally
+  ansible.builtin.command:
+    cmd: npm install -g pnpm
+  changed_when: false
+
+- name: Create homepage system user
+  ansible.builtin.user:
+    name: "{{ homepage_user }}"
+    system: yes
+    shell: /bin/bash
+    home: "{{ homepage_install_dir }}"
+    create_home: no
+
+- name: Create homepage installation directory
+  ansible.builtin.file:
+    path: "{{ homepage_install_dir }}"
+    state: directory
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    mode: '0755'
+
+- name: Check if Homepage repository exists
+  ansible.builtin.stat:
+    path: "{{ homepage_install_dir }}/.git"
+  register: git_repo
+
+- name: Clone Homepage repository
+  ansible.builtin.shell:
+    cmd: git clone https://github.com/gethomepage/homepage.git {{ homepage_install_dir }}
+  when: not git_repo.stat.exists
+  notify: Rebuild Homepage
+
+- name: Update Homepage repository
+  ansible.builtin.shell:
+    cmd: cd {{ homepage_install_dir }} && git fetch origin && git checkout {{ homepage_version }} && git pull
+  when: git_repo.stat.exists
+  notify: Rebuild Homepage
+
+- name: Set ownership of Homepage directory
+  ansible.builtin.file:
+    path: "{{ homepage_install_dir }}"
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+    recurse: yes
+
+- name: Install Homepage dependencies
+  ansible.builtin.command:
+    cmd: pnpm install
+    chdir: "{{ homepage_install_dir }}"
+  become_user: "{{ homepage_user }}"
+  changed_when: false
+
+- name: Build Homepage
+  ansible.builtin.command:
+    cmd: pnpm build
+    chdir: "{{ homepage_install_dir }}"
+  become_user: "{{ homepage_user }}"
+  changed_when: false
+
+- name: Check if config directory exists
+  ansible.builtin.stat:
+    path: "{{ homepage_install_dir }}/config"
+  register: config_dir
+
+- name: Copy skeleton config if not exists
+  ansible.builtin.copy:
+    src: "{{ homepage_install_dir }}/src/skeleton/"
+    dest: "{{ homepage_install_dir }}/config/"
+    remote_src: yes
+    owner: "{{ homepage_user }}"
+    group: "{{ homepage_group }}"
+  when: not config_dir.stat.exists
+
+- name: Deploy Homepage systemd service
+  ansible.builtin.template:
+    src: homepage.service.j2
+    dest: /etc/systemd/system/homepage.service
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart Homepage
+
+- name: Enable and start Homepage service
+  ansible.builtin.systemd:
+    name: homepage
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Wait for Homepage to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ homepage_port }}"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 30
+  delay: 2
+
+- name: Display Homepage access information
+  ansible.builtin.debug:
+    msg: "Homepage is accessible at http://{{ ansible_host }}:{{ homepage_port }}"

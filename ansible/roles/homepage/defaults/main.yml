@@ -1,0 +1,11 @@
+---
+# Default variables for Homepage role
+homepage_version: "main"  # Git branch or tag
+homepage_install_dir: /opt/homepage
+homepage_user: homepage
+homepage_group: homepage
+homepage_port: 3000
+homepage_allowed_hosts: "{{ ansible_host }}:{{ homepage_port }}"
+
+# Node.js version (Debian 12 default is sufficient)
+nodejs_version: "18"

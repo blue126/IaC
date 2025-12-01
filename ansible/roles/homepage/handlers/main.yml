@@ -1,0 +1,17 @@
+---
+# Handlers for Homepage role
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Restart Homepage
+  ansible.builtin.systemd:
+    name: homepage
+    state: restarted
+
+- name: Rebuild Homepage
+  ansible.builtin.command:
+    cmd: pnpm build
+    chdir: "{{ homepage_install_dir }}"
+  become_user: "{{ homepage_user }}"
