@@ -22,3 +22,12 @@
   register: tailscale_up
   changed_when: "'Success' in tailscale_up.stdout"
   # Don't re-run if already up (logic can be improved, but simple for now)
+
+- name: Get Tailscale IPv4
+  command: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+
+- name: Display Tailscale Info
+  debug:
+    msg: "Device: {{ inventory_hostname }} | Tailscale IP: {{ tailscale_ip.stdout }}"

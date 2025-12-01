@@ -7,9 +7,17 @@
         widget:
           type: proxmox
           url: https://192.168.1.50:8006
-          username: {{ proxmox_pve0_api_user | default('root@pam') }}
-          password: {{ proxmox_pve0_api_password | default('') }}
+          username: {{ proxmox_pve0_api_user }}
+          password: {{ proxmox_pve0_api_password }}
+          node: pve0
           insecure: true
+
+    - Oracle Cloud:
+        - oracle-cloud-ubuntu2404:
+            icon: oracle.png
+            href: ssh://ubuntu@100.114.121.121
+            description: OCI Compute Instance
+            ping: 100.114.121.121
 
     - Netbox:
         icon: netbox.png
@@ -69,3 +77,12 @@
         widget:
           type: adguard
           url: http://192.168.1.1:3000
+
+    - Tailscale:
+        icon: tailscale.png
+        href: https://login.tailscale.com/admin/machines
+        description: VPN Network
+        widget:
+          type: tailscale
+          deviceid: {{ tailscale_device_id }}
+          key: {{ tailscale_api_key }}
