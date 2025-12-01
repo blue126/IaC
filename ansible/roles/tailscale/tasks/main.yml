@@ -1,0 +1,24 @@
+---
+- name: Check if Tailscale is installed
+  command: tailscale --version
+  register: tailscale_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install Tailscale
+  shell: curl -fsSL https://tailscale.com/install.sh | sh
+  when: tailscale_check.rc != 0
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Bring up Tailscale
+  command: tailscale up --authkey={{ tailscale_auth_key }} --ssh
+  register: tailscale_up
+  changed_when: "'Success' in tailscale_up.stdout"
+  # Don't re-run if already up (logic can be improved, but simple for now)
