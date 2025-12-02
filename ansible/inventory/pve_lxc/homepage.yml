@@ -14,3 +14,9 @@ homepage:
       tailscale_device_id: "n9rsyfnzLp11CNTRL"
       tailscale_api_key: "{{ vault_tailscale_api_key_homepage }}"
       immich_api_key: "{{ vault_immich_api_key_homepage }}"
+      
+      # Tailscale Serve
+      tailscale_proxy_target: "http://127.0.0.1:3000"
+      
+      # Allowed Hosts
+      homepage_allowed_hosts: "*"
