@@ -22,7 +22,7 @@
 - name: Ensure valid DNS resolver (LXC only)
   copy:
     dest: /etc/resolv.conf
-    content: "nameserver 8.8.8.8"
+    content: "nameserver 192.168.1.1"
   when: ansible_facts.virtualization_type == 'lxc'
 
 - name: Restart LXC container to apply changes
@@ -79,4 +79,11 @@
 - name: Display Tailscale Info
   debug:
     msg: "Device: {{ inventory_hostname }} | Tailscale IP: {{ tailscale_ip.stdout }}"
-  when: tun_device.stat.exists
+
+- name: Configure Tailscale Serve
+  command: tailscale serve {{ tailscale_serve }}
+  when:
+    - tun_device.stat.exists
+    - tailscale_serve is defined
+  register: tailscale_serve_result
+  changed_when: "'Available' in tailscale_serve_result.stdout or 'Serving' in tailscale_serve_result.stdout"
