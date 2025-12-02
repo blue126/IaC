@@ -66,6 +66,22 @@ Ansible automatically decrypts the variables in memory.
 - **Gitignore is Critical**: Always double-check that `.vault_pass` is ignored before committing.
 - **Terraform Integration**: While Ansible handles its own secrets, we also migrated Terraform secrets (like Proxmox tokens) to Vault for backup and centralization, even though Terraform doesn't read them directly from Vault (yet).
 
+## Future Learning: HashiCorp Vault
+While Ansible Vault is perfect for our current needs (static, file-based encryption), **HashiCorp Vault** represents the enterprise standard for secret management and is a valuable technology to learn for advanced scenarios.
+
+### Why consider HashiCorp Vault?
+- **Dynamic Secrets**: Instead of static passwords, Vault can generate temporary credentials (e.g., a database user or AWS key) that expire automatically after 1 hour. This is "Identity-based Security".
+- **Centralized Service**: Unlike Ansible Vault (which is just a file), HashiCorp Vault is a running server. This allows for fine-grained access control policies (ACLs) and audit logging of *who* accessed *what* secret and *when*.
+- **Encryption as a Service**: It can handle encryption/decryption for applications without them needing to manage keys.
+
+### Potential Workflow
+If we were to adopt HashiCorp Vault in the future:
+1.  **Deploy**: Run a Vault server (e.g., on a PVE VM or OCI).
+2.  **Terraform**: Use the `vault` provider to read secrets dynamically during `terraform apply`. Secrets would never touch the disk.
+3.  **Ansible**: Use the `community.hashi_vault` collection to lookup secrets at runtime.
+
+For now, Ansible Vault provides the right balance of security and simplicity for our Homelab, but HashiCorp Vault is on the roadmap for advanced security engineering.
+
 ## Future Improvements
 - **Terraform Wrapper**: Create a script to automatically inject Vault secrets into Terraform as environment variables (`TF_VAR_...`), enabling a fully automated pipeline.
 - **Secret Rotation**: Establish a process for rotating keys and re-encrypting the vault.
