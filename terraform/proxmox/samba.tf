@@ -14,6 +14,7 @@ module "samba" {
   machine      = "q35"
   cicustom     = "user=local:snippets/ubuntu-password.yml"
   ip_address   = "ip=192.168.1.102/24,gw=192.168.1.1"
+  agent        = 1
   
   # Global settings
   storage_pool = var.storage_pool

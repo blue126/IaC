@@ -14,7 +14,14 @@
     name:
       - samba
       - samba-common-bin
+      - qemu-guest-agent
     state: present
+
+- name: Ensure qemu-guest-agent is enabled and started
+  systemd:
+    name: qemu-guest-agent
+    enabled: yes
+    state: started
 
 - name: Create Samba share directory
   file:
