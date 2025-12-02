@@ -1,0 +1,163 @@
+---
+# Playbook to update Ubuntu template with qemu-guest-agent
+# This should be run once to update the base template
+
+- name: Update Ubuntu Template with QEMU Guest Agent
+  hosts: pve0
+  become: true
+  vars:
+    template_id: 9000
+    template_name: "ubuntu-24.04-template"
+  
+  tasks:
+    - name: Check if template exists
+      shell: qm list | grep {{ template_id }}
+      register: template_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if template not found
+      fail:
+        msg: "Template {{ template_id }} not found on {{ inventory_hostname }}"
+      when: template_check.rc != 0
+
+    - name: Convert template to VM (remove template flag)
+      command: qm set {{ template_id }} --template 0
+      register: revert_result
+
+    - name: Start the VM
+      command: qm start {{ template_id }}
+      
+    - name: Wait for VM to boot (60 seconds)
+      pause:
+        seconds: 60
+
+    - name: Get VM IP address
+      shell: qm guest cmd {{ template_id }} network-get-interfaces | grep -oP '(?<="ip-address":")[^"]+' | grep -v "127.0.0.1" | head -1
+      register: vm_ip
+      retries: 10
+      delay: 5
+      until: vm_ip.stdout != ""
+      changed_when: false
+
+    - name: Display VM IP
+      debug:
+        msg: "VM IP: {{ vm_ip.stdout }}"
+
+    - name: Wait for SSH to be available
+      wait_for:
+        host: "{{ vm_ip.stdout }}"
+        port: 22
+        timeout: 120
+
+    - name: Add VM to in-memory inventory
+      add_host:
+        name: template_vm
+        ansible_host: "{{ vm_ip.stdout }}"
+        ansible_user: ubuntu
+        ansible_ssh_pass: ubuntu
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+
+- name: Install QEMU Guest Agent in VM
+  hosts: template_vm
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Wait for cloud-init to finish
+      command: cloud-init status --wait
+      changed_when: false
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 0
+
+    - name: Install qemu-guest-agent
+      apt:
+        name: qemu-guest-agent
+        state: present
+
+    - name: Enable and start qemu-guest-agent
+      systemd:
+        name: qemu-guest-agent
+        enabled: yes
+        state: started
+
+    - name: Verify qemu-guest-agent is running
+      systemd:
+        name: qemu-guest-agent
+      register: agent_status
+
+    - name: Display agent status
+      debug:
+        msg: "QEMU Guest Agent is {{ agent_status.status.ActiveState }}"
+
+    - name: Clean cloud-init
+      command: cloud-init clean
+
+    - name: Remove cloud-init instances
+      file:
+        path: /var/lib/cloud/instances
+        state: absent
+
+    - name: Truncate machine-id
+      command: truncate -s 0 /etc/machine-id
+
+    - name: Remove dbus machine-id
+      file:
+        path: /var/lib/dbus/machine-id
+        state: absent
+
+    - name: Create symlink for dbus machine-id
+      file:
+        src: /etc/machine-id
+        dest: /var/lib/dbus/machine-id
+        state: link
+
+    - name: Clear bash history
+      shell: history -c && > ~/.bash_history
+      changed_when: false
+
+    - name: Shutdown VM
+      command: shutdown -h now
+      async: 1
+      poll: 0
+      ignore_errors: yes
+
+- name: Convert VM back to template
+  hosts: pve0
+  become: true
+  vars:
+    template_id: 9000
+  
+  tasks:
+    - name: Wait for VM to shutdown
+      pause:
+        seconds: 60
+
+    - name: Verify VM is stopped
+      shell: qm status {{ template_id }} | grep stopped
+      register: vm_status
+      retries: 10
+      delay: 5
+      until: vm_status.rc == 0
+      changed_when: false
+
+    - name: Convert VM back to template
+      command: qm template {{ template_id }}
+
+    - name: Verify template conversion
+      shell: qm list | grep {{ template_id }} | grep template
+      changed_when: false
+
+    - name: Display success message
+      debug:
+        msg: 
+          - "========================================="
+          - "✅ Template Update Successful"
+          - "========================================="
+          - "Template ID: {{ template_id }}"
+          - "QEMU Guest Agent: Installed and Enabled"
+          - "Template is ready for use"
+          - "========================================="

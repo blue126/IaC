@@ -12,7 +12,7 @@ module "immich" {
   bios            = "ovmf"
   machine         = "pc"
   efidisk_storage = "msinvme1tpool"
-  cicustom        = "user=local:snippets/ubuntu-password.yml"
+  cicustom        = "user=local:snippets/cloud-init-ubuntu.yml"
   ip_address   = "ip=192.168.1.101/24,gw=192.168.1.1"
   
   # Global settings

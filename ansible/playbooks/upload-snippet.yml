@@ -1,6 +1,6 @@
 ---
 - name: Upload Cloud-Init Snippet
-  hosts: pve0
+  hosts: proxmox_cluster
   gather_facts: false
   become: true
   tasks:
