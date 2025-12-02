@@ -1,0 +1,71 @@
+# Ansible Vault Secret Management
+
+**Date:** 2025-12-02
+**Topic:** Security, Ansible, IaC
+
+## Context
+As our Infrastructure as Code (IaC) repository grew, we faced the challenge of managing sensitive information (API keys, passwords, tokens) securely. Hardcoding these secrets in inventory files or Terraform variables is a security risk, especially when pushing to a remote repository (even a private one). We needed a centralized, encrypted solution that integrates seamlessly with our existing Ansible workflow.
+
+## Solution: Ansible Vault
+We chose **Ansible Vault** as our secret management solution. It allows us to encrypt sensitive data files (or individual variables) using a password, which can then be checked into version control.
+
+### Key Concepts
+
+1.  **Vault File**: A YAML file encrypted with AES256. We placed ours at `ansible/inventory/group_vars/all/vault.yml` so it's globally accessible to all hosts.
+2.  **Vault Password**: The key to decrypt the vault. We store this in a local file `.vault_pass` which is **gitignored** to prevent accidental leaks.
+3.  **Ansible Configuration**: We configured `ansible.cfg` to automatically use the password file, avoiding the need to type the password for every command.
+
+### Implementation Details
+
+#### 1. Configuration (`ansible.cfg`)
+We added the `vault_password_file` setting to the `[defaults]` section:
+```ini
+[defaults]
+vault_password_file = .vault_pass
+```
+
+#### 2. Directory Structure
+```
+ansible/
+├── .vault_pass              # Contains the vault password (GITIGNORED)
+├── ansible.cfg              # Points to .vault_pass
+└── inventory/
+    └── group_vars/
+        └── all/
+            └── vault.yml    # Encrypted variables
+```
+
+#### 3. Variable Naming Convention
+We prefix all vault variables with `vault_` to clearly distinguish them from regular variables and avoid naming collisions.
+Example: `vault_proxmox_api_password`
+
+#### 4. Usage in Inventory
+In our inventory files (e.g., `homepage.yml`), we reference the encrypted variables using Jinja2 syntax:
+```yaml
+proxmox_api_password: "{{ vault_proxmox_api_password }}"
+```
+
+## Workflow
+
+### Creating/Editing Secrets
+To edit the encrypted file, we use:
+```bash
+ansible-vault edit inventory/group_vars/all/vault.yml
+```
+This opens the file in the default editor (vim/nano), decrypts it temporarily, and re-encrypts it on save.
+
+### Running Playbooks
+Since `ansible.cfg` is configured, running playbooks is unchanged:
+```bash
+ansible-playbook playbooks/deploy-homepage.yml
+```
+Ansible automatically decrypts the variables in memory.
+
+## Lessons Learned
+- **Structure Matters**: Placing `vault.yml` in `group_vars/all/` ensures it's loaded for every host, which is convenient for a centralized secret store.
+- **Gitignore is Critical**: Always double-check that `.vault_pass` is ignored before committing.
+- **Terraform Integration**: While Ansible handles its own secrets, we also migrated Terraform secrets (like Proxmox tokens) to Vault for backup and centralization, even though Terraform doesn't read them directly from Vault (yet).
+
+## Future Improvements
+- **Terraform Wrapper**: Create a script to automatically inject Vault secrets into Terraform as environment variables (`TF_VAR_...`), enabling a fully automated pipeline.
+- **Secret Rotation**: Establish a process for rotating keys and re-encrypting the vault.
