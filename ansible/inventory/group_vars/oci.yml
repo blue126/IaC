@@ -1,1 +1,10 @@
 
+
+# OCI Configuration
+oci_region: "ap-sydney-1"
+
+# Secrets from Vault
+oci_tenancy_ocid: "{{ vault_oci_tenancy_ocid }}"
+oci_user_ocid: "{{ vault_oci_user_ocid }}"
+oci_fingerprint: "{{ vault_oci_fingerprint }}"
+oci_private_key_path: "{{ vault_oci_private_key_path }}"

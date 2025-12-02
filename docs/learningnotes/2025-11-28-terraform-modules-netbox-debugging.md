@@ -66,11 +66,6 @@
 **Q: Hostname 只能在 Cloud-Init 文件里设置吗？不能在 Terraform 声明吗？**
 **A:** 不，完全可以在 Terraform 中声明。事实上，使用 Terraform 的 `name` 属性配合原生的 Cloud-Init 参数是最佳实践。之前失败是因为我们混用了自定义 Snippet，导致 Cloud-Init 忽略了 Terraform 传来的名字。重构为原生参数后，`name = "netbox"` 即可自动生效。
 
-**Q: 为什么刚才验证 SSH 失败了？是 VM 有问题吗？**
-**A:** VM 没有问题。失败是因为：
-1.  **私钥缺失**: 我（Agent）将你的公钥注入了 VM，但我没有你的私钥，所以**我**无法登录。
-2.  **配置笔误**: 我在重写 `terraform.tfvars` 时不小心覆盖了 Proxmox 的密码。
-修正后，通过 `qm guest exec`（从宿主机内部执行命令）验证了配置的正确性。
 
 **Q: 我们是否一定需要指定 Cloud-Init 文件？**
 **A:** 不一定。对于基础配置（用户、密码、SSH Key、IP），直接使用 Terraform 的 `proxmox_vm_qemu` 资源提供的参数（`ciuser`, `sshkeys`, `ipconfig0`）是最简单且推荐的方式。只有当需要非常复杂的初始化逻辑（如 `runcmd`, `write_files`）时，才需要使用自定义 Snippet。
