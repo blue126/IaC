@@ -71,15 +71,15 @@ homepage:
 We also store Terraform secrets (like Proxmox API tokens and OCI keys) in Vault for centralized management and backup.
 
 **Automated Generation (Recommended):**
-We have provided a helper script to generate the `secrets.auto.tfvars` file for Terraform.
+We have provided a helper script to automatically generate the `secrets.auto.tfvars` files for both Proxmox and OCI.
 
 ```bash
-# Generate secrets for Proxmox
-./scripts/get-secrets.sh > terraform/proxmox/secrets.auto.tfvars
-
-# Generate secrets for OCI
-./scripts/get-secrets.sh > terraform/oci/secrets.auto.tfvars
+./scripts/get-secrets.sh
 ```
+
+This will create/overwrite:
+- `terraform/proxmox/secrets.auto.tfvars`
+- `terraform/oci/secrets.auto.tfvars`
 
 **Manual Method:**
 1.  View secrets: `ansible-vault view ansible/inventory/group_vars/all/vault.yml`
