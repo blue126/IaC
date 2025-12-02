@@ -1,2 +1,2 @@
 ---
-tailscale_serve: "--bg https+insecure://127.0.0.1:8006"
+tailscale_proxy_target: "https+insecure://127.0.0.1:8006"
