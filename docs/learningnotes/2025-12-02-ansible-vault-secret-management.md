@@ -64,7 +64,7 @@ Ansible automatically decrypts the variables in memory.
 ## Lessons Learned
 - **Structure Matters**: Placing `vault.yml` in `group_vars/all/` ensures it's loaded for every host, which is convenient for a centralized secret store.
 - **Gitignore is Critical**: Always double-check that `.vault_pass` is ignored before committing.
-- **Terraform Integration**: While Ansible handles its own secrets, we also migrated Terraform secrets (like Proxmox tokens) to Vault for backup and centralization, even though Terraform doesn't read them directly from Vault (yet).
+- **Terraform Integration**: While Ansible handles its own secrets, we also migrated Terraform secrets (like Proxmox tokens) to Vault for backup and centralization. We created a helper script `scripts/get-secrets.sh` to automatically generate `secrets.auto.tfvars` files from Vault, keeping our workflow secure and efficient.
 
 ## Future Learning: HashiCorp Vault
 While Ansible Vault is perfect for our current needs (static, file-based encryption), **HashiCorp Vault** represents the enterprise standard for secret management and is a valuable technology to learn for advanced scenarios.
