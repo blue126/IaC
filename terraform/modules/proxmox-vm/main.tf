@@ -70,7 +70,8 @@ resource "proxmox_vm_qemu" "vm" {
   ciuser    = var.ciuser
   cicustom  = var.cicustom
   sshkeys   = var.sshkeys
-  ipconfig0 = var.ip_address != null ? var.ip_address : "ip=dhcp"
+  ipconfig0 = var.ip_address != null ? "ip=${var.ip_address},gw=${var.gateway}" : "ip=dhcp"
+  nameserver = var.nameserver
 
   lifecycle {
     ignore_changes = [

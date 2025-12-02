@@ -11,9 +11,9 @@ module "immich" {
   # Legacy VM Settings
   bios            = "ovmf"
   machine         = "pc"
-  efidisk_storage = "msinvme1tpool"
+  efidisk_storage = var.storage_pool
   cicustom        = "user=local:snippets/cloud-init-ubuntu.yml"
-  ip_address   = "ip=192.168.1.101/24,gw=192.168.1.1"
+  ip_address   = "192.168.1.101/24"
   
   # Global settings
   storage_pool = var.storage_pool

@@ -1,6 +1,6 @@
 samba:
   hosts:
-    samba-node:
+    samba:
       ansible_host: 192.168.1.102
       hostname: samba
       samba_share_dir: /home/ubuntu/samba

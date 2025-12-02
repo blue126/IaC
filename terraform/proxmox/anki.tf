@@ -8,7 +8,7 @@ module "anki" {
   cores          = 1
   memory         = 2048
   swap           = 2048
-  rootfs_storage = "msinvme1tpool"
+  rootfs_storage = "vmdata"
   rootfs_size    = "8G"
   network_bridge = "vmbr1"
   ip_address     = "192.168.1.100/24"

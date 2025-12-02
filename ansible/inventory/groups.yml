@@ -16,4 +16,5 @@ all:
       children:
         proxmox_cluster:
         pve_lxc:
+        pve_vms:
         oci:

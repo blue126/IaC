@@ -13,7 +13,7 @@ module "samba" {
   bios         = "ovmf"
   machine      = "q35"
   cicustom     = "user=local:snippets/ubuntu-password.yml"
-  ip_address   = "ip=192.168.1.102/24,gw=192.168.1.1"
+  ip_address   = "192.168.1.102/24"
   agent        = 1
   
   # Global settings

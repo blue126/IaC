@@ -106,6 +106,13 @@
         success_msg: "✅ PostgreSQL database is accepting connections"
 
     # Display deployment summary
+    # Display deployment summary
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
     - name: Display deployment summary
       debug:
         msg:
@@ -119,6 +126,8 @@
           - "Login Page Status: {{ netbox_login_result.status }}"
           - "Database: {{ 'Connected' if db_check.rc == 0 else 'Not connected' }}"
           - "Web Interface: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "Tailscale URL: https://netbox.wyrm-wall.ts.net"
           - "API Endpoint: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}/api/"
           - "Superuser: {{ netbox_superuser_name | default('admin') }}"
           - "Password: {{ netbox_superuser_password | default('admin') }}"

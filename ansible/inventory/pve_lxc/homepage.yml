@@ -1,7 +1,7 @@
 ---
 homepage:
   hosts:
-    homepage-node:
+    homepage:
       ansible_host: 192.168.1.103
       # Homepage dashboard configuration
       homepage_port: 3000

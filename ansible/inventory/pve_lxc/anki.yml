@@ -1,7 +1,7 @@
 ---
 anki:
   hosts:
-    anki-node:
+    anki:
       ansible_host: 192.168.1.100
       ansible_user: root
       proxmox_vmid: 100

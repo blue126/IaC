@@ -57,6 +57,13 @@
       failed_when: false              # Don't fail task even if HTTP check fails
     
     # Print summary of deployment status
+    # Print summary of deployment status
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
     - name: Display deployment summary
       debug:
         msg:
@@ -66,5 +73,7 @@
           - "Service Status: {{ service_status.status.ActiveState }}"
           - "Listening Port: {{ anki_port }}"
           - "Server URL: http://{{ ansible_host }}:{{ anki_port }}"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "Tailscale URL: http://anki.wyrm-wall.ts.net:{{ anki_port }}"
           - "HTTP Response: {{ http_test.status | default('N/A') }}"
           - "========================================="

@@ -6,14 +6,18 @@
 #   - immich_version and DB credentials used when rendering the Immich .env file
 
 - name: Deploy Immich Service
-  hosts: immich-node
+  hosts: immich
   become: true
+  pre_tasks:
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
   roles:
     - docker
     - immich
 
 - name: Verify Immich Deployment
-  hosts: immich-node
+  hosts: immich
   become: true
   tags: [verify]
   vars:
@@ -73,6 +77,9 @@
         status_code: [200, 302, 301]
         timeout: 10
       register: immich_http_result
+      until: immich_http_result.status in [200, 301, 302]
+      retries: 12
+      delay: 10
 
     - name: Assert Immich web interface is accessible
       assert:
@@ -102,18 +109,26 @@
         success_msg: "✅ PostgreSQL database is accepting connections"
 
     # Display deployment summary
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
     - name: Display deployment summary
       debug:
         msg:
           - "========================================="
           - "✅ Immich Deployment Successful"
           - "========================================="
-          - "Docker Status: {{ docker_status.status.ActiveState }}"
-          - "Containers Running: {{ running_count.stdout }}"
+          - "Containers: {{ running_count.stdout }} running"
+          - "Local URL: http://{{ ansible_host }}:2283"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "Tailscale URL: https://immich.wyrm-wall.ts.net"
           - "Web Server Port (2283): {{ 'Listening' if immich_port_result is success else 'Not ready' }}"
           - "HTTP Status: {{ immich_http_result.status }}"
           - "Database: {{ 'Connected' if db_check.rc == 0 else 'Not connected' }}"
-          - "Web Interface: http://{{ ansible_host }}:2283"
           - "Upload Directory: {{ immich_upload_dir }}"
           - "Database Directory: {{ immich_db_dir }}"
           - "========================================="
+```

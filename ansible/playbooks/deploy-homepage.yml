@@ -12,9 +12,17 @@
         status_code: 200
       register: homepage_status
     
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
     - name: Display deployment summary
       ansible.builtin.debug:
         msg:
           - "Homepage deployment completed successfully!"
           - "Access URL: http://{{ ansible_host }}:{{ homepage_port }}"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "Tailscale URL: https://homepage.wyrm-wall.ts.net"
           - "Installation directory: /opt/homepage"

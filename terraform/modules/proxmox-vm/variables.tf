@@ -103,3 +103,15 @@ variable "efidisk_storage" {
   type        = string
   default     = null
 }
+
+variable "nameserver" {
+  description = "DNS Nameserver"
+  type        = string
+  default     = "192.168.1.1"
+}
+
+variable "gateway" {
+  description = "Network Gateway"
+  type        = string
+  default     = "192.168.1.1"
+}

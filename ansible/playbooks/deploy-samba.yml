@@ -83,6 +83,13 @@
         success_msg: "✅ Samba share '{{ samba_share_name }}' is accessible"
 
     # Display deployment summary
+    # Display deployment summary
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
     - name: Display deployment summary
       debug:
         msg:
@@ -96,5 +103,7 @@
           - "Share Name: {{ samba_share_name }}"
           - "Share Path: {{ samba_share_dir }}"
           - "Server: {{ ansible_host }}"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "Tailscale URL: smb://{{ tailscale_ipv4.stdout | default('Not installed') }}/{{ samba_share_name }}"
           - "Access: smb://{{ ansible_host }}/{{ samba_share_name }}"
           - "========================================="

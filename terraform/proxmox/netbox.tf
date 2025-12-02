@@ -4,7 +4,7 @@ module "netbox" {
   vm_name       = "netbox"
   target_node   = "pve0"
   vmid          = 104
-  ip_address    = "ip=192.168.1.104/24,gw=192.168.1.1"
+  ip_address    = "192.168.1.104/24"
   cores         = 2
   memory        = 4096
   disk_size     = "20G"
