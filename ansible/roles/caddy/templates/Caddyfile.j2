@@ -1,33 +1,19 @@
 {
     email {{ caddy_email | default('hello@willfan.me') }}
     acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    order webdav before file_server
-}
-
-{{ caddy_domain }} {
-    # WebDAV
-    handle /webdav/* {
-        basic_auth {
-            {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
-        }
-        webdav {
-            root {{ caddy_webdav_root }}
-            prefix /webdav
-        }
-    }
-
-    # Default page
-    handle {
-        respond "Welcome to Caddy! WebDAV is at /webdav"
-    }
 }
 webdav.willfan.me {
     handle {
         basic_auth {
             {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
         }
-        webdav {
-            root {{ caddy_webdav_root }}
+        route {
+            file_server browse {
+                root {{ caddy_webdav_root }}
+            }
+            webdav {
+                root {{ caddy_webdav_root }}
+            }
         }
     }
 
@@ -42,8 +28,13 @@ http://:{{ caddy_webdav_port }} {
         basic_auth {
             {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
         }
-        webdav {
-            root {{ caddy_webdav_root }}
+        route {
+            file_server browse {
+                root {{ caddy_webdav_root }}
+            }
+            webdav {
+                root {{ caddy_webdav_root }}
+            }
         }
     }
 }

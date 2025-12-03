@@ -1,7 +1,0 @@
----
-ansible_host: 192.168.1.52
-ansible_user: root
-ansible_ssh_pass: "Admin123..."
-proxmox_api_host: "{{ ansible_host }}"
-proxmox_api_port: 8006
-proxmox_api_user: root@pam

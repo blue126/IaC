@@ -51,14 +51,14 @@
           key: {{ immich_api_key | default('') }}
           version: 2
 
-    - Samba Share:
-        icon: samba-server.png
-        href: smb://192.168.1.102/sambashare
+    - WebDAV:
+        icon: caddy.png
+        href: https://webdav.willfan.me
         description: File Sharing
-        ping: 192.168.1.102
+        ping: 192.168.1.105
         proxmoxNode: pve0
-        proxmoxVMID: 102
-        proxmoxType: qemu
+        proxmoxVMID: 105
+        proxmoxType: lxc
 
     - Anki Sync Server:
         icon: etesync.png
