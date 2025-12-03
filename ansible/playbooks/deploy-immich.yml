@@ -43,6 +43,7 @@
           - docker_status.status.SubState == "running"
         fail_msg: "❌ Docker service is not running"
         success_msg: "✅ Docker service is active and running"
+      when: not ansible_check_mode
 
     # Get Docker Compose services status
     - name: Get Immich containers status
@@ -68,6 +69,7 @@
           - running_count.stdout | int > 0
         fail_msg: "❌ No Immich containers are running"
         success_msg: "✅ Immich containers are running ({{ running_count.stdout }} found)"
+      when: not ansible_check_mode
 
     # Test HTTP endpoint
     - name: Test Immich web interface
@@ -80,6 +82,7 @@
       until: immich_http_result.status in [200, 301, 302]
       retries: 12
       delay: 10
+      when: not ansible_check_mode
 
     - name: Assert Immich web interface is accessible
       assert:
@@ -87,6 +90,7 @@
           - immich_http_result.status in [200, 301, 302]
         fail_msg: "❌ Immich web interface not accessible"
         success_msg: "✅ Immich web interface is accessible (HTTP {{ immich_http_result.status }})"
+      when: not ansible_check_mode
 
     # Check database connectivity (via immich-server container)
     - name: Test database connectivity
@@ -99,6 +103,7 @@
       register: db_check
       changed_when: false
       failed_when: false
+      when: not ansible_check_mode
 
     - name: Assert database is accessible
       assert:
@@ -107,6 +112,7 @@
           - "'accepting connections' in db_check.stdout"
         fail_msg: "❌ PostgreSQL database is not accessible"
         success_msg: "✅ PostgreSQL database is accepting connections"
+      when: not ansible_check_mode
 
     # Display deployment summary
     - name: Get Tailscale IPv4
@@ -131,4 +137,5 @@
           - "Upload Directory: {{ immich_upload_dir }}"
           - "Database Directory: {{ immich_db_dir }}"
           - "========================================="
-```
+      when: not ansible_check_mode
+

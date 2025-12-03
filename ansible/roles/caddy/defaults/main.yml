@@ -1,0 +1,12 @@
+---
+caddy_version: "2.8.4"
+caddy_user: caddy
+caddy_group: caddy
+caddy_config_dir: /etc/caddy
+caddy_data_dir: /var/lib/caddy
+caddy_log_dir: /var/log/caddy
+caddy_webdav_root: /var/www/webdav
+caddy_webdav_port: 8080
+caddy_domain: localhost
+caddy_reverse_proxies: []
+cloudflare_api_token: ""

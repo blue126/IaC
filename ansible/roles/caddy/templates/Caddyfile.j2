@@ -1,0 +1,61 @@
+{
+    email {{ caddy_email | default('hello@willfan.me') }}
+    acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    order webdav before file_server
+}
+
+{{ caddy_domain }} {
+    # WebDAV
+    handle /webdav/* {
+        basic_auth {
+            {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
+        }
+        webdav {
+            root {{ caddy_webdav_root }}
+            prefix /webdav
+        }
+    }
+
+    # Default page
+    handle {
+        respond "Welcome to Caddy! WebDAV is at /webdav"
+    }
+}
+webdav.willfan.me {
+    handle {
+        basic_auth {
+            {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
+        }
+        webdav {
+            root {{ caddy_webdav_root }}
+        }
+    }
+
+    # optional default response
+    handle {
+        respond "WebDAV service"
+    }
+}
+
+http://:{{ caddy_webdav_port }} {
+    handle {
+        basic_auth {
+            {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
+        }
+        webdav {
+            root {{ caddy_webdav_root }}
+        }
+    }
+}
+
+{% for proxy in caddy_reverse_proxies %}
+{{ proxy.subdomain }}.{{ caddy_domain }} {
+    reverse_proxy {{ proxy.upstream }} {
+        {% if proxy.insecure_skip_verify | default(false) %}
+        transport http {
+            tls_insecure_skip_verify
+        }
+        {% endif %}
+    }
+}
+{% endfor %}

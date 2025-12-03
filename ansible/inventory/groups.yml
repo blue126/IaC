@@ -6,11 +6,12 @@ all:
       children:
         anki:
         homepage:
+        caddy:
     pve_vms:
       children:
         immich:
         netbox:
-        samba:
+
     oci:
     tailscale:
       children:

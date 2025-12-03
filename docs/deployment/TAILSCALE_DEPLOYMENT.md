@@ -40,6 +40,24 @@ For unprivileged LXC containers, the role automatically performs the following (
 3.  **Automatic Restart**:
     *   If the LXC configuration is modified, the container is automatically restarted to apply the changes.
 
+### 3.3 Tailscale Serve (Optional)
+The role includes a dedicated task file for configuring Tailscale Serve, which exposes local services to the Tailscale network via a magic DNS URL (e.g., `https://service.wyrm-wall.ts.net`).
+
+*   **Usage**: Include the role with `tasks_from: serve`.
+*   **Variable**: `tailscale_serve_target` (e.g., `http://127.0.0.1:3000`).
+*   **Behavior**:
+    *   If `tailscale_serve_target` is defined: Configures Serve (HTTP/HTTPS).
+    *   If `tailscale_serve_target` is undefined: Resets/Cleans up Serve configuration.
+
+**Example Playbook Snippet**:
+```yaml
+- include_role:
+    name: tailscale
+    tasks_from: serve
+  vars:
+    tailscale_serve_target: "http://127.0.0.1:3000"
+```
+
 ## 4. Usage
 
 ### 4.1 Run the Playbook

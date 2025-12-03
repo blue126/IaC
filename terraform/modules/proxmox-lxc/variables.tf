@@ -110,3 +110,9 @@ variable "password" {
   default     = null
   sensitive   = true
 }
+
+variable "nameserver" {
+  description = "DNS Nameserver"
+  type        = string
+  default     = "192.168.1.1"
+}

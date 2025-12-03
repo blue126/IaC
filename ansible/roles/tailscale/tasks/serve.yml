@@ -1,0 +1,30 @@
+---
+- name: Check for /dev/net/tun
+  stat:
+    path: /dev/net/tun
+  register: tun_device
+
+- name: Configure Tailscale Serve (HTTP)
+  command: tailscale serve --bg --http=80 {{ tailscale_serve_target }}
+  when:
+    - tun_device.stat.exists
+    - tailscale_serve_target is defined
+  register: tailscale_serve_http
+  changed_when: "'Available' in tailscale_serve_http.stdout"
+
+- name: Configure Tailscale Serve (HTTPS)
+  command: tailscale serve --bg --https=443 {{ tailscale_serve_target }}
+  when:
+    - tun_device.stat.exists
+    - tailscale_serve_target is defined
+  register: tailscale_serve_https
+  changed_when: "'Available' in tailscale_serve_https.stdout"
+
+- name: Reset Tailscale Serve (Cleanup)
+  command: tailscale serve reset
+  when:
+    - tun_device.stat.exists
+    - tailscale_serve_target is not defined
+  register: tailscale_serve_reset
+  changed_when: false
+  failed_when: false

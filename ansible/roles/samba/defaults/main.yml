@@ -1,4 +1,0 @@
----
-samba_share_dir: /home/ubuntu/samba
-samba_share_name: sambashare
-samba_guest_ok: yes

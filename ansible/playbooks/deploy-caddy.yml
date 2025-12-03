@@ -1,0 +1,61 @@
+---
+- name: Bootstrap SSH on Caddy LXC
+  hosts: pve0
+  become: true
+  tasks:
+    - name: Check if Caddy LXC (105) is running
+      command: pct status 105
+      register: lxc_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Install and enable SSH on Caddy LXC
+      shell: |
+        pct exec 105 -- apk update
+        pct exec 105 -- apk add openssh
+        pct exec 105 -- rc-update add sshd default
+        pct exec 105 -- service sshd start
+        # Allow root login with key
+        pct exec 105 -- sed -i 's/^#PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+        pct exec 105 -- service sshd restart
+      when: lxc_status.rc == 0 and 'running' in lxc_status.stdout
+      register: ssh_bootstrap
+      changed_when: "'Installing openssh' in ssh_bootstrap.stdout"
+
+- name: Bootstrap Python on Alpine
+  hosts: caddy
+  gather_facts: false
+  tasks:
+    - name: Install Python
+      raw: apk add --no-cache python3
+      changed_when: false
+
+- name: Deploy Caddy
+  hosts: caddy
+  become: true
+  vars:
+    cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
+    # cloudflare_api_token: "YOUR_CLOUDFLARE_API_TOKEN_HERE"
+    # WebDAV Password: 'Admin123...' (hashed for Caddy)
+    caddy_webdav_password_hash: "{{ 'Admin123...' | password_hash('blowfish') }}"
+  roles:
+    - caddy
+
+  post_tasks:
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Caddy Deployment Successful"
+          - "========================================="
+          - "WebDAV URL: https://webdav.{{ caddy_domain }}/"
+          - "Direct Access: http://{{ ansible_host }}:{{ caddy_webdav_port }}/"
+          - "Reverse Proxies Configured: {{ caddy_reverse_proxies | length }}"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "========================================="

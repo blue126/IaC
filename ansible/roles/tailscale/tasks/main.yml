@@ -80,18 +80,4 @@
   debug:
     msg: "Device: {{ inventory_hostname }} | Tailscale IP: {{ tailscale_ip.stdout }}"
 
-- name: Configure Tailscale Serve (HTTP)
-  command: tailscale serve --bg --http=80 {{ tailscale_proxy_target }}
-  when:
-    - tun_device.stat.exists
-    - tailscale_proxy_target is defined
-  register: tailscale_serve_http
-  changed_when: "'Available' in tailscale_serve_http.stdout"
 
-- name: Configure Tailscale Serve (HTTPS)
-  command: tailscale serve --bg --https=443 {{ tailscale_proxy_target }}
-  when:
-    - tun_device.stat.exists
-    - tailscale_proxy_target is defined
-  register: tailscale_serve_https
-  changed_when: "'Available' in tailscale_serve_https.stdout"

@@ -40,6 +40,9 @@ resource "proxmox_lxc" "lxc" {
   # SSH Keys
   ssh_public_keys = var.sshkeys
 
+  # DNS
+  nameserver = var.nameserver
+
   # Features (nesting, fuse, etc.)
   features {
     nesting = contains(var.features, "nesting=1")

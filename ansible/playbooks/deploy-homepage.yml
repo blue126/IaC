@@ -3,6 +3,7 @@
 - name: Deploy Homepage
   hosts: homepage
   roles:
+    - tailscale
     - homepage
   
   post_tasks:

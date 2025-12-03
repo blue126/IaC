@@ -1,0 +1,61 @@
+---
+- name: Enable community repository
+  replace:
+    path: /etc/apk/repositories
+    regexp: '^#http://(.+)/community$'
+    replace: 'http://\1/community'
+
+- name: Update apk cache
+  apk:
+    update_cache: yes
+
+- name: Install Caddy (standard package)
+  apk:
+    name: caddy
+    state: present
+
+- name: Install dependencies
+  apk:
+    name:
+      - curl
+      - ca-certificates
+    state: present
+
+- name: Download custom Caddy binary
+  get_url:
+    url: "https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com%2Fmholt%2Fcaddy-webdav&p=github.com%2Fcaddy-dns%2Fcloudflare"
+    dest: /usr/sbin/caddy
+    mode: '0755'
+    force: yes
+  notify: Restart caddy
+
+- name: Create WebDAV root directory
+  file:
+    path: "{{ caddy_webdav_root }}"
+    state: directory
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    mode: '0755'
+
+- name: Configure Caddy environment variables
+  lineinfile:
+    path: /etc/conf.d/caddy
+    regexp: '^export CLOUDFLARE_API_TOKEN='
+    line: 'export CLOUDFLARE_API_TOKEN="{{ cloudflare_api_token }}"'
+    create: yes
+  notify: Restart caddy
+
+- name: Deploy Caddyfile
+  template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    owner: "{{ caddy_user }}"
+    group: "{{ caddy_group }}"
+    validate: env CLOUDFLARE_API_TOKEN="{{ cloudflare_api_token }}" caddy validate --adapter caddyfile --config %s
+  notify: Restart caddy
+
+- name: Enable and start Caddy service
+  service:
+    name: caddy
+    state: started
+    enabled: yes
