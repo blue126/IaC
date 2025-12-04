@@ -51,3 +51,22 @@
 
 ### Secrets Management
 - **Vault**: Always use Ansible Vault for API keys. Updating the vault requires re-running the deployment playbook to regenerate the config files.
+
+## 4. Key Concepts
+
+*   **DNS Inheritance (DNS 继承)**:
+    *   **定义**: 虚拟机在启动时从宿主机 (Proxmox) 获取 DNS 配置的行为。
+    *   **问题**: 如果宿主机使用 Tailscale MagicDNS (100.x.x.x)，而新 VM 尚未加入 Tailnet，就会导致 DNS 解析失败。
+    *   **解决**: 在 Terraform 中显式指定 `nameserver` 指向局域网网关 (如 192.168.1.1)。
+*   **Ansible `uri` Module Retries**:
+    *   **定义**: Ansible 的一种机制，允许任务在失败后重试。
+    *   **应用**: 用于检测服务启动。容器启动不代表应用就绪，使用 `until` + `retries` + `delay` 循环检测 HTTP 200 状态码，确保服务真正可用。
+
+## 5. Q&A
+
+**Q: 为什么新创建的 VM 无法解析域名？**
+**A:** 因为 Proxmox 宿主机配置了 Tailscale MagicDNS，新 VM 继承了这个配置，但它自己还没有 Tailscale 凭据，所以无法访问 MagicDNS 服务器。
+
+**Q: 为什么 `docker compose up` 成功了，但 HTTP 检测还是失败？**
+**A:** `docker compose up` 只是启动了容器进程。应用内部初始化（如数据库连接、迁移）需要时间。这就是为什么我们需要在 Ansible 中使用 `wait_for` 或 `uri` 模块配合重试机制来等待应用真正就绪。
+

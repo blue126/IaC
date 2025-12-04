@@ -74,7 +74,25 @@ pve1:
       insecure: true
 ```
 
-## 4. 关键教训
+## 4. 关键概念定义 (Key Concepts)
+
+*   **API Token Privilege Separation (权限分离)**:
+    *   **定义**: Proxmox API Token 的一种安全特性。开启后，Token **不继承** 用户的权限，必须单独为 Token 分配权限。
+    *   **应用**: 在 Homepage 集成中，如果使用 `root@pam` 的 Token 且开启了权限分离，会导致 "API Error"，因为该 Token 默认没有任何权限。
+*   **Service Integration vs Widget**:
+    *   **Service Integration**: 在 `services.yaml` 中通过 `proxmoxNode` 等字段关联，主要用于在服务卡片底部显示简单的状态（如运行/停止）。
+    *   **Widget**: 独立的可视化组件，显示更详细的资源使用图表（CPU/内存/磁盘）。
+
+## 5. 关键问答 (Q&A)
+
+**Q: 为什么配置了 `proxmox.yaml`，Widget 还是显示 API Error？**
+**A:** `proxmox.yaml` 定义的是连接凭据，但 Widget 本身可能需要显式引用这些凭据，或者 Token 权限不足。最常见的原因是 Token 开启了 "Privilege Separation" 但未分配权限。
+
+**Q: `url` 和 `host` 有什么区别？**
+**A:** Homepage 的 Proxmox 插件要求使用 `url` (包含协议和端口，如 `https://192.168.1.50:8006`)。旧版本或某些其他插件可能使用 `host`，但在当前版本中必须使用 `url`。
+
+## 6. 关键教训
 1.  **文档阅读**: 仔细阅读官方文档关于 Configuration Key 的说明，特别是 `url` vs `host`，以及认证参数的名称。
 2.  **变量规范**: 在 IaC (Infrastructure as Code) 中，变量命名应具有前瞻性，预留扩展空间 (如支持多节点)，避免后期重构。
 3.  **服务 vs Widget**: 理解 Homepage 中 "Service Integration" (通过属性关联) 和 "Widget" (独立组件) 的区别。
+
