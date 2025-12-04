@@ -20,6 +20,20 @@ resource "netbox_device_role" "server" {
   color_hex = "0000ff" # Blue
 }
 
+resource "netbox_device_role" "vm" {
+  name      = "Virtual Machine"
+  slug      = "vm"
+  color_hex = "00ffff" # Cyan
+  vm_role   = true     # Allow this role to be assigned to VMs
+}
+
+resource "netbox_device_role" "lxc" {
+  name      = "LXC Container"
+  slug      = "lxc"
+  color_hex = "ff8000" # Orange
+  vm_role   = true     # Allow this role to be assigned to VMs
+}
+
 # 3. Physical Devices (Proxmox Nodes)
 resource "netbox_device" "pve0" {
   name           = "pve0"

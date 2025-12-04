@@ -54,24 +54,7 @@ resource "netbox_service" "immich_redis" {
   description        = "Immich Redis cache"
 }
 
-# =============================================================================
-# Samba Services
-# =============================================================================
-resource "netbox_service" "samba_smb" {
-  name               = "SMB/CIFS"
-  protocol           = "tcp"
-  ports              = [445]
-  virtual_machine_id = netbox_virtual_machine.samba.id
-  description        = "Samba file sharing service"
-}
 
-resource "netbox_service" "samba_netbios" {
-  name               = "NetBIOS"
-  protocol           = "tcp"
-  ports              = [139]
-  virtual_machine_id = netbox_virtual_machine.samba.id
-  description        = "NetBIOS session service"
-}
 
 # =============================================================================
 # Anki Sync Server Services
@@ -82,4 +65,42 @@ resource "netbox_service" "anki_sync" {
   ports              = [8080]
   virtual_machine_id = netbox_virtual_machine.anki.id
   description        = "Anki flashcard synchronization server"
+}
+
+# =============================================================================
+# Homepage Services
+# =============================================================================
+resource "netbox_service" "homepage_web" {
+  name               = "Homepage Dashboard"
+  protocol           = "tcp"
+  ports              = [3000]
+  virtual_machine_id = netbox_virtual_machine.homepage.id
+  description        = "Homepage dashboard web interface"
+}
+
+# =============================================================================
+# Caddy Services
+# =============================================================================
+resource "netbox_service" "caddy_http" {
+  name               = "HTTP"
+  protocol           = "tcp"
+  ports              = [80]
+  virtual_machine_id = netbox_virtual_machine.caddy.id
+  description        = "Caddy HTTP web server"
+}
+
+resource "netbox_service" "caddy_https" {
+  name               = "HTTPS"
+  protocol           = "tcp"
+  ports              = [443]
+  virtual_machine_id = netbox_virtual_machine.caddy.id
+  description        = "Caddy HTTPS web server"
+}
+
+resource "netbox_service" "caddy_webdav" {
+  name               = "WebDAV"
+  protocol           = "tcp"
+  ports              = [8080]
+  virtual_machine_id = netbox_virtual_machine.caddy.id
+  description        = "Caddy WebDAV file sharing"
 }

@@ -1,0 +1,13 @@
+---
+- name: Sync Inventory Facts to Netbox
+  hosts: pve_lxc:pve_vms:proxmox_cluster
+  gather_facts: yes
+  vars:
+    netbox_url: "http://192.168.1.104:8080"
+    # In production, use ansible-vault for the token
+    netbox_token: "0123456789abcdef0123456789abcdef01234567"
+
+  tasks:
+    - name: Sync facts to Netbox
+      include_role:
+        name: netbox_sync
