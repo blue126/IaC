@@ -5,5 +5,5 @@ output "vm_id" {
 
 output "default_ip" {
   description = "The IP configuration of the VM"
-  value       = "${var.ip_address} (Proxmox VM)"
+  value       = var.ip_address != null ? "${var.ip_address} (Proxmox VM)" : "DHCP (Proxmox VM)"
 }

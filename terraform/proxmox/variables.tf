@@ -81,3 +81,19 @@ variable "ip_config" {
   type        = string
   default     = "ip=dhcp"
 }
+
+variable "netbox_provisioned_vms" {
+  description = "List of VMs to provision, fetched from Netbox"
+  type = list(object({
+    name        = string
+    target_node = string
+    template    = string
+    cores       = number
+    memory      = number
+    disk_size      = string
+    ip_address     = string
+    vmid           = number
+    cloudinit_slot = string
+  }))
+  default = []
+}

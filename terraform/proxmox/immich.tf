@@ -16,8 +16,9 @@ module "immich" {
   ip_address   = "192.168.1.101/24"
   
   # Global settings
-  storage_pool = var.storage_pool
-  sshkeys      = var.sshkeys
+  storage_pool   = var.storage_pool
+  sshkeys        = var.sshkeys
+  cloudinit_slot = "ide2"
 }
 
 output "immich_ip" {

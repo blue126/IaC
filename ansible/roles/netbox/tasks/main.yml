@@ -49,6 +49,13 @@
           user: "unit:root"
           restart: unless-stopped
 
+        postgres:
+          restart: unless-stopped
+        redis:
+          restart: unless-stopped
+        redis-cache:
+          restart: unless-stopped
+
 - name: Pull Netbox images
   command: docker compose pull
   args:

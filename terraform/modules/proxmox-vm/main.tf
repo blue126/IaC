@@ -17,6 +17,7 @@ resource "proxmox_vm_qemu" "vm" {
   bios    = var.bios
   machine = var.machine
   agent   = var.agent
+  onboot  = var.onboot
   
   # Serial Console for Copy-Paste
   serial {
@@ -40,6 +41,13 @@ resource "proxmox_vm_qemu" "vm" {
 
 
 
+  # Cloud-Init Disk
+  disk {
+    slot    = var.cloudinit_slot
+    type    = "cloudinit"
+    storage = var.storage_pool
+  }
+
   # Disk
   disk {
     storage = var.storage_pool
@@ -47,22 +55,7 @@ resource "proxmox_vm_qemu" "vm" {
     size    = var.disk_size
     slot    = "scsi0"
     discard = true
-  }
-
-  # EFI Disk (Only for OVMF)
-  dynamic "efidisk" {
-    for_each = var.bios == "ovmf" ? [1] : []
-    content {
-      efitype = "4m"
-      storage = var.efidisk_storage != null ? var.efidisk_storage : var.storage_pool
-    }
-  }
-
-  # Cloud-Init Disk
-  disk {
-    slot    = "scsi1"
-    type    = "cloudinit"
-    storage = var.storage_pool
+    format  = "raw"  //to avoid cosmetic drift status of terraform
   }
 
   # Cloud-Init Settings

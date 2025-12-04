@@ -53,6 +53,7 @@ resource "proxmox_lxc" "lxc" {
     ignore_changes = [
       # Ignore template changes after container creation
       ostemplate,
+      description,
     ]
   }
 }

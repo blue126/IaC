@@ -9,8 +9,9 @@ module "netbox" {
   memory        = 4096
   disk_size     = "20G"
   storage_pool  = var.storage_pool
-  sshkeys       = var.sshkeys
-  cicustom      = null
+  sshkeys        = var.sshkeys
+  cicustom       = null
+  cloudinit_slot = "ide2"
 }
 
 output "netbox_ip" {

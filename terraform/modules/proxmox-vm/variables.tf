@@ -68,6 +68,22 @@ variable "agent" {
   default     = 1
 }
 
+variable "netbox_provisioned_vms" {
+  description = "List of VMs to provision, fetched from Netbox"
+  type = list(object({
+    name           = string
+    target_node    = string
+    template       = string
+    cores          = number
+    memory         = number
+    disk_size      = string
+    ip_address     = string
+    vmid           = number
+    cloudinit_slot = string
+  }))
+  default = []
+}
+
 variable "vmid" {
   description = "Proxmox VM ID"
   type        = number
@@ -114,4 +130,16 @@ variable "gateway" {
   description = "Network Gateway"
   type        = string
   default     = "192.168.1.1"
+}
+
+variable "cloudinit_slot" {
+  description = "Slot for Cloud-Init drive (e.g., scsi1, ide2)"
+  type        = string
+  default     = "scsi1"
+}
+
+variable "onboot" {
+  description = "Whether to start the VM on boot"
+  type        = bool
+  default     = true
 }
