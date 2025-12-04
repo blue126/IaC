@@ -1,0 +1,14 @@
+---
+plugin: netbox.netbox.nb_inventory
+api_endpoint: http://192.168.1.104:8080
+token: 0123456789abcdef0123456789abcdef01234567
+validate_certs: false
+config_context: false
+group_by:
+  - device_roles
+  - sites
+  - platforms
+query_filters:
+  - status: active
+compose:
+  ansible_host: primary_ip4.address | default(primary_ip6.address) | default(None) | regex_replace('/.*$', '')
