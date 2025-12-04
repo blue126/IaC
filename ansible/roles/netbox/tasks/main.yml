@@ -31,6 +31,7 @@
         netbox:
           image: "{{ netbox_image }}"
           user: "unit:root"
+          restart: unless-stopped
           ports:
             - "{{ netbox_port }}:8080"
           environment:
@@ -42,9 +43,11 @@
         netbox-worker:
           image: "{{ netbox_image }}"
           user: "unit:root"
+          restart: unless-stopped
         netbox-housekeeping:
           image: "{{ netbox_image }}"
           user: "unit:root"
+          restart: unless-stopped
 
 - name: Pull Netbox images
   command: docker compose pull

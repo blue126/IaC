@@ -17,12 +17,14 @@
         port: "{{ netbox_port | default(8080) }}"
         timeout: 60
       register: netbox_port_result
+      tags: [summary]
 
     # Check Docker service status
     - name: Check Docker service status
       systemd:
         name: docker
       register: docker_status
+      tags: [summary]
 
     - name: Assert Docker service is running
       assert:
@@ -31,6 +33,7 @@
           - docker_status.status.SubState == "running"
         fail_msg: "❌ Docker service is not running"
         success_msg: "✅ Docker service is active and running"
+      tags: [summary]
 
     # Check Netbox containers health
     - name: Get Netbox containers status
@@ -39,6 +42,7 @@
         chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
       register: compose_ps_result
       changed_when: false
+      tags: [summary]
 
     - name: Check for healthy containers
       shell: docker compose ps | grep -E "netbox.*healthy" | wc -l
@@ -46,6 +50,7 @@
         chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
       register: healthy_count
       changed_when: false
+      tags: [summary]
 
     - name: Assert Netbox containers are healthy
       assert:
@@ -53,6 +58,7 @@
           - healthy_count.stdout | int > 0
         fail_msg: "❌ No healthy Netbox containers found"
         success_msg: "✅ Netbox containers are healthy ({{ healthy_count.stdout }} found)"
+      tags: [summary]
 
     # Test HTTP endpoint
     - name: Test Netbox web interface
@@ -62,6 +68,7 @@
         status_code: [200, 302]
         timeout: 10
       register: netbox_http_result
+      tags: [summary]
 
     - name: Assert Netbox web interface is accessible
       assert:
@@ -69,6 +76,7 @@
           - netbox_http_result.status in [200, 302]
         fail_msg: "❌ Netbox web interface not accessible"
         success_msg: "✅ Netbox web interface is accessible (HTTP {{ netbox_http_result.status }})"
+      tags: [summary]
 
     # Test API endpoint
     - name: Test Netbox login page
@@ -78,6 +86,7 @@
         status_code: [200]
         timeout: 10
       register: netbox_login_result
+      tags: [summary]
 
     - name: Assert Netbox login page is accessible
       assert:
@@ -85,6 +94,7 @@
           - netbox_login_result.status == 200
         fail_msg: "❌ Netbox login page not accessible"
         success_msg: "✅ Netbox login page is accessible"
+      tags: [summary]
 
     # Check PostgreSQL connectivity
     - name: Test database connectivity
@@ -96,6 +106,7 @@
       register: db_check
       changed_when: false
       failed_when: false
+      tags: [summary]
 
     - name: Assert database is accessible
       assert:
@@ -104,6 +115,7 @@
           - "'accepting connections' in db_check.stdout"
         fail_msg: "❌ PostgreSQL database is not accessible"
         success_msg: "✅ PostgreSQL database is accepting connections"
+      tags: [summary]
 
     # Display deployment summary
     # Display deployment summary
@@ -112,24 +124,26 @@
       register: tailscale_ipv4
       changed_when: false
       failed_when: false
+      tags: [summary]
 
     - name: Display deployment summary
       debug:
-        msg:
-          - "========================================="
-          - "✅ Netbox Deployment Successful"
-          - "========================================="
-          - "Docker Status: {{ docker_status.status.ActiveState }}"
-          - "Healthy Containers: {{ healthy_count.stdout }}"
-          - "Web Server Port ({{ netbox_port | default(8080) }}): {{ 'Listening' if netbox_port_result is success else 'Not ready' }}"
-          - "HTTP Status: {{ netbox_http_result.status }}"
-          - "Login Page Status: {{ netbox_login_result.status }}"
-          - "Database: {{ 'Connected' if db_check.rc == 0 else 'Not connected' }}"
-          - "Web Interface: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}"
-          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
-          - "Tailscale URL: https://netbox.wyrm-wall.ts.net"
-          - "API Endpoint: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}/api/"
-          - "Superuser: {{ netbox_superuser_name | default('admin') }}"
-          - "Password: {{ netbox_superuser_password | default('admin') }}"
-          - "Install Directory: {{ netbox_install_dir | default('/opt/netbox-docker') }}"
-          - "========================================="
+        msg: |
+          =========================================
+          ✅ Netbox Deployment Successful
+          =========================================
+          Docker Status: {{ docker_status.status.ActiveState }}
+          Healthy Containers: {{ healthy_count.stdout }}
+          Web Server Port ({{ netbox_port | default(8080) }}): {{ 'Listening' if netbox_port_result is success else 'Not ready' }}
+          HTTP Status: {{ netbox_http_result.status }}
+          Login Page Status: {{ netbox_login_result.status }}
+          Database: {{ 'Connected' if db_check.rc == 0 else 'Not connected' }}
+          Web Interface: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}
+          Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}
+          Tailscale URL: https://netbox.wyrm-wall.ts.net
+          API Endpoint: http://{{ ansible_host }}:{{ netbox_port | default(8080) }}/api/
+          Superuser: {{ netbox_superuser_name | default('admin') }}
+          Password: {{ netbox_superuser_password | default('admin') }}
+          Install Directory: {{ netbox_install_dir | default('/opt/netbox-docker') }}
+          =========================================
+      tags: [summary]

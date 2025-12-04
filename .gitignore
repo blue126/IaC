@@ -6,7 +6,6 @@
 *.tfvars
 venv/
 .venv/
-.agent/
 __pycache__/
 *.pyc
 .DS_Store

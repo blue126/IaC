@@ -40,19 +40,24 @@ Terraform (Provision) → Ansible (Configure) → Verify (Health Check)
 └── scripts/                 # Environment setup
 ```
 
-## Current Infrastructure
+## Ansible Configuration
 
-### Virtual Machines
-| Service | IP | Type | Description |
-|---------|------|------|-------------|
-| Netbox | 192.168.1.104 | VM | IPAM/DCIM (6 Docker containers) |
-| Immich | 192.168.1.101 | VM | Photo management (4 Docker containers) |
-| Samba | 192.168.1.102 | VM | File sharing (smbd/nmbd) |
+The project uses a customized `ansible.cfg` to streamline operations and improve output readability.
 
-### LXC Containers
-| Service | IP | Type | Description |
-|---------|------|------|-------------|
-| Anki Sync Server | 192.168.1.100 | LXC | Flashcard synchronization (Python/systemd) |
+### Key Settings (`ansible.cfg`)
+*   **Inventory**: Defaults to `inventory/`, so you don't need to specify `-i` for every command.
+*   **Roles Path**: Defaults to `roles/`.
+*   **Vault Password**: Automatically reads the password from `.vault_pass` (gitignored) for transparent decryption.
+*   **Output Format**: Uses `stdout_callback = debug` to provide clean, human-readable output without JSON clutter or escape characters (like `\n`).
+
+### Inventory Structure
+We use a **split inventory** approach for better organization and scalability:
+*   **`groups.yml`**: Defines the hierarchy of groups (e.g., `pve_lxc` is a child of `tailscale`).
+*   **`host_vars/`**: Variables specific to a single host (e.g., IP address, specific configuration).
+*   **`group_vars/`**: Variables shared across a group (e.g., Tailscale auth keys, common users).
+*   **`proxmox_cluster/`, `pve_lxc/`, etc.**: Directories containing `hosts.yml` files that strictly list group members.
+
+
 
 ## Quick Start
 

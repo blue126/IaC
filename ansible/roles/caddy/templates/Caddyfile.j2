@@ -1,8 +1,8 @@
 {
-    email {{ caddy_email | default('hello@willfan.me') }}
+    email {{ caddy_email | default('hello@' + caddy_domain) }}
     acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 }
-webdav.willfan.me {
+webdav.{{ caddy_domain }} {
     handle {
         basic_auth {
             {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}

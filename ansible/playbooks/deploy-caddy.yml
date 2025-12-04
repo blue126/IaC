@@ -47,15 +47,23 @@
       register: tailscale_ipv4
       changed_when: false
       failed_when: false
+      tags: [summary]
 
     - name: Display deployment summary
       debug:
-        msg:
-          - "========================================="
-          - "✅ Caddy Deployment Successful"
-          - "========================================="
-          - "WebDAV URL: https://webdav.{{ caddy_domain }}/"
-          - "Direct Access: http://{{ ansible_host }}:{{ caddy_webdav_port }}/"
-          - "Reverse Proxies Configured: {{ caddy_reverse_proxies | length }}"
-          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
-          - "========================================="
+        msg: |
+          =========================================
+          ✅ Caddy Deployment Successful
+          =========================================
+          WebDAV URL: https://webdav.{{ caddy_domain }}/
+          Direct Access: http://{{ ansible_host }}:{{ caddy_webdav_port }}/
+          Reverse Proxies Configured: {{ caddy_reverse_proxies | length }}
+          -----------------------------------------
+          Services:
+          {% for proxy in caddy_reverse_proxies %}
+          - {{ proxy.subdomain }}.{{ caddy_domain }} -> {{ proxy.upstream }}
+          {% endfor %}
+          -----------------------------------------
+          Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}
+          =========================================
+      tags: [summary]

@@ -67,3 +67,39 @@ webdav.willfan.me {
 }
 ```
 **注意**: 这里的顺序很关键。通常 `file_server` 会处理静态文件请求（如浏览器浏览），而 `webdav` 插件会处理特定的 DAV 方法（PROPFIND 等）。通过 `route` 块，我们确保了它们共存且互不干扰。
+
+---
+
+## 3. Ansible 最佳实践：Role 设计与变量管理
+
+### 3.1 Role (逻辑) 与 Inventory (数据) 的分离
+
+#### 现象
+在配置 Caddy 反向代理时，我们将具体的代理列表 (`caddy_reverse_proxies`) 定义在了 Inventory 文件 (`inventory/pve_lxc/caddy.yml`) 中，而不是 Role 的默认变量 (`roles/caddy/defaults/main.yml`) 里。
+
+#### 原因
+1.  **复用性 (Reusability)**: Role 应该是通用的“模具”。如果把具体配置写死在 Role 里，这个 Role 就无法在其他项目或环境中复用。
+2.  **清晰性 (Clarity)**: Inventory 是基础设施的“地图”。将业务配置放在 Inventory 中，可以一目了然地看到当前环境运行了哪些服务。
+3.  **多环境支持 (Environment Separation)**: 不同的环境（如 Prod/Dev）通常共享同一个 Role，但拥有不同的 Inventory。分离设计使得 Role 无需修改即可适配不同环境。
+
+#### 最佳实践
+*   **Defaults (`defaults/main.yml`)**: 仅定义变量的**默认值**（如空列表 `[]` 或默认端口），确保 Role 在不传参时也能运行（或报错提示）。
+*   **Inventory (`host_vars`/`group_vars`)**: 定义具体的**业务数据**。
+
+### 3.2 模板文件的通用化 (避免硬编码)
+
+#### 现象
+最初的 `Caddyfile.j2` 模板中硬编码了 `webdav.willfan.me` 和 `hello@willfan.me`。
+
+#### 原因
+硬编码导致 Role 与特定域名绑定。如果将来域名变更，或者在另一个环境（如 `dev.willfan.me`）中使用该 Role，就必须修改模板源码，违反了“开闭原则”。
+
+#### 解决方案
+使用变量替换硬编码的字符串：
+*   **Before**: `webdav.willfan.me`
+*   **After**: `webdav.{{ caddy_domain }}`
+
+同时利用 Jinja2 的过滤器提供智能默认值：
+*   **Email**: `{{ caddy_email | default('hello@' + caddy_domain) }}`
+
+这样，只要在 Inventory 中修改 `caddy_domain`，整个配置文件就会自动适配，无需触碰 Role 代码。
