@@ -1,0 +1,5 @@
+---
+ansible_user: root
+ansible_connection: ssh
+# Password should be provided at runtime or via vault
+# ansible_password: ...

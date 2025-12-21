@@ -13,6 +13,9 @@ all:
         netbox:
 
     oci:
+    esxi_hosts:
+      children:
+
     tailscale:
       children:
         proxmox_cluster:
