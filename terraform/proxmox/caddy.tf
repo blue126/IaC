@@ -9,7 +9,7 @@ module "caddy" {
   memory         = 512
   swap           = 512
   rootfs_storage = "vmdata"
-  rootfs_size    = "50G"
+  rootfs_size    = "100G"
   network_bridge = "vmbr1"
   ip_address     = "192.168.1.105/24"
   gateway        = "192.168.1.1"

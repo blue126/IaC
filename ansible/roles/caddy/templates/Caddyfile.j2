@@ -8,9 +8,7 @@ webdav.{{ caddy_domain }} {
             {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
         }
         route {
-            file_server browse {
-                root {{ caddy_webdav_root }}
-            }
+
             webdav {
                 root {{ caddy_webdav_root }}
             }
@@ -29,9 +27,7 @@ http://:{{ caddy_webdav_port }} {
             {{ caddy_webdav_user | default('admin') }} {{ caddy_webdav_password_hash }}
         }
         route {
-            file_server browse {
-                root {{ caddy_webdav_root }}
-            }
+
             webdav {
                 root {{ caddy_webdav_root }}
             }
