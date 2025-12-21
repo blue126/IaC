@@ -1,0 +1,18 @@
+[Unit]
+Description=n8n - Workflow Automation Tool
+Documentation=https://docs.n8n.io/
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+Environment=N8N_PORT=5678
+# Disable analytics if desired, or other env vars
+Environment=N8N_SECURE_COOKIE=false
+ExecStart=/usr/bin/n8n start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

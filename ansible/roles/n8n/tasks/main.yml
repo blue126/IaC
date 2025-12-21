@@ -1,0 +1,62 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install system dependencies
+  apt:
+    name:
+      - curl
+      - git
+      - gnupg
+      - build-essential
+    state: present
+
+- name: Remove manual Node.js installation (conflict with apt)
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /usr/local/bin/node
+    - /usr/local/bin/npm
+    - /usr/local/lib/node_modules
+
+- name: Install NodeSource repository
+  shell: curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+
+- name: Upgrade Node.js
+  apt:
+    name:
+      - nodejs
+    state: latest
+    update_cache: yes
+
+- name: Check Node.js version
+  command: node --version
+  register: node_version
+  changed_when: false
+
+- name: Display Node.js version
+  debug:
+    msg: "Node.js version: {{ node_version.stdout }}"
+
+- name: Install n8n globally
+  npm:
+    name: n8n
+    global: yes
+    state: present
+
+- name: Create systemd service for n8n
+  template:
+    src: n8n.service.j2
+    dest: /etc/systemd/system/n8n.service
+    mode: '0644'
+  notify: Restart n8n
+
+- name: Enable and start n8n service
+  systemd:
+    name: n8n
+    enabled: yes
+    state: started
+    daemon_reload: yes

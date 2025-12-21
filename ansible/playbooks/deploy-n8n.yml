@@ -1,0 +1,46 @@
+---
+- name: Deploy n8n
+  hosts: n8n
+  gather_facts: true
+  become: true
+  roles:
+    - n8n
+
+- name: Verify n8n Deployment
+  hosts: n8n
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Wait for n8n to start
+      wait_for:
+        port: 5678
+        delay: 5
+        timeout: 60
+
+    - name: Check service status
+      systemd:
+        name: n8n
+      register: service_status
+
+    - name: Assert service is active
+      assert:
+        that:
+          - service_status.status.ActiveState == "active"
+        success_msg: "✅ n8n service is running"
+        fail_msg: "❌ n8n service is not running"
+
+    - name: Test HTTP accessibility
+      uri:
+        url: http://localhost:5678/
+        status_code: 200
+        timeout: 5
+      register: http_check
+      ignore_errors: yes
+
+    - name: Display connection info
+      debug:
+        msg: |
+          ======================================
+          ✅ n8n Deployment Complete
+          URL: http://{{ ansible_host }}:5678
+          ======================================

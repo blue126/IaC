@@ -22,3 +22,5 @@ caddy:
         - subdomain: proxmox
           upstream: https://192.168.1.50:8006
           insecure_skip_verify: true
+        - subdomain: n8n
+          upstream: http://192.168.1.106:5678
