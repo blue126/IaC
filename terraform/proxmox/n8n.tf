@@ -23,3 +23,11 @@ module "n8n" {
 output "n8n_ip" {
   value = module.n8n.lxc_ip
 }
+
+resource "ansible_host" "n8n" {
+  name   = "n8n"
+  groups = ["pve_lxc"]
+  variables = {
+    ansible_host = "192.168.1.106"
+  }
+}

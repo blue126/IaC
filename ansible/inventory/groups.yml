@@ -2,16 +2,6 @@
 all:
   children:
     proxmox_cluster:
-    pve_lxc:
-      children:
-        anki:
-        homepage:
-        caddy:
-    pve_vms:
-      children:
-        immich:
-        netbox:
-
     oci:
     esxi_hosts:
       children:
@@ -19,6 +9,9 @@ all:
     tailscale:
       children:
         proxmox_cluster:
+        oci:
         pve_lxc:
         pve_vms:
-        oci:
+
+    pve_lxc:
+    pve_vms:

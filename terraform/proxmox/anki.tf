@@ -23,3 +23,11 @@ module "anki" {
 output "anki_ip" {
   value = module.anki.lxc_ip
 }
+
+resource "ansible_host" "anki" {
+  name   = "anki"
+  groups = ["pve_lxc"]
+  variables = {
+    ansible_host = "192.168.1.100"
+  }
+}

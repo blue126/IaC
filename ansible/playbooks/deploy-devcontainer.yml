@@ -1,0 +1,14 @@
+---
+- name: Configure DevContainer VM
+  hosts: devcontainer
+  become: yes
+  roles:
+    - common
+    - docker
+    # - user # TODO: specific user configuration if needed beyond common
+  tasks:
+    - name: Ensure user is in docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes

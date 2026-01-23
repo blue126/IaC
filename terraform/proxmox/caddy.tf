@@ -23,3 +23,12 @@ module "caddy" {
 output "caddy_ip" {
   value = module.caddy.lxc_ip
 }
+
+resource "ansible_host" "caddy" {
+  name   = "caddy"
+  groups = ["pve_lxc"]
+  variables = {
+    ansible_user = "root"
+    ansible_host = "192.168.1.105"
+  }
+}

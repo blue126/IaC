@@ -1,31 +1,39 @@
-# Terraform Infrastructure Code
+# Terraform Infrastructure
 
-This directory contains Terraform configurations for infrastructure provisioning across multiple platforms.
+This directory contains the Infrastructure as Code (IaC) definitions for the homelab environment.
 
 ## Directory Structure
 
-- **`proxmox/`** - Proxmox VE environment (calls `proxmox-vm` module)
-- **`esxi/`** - VMware ESXi infrastructure definitions (planned)
-- **`modules/`** - Reusable Terraform modules
-  - `proxmox-vm/` - Proxmox VM creation module
-  - `network/` - Network configuration module (VLANs, subnets, routing)
+*   **`proxmox/`**:  
+    Contains the main configuration for Proxmox resources (VMs, LXC containers).  
+    **This is the primary working directory.** All `terraform` commands (init, plan, apply) should be executed here.
 
-## Workflow
+*   **`modules/`**:  
+    Reusable Terraform modules (e.g., `proxmox-vm`, `proxmox-lxc`). These are consumed by the configurations in `proxmox/`.
 
-1. **Terraform** provisions the infrastructure (VMs, networks, storage)
-2. **Ansible** (in `../ansible/`) configures the provisioned resources
+*   **`esxi/`**:  
+    Legacy or separate configuration for ESXi hosts.
 
-## Usage
+*   **`oci/`**:  
+    Configuration for Oracle Cloud Infrastructure.
 
-```bash
-cd proxmox/
-terraform init
-terraform plan
-terraform apply
-```
+## How to Run
 
-## Future Plans
+To apply changes to Proxmox resources:
 
-- ESXi host integration (~1 month)
-- OpenWrt network device management
-- Multi-platform infrastructure orchestration
+1.  Navigate to the provider directory:
+    ```bash
+    cd proxmox
+    ```
+2.  Initialize Terraform (if not already done):
+    ```bash
+    terraform init
+    ```
+3.  Review pending changes:
+    ```bash
+    terraform plan
+    ```
+4.  Apply changes:
+    ```bash
+    terraform apply
+    ```

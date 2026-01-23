@@ -24,3 +24,12 @@ module "immich" {
 output "immich_ip" {
   value = module.immich.default_ip
 }
+
+resource "ansible_host" "immich" {
+  name   = "immich"
+  groups = ["pve_vms"]
+  variables = {
+    ansible_user = "ubuntu"
+    ansible_host = "192.168.1.101"
+  }
+}

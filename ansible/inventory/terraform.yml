@@ -1,0 +1,3 @@
+plugin: cloud.terraform.terraform_provider
+project_path: /home/will/IaC/terraform/proxmox
+state_file: /home/will/IaC/terraform/proxmox/terraform.tfstate

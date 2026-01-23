@@ -17,3 +17,12 @@ module "netbox" {
 output "netbox_ip" {
   value = module.netbox.default_ip
 }
+
+resource "ansible_host" "netbox" {
+  name   = "netbox"
+  groups = ["pve_vms"]
+  variables = {
+    ansible_user = "ubuntu"
+    ansible_host = "192.168.1.104"
+  }
+}

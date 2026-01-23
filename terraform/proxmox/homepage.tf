@@ -23,3 +23,11 @@ module "homepage" {
 output "homepage_ip" {
   value = module.homepage.lxc_ip
 }
+
+resource "ansible_host" "homepage" {
+  name   = "homepage"
+  groups = ["pve_lxc"]
+  variables = {
+    ansible_host = "192.168.1.103"
+  }
+}
