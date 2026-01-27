@@ -1,4 +1,11 @@
 terraform {
+  cloud {
+    organization = "homelab-roseville"
+
+    workspaces {
+      name = "iac-proxmox-lab"
+    }
+  }
   required_providers {
     proxmox = {
       source  = "telmate/proxmox"
