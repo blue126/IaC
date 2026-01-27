@@ -1,0 +1,21 @@
+{
+  "name": "IaC Dev Environment",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/terraform:1": {},
+    "ghcr.io/devcontainers/features/ansible:1": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "hashicorp.terraform",
+        "redhat.ansible",
+        "ms-azuretools.vscode-docker",
+        "mhutchie.git-graph"
+      ]
+    }
+  },
+  "postCreateCommand": "terraform -version && ansible --version"
+}
