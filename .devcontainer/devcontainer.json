@@ -16,7 +16,9 @@
       "version": "3.12"
     },
     // Docker CLI to manage containers on host
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    // Opencode
+    "ghcr.io/danzilberdan/devcontainers/opencode:0": {}
   },
   // VS Code customizations
   "customizations": {
