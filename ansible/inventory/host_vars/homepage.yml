@@ -1,0 +1,16 @@
+# Restored from ansible/legacy_inventory_backup/pve_lxc/homepage.yml
+proxmox_vmid: 103
+proxmox_node: pve0
+
+# Homepage dashboard configuration
+homepage_port: 3000
+
+# Application Credentials
+proxmox_api_user: "root@pam!homepage"
+proxmox_api_password: "{{ vault_proxmox_api_password_homepage }}"
+tailscale_device_id: "n9rsyfnzLp11CNTRL"
+tailscale_api_key: "{{ vault_tailscale_api_key_homepage }}"
+immich_api_key: "{{ vault_immich_api_key_homepage }}"
+
+# Allowed Hosts
+homepage_allowed_hosts: "*"

@@ -1,0 +1,71 @@
+---
+- name: Ensure Docker is installed
+  include_role:
+    name: docker
+
+- name: Create rustdesk data directory
+  file:
+    path: /var/lib/rustdesk
+    state: directory
+    mode: '0755'
+
+- name: Create docker-compose.yml for RustDesk
+  template:
+    src: docker-compose.yml.j2
+    dest: /var/lib/rustdesk/docker-compose.yml
+    mode: '0644'
+  register: rustdesk_compose_file
+
+- name: Pull RustDesk Server OSS images
+  docker_image:
+    name: "{{ item }}"
+    source: pull
+    state: present
+  loop:
+    - "rustdesk/rustdesk-server:latest"
+
+- name: Start RustDesk services with docker-compose
+  community.docker.docker_compose_v2:
+    project_src: /var/lib/rustdesk
+    state: present
+    pull: always
+  environment:
+    COMPOSE_HTTP_TIMEOUT: "300"
+
+- name: Wait for RustDesk hbbs to be ready
+  wait_for:
+    port: 21116
+    timeout: 30
+
+- name: Get RustDesk server config
+  block:
+    - name: Check if ID key exists
+      stat:
+        path: /var/lib/rustdesk/data/id_ed25519
+      register: rustdesk_id_key_stat
+
+    - name: Wait for ID key generation
+      wait_for:
+        path: /var/lib/rustdesk/data/id_ed25519
+        timeout: 30
+      when: not rustdesk_id_key_stat.stat.exists
+
+    - name: Read RustDesk ID
+      slurp:
+        src: /var/lib/rustdesk/data/id_ed25519.pub
+      register: rustdesk_id_key
+
+    - name: Extract public key
+      set_fact:
+        rustdesk_public_key: "{{ rustdesk_id_key.content | b64decode | regex_findall('pk:([A-Za-z0-9/+=]+)') | first | default('UNKNOWN_KEY') }}"
+
+- name: Display RustDesk connection info
+  debug:
+    msg: |
+      RustDesk Server deployed successfully!
+      ID Server: rustdesk.willfan.me
+      Public Key: {{ rustdesk_public_key }}
+      
+      Configure your client with:
+      - ID Server: rustdesk.willfan.me
+      - Public Key: (see above)

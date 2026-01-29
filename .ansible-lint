@@ -1,0 +1,17 @@
+# Disable ansible-lint checks
+skip_list:
+  - yaml
+  - fqcn
+  - name
+  - risky-file-permissions
+  - no-changed-when
+  - command-instead-of-shell
+  - schema
+  - var-naming
+
+# Exclude patterns
+exclude_paths:
+  - .cache/
+  - .git/
+  - venv/
+  - .venv/

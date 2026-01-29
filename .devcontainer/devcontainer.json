@@ -1,21 +1,81 @@
 {
+  // Dev container name shown in VS Code
   "name": "IaC Dev Environment",
+  // Base image: Ubuntu 24.04 with common dev tools
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  // Force container to use local gateway for DNS to resolve internal domains
+  "runArgs": [
+    "--dns=192.168.1.1"
+  ],
+  // Additional features to install
   "features": {
+    // Terraform CLI for infrastructure provisioning
     "ghcr.io/devcontainers/features/terraform:1": {},
-    "ghcr.io/devcontainers/features/ansible:1": {},
-    "ghcr.io/devcontainers/features/git:1": {},
+    // Python 3.12 for Ansible and scripts
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    },
+    // Docker CLI to manage containers on host
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
+  // VS Code customizations
   "customizations": {
     "vscode": {
+      // Extensions to install
       "extensions": [
-        "hashicorp.terraform",
-        "redhat.ansible",
-        "ms-azuretools.vscode-docker",
-        "mhutchie.git-graph"
-      ]
+        "hashicorp.terraform", // Terraform syntax and IntelliSense
+        "redhat.ansible", // Ansible language support (includes YAML)
+        "ms-python.python", // Python language support
+        "ms-python.vscode-pylance", // Python IntelliSense
+        "ms-azuretools.vscode-docker", // Docker management
+        "mhutchie.git-graph" // Git history visualization
+      ],
+      // Editor settings
+      "settings": {
+        // Python interpreter path
+        "python.defaultInterpreterPath": "/usr/local/python/current/bin/python3",
+        // Ansible plugin: Python interpreter for ansible modules
+        "ansible.python.interpreterPath": "/usr/local/python/current/bin/python3",
+        // Ansible plugin: Path to ansible executable
+        "ansible.ansible.path": "/home/vscode/.local/bin/ansible",
+        // Ansible plugin: Disable execution environment (use local install)
+        "ansible.executionEnvironment.enabled": false,
+        // Ansible plugin: Enable validation
+        "ansible.validation.enabled": true,
+        // Ansible plugin: Enable ansible-lint
+        "ansible.validation.lint.enabled": true,
+        // Ansible plugin: Path to ansible-lint
+        "ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint",
+        // Ansible plugin: Disable Lightspeed AI (requires subscription)
+        "ansible.lightspeed.enabled": false,
+        // Associate YAML files with Ansible language mode
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        }
+      }
     }
   },
-  "postCreateCommand": "terraform -version && ansible --version"
+  // Volume mounts
+  "mounts": [
+    // Mount host SSH keys for remote connections
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
+    // Persist pip packages across rebuilds
+    "source=iac-pip-cache,target=/home/vscode/.local,type=volume",
+    // Persist Ansible collections across rebuilds
+    "source=iac-ansible-cache,target=/home/vscode/.ansible,type=volume"
+  ],
+  // Environment variables available in container
+  "containerEnv": {
+    // Ansible config file location
+    "ANSIBLE_CONFIG": "/workspaces/IaC/ansible/ansible.cfg"
+  },
+  // Commands to run after container creation
+  // 1. Install libonig-dev (required for ansible-dev-tools compilation)
+  // 2. Fix volume permissions for vscode user
+  // 3. Install Python dependencies from requirements.txt
+  // 4. Install Ansible collections from requirements.yml
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libonig-dev && sudo chown -R vscode:vscode /home/vscode/.local /home/vscode/.ansible 2>/dev/null || true && pip install --user -r requirements.txt && cd ansible && ansible-galaxy collection install -r requirements.yml",
+  // Run as vscode user (not root)
+  "remoteUser": "vscode"
 }

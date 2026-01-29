@@ -1,7 +1,7 @@
 ---
 - name: Apply common baseline to all hosts
   hosts: all
-  become: yes
+  become: true
   roles:
     - common
 

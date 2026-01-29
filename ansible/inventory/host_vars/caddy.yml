@@ -1,0 +1,24 @@
+# Host variables for Caddy (LXC 105)
+# Caddy Configuration (Restored from backup)
+caddy_webdav_root: /var/www/webdav
+caddy_webdav_port: 8080
+caddy_domain: willfan.me
+proxmox_node: pve0
+proxmox_vmid: 105
+
+caddy_reverse_proxies:
+  - subdomain: homepage
+    upstream: "192.168.1.103:3000"
+  - subdomain: immich
+    upstream: "192.168.1.101:2283"
+  - subdomain: netbox
+    upstream: "192.168.1.104:8080"
+  - subdomain: anki
+    upstream: "192.168.1.100:8080"
+  - subdomain: proxmox
+    upstream: "192.168.1.50:8006"
+    insecure_skip_verify: true
+  - subdomain: n8n
+    upstream: "192.168.1.106:5678"
+  - subdomain: rustdesk
+    upstream: "192.168.1.102:21118"

@@ -4,6 +4,30 @@ This directory contains learning notes and troubleshooting logs for the Infrastr
 
 ## Notes List
 
+### 2026-01-28
+
+- **[Rustdesk 部署与 Terraform State 管理](./2026-01-28-rustdesk-terraform.md)**
+  - **Tags**: Rustdesk, Ansible, Terraform, DevOps, Relay
+  - **Summary**: Solved Ansible inventory access to Terraform Cloud state by creating a local pull script. Configured Rustdesk Relay address for correct client connectivity. Explained Relay concepts.
+
+- **[SSH Key 管理的混合策略 (Terraform + Ansible)](./2026-01-28-ssh-key-management-strategy.md)**
+  - **Tags**: Terraform, Ansible, SSH, Pattern
+  - **Summary**: Explains the "Bootstrap Key" pattern to manage SSH access without triggering Terraform VM rebuilds.
+
+- **[从静态 Inventory 迁移到动态 Inventory 的数据丢失陷阱](./2026-01-29-inventory-migration-trap.md)**
+  - **Tags**: Ansible, Refactoring, Best Practices
+  - **Summary**: Analyzes why configuration data can be lost during infrastructure refactoring and defines the "Inventory vs Configuration" separation principle.
+
+- **[Ansible 踩坑记录 (Callback, Dependencies, Command Check)](./2026-01-29-ansible-troubleshooting.md)**
+  - **Tags**: Ansible, Troubleshooting, Best Practices
+  - **Summary**: Summarizes solutions for deprecated YAML callbacks, missing environment dependencies, and robust command existence checks.
+
+- **[RustDesk 部署与 DNS 连接排查](./2026-01-29-rustdesk-deployment-lessons.md)**
+  - **Tags**: RustDesk, DNS, Troubleshooting
+  - **Summary**: Clarifies RustDesk architecture (No Web UI), Client vs Proxy connection flow, and DNS Split-Horizon issues.
+
+
+
 ### 2025-11-30
 
 - **[LXC 与 VM 网络桥接拓扑学习笔记](./2025-11-30-lxc-vm-network-bridge.md)**

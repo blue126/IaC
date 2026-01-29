@@ -1,6 +1,6 @@
 ---
 - name: Configure /dev/net/tun passthrough for LXC (on Proxmox Host)
-  delegate_to: "{{ proxmox_node }}"
+  delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
   blockinfile:
     path: "/etc/pve/lxc/{{ proxmox_vmid }}.conf"
     marker: "# {mark} ANSIBLE MANAGED BLOCK - TAILSCALE"
@@ -26,7 +26,7 @@
   when: ansible_facts.virtualization_type == 'lxc'
 
 - name: Restart LXC container to apply changes
-  delegate_to: "{{ proxmox_node }}"
+  delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
   command: "pct reboot {{ proxmox_vmid }}"
   when: lxc_config_update.changed
 
@@ -37,7 +37,7 @@
   when: lxc_config_update.changed
 
 - name: Check if Tailscale is installed
-  command: tailscale --version
+  shell: command -v tailscale
   register: tailscale_check
   ignore_errors: true
   changed_when: false

@@ -1,0 +1,9 @@
+---
+- name: Deploy RustDesk Server OSS
+  hosts: rustdesk
+  become: yes
+  remote_user: ubuntu
+  
+    - name: Include rustdesk role
+      include_role:
+        name: rustdesk
