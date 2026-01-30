@@ -2,7 +2,9 @@
   // Dev container name shown in VS Code
   "name": "IaC Dev Environment",
   // Base image: Ubuntu 24.04 with common dev tools
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   // Force container to use local gateway for DNS to resolve internal domains
   "runArgs": [
     "--dns=192.168.1.1"
@@ -65,7 +67,9 @@
     // Persist pip packages across rebuilds
     "source=iac-pip-cache,target=/home/vscode/.local,type=volume",
     // Persist Ansible collections across rebuilds
-    "source=iac-ansible-cache,target=/home/vscode/.ansible,type=volume"
+    "source=iac-ansible-cache,target=/home/vscode/.ansible,type=volume",
+    // OpenCode auth token
+    "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind"
   ],
   // Environment variables available in container
   "containerEnv": {

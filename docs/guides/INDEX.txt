@@ -1,0 +1,269 @@
+Terraform + Proxmox 综合文档库索引
+====================================
+
+编译时间: 2026-01-30
+源文件: 5 个学习笔记
+总行数: 3791 行
+
+文档清单
+========
+
+1. terraform_proxmox_complete_guide.md (46 KB, 2022 行) [主指南]
+   ├─ 简介与架构概览
+   ├─ 核心概念基础 (Provider, Resource, State, Module, Cloud-Init)
+   ├─ Terraform 项目结构
+   ├─ 基础配置与初始化 (第一个 VM 部署)
+   ├─ 模块化设计最佳实践
+   ├─ Cloud-Init 与虚拟机初始化
+   ├─ 状态管理与配置漂移
+   ├─ 常见问题与故障排查 (40+ 个问题)
+   ├─ SSH 密钥管理策略
+   ├─ 参考资源与命令速查
+   └─ 附录：快速参考卡片
+
+2. README.md (5.1 KB) [文档库总览]
+   ├─ 文档概览
+   ├─ 源学习笔记说明
+   ├─ 快速导航（按场景、按主题）
+   ├─ 核心知识点提炼
+   ├─ 文档使用建议
+   └─ 关键资源链接
+
+3. QUICK_REFERENCE.md (5.2 KB) [Markdown 快速参考]
+   包含所有常用命令、配置模板、常见错误
+
+4. QUICK_REFERENCE.txt (4.7 KB) [文本快速参考]
+   包含所有常用命令、配置模板、常见错误（纯文本格式）
+
+5. INDEX.txt (本文件) [文档索引]
+   整个文档库的导航指南
+
+核心知识体系
+============
+
+第一层: 基础概念
+  - Terraform Provider/Resource/State/Module
+  - Cloud-Init 初始化机制
+  - QEMU Guest Agent 的作用
+  - UEFI/Q35 架构
+
+第二层: 项目组织
+  - 模块化设计 (Root Module vs Child Module)
+  - 文件结构 (main.tf, variables.tf, outputs.tf)
+  - 参数化与变量管理
+  - Output 穿透问题
+
+第三层: 实践操作
+  - 第一个 VM 部署
+  - 模块化迁移
+  - 状态导入 (terraform import)
+  - 配置漂移处理
+
+第四层: 故障排查
+  - 磁盘相关 (缩容陷阱、单位错误)
+  - Cloud-Init (驱动器识别、配置冲突)
+  - QGA (超时、IP 获取)
+  - UEFI/Q35 (兼容性问题)
+  - 资源重建 (VMID 不稳定)
+
+第五层: 运维最佳实践
+  - SSH 密钥管理 (Bootstrap Key 模式)
+  - 状态备份与锁机制
+  - CI/CD 集成
+  - 生产环境检查清单
+
+快速导航
+========
+
+场景 1: 我是新手，想快速上手
+  步骤:
+    1. 阅读 README.md 了解整体概况
+    2. 阅读 terraform_proxmox_complete_guide.md 第 1-4 章
+    3. 按照"基础配置与初始化"的示例部署第一个 VM
+    4. 遇到问题时查阅"常见问题与故障排查"
+
+场景 2: 我要搭建可复用的 IaC 代码
+  步骤:
+    1. 理解"模块化设计最佳实践"（第 5 章）
+    2. 参考"项目结构模板"
+    3. 创建 modules/proxmox-vm
+    4. 在 environments/dev 中调用模块
+    5. 处理 Output 穿透问题
+
+场景 3: 现有 VM 想迁入 Terraform 管理
+  步骤:
+    1. 在代码中定义资源框架
+    2. 使用 terraform import 导入现有资源
+    3. 查看 terraform state show 的输出
+    4. 复制属性到代码中
+    5. 运行 terraform plan 验证漂移
+
+场景 4: VM 部署失败，我需要排查
+  步骤:
+    1. 查看 terraform plan 的错误信息
+    2. 根据错误类型在"常见问题"中查找
+    3. 按照给定的"原因"和"解决方案"操作
+    4. 如果涉及 Cloud-Init，查看 /var/log/cloud-init.log
+    5. 如果涉及 QGA，SSH 进入 VM 检查 systemctl status
+
+场景 5: 我需要管理多个用户的 SSH 访问
+  步骤:
+    1. 理解 SSH 密钥管理策略（第 8 章）
+    2. Terraform 中只保持一个 Bootstrap Key 不变
+    3. 使用 Ansible User Management Role
+    4. 修改 Ansible 变量，运行 Playbook
+    5. 无需修改 Terraform，无需重建 VM
+
+三大陷阱（必读）
+================
+
+陷阱 1: 磁盘缩容问题 ⚠️ [致命]
+  描述: 模板 20G，你要 8G，Proxmox 无法缩容
+  后果: Terraform 卸载原盘，创建新空盘，VM 无法启动
+  防御: 在脚本中验证 disk_size >= template_size
+  来源: 2025-12-04 学习笔记
+
+陷阱 2: Output 穿透问题 ⚠️ [常见]
+  描述: 模块定义的 Output 不会自动对外暴露
+  后果: 看不到 VM IP、VM ID 等关键信息
+  防御: 在 Root Module 中显式定义 Output
+  来源: 2025-11-28, 2025-11-30 学习笔记
+
+陷阱 3: SSH Key 维护陷阱 ⚠️ [运维]
+  描述: 频繁修改 Terraform 中的 sshkeys 触发 VM 重建
+  后果: 服务中断，用户被迫切换 Key
+  防御: 使用 Bootstrap Key 模式，日常由 Ansible 维护
+  来源: 2026-01-28 学习笔记
+
+五个核心命令
+============
+
+必须掌握（顺序很重要）:
+  1. terraform init      # 初始化，下载 Provider
+  2. terraform plan      # 查看执行计划（最重要！）
+  3. terraform apply     # 应用配置
+  4. terraform state     # 管理状态文件
+  5. terraform destroy   # 销毁资源
+
+记住顺序的关键：
+  "初始化、规划、应用、管理、销毁"
+
+为什么 plan 最重要：
+  计划显示了即将执行的所有操作
+  显示中断、等待时间长、意外重建等都能提前发现
+  在 apply 前务必仔细检查 plan 输出
+
+七个最佳实践
+============
+
+1. 显式优于隐式
+   不要依赖默认值，显式定义所有关键参数
+   示例: boot = "order=scsi0;ide2;net0"
+
+2. 使用远程状态后端
+   团队协作必须使用 S3/Terraform Cloud/Consul
+   启用加密和版本控制
+
+3. 模块化优先
+   从第一个 VM 开始就设计模块
+   支持代码复用和多环境部署
+
+4. 严格的状态漂移检测
+   定期运行 terraform plan
+   任何非预期变更立即调查原因
+
+5. 使用 lifecycle 块精细控制
+   ignore_changes 忽略无关漂移
+   prevent_destroy 保护关键资源
+
+6. SSH 密钥与配置管理分离
+   Terraform: Bootstrap Key（长期不变）
+   Ansible: User Management（日常维护）
+
+7. 充分的脚本验证
+   生成 Terraform 变量的脚本需要验证单位、约束
+   防止磁盘缩容、单位错误等致命问题
+
+源文件关系图
+============
+
+2025-11-28-terraform-proxmox.md
+  ├─ 定义核心概念
+  └─ 提供第一阶段故障排查
+
+2025-11-28-terraform-modules-netbox-debugging.md
+  ├─ 扩展模块化概念
+  └─ 深度调试 Cloud-Init 和网络
+
+2025-11-30-terraform-refactoring-best-practices.md
+  ├─ 介绍 Import 机制
+  ├─ 讲解状态漂移处理
+  └─ 详细 Lifecycle 用法
+
+2025-12-04-terraform-proxmox-disk-and-cloudinit-troubleshooting.md
+  ├─ 磁盘问题的根因分析
+  ├─ 脚本单位转换陷阱
+  └─ Day 2 运维问题
+
+2026-01-28-ssh-key-management-strategy.md
+  └─ SSH 管理的最终方案
+
+所有源文件集合在 /sessions/sharp-funny-feynman/mnt/docs/learningnotes/ 目录
+
+使用建议
+========
+
+第一次使用:
+  1. 从 README.md 开始，建立全局认知
+  2. 按顺序阅读完整指南的前 5 章
+  3. 参考示例代码部署一个 VM
+  4. 尝试 terraform plan 和 terraform apply
+
+日常使用:
+  1. 遇到问题先查 QUICK_REFERENCE
+  2. 还是找不到就用目录快速定位章节
+  3. 对于复杂问题，阅读完整分析
+
+最佳实践学习:
+  1. 重点研读"模块化设计"和"最佳实践"章节
+  2. 理解每个"陷阱"的根本原因，而不是只记结论
+  3. 定期回顾"生产环境检查清单"
+
+文件大小统计
+============
+
+完整指南: 46 KB (2022 行)
+  ├─ 核心概念: ~400 行
+  ├─ 基础配置: ~300 行
+  ├─ 模块化设计: ~400 行
+  ├─ Cloud-Init: ~300 行
+  ├─ 状态管理: ~350 行
+  ├─ 故障排查: ~400 行
+  ├─ SSH 管理: ~150 行
+  └─ 参考与附录: ~300 行
+
+文档库总大小: 104 KB (3791 行)
+
+关键链接
+========
+
+完整指南: /sessions/sharp-funny-feynman/mnt/docs/guides/terraform_proxmox_complete_guide.md
+库概览: /sessions/sharp-funny-feynman/mnt/docs/guides/README.md
+快速参考: /sessions/sharp-funny-feynman/mnt/docs/guides/QUICK_REFERENCE.md/.txt
+本索引: /sessions/sharp-funny-feynman/mnt/docs/guides/INDEX.txt
+
+原学习笔记: /sessions/sharp-funny-feynman/mnt/docs/learningnotes/
+  ├─ 2025-11-28-terraform-proxmox.md
+  ├─ 2025-11-28-terraform-modules-netbox-debugging.md
+  ├─ 2025-11-30-terraform-refactoring-best-practices.md
+  ├─ 2025-12-04-terraform-proxmox-disk-and-cloudinit-troubleshooting.md
+  └─ 2026-01-28-ssh-key-management-strategy.md
+
+反馈与更新
+==========
+
+如发现错误或有改进建议，欢迎反馈！
+
+本文档定期更新，确保与最新实践同步。
+
+最后更新: 2026-01-30
