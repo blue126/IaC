@@ -41,7 +41,7 @@
 
 **核心目标**：
 - ✅ **自动化部署**：Terraform 管理基础设施，Ansible 管理配置
-- ✅ **高性能存储**：ZFS 分层存储（HDD + NVMe special vdev）
+- ✅ **高性能存储**：ZFS Mirror Pool（HDD，可选 NVMe special vdev 升级）
 - ✅ **硬件直通**：LSI 3008 HBA 直通提供原生磁盘访问
 - ✅ **可维护性**：完整的文档、验证机制、监控集成
 - ✅ **资产管理**：与 Netbox IPAM/DCIM 集成
@@ -50,7 +50,7 @@
 
 **存储特性**：
 - **ZFS Mirror Pool**: 2 × 8TB HDD（通过 LSI 3008 HBA 直通）
-- **ZFS Special vdev**: 2 × 256GB NVMe（元数据 + 小文件加速）
+- **ZFS Special vdev**: 可选升级（当前未启用，需要 PCIe bifurcation 支持）
 - **性能优化**: 针对 PBS 工作负载的 ZFS 参数调优
 - **数据保护**: Mirror 冗余 + ZFS 校验和
 
@@ -74,11 +74,9 @@ PBS VM (192.168.1.249)
   ├─ 8 vCPU, 16GB RAM (预留)
   ├─ 80GB System Disk (ESXi Datastore)
   ├─ PCIe Passthrough:
-  │   ├─ LSI 3008 HBA → 2 × 8TB HDD
-  │   └─ 2 × 256GB NVMe (PCIe Adapter)
+  │   └─ LSI 3008 HBA → 2 × 8TB HDD
   └─ ZFS Storage Pool:
-      ├─ Data vdev: mirror (HDD) - 8TB usable
-      └─ Special vdev: mirror (NVMe) - Metadata + <128KB files
+      └─ Data vdev: mirror (HDD) - ~7.3TB usable
 ```
 
 **部署流程**：
@@ -173,7 +171,7 @@ Verification (Automated)
 | **Network** | VMXNET3 (1Gbps) | 备份数据传输 | 可升级到 10Gbps |
 | **HBA Card** | LSI 3008 IT Mode | HDD 直通，JBOD 模式 | IT 固件必须，非 IR 模式 |
 | **Data Disks** | 2 × 8TB HDD (SATA) | 主数据存储 | 通过 HBA 连接 |
-| **Cache Disks** | 2 × 256GB NVMe | 元数据 + 小文件加速 | 通过 PCIe 转接卡 |
+| **Cache Disks** | 2 × 256GB NVMe | 元数据 + 小文件加速 | ❌ 暂不可用 - 需要 bifurcation 支持 |
 
 **关键配置要求**：
 - ✅ BIOS/UEFI 启用 VT-d/IOMMU
@@ -181,26 +179,36 @@ Verification (Automated)
 - ✅ NVMe 通过独立 PCIe 插槽或转接卡
 - ✅ ESXi 启用 PCIe 直通（Passthrough Mode）
 
-### 2.3. Storage Architecture (ZFS Special vdev)
+### 2.3. Storage Architecture
 
-#### 2.3.1. ZFS Pool 结构
+#### 2.3.1. ZFS Pool 结构（当前部署：HDD-Only）
 
 ```
-backup-pool (总容量: ~8TB 数据 + ~220GB 元数据)
+backup-pool (总容量: ~7.3TB 可用)
+│
+└─ Data vdev: mirror-0
+    ├─ /dev/sdb (8TB HDD #1)
+    └─ /dev/sdc (8TB HDD #2)
+    • 用途: 所有数据和元数据
+    • 读写性能: ~250 MB/s 读, ~200 MB/s 写
+    • IOPS: ~150-200 (4K随机)
+    • 网络瓶颈: 1Gbps = 125 MB/s（实际限制）
+```
+
+**未来可选升级（需解决 bifurcation 问题）**：
+```
+backup-pool (升级配置: ~8TB 数据 + ~220GB 元数据)
 │
 ├─ Data vdev: mirror-0
 │   ├─ /dev/sdb (8TB HDD #1)
 │   └─ /dev/sdc (8TB HDD #2)
 │   • 用途: 存储 ≥ 128KB 的数据块
-│   • 读写性能: ~250 MB/s 读, ~200 MB/s 写
-│   • IOPS: ~150-200 (4K随机)
 │
 └─ Special vdev: mirror-1
     ├─ /dev/nvme0n1 (256GB NVMe #1)
     └─ /dev/nvme1n1 (256GB NVMe #2)
     • 用途: 所有元数据 + < 128KB 的小文件
-    • 读写性能: ~3000 MB/s
-    • IOPS: 50k-80k (4K随机)
+    • 升级方法: zpool add backup-pool special mirror /dev/nvme0n1 /dev/nvme1n1
 ```
 
 #### 2.3.2. ZFS 关键参数
@@ -232,7 +240,109 @@ backup-pool (总容量: ~8TB 数据 + ~220GB 元数据)
 - **PBS 去重** 会增加元数据量，建议监控 special vdev 使用率
 - **如果 special vdev 满**，ZFS 自动溢出到 HDD（性能下降但不会丢数据）
 
-### 2.4. Network Topology
+### 2.4. Hardware Compatibility and Troubleshooting
+
+#### 2.4.1. PCIe Passthrough Device Compatibility
+
+**⚠️ CRITICAL: Not all PCIe devices work with ESXi passthrough**
+
+During deployment, we discovered significant compatibility issues with certain NVMe devices:
+
+| Device | Model | Status | Issue | Resolution |
+|--------|-------|--------|-------|------------|
+| LSI 3008 HBA | SAS3008 (IT Mode) | ✅ WORKING | None | Use as-is |
+| Samsung SM963 NVMe | 256GB (×2) | ❌ FAILED | VM shutdown causes ESXi crash with FLR error | See workaround below |
+| Intel Optane Memory | MEMPEK1W016GA 16GB (×2) | ❌ INCOMPATIBLE | Not a standard NVMe SSD, cannot be used standalone | Remove from configuration |
+
+#### 2.4.2. Intel Optane Memory Incompatibility (CRITICAL)
+
+**Device Identification**:
+```bash
+# Controller shows zero namespaces
+nvme id-ctrl /dev/nvme0 | grep nn
+# Output: nn  : 0
+```
+
+**Root Cause Analysis**:
+- Intel Optane Memory (MEMPEK1W016GA) is **NOT** a standard NVMe SSD
+- Designed exclusively for Intel RST (Rapid Storage Technology) caching in Windows/specific Intel chipsets
+- Does not support NVMe namespace management commands (`oacs : 0x6` - bit 3 not set)
+- Reports zero capacity (`tnvmcap : 0`, `unvmcap : 0`)
+- Cannot create namespaces: `nvme create-ns` returns `Invalid Command Opcode`
+
+**Impact**:
+- No `/dev/nvme0n1` block devices will ever appear
+- Controllers are detected (`/sys/class/nvme/nvme0` exists) but unusable
+- Cannot be used for ZFS, even with firmware updates
+
+**Resolution**:
+```bash
+# Remove Optane devices from VM configuration
+# Edit VM .vmx file or use Terraform to remove PCI passthrough entries
+# These devices are fundamentally incompatible with standalone use
+```
+
+#### 2.4.3. Samsung SM963 NVMe ESXi Crash Issue
+
+**Symptom**:
+```
+ESXi PSOD (Purple Screen of Death) on VM shutdown
+Error: VERIFY bora/devices/pcipassthru/pciPassthru.c:2254
+```
+
+**Root Cause**:
+- Samsung SM963 fails Function Level Reset (FLR) during VM shutdown
+- Device hangs during PCIe reset sequence
+- ESXi crashes when attempting to reclaim the device
+
+**Workaround** (NOT YET TESTED):
+```bash
+# On ESXi host, edit the VM .vmx file
+ssh root@192.168.1.251
+cd /vmfs/volumes/*/proxmox-backup-server/
+vi proxmox-backup-server.vmx
+
+# Add these lines for Samsung NVMe devices:
+# (Replace X with the actual pciPassthru device index)
+pciPassthru0.resetMethod = "d3d0"  # Try D3-D0 power cycle instead of FLR
+pciPassthru0.msiEnabled = "FALSE"  # Disable MSI if d3d0 doesn't work
+
+# Alternative method:
+pciPassthru0.resetMethod = "link"  # Try link-level reset
+```
+
+**Alternative Solutions**:
+1. Use different NVMe model (e.g., Intel DC P3700, Samsung PM981)
+2. Test firmware updates for SM963
+3. Deploy without NVMe acceleration (HDD-only ZFS pool)
+
+#### 2.4.4. Revised Architecture (HDD-Only Configuration)
+
+Given the NVMe compatibility issues, the **RECOMMENDED** deployment uses HDD-only:
+
+```
+backup-pool (Simplified Configuration)
+│
+└─ Data vdev: mirror-0
+    ├─ /dev/sdb (8TB HDD #1)
+    └─ /dev/sdc (8TB HDD #2)
+    • Usable Capacity: ~7.3TB
+    • Sequential Performance: 200-300 MB/s
+    • Random IOPS: 150-200
+    • Network Bottleneck: 1Gbps = 125 MB/s (actual limit)
+```
+
+**Performance Expectations (HDD-only)**:
+| Workload | Performance | Bottleneck |
+|----------|-------------|------------|
+| Backup Write | ~120 MB/s | 1Gbps Network |
+| Restore Read | ~120 MB/s | 1Gbps Network |
+| Metadata Operations | 50-100ms | HDD Seek Time |
+| ZFS Scrub | ~150 MB/s | HDD Sequential |
+
+**Key Insight**: For 1Gbps network environments, HDD-only configuration is **sufficient** since network (125 MB/s) is the bottleneck, not disk (200+ MB/s).
+
+### 2.5. Network Topology
 
 ```
 ┌─────────────────────────────────────────┐
