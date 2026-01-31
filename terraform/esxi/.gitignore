@@ -3,5 +3,6 @@
 *.tfstate
 *.tfstate.backup
 *.tfvars
-!terraform.tfvars
+*.tfplan
+tfplan
 !example.tfvars

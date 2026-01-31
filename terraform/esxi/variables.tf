@@ -42,3 +42,43 @@ variable "vm_template" {
   type        = string
   default     = "ubuntu2404"
 }
+
+# ==========================================
+# PBS VM Configuration
+# ==========================================
+
+variable "pbs_vm_name" {
+  type    = string
+  default = "proxmox-backup-server"
+}
+
+variable "pbs_ip_address" {
+  type = string
+}
+
+variable "pbs_num_cpus" {
+  type    = number
+  default = 8
+}
+
+variable "pbs_memory_mb" {
+  type    = number
+  default = 16384
+}
+
+variable "pbs_system_disk_gb" {
+  type    = number
+  default = 80
+}
+
+variable "pbs_hba_pci_id" {
+  type        = string
+  description = "LSI 3008 HBA PCI ID - informational only, passthrough managed via ESXi"
+  default     = ""
+}
+
+variable "pbs_nvme_pci_ids" {
+  type        = list(string)
+  description = "NVMe PCI IDs - currently unused (bifurcation not available)"
+  default     = []
+}
