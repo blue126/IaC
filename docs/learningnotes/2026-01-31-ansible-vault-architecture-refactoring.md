@@ -119,7 +119,7 @@ ansible/
 | | `vault_pbs_api_token_value` | Ansible (role defaults → pbs_client role) |
 | **VM 默认凭证** | `vault_vm_default_password` | Ansible (group_vars → pve_vms 组) |
 | **Immich** | `vault_immich_db_password` | Ansible (role defaults → immich role) |
-| **Anki** | `vault_anki_sync_users` | Ansible (role defaults → anki-sync-server role) |
+| **Anki** | `vault_anki_sync_users` | Ansible (role defaults → anki_sync_server role) |
 | **Cloudflare** | `vault_cloudflare_api_token` | Ansible (role defaults → caddy role) |
 
 ### 4.2 间接引用模式选择规则
@@ -256,7 +256,7 @@ vault.yml (18 个变量)
 │   │   └── immich_db_password ← vault_immich_db_password
 │   │         └──> immich role (templates/env.j2)
 │   │
-│   └── roles/anki-sync-server/defaults/main.yml
+│   └── roles/anki_sync_server/defaults/main.yml
 │       └── anki_sync_users ← vault_anki_sync_users
 │             └──> anki role (templates/anki-sync-server.service.j2)
 │
@@ -280,7 +280,7 @@ vault.yml (18 个变量)
 | 2 | `group_vars/pve_vms.yml` | 3 个明文密码 → `"{{ vault_vm_default_password }}"` |
 | 3 | `roles/immich/defaults/main.yml` | `immich_db_password: admin` → `"{{ vault_immich_db_password }}"` |
 | 4 | `host_vars/immich.yml` | 删除 `immich_db_password` 行（role defaults 接管） |
-| 5 | `roles/anki-sync-server/defaults/main.yml` | `anki_sync_users: ["user:pass"]` → `"{{ vault_anki_sync_users }}"` |
+| 5 | `roles/anki_sync_server/defaults/main.yml` | `anki_sync_users: ["user:pass"]` → `"{{ vault_anki_sync_users }}"` |
 | 6 | `host_vars/anki.yml` | 删除 `anki_sync_users` 行（role defaults 接管） |
 | 7 | `AGENTS.md` | 新增 Vault Architecture 章节 |
 

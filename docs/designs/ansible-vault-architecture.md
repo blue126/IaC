@@ -289,7 +289,7 @@ vault.yml (18 个变量)
 │   │   └── immich_db_password ← vault_immich_db_password
 │   │         └──> immich role (templates/env.j2)
 │   │
-│   └── roles/anki-sync-server/defaults/main.yml
+│   └── roles/anki_sync_server/defaults/main.yml
 │       └── anki_sync_users ← vault_anki_sync_users
 │             └──> anki role (templates/*.service.j2)
 │

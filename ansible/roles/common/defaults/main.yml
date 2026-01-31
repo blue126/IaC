@@ -1,0 +1,13 @@
+---
+# Default variables for common role
+# SSH authorized keys - override in inventory (group_vars/all/common.yml)
+common_authorized_keys: []
+
+# Packages to install on all systems
+common_packages:
+  - vim
+  - curl
+  - htop
+  - git
+  - net-tools
+  - sudo

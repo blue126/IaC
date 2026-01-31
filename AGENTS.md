@@ -17,7 +17,7 @@ terraform/
   modules/          # Reusable modules: proxmox-vm/, proxmox-lxc/, esxi-vm/
 ansible/
   playbooks/        # Deployment playbooks (one per service)
-  roles/            # Modular roles (common, docker, tailscale, netbox, pbs-zfs, etc.)
+  roles/            # Modular roles (common, docker, tailscale, netbox, pbs_zfs, etc.)
   inventory/        # Dynamic inventory from Terraform state + group/host vars
 scripts/            # Helper scripts (setup, secrets bridge, Netbox fetch)
 docs/               # Deployment guides, technical guides, learning notes, troubleshooting

@@ -407,7 +407,7 @@ backup-pool (Simplified Configuration)
 │    ├─ Configure network (if needed)                        │
 │    └─ Create PBS users and permissions                     │
 │                                                              │
-│  ansible/roles/pbs-zfs/                                     │
+│  ansible/roles/pbs_zfs/                                     │
 │    ├─ Verify devices (/dev/sdb, sdc, nvme0n1, nvme1n1)     │
 │    ├─ Create ZFS pool (mirror + special vdev)              │
 │    ├─ Optimize ZFS parameters                              │
@@ -659,7 +659,7 @@ IaC/
 │   │   │   └── vars/
 │   │   │       └── vault.yml           # 🔐 加密的密码
 │   │   │
-│   │   └── pbs-zfs/                    # 🆕 ZFS 配置角色
+│   │   └── pbs_zfs/                    # 🆕 ZFS 配置角色
 │   │       ├── tasks/
 │   │       │   ├── main.yml
 │   │       │   ├── verify-devices.yml
@@ -902,11 +902,11 @@ pbs_reconfigure_network: false
 pbs_backup_user_email: "fanweiblue@gmail.com"
 ```
 
-#### 4.3.2. pbs-zfs Role (Storage Configuration)
+#### 4.3.2. pbs_zfs Role (Storage Configuration)
 
 **目录结构**：
 ```
-roles/pbs-zfs/
+roles/pbs_zfs/
 ├── tasks/
 │   ├── main.yml              # 主流程
 │   ├── verify-devices.yml    # 设备验证
@@ -919,7 +919,7 @@ roles/pbs-zfs/
     └── zfs-arc.conf.j2       # ARC 配置
 ```
 
-**关键文件**: `roles/pbs-zfs/defaults/main.yml`
+**关键文件**: `roles/pbs_zfs/defaults/main.yml`
 
 ```yaml
 ---
@@ -1759,9 +1759,9 @@ pbs_zfs_arc_max_gb: 8
 pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
 ```
 
-### 9.3. 创建 pbs-zfs Role
+### 9.3. 创建 pbs_zfs Role
 
-**文件**: `ansible/roles/pbs-zfs/tasks/main.yml`
+**文件**: `ansible/roles/pbs_zfs/tasks/main.yml`
 
 ```yaml
 ---
@@ -1778,7 +1778,7 @@ pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
   tags: [datastore]
 ```
 
-**文件**: `ansible/roles/pbs-zfs/tasks/verify-devices.yml`
+**文件**: `ansible/roles/pbs_zfs/tasks/verify-devices.yml`
 
 ```yaml
 ---
@@ -1809,7 +1809,7 @@ pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
     fail_msg: "NVMe devices not found"
 ```
 
-**文件**: `ansible/roles/pbs-zfs/tasks/create-pool.yml`
+**文件**: `ansible/roles/pbs_zfs/tasks/create-pool.yml`
 
 ```yaml
 ---
@@ -1840,7 +1840,7 @@ pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
   when: pool_check.rc != 0
 ```
 
-**文件**: `ansible/roles/pbs-zfs/tasks/optimize.yml`
+**文件**: `ansible/roles/pbs_zfs/tasks/optimize.yml`
 
 ```yaml
 ---
@@ -1860,7 +1860,7 @@ pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
   command: zfs set redundant_metadata=most backup-pool
 ```
 
-**文件**: `ansible/roles/pbs-zfs/tasks/datastore.yml`
+**文件**: `ansible/roles/pbs_zfs/tasks/datastore.yml`
 
 ```yaml
 ---
@@ -1909,7 +1909,7 @@ pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
   roles:
     - role: pbs
       tags: [pbs]
-    - role: pbs-zfs
+    - role: pbs_zfs
       tags: [zfs]
 
 - name: Verify Deployment

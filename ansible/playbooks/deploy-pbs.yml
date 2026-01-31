@@ -10,7 +10,7 @@
     - role: pbs
       tags: [pbs_core]
 
-    - role: pbs-zfs
+    - role: pbs_zfs
       tags: [pbs_storage]
 
 - name: Verify PBS Deployment

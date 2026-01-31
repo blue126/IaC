@@ -1,9 +1,27 @@
 ---
 - name: Deploy RustDesk Server OSS
   hosts: rustdesk
-  become: yes
+  become: true
   remote_user: ubuntu
-  
-    - name: Include rustdesk role
-      include_role:
-        name: rustdesk
+  roles:
+    - docker
+    - rustdesk
+
+- name: Verify RustDesk Deployment
+  hosts: rustdesk
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Wait for RustDesk hbbs port
+      wait_for:
+        port: 21116
+        timeout: 60
+
+    - name: Check Docker containers running
+      command: docker ps --filter name=rustdesk
+      register: rustdesk_containers
+      changed_when: false
+
+    - name: Display deployment status
+      debug:
+        msg: "{{ rustdesk_containers.stdout_lines }}"

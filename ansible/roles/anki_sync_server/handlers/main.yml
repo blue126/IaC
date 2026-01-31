@@ -1,5 +1,5 @@
 ---
-# Handlers for anki-sync-server role
+# Handlers for anki_sync_server role
 - name: Restart anki-sync-server
   systemd:
     name: anki-sync-server

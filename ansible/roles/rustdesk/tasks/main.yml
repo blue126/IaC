@@ -1,8 +1,4 @@
 ---
-- name: Ensure Docker is installed
-  include_role:
-    name: docker
-
 - name: Create rustdesk data directory
   file:
     path: /var/lib/rustdesk
