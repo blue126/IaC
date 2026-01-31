@@ -3,7 +3,7 @@
 ## 文档元数据
 
 **创建日期**: 2026-01-30
-**最后更新**: 2026-01-30
+**最后更新**: 2026-01-31
 **基于 Learning Notes**:
 - 2025-11-30-ansible-deployment-verification.md
 - 2025-12-02-ansible-inventory-refactoring.md
@@ -12,6 +12,7 @@
 - 2025-12-04-ansible-tags-and-variables.md
 - 2026-01-29-inventory-migration-trap.md
 - 2026-01-29-ansible-troubleshooting.md
+- 2026-01-31-ansible-vault-architecture-refactoring.md
 
 ---
 
@@ -111,6 +112,10 @@ host_vars > group_vars > playbook vars > role defaults
 ---
 
 ## 第二部分：Vault 密钥管理
+
+> **📘 架构设计参考**: 本节仅介绍 Vault 基础用法和 HashiCorp Vault 对比。完整的架构设计、间接引用模式选择规则（Pattern A/B）、18 个变量清单、Terraform 集成机制，请查阅：
+> - [Ansible Vault Architecture Design](../designs/ansible-vault-architecture.md)（完整架构文档）
+> - [AGENTS.md § Ansible Vault Architecture](../../AGENTS.md#ansible-vault-architecture)（快速参考表格）
 
 ### 2.1 解决的问题
 
@@ -1086,6 +1091,9 @@ ansible <hostname> -m debug -a "var=variable_name"
 ```
 
 #### Vault 操作
+
+> 完整的 Vault 命令和使用场景，参考 [AGENTS.md § Secrets](../../AGENTS.md#secrets)。
+
 ```bash
 # 创建新 Vault 文件
 ansible-vault create inventory/group_vars/all/vault.yml
