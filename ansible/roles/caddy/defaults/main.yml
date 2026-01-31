@@ -11,3 +11,5 @@ caddy_domain: localhost
 caddy_reverse_proxies: []
 # Cloudflare API token for DNS challenge (vault indirect reference)
 cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
+# WebDAV basic auth password, hashed for Caddy (vault indirect reference)
+caddy_webdav_password_hash: "{{ vault_caddy_webdav_password | password_hash('blowfish') }}"

@@ -33,9 +33,6 @@
 - name: Deploy Caddy
   hosts: caddy
   become: true
-  vars:
-    # WebDAV Password: 'Admin123...' (hashed for Caddy)
-    caddy_webdav_password_hash: "{{ 'Admin123...' | password_hash('blowfish') }}"
   roles:
     - caddy
 
