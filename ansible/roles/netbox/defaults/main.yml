@@ -6,5 +6,5 @@ netbox_port: 8080
 netbox_image: "netboxcommunity/netbox:v4.1.11"
 netbox_superuser_name: "admin"
 netbox_superuser_email: "admin@example.com"
-netbox_superuser_password: "admin"
-netbox_superuser_api_token: "0123456789abcdef0123456789abcdef01234567"
+netbox_superuser_password: "{{ vault_netbox_superuser_password }}"  # vault indirect reference
+netbox_superuser_api_token: "{{ vault_netbox_superuser_api_token }}"  # vault indirect reference

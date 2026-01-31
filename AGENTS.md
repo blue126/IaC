@@ -128,6 +128,7 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
   2. **Verify** play with `tags: [verify]` containing health checks (`wait_for`, `uri`, `assert`)
 - **Conditionals**: Use boolean flags for optional features (e.g., `pbs_zfs_use_special_vdev: false`)
 - **Idempotency**: All tasks must be safely re-runnable. Use `creates:`, `when:`, `failed_when:` guards
+- **What to parameterize**: Only extract values into variables when they **realistically vary** across environments (domains, IPs, credentials, file paths). Do NOT variablize standard port numbers (e.g., 8007 for PBS, 5678 for n8n, 21116 for RustDesk), protocol-fixed identifiers (e.g., `root@pam`, `backup@pbs`), or software version numbers that are tightly coupled to the role logic
 - **Fix playbooks first**: If an Ansible playbook fails, fix the playbook — do not bypass with CLI workarounds
 
 ### Ansible Vault Architecture
@@ -178,12 +179,13 @@ From `.github/copilot-instructions.md` and `.agent/`:
 
 1. **Explain CLI commands** briefly before executing them
 2. **Incremental changes**: Large modifications must be split into logical units, one at a time
-3. **Multi-step operations**: Present 1–2 steps at a time, wait for confirmation before continuing
-4. **Reply in Chinese**, code comments in English
-5. **State reasoning and sources** when making judgments
-6. **Admit uncertainty** rather than fabricate answers — investigate first
-7. **Ask for info incrementally** — don't request everything at once
-8. **Learning notes**: Created from work since last commit; placed in `docs/learningnotes/` following `YYYY-MM-DD-topic-description.md` naming; written in Chinese markdown; define key concepts; include Q&A summaries
+3. **Multi-step operations**: Present 1–2 steps at a time. **Stop and wait for user confirmation** before proceeding to the next step. Do NOT execute multiple logical steps in a row without pausing for approval — even if the steps seem straightforward
+4. **Verify after every step**: Each step must be validated before proceeding to the next. Use syntax checks (`--syntax-check`), variable resolution (`ansible ... -m debug`), `terraform validate`, or other appropriate verification. Never assume a change is correct — prove it
+5. **Reply in Chinese**, code comments in English
+6. **State reasoning and sources** when making judgments
+7. **Admit uncertainty** rather than fabricate answers — investigate first
+8. **Ask for info incrementally** — don't request everything at once
+9. **Learning notes**: Created from work since last commit; placed in `docs/learningnotes/` following `YYYY-MM-DD-topic-description.md` naming; written in Chinese markdown; define key concepts; include Q&A summaries
 
 ## Common Patterns
 

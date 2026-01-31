@@ -2,8 +2,8 @@
 
 这个目录包含基础设施即代码 (IaC)、网络、应用部署等领域的学习笔记和故障排查记录。
 
-**最后更新**: 2026-01-30
-**文档数量**: 31 篇
+**最后更新**: 2026-01-31
+**文档数量**: 33 篇
 **覆盖范围**: Terraform, Ansible, Proxmox, Netbox, Tailscale, LXC, n8n, Immich, RustDesk 等
 
 ---
@@ -19,6 +19,13 @@
 ---
 
 ## 按日期排序 (最新到最旧)
+
+### 2026-01-31
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-01-31 | [Ansible Role 架构重构](./2026-01-31-ansible-role-refactoring.md) | Ansible, Refactoring, Roles, Architecture, Best Practices | **Active** | Role 命名标准化、变量作用域修复、依赖管理规范化、Phase 1 完成记录 |
+| 2026-01-31 | [Ansible Vault 架构设计与标准化重构](./2026-01-31-ansible-vault-architecture-refactoring.md) | Ansible, Vault, Security, Refactoring, Architecture | **Active** | Vault 全面审计、间接引用模式标准化、明文密码迁移、架构设计文档 |
 
 ### 2026-01-29
 
@@ -151,6 +158,10 @@
 - [Ansible Abstraction Levels: Module vs. Role vs. Task](./2025-12-03-ansible-abstraction-levels.md) - 抽象层设计
 - [Ansible Tags 与变量作用域 (Variable Scope)](./2025-12-04-ansible-tags-and-variables.md) - Tags 与作用域
 - [Ansible 踩坑记录](./2026-01-29-ansible-troubleshooting.md) - 常见问题解决
+
+**架构重构 (Architecture Refactoring)**
+- [Ansible Vault 架构设计与标准化重构](./2026-01-31-ansible-vault-architecture-refactoring.md) - Vault 架构标准化
+- [Ansible Role 架构重构](./2026-01-31-ansible-role-refactoring.md) - Role 命名、变量、依赖规范化
 
 ---
 
@@ -311,6 +322,8 @@
 以下笔记仍然是独立的、有效的学习记录，未被更高级别的文档完全替代：
 
 **Ansible 相关**
+- ✓ 2026-01-31-ansible-role-refactoring.md - Role 架构重构（进行中）
+- ✓ 2026-01-31-ansible-vault-architecture-refactoring.md - Vault 架构标准化
 - ✓ 2026-01-29-ansible-troubleshooting.md - 实时故障排查
 - ✓ 2026-01-29-inventory-migration-trap.md - 架构决策记录
 - ✓ 2025-12-02-ansible-inventory-refactoring.md - 实践记录
@@ -349,10 +362,10 @@
 
 | 状态 | 数量 | 说明 |
 |------|------|------|
-| **Active** | 23 | 独立有效的学习记录 |
+| **Active** | 25 | 独立有效的学习记录 |
 | **Superseded** | 5 | 已被正式指南替代，保留供参考 |
 | **Archived** | 0 | 已过期，不再相关 |
-| **总计** | 28 | (不含 INDEX.md) |
+| **总计** | 30 | (不含 INDEX.md) |
 
 ### 按标签统计
 
@@ -378,7 +391,7 @@
 
 | 年份 | 月份 | 数量 |
 |------|------|------|
-| 2026 | 01 | 5 |
+| 2026 | 01 | 7 |
 | 2025 | 12 | 11 |
 | 2025 | 11 | 12 |
 
@@ -430,6 +443,6 @@ Troubleshooting (快速查询、最佳实践)
 
 ---
 
-**生成日期**: 2026-01-30
+**生成日期**: 2026-01-31
 **维护者**: 基础设施团队
 **反馈**: 如有问题或建议，请在相应笔记中添加备注或创建新的讨论文档

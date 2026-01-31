@@ -1,0 +1,5 @@
+---
+# RustDesk server configuration
+rustdesk_relay_host: "rustdesk.willfan.me"
+rustdesk_data_dir: "/var/lib/rustdesk"
+rustdesk_image: "rustdesk/rustdesk-server:latest"

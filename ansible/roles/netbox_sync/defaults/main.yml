@@ -1,4 +1,4 @@
 ---
 # Netbox connection settings for syncing inventory facts
 netbox_url: "http://192.168.1.104:8080"
-netbox_token: "0123456789abcdef0123456789abcdef01234567"
+netbox_token: "{{ vault_netbox_superuser_api_token }}"  # vault indirect reference

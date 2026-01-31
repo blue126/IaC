@@ -22,7 +22,7 @@
 - name: Ensure valid DNS resolver (LXC only)
   copy:
     dest: /etc/resolv.conf
-    content: "nameserver 192.168.1.1"
+    content: "nameserver {{ tailscale_dns_server }}"
   when: ansible_facts.virtualization_type == 'lxc'
 
 - name: Restart LXC container to apply changes

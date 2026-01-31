@@ -1,14 +1,14 @@
 ---
 - name: Create rustdesk data directory
   file:
-    path: /var/lib/rustdesk
+    path: "{{ rustdesk_data_dir }}"
     state: directory
     mode: '0755'
 
 - name: Create docker-compose.yml for RustDesk
   template:
     src: docker-compose.yml.j2
-    dest: /var/lib/rustdesk/docker-compose.yml
+    dest: "{{ rustdesk_data_dir }}/docker-compose.yml"
     mode: '0644'
   register: rustdesk_compose_file
 
@@ -18,11 +18,11 @@
     source: pull
     state: present
   loop:
-    - "rustdesk/rustdesk-server:latest"
+    - "{{ rustdesk_image }}"
 
 - name: Start RustDesk services with docker-compose
   community.docker.docker_compose_v2:
-    project_src: /var/lib/rustdesk
+    project_src: "{{ rustdesk_data_dir }}"
     state: present
     pull: always
   environment:
@@ -37,18 +37,18 @@
   block:
     - name: Check if ID key exists
       stat:
-        path: /var/lib/rustdesk/data/id_ed25519
+        path: "{{ rustdesk_data_dir }}/data/id_ed25519"
       register: rustdesk_id_key_stat
 
     - name: Wait for ID key generation
       wait_for:
-        path: /var/lib/rustdesk/data/id_ed25519
+        path: "{{ rustdesk_data_dir }}/data/id_ed25519"
         timeout: 30
       when: not rustdesk_id_key_stat.stat.exists
 
     - name: Read RustDesk ID
       slurp:
-        src: /var/lib/rustdesk/data/id_ed25519.pub
+        src: "{{ rustdesk_data_dir }}/data/id_ed25519.pub"
       register: rustdesk_id_key
 
     - name: Extract public key
@@ -59,9 +59,9 @@
   debug:
     msg: |
       RustDesk Server deployed successfully!
-      ID Server: rustdesk.willfan.me
+      ID Server: {{ rustdesk_relay_host }}
       Public Key: {{ rustdesk_public_key }}
       
       Configure your client with:
-      - ID Server: rustdesk.willfan.me
+      - ID Server: {{ rustdesk_relay_host }}
       - Public Key: (see above)

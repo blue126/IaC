@@ -12,6 +12,8 @@ proxmox_api_user: "root@pam"
 proxmox_api_password: ""
 netbox_api_token: ""
 immich_api_key: ""
+tailscale_api_key: ""
+tailscale_device_id: ""
 
 # Node.js version (Debian 12 default is sufficient)
 nodejs_version: "18"

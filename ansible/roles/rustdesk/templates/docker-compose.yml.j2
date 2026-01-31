@@ -3,8 +3,8 @@ version: '3.8'
 services:
   hbbs:
     container_name: hbbs
-    image: rustdesk/rustdesk-server:latest
-    command: hbbs -r rustdesk.willfan.me:21117
+    image: {{ rustdesk_image }}
+    command: hbbs -r {{ rustdesk_relay_host }}:21117
     volumes:
       - ./data:/root
     network_mode: "host"
@@ -16,7 +16,7 @@ services:
 
   hbbr:
     container_name: hbbr
-    image: rustdesk/rustdesk-server:latest
+    image: {{ rustdesk_image }}
     command: hbbr
     volumes:
       - ./data:/root
