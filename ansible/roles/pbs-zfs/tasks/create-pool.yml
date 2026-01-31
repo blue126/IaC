@@ -1,0 +1,52 @@
+---
+# ZFS packages are installed by the pbs role (install.yml)
+
+- name: Check if ZFS pool exists
+  command: "zpool list {{ pbs_zfs_pool_name }}"
+  register: zpool_check
+  failed_when: false
+  changed_when: false
+
+# HDD-only mode (current configuration)
+- name: Create ZFS pool (HDD mirror only)
+  command: >
+    zpool create -f -o ashift={{ pbs_zfs_ashift }}
+    -O compression={{ pbs_zfs_compression }}
+    -O atime={{ pbs_zfs_atime }}
+    -O xattr=sa
+    -O dnodesize=auto
+    -O recordsize={{ pbs_zfs_recordsize }}
+    {{ pbs_zfs_pool_name }}
+    mirror {{ pbs_zfs_hdd_devices | join(' ') }}
+  when:
+    - zpool_check.rc != 0
+    - not pbs_zfs_use_special_vdev
+
+# HDD + NVMe special vdev mode (for future use)
+- name: Create ZFS pool (HDD mirror + NVMe special vdev)
+  command: >
+    zpool create -f -o ashift={{ pbs_zfs_ashift }}
+    -O compression={{ pbs_zfs_compression }}
+    -O atime={{ pbs_zfs_atime }}
+    -O xattr=sa
+    -O dnodesize=auto
+    -O recordsize={{ pbs_zfs_recordsize }}
+    {{ pbs_zfs_pool_name }}
+    mirror {{ pbs_zfs_hdd_devices | join(' ') }}
+    special mirror {{ pbs_zfs_nvme_devices | join(' ') }}
+  when:
+    - zpool_check.rc != 0
+    - pbs_zfs_use_special_vdev
+
+- name: Set Special Small Blocks
+  command: "zfs set special_small_blocks={{ pbs_zfs_special_small_blocks }} {{ pbs_zfs_pool_name }}"
+  when:
+    - zpool_check.rc != 0
+    - pbs_zfs_use_special_vdev
+
+- name: Create Datastore Dataset
+  zfs:
+    name: "{{ pbs_zfs_pool_name }}/datastore"
+    state: present
+    extra_zfs_properties:
+      mountpoint: "{{ pbs_zfs_mount_point }}/datastore"

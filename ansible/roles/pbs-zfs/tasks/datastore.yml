@@ -1,0 +1,11 @@
+---
+- name: Create PBS Datastore
+  command: >
+    proxmox-backup-manager datastore create {{ pbs_datastore_name }} 
+    {{ pbs_zfs_mount_point }}/datastore 
+    --gc-schedule {{ pbs_gc_schedule }}
+  register: ds_create
+  failed_when: 
+    - ds_create.rc != 0
+    - '"already exists" not in ds_create.stderr'
+  changed_when: ds_create.rc == 0

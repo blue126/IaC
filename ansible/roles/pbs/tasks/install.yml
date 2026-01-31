@@ -1,0 +1,29 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install ZFS utilities
+  apt:
+    name:
+      - zfsutils-linux
+      - zfs-dkms
+    state: present
+
+- name: Install system utilities
+  apt:
+    name:
+      - vim
+      - htop
+      - iotop
+      - fio
+      - chrony
+      - curl
+    state: present
+
+- name: Ensure chrony is running
+  service:
+    name: chrony
+    state: started
+    enabled: yes

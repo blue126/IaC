@@ -4,14 +4,14 @@ all:
     proxmox_cluster:
     oci:
     esxi_hosts:
-      children:
-
+    esxi_vms:
     tailscale:
       children:
         proxmox_cluster:
         oci:
         pve_lxc:
         pve_vms:
+        esxi_vms:
 
     pve_lxc:
     pve_vms:

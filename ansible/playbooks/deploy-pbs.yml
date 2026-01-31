@@ -1,0 +1,69 @@
+---
+- name: Deploy Proxmox Backup Server
+  hosts: pbs
+  become: yes
+  vars_files:
+    - ../roles/pbs/vars/vault.yml
+
+  pre_tasks:
+    - name: Verify connectivity
+      ping:
+
+  roles:
+    - role: pbs
+      tags: [pbs_core]
+
+    - role: pbs-zfs
+      tags: [pbs_storage]
+
+- name: Verify PBS Deployment
+  hosts: pbs
+  become: yes
+  tags: [verify]
+  tasks:
+    - name: Wait for PBS web interface
+      wait_for:
+        port: 8007
+        timeout: 60
+
+    - name: Check PBS API endpoint
+      uri:
+        url: "https://{{ ansible_host }}:8007/api2/json/version"
+        validate_certs: no
+        status_code: [200, 401]
+      register: pbs_api
+
+    - name: Check PBS service status
+      service_facts:
+
+    - name: Assert PBS service is running
+      assert:
+        that:
+          - "'proxmox-backup.service' in ansible_facts.services"
+          - "ansible_facts.services['proxmox-backup.service'].state == 'running'"
+        fail_msg: "PBS service is not running"
+
+    - name: Check ZFS pool health
+      command: zpool status backup-pool
+      register: zpool_status
+      changed_when: false
+
+    - name: Assert ZFS pool is ONLINE
+      assert:
+        that:
+          - "'ONLINE' in zpool_status.stdout"
+          - "'DEGRADED' not in zpool_status.stdout"
+          - "'FAULTED' not in zpool_status.stdout"
+        fail_msg: "ZFS pool is not healthy"
+
+    - name: Check PBS datastore status
+      command: proxmox-backup-manager datastore list
+      register: ds_list
+      changed_when: false
+
+    - name: Show deployment summary
+      debug:
+        msg:
+          - "PBS API: {{ 'accessible' if pbs_api.status in [200, 401] else 'unreachable' }}"
+          - "ZFS Pool: {{ 'ONLINE' if 'ONLINE' in zpool_status.stdout else 'PROBLEM' }}"
+          - "Datastores: {{ ds_list.stdout_lines }}"

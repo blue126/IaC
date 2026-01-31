@@ -1,0 +1,25 @@
+---
+- name: Wait for PBS API
+  wait_for:
+    port: 8007
+    timeout: 60
+
+- name: Create PBS backup user
+  uri:
+    url: "https://{{ ansible_host }}:8007/api2/json/access/users"
+    method: POST
+    user: root@pam
+    password: "{{ pbs_root_password }}"
+    force_basic_auth: yes
+    validate_certs: no
+    body_format: json
+    body:
+      userid: "backup@pbs"
+      password: "{{ pbs_backup_user_password }}"
+      email: "{{ pbs_backup_user_email | default('') }}"
+    status_code: [200, 201, 500]
+  register: user_create
+  failed_when:
+    - user_create.status not in [200, 201]
+    - "'already exists' not in (user_create.json.errors | default({}) | string)"
+    - "'already exists' not in (user_create.msg | default(''))"

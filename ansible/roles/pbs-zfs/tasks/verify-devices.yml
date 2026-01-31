@@ -1,0 +1,27 @@
+---
+- name: Verify HDD devices exist
+  stat:
+    path: "{{ item }}"
+  loop: "{{ pbs_zfs_hdd_devices }}"
+  register: hdd_stat
+
+- name: Fail if HDD missing
+  fail:
+    msg: "HDD device {{ item.item }} not found!"
+  when: not item.stat.exists
+  loop: "{{ hdd_stat.results }}"
+
+- name: Verify NVMe devices exist
+  stat:
+    path: "{{ item }}"
+  loop: "{{ pbs_zfs_nvme_devices }}"
+  register: nvme_stat
+  when: pbs_zfs_use_special_vdev
+
+- name: Fail if NVMe missing
+  fail:
+    msg: "NVMe device {{ item.item }} not found!"
+  when:
+    - pbs_zfs_use_special_vdev
+    - not item.stat.exists
+  loop: "{{ nvme_stat.results | default([]) }}"

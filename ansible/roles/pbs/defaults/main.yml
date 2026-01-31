@@ -1,0 +1,6 @@
+---
+pbs_timezone: "Australia/Sydney"
+pbs_port: 8007
+pbs_zfs_arc_max_gb: 8
+pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
+pbs_backup_user_email: "fanweiblue@gmail.com"

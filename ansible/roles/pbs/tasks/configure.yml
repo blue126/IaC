@@ -1,0 +1,15 @@
+---
+- name: Set timezone
+  timezone:
+    name: "{{ pbs_timezone | default('Australia/Sydney') }}"
+
+- name: Configure ZFS ARC limits
+  lineinfile:
+    path: /etc/modprobe.d/zfs.conf
+    line: "options zfs zfs_arc_max={{ pbs_zfs_arc_max_bytes }}"
+    create: yes
+  register: zfs_arc_config
+
+- name: Update initramfs if ZFS config changed
+  command: update-initramfs -u
+  when: zfs_arc_config.changed
