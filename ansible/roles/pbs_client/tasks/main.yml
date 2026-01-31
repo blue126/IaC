@@ -1,0 +1,15 @@
+---
+# pbs-client role: Configure Proxmox node to backup to PBS
+#
+# Prerequisites (set as facts before calling this role):
+#   - pbs_fingerprint: PBS certificate fingerprint
+#   - pbs_api_token_value: PBS API token value
+#
+# These are obtained by running pbs-token.yml on the PBS host
+# in a separate play (see setup-pbs-backup.yml playbook)
+
+- name: Include Proxmox storage backend tasks
+  ansible.builtin.include_tasks: storage.yml
+
+- name: Include backup job creation tasks
+  ansible.builtin.include_tasks: backup-jobs.yml

@@ -1,0 +1,92 @@
+---
+# setup-pbs-backup.yml
+# Configure Proxmox cluster to backup VMs/LXCs to PBS
+#
+# Prerequisites:
+#   - PBS is deployed and running (deploy-pbs.yml)
+#   - PBS datastore 'backup-storage' is configured
+#   - PBS user 'backup@pbs' exists
+#   - Proxmox nodes are reachable via SSH
+#
+# Usage:
+#   ansible-playbook playbooks/setup-pbs-backup.yml
+#   ansible-playbook playbooks/setup-pbs-backup.yml --tags verify
+
+- name: Prepare PBS for Proxmox Integration
+  hosts: pbs
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../roles/pbs_client/defaults/main.yml
+  tasks:
+    - name: Include PBS token and fingerprint tasks
+      ansible.builtin.include_tasks: ../roles/pbs_client/tasks/pbs-token.yml
+
+    # Export facts to hostvars so the next play can access them
+    - name: Export PBS connection facts for Proxmox play
+      ansible.builtin.set_fact:
+        pbs_fingerprint: "{{ pbs_fingerprint }}"
+        pbs_api_token_value: "{{ pbs_api_token_value | default(omit) }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+- name: Configure Proxmox Backup to PBS
+  hosts: pve0
+  become: true
+  gather_facts: false
+  vars:
+    # Import PBS connection details from previous play
+    pbs_fingerprint: "{{ hostvars['localhost']['pbs_fingerprint'] }}"
+    pbs_api_token_value: "{{ hostvars['localhost']['pbs_api_token_value'] | default(omit) }}"
+  roles:
+    - role: pbs_client
+
+- name: Verify PBS Backup Configuration
+  hosts: pve0
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Check PBS storage is available in Proxmox
+      ansible.builtin.command:
+        cmd: pvesm status --storage {{ pbs_storage_name | default('pbs-backup') }}
+      register: verify_storage
+      changed_when: false
+      failed_when: "'active' not in verify_storage.stdout"
+
+    - name: Display storage status
+      ansible.builtin.debug:
+        msg: "{{ verify_storage.stdout_lines }}"
+
+    - name: Get backup job list
+      ansible.builtin.command:
+        cmd: pvesh get /cluster/backup --output-format json
+      register: verify_backup_jobs
+      changed_when: false
+
+    - name: Verify backup job exists for PBS storage
+      ansible.builtin.assert:
+        that:
+          - verify_backup_jobs.stdout | from_json | selectattr('storage', 'equalto', pbs_storage_name | default('pbs-backup')) | list | length > 0
+        fail_msg: "No backup job found targeting PBS storage '{{ pbs_storage_name | default('pbs-backup') }}'"
+        success_msg: "Backup job for PBS storage '{{ pbs_storage_name | default('pbs-backup') }}' is configured"
+
+    - name: Get PBS backup job details
+      ansible.builtin.set_fact:
+        pbs_jobs: >-
+          {{ verify_backup_jobs.stdout | from_json
+             | selectattr('storage', 'equalto', pbs_storage_name | default('pbs-backup'))
+             | list }}
+
+    - name: Display backup job configuration
+      ansible.builtin.debug:
+        msg:
+          - "Backup jobs targeting PBS:"
+          - "{{ pbs_jobs }}"
+
+    - name: Test PBS storage connectivity from Proxmox
+      ansible.builtin.command:
+        cmd: pvesm list {{ pbs_storage_name | default('pbs-backup') }}
+      register: verify_pbs_connection
+      changed_when: false
+      failed_when: verify_pbs_connection.rc != 0

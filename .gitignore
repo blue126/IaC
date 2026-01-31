@@ -13,3 +13,4 @@ __pycache__/
 ansible/credentials/
 .vault_pass
 .opencode/
+_bmad/

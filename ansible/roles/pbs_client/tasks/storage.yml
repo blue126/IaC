@@ -1,0 +1,42 @@
+---
+# Add PBS as a storage backend on Proxmox
+# This runs on a Proxmox node (only one needed, cluster syncs /etc/pve/storage.cfg)
+
+- name: Check if PBS storage backend already exists
+  ansible.builtin.command:
+    cmd: pvesm status --storage {{ pbs_storage_name }}
+  register: pbs_storage_check
+  failed_when: false
+  changed_when: false
+
+- name: Add PBS storage backend to Proxmox
+  ansible.builtin.command:
+    cmd: >-
+      pvesm add pbs {{ pbs_storage_name }}
+      --server {{ pbs_host }}
+      --port {{ pbs_port }}
+      --datastore {{ pbs_datastore }}
+      --username {{ pbs_backup_user }}!{{ pbs_api_token_name }}
+      --password {{ pbs_api_token_value }}
+      --fingerprint {{ pbs_fingerprint }}
+      --content backup
+  when: pbs_storage_check.rc != 0
+  changed_when: true
+  no_log: true
+
+# Note: PBS storage parameters (server, port, datastore, password) are immutable
+# after creation. To change them, delete the storage and re-run:
+#   pvesm remove <storage_name>
+- name: Report existing PBS storage backend
+  ansible.builtin.debug:
+    msg: "PBS storage '{{ pbs_storage_name }}' already exists, skipping configuration update"
+  when: pbs_storage_check.rc == 0
+
+- name: Verify PBS storage is accessible
+  ansible.builtin.command:
+    cmd: pvesm status --storage {{ pbs_storage_name }}
+  register: pbs_storage_verify
+  changed_when: false
+  failed_when: >-
+    pbs_storage_name not in pbs_storage_verify.stdout or
+    'active' not in pbs_storage_verify.stdout

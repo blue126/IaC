@@ -1,0 +1,78 @@
+---
+# Create API token on PBS for Proxmox to authenticate with
+# This runs on the PBS host
+#
+# If the token already exists, pbs_api_token_value must be provided
+# via extra-vars or vault (token values are only shown at creation time)
+#
+# PBS CLI reference (proxmox-backup-manager user):
+#   list-tokens, generate-token, delete-token
+
+- name: Check if API token already exists
+  ansible.builtin.command:
+    cmd: proxmox-backup-manager user list-tokens {{ pbs_backup_user }} --output-format json
+  register: pbs_token_list
+  changed_when: false
+
+- name: Set token existence fact
+  ansible.builtin.set_fact:
+    pbs_token_exists: >-
+      {{ pbs_api_token_name in (pbs_token_list.stdout | from_json | map(attribute='token-name') | list) }}
+
+- name: Create API token for Proxmox backup client
+  ansible.builtin.command:
+    cmd: >-
+      proxmox-backup-manager user generate-token
+      {{ pbs_backup_user }} {{ pbs_api_token_name }}
+  register: pbs_token_create
+  when: not pbs_token_exists
+  changed_when: true
+
+# generate-token output format: "Result: { "tokenid": "...", "value": "..." }"
+- name: Save newly created token value # noqa: no-handler
+  ansible.builtin.set_fact:
+    pbs_api_token_value: >-
+      {{ (pbs_token_create.stdout | regex_replace('^Result:\s*', '') | from_json).value }}
+  when: pbs_token_create is changed
+
+# Intentionally displays token in output - user must record it for vault storage.
+# Token values are only available at creation time and cannot be retrieved later.
+- name: Display token value for manual recording # noqa: no-handler
+  ansible.builtin.debug:
+    msg: >-
+      NEW PBS API TOKEN CREATED - Save this value in vault:
+      {{ pbs_backup_user }}!{{ pbs_api_token_name }} = {{ pbs_api_token_value }}
+  when: pbs_token_create is changed
+
+- name: Fail if token exists but value not provided
+  ansible.builtin.fail:
+    msg: >-
+      API token '{{ pbs_backup_user }}!{{ pbs_api_token_name }}' already exists on PBS,
+      but pbs_api_token_value is not defined. Token values are only shown at creation time.
+      Either provide it via --extra-vars / vault, or delete and recreate the token:
+        proxmox-backup-manager user delete-token {{ pbs_backup_user }} {{ pbs_api_token_name }}
+      Then re-run this playbook.
+  when:
+    - pbs_token_exists
+    - pbs_api_token_value is not defined
+
+# ACL update is idempotent - re-applying the same permission is a no-op
+- name: Ensure token has DatastoreAdmin ACL on datastore
+  ansible.builtin.command:
+    cmd: >-
+      proxmox-backup-manager acl update /datastore/{{ pbs_datastore }}
+      DatastoreAdmin --auth-id {{ pbs_backup_user }}!{{ pbs_api_token_name }}
+  register: pbs_acl_result
+  changed_when: pbs_token_create is changed
+
+- name: Get PBS certificate info
+  ansible.builtin.command:
+    cmd: proxmox-backup-manager cert info
+  register: pbs_cert_info
+  changed_when: false
+
+# cert info output contains: "Fingerprint (sha256): xx:xx:xx:..."
+- name: Set PBS fingerprint fact
+  ansible.builtin.set_fact:
+    pbs_fingerprint: >-
+      {{ pbs_cert_info.stdout | regex_search('Fingerprint \(sha256\):\s+(.+)', '\1') | first | trim }}

@@ -1,0 +1,47 @@
+---
+# Create or update scheduled backup jobs on Proxmox
+# This runs on a Proxmox node
+
+- name: Get existing backup jobs
+  ansible.builtin.command:
+    cmd: pvesh get /cluster/backup --output-format json
+  register: pbs_existing_jobs
+  changed_when: false
+
+- name: Find existing PBS backup job
+  ansible.builtin.set_fact:
+    pbs_existing_job: "{{ _pbs_jobs | first | default({}) }}"
+    pbs_job_exists: "{{ (_pbs_jobs | length) > 0 }}"
+  vars:
+    _pbs_jobs: >-
+      {{ (pbs_existing_jobs.stdout | from_json)
+         | selectattr('storage', 'equalto', pbs_storage_name)
+         | list }}
+
+# Note: --notification-policy is not supported in PVE 9.x pvesh CLI
+# Notifications are configured via the Proxmox notification system separately
+- name: Set backup job command arguments
+  ansible.builtin.set_fact:
+    pbs_backup_job_args: >-
+      --enabled 1
+      --storage {{ pbs_storage_name }}
+      --schedule {{ pbs_backup_schedule }}
+      --mode {{ pbs_backup_mode }}
+      --compress {{ pbs_backup_compress }}
+      --vmid {{ pbs_backup_vmids | join(',') }}
+      --node {{ pbs_backup_node }}
+      --prune-backups keep-daily={{ pbs_retention_daily }},keep-weekly={{ pbs_retention_weekly }},keep-monthly={{ pbs_retention_monthly }}
+      --comment Managed-by-Ansible
+
+- name: Create backup job for all configured VMs/LXCs
+  ansible.builtin.command:
+    cmd: "pvesh create /cluster/backup {{ pbs_backup_job_args }}"
+  when: not pbs_job_exists
+  changed_when: true
+
+- name: Update existing backup job configuration
+  ansible.builtin.command:
+    cmd: "pvesh set /cluster/backup/{{ pbs_existing_job.id }} {{ pbs_backup_job_args }}"
+  when: pbs_job_exists
+  register: pbs_job_update
+  changed_when: true

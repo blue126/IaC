@@ -1,0 +1,54 @@
+---
+# PBS connection details
+pbs_host: "192.168.1.249"
+pbs_port: 8007
+pbs_datastore: "backup-storage"
+
+# PBS API token for Proxmox authentication
+# Token will be created on PBS side as backup@pbs!automation
+pbs_api_token_name: "automation"
+pbs_backup_user: "backup@pbs"
+
+# PBS API token value - stored in vault for re-runs when token already exists.
+# On first run, the token is created automatically and displayed in output.
+# Can also be overridden via: --extra-vars "pbs_api_token_value=<value>"
+pbs_api_token_value: "{{ vault_pbs_api_token_value }}"
+
+# Proxmox API connection (used to configure storage + backup jobs)
+proxmox_api_host: "192.168.1.50"
+proxmox_api_port: 8006
+proxmox_api_user: "root@pam"
+proxmox_api_token_id: "{{ vault_proxmox_api_token_id }}"
+proxmox_api_token_secret: "{{ vault_proxmox_api_token_secret }}"
+
+# Proxmox storage backend name (how it appears in Proxmox UI)
+pbs_storage_name: "pbs-backup"
+
+# Backup schedule (systemd calendar format used by Proxmox)
+# Default: daily at 02:00
+pbs_backup_schedule: "02:00"
+
+# Backup mode: snapshot (recommended), suspend, or stop
+pbs_backup_mode: "snapshot"
+
+# Backup compression: zstd (recommended), lzo, gzip, or none
+pbs_backup_compress: "zstd"
+
+# Retention policy
+pbs_retention_daily: 7
+pbs_retention_weekly: 4
+pbs_retention_monthly: 6
+
+# VMs/LXCs to backup (list of VMIDs)
+# All current workloads on pve0
+pbs_backup_vmids:
+  - 100  # anki (LXC)
+  - 101  # immich (VM)
+  - 102  # rustdesk (VM)
+  - 103  # homepage (LXC)
+  - 104  # netbox (VM)
+  - 105  # caddy (LXC)
+  - 106  # n8n (LXC)
+
+# Target Proxmox node for backup job
+pbs_backup_node: "pve0"

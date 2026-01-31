@@ -4,3 +4,7 @@ pbs_port: 8007
 pbs_zfs_arc_max_gb: 8
 pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
 pbs_backup_user_email: "fanweiblue@gmail.com"
+
+# PBS credentials (from global vault)
+pbs_root_password: "{{ vault_pbs_root_password }}"
+pbs_backup_user_password: "{{ vault_pbs_backup_user_password }}"

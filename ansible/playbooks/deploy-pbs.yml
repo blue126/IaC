@@ -1,10 +1,7 @@
 ---
 - name: Deploy Proxmox Backup Server
   hosts: pbs
-  become: yes
-  vars_files:
-    - ../roles/pbs/vars/vault.yml
-
+  become: true
   pre_tasks:
     - name: Verify connectivity
       ping:
@@ -18,7 +15,7 @@
 
 - name: Verify PBS Deployment
   hosts: pbs
-  become: yes
+  become: true
   tags: [verify]
   tasks:
     - name: Wait for PBS web interface
