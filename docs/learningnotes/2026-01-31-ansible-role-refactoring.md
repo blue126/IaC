@@ -302,3 +302,22 @@ a6c5e1c refactor(ansible): standardize role naming, variable scope, and playbook
 - 修改：`requirements.yml` — 添加 `netbox.netbox` collection
 - 修改：`homepage/defaults/main.yml` — 补充 `tailscale_api_key` 和 `tailscale_device_id` 默认值
 - 文档：`AGENTS.md`（强化分步确认规则 + 变量化原则）、`INDEX.md`（更新索引）
+
+### Phase 3: Role 合并
+
+```
+(待提交) refactor(ansible): merge pbs_zfs into pbs role
+```
+
+将 `pbs_zfs` role 合并到 `pbs` role 中，理由：
+- 这两个 role 总是一起使用，`pbs_zfs` 从未单独运行
+- 减少 role 数量，简化架构（14 → 13 个 role）
+- 遵循"单一职责"原则 — PBS 服务的存储配置属于 PBS 服务的一部分
+
+变更内容：
+- 合并：`pbs_zfs/defaults/main.yml` → `pbs/defaults/main.yml`
+- 复制：`pbs_zfs/tasks/*.yml` → `pbs/tasks/zfs-*.yml`（添加前缀）
+- 更新：`pbs/tasks/main.yml` — 添加 ZFS tasks include
+- 简化：`deploy-pbs.yml` — 只使用 `pbs` role
+- 删除：`ansible/roles/pbs_zfs/` 目录
+- 文档：更新 `AGENTS.md`、`ansible-role-architecture.md`、`pbs_esxi_deployment.md`

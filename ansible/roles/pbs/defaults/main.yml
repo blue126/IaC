@@ -1,4 +1,5 @@
 ---
+# PBS Server Configuration
 pbs_timezone: "Australia/Sydney"
 pbs_zfs_arc_max_gb: 8
 pbs_zfs_arc_max_bytes: "{{ (pbs_zfs_arc_max_gb * 1024 * 1024 * 1024) | int }}"
@@ -7,3 +8,34 @@ pbs_backup_user_email: "fanweiblue@gmail.com"
 # PBS credentials (from global vault)
 pbs_root_password: "{{ vault_pbs_root_password }}"  # vault indirect reference
 pbs_backup_user_password: "{{ vault_pbs_backup_user_password }}"  # vault indirect reference
+
+# ZFS Pool Configuration
+pbs_zfs_pool_name: "backup-pool"
+pbs_zfs_mount_point: "/mnt/backup-pool"
+
+# HDD Devices (via LSI 3008 HBA passthrough)
+# Override with host variables if device names differ
+# Production recommendation: use /dev/disk/by-id/ for stability
+pbs_zfs_hdd_devices:
+  - /dev/sdb
+  - /dev/sdc
+
+# NVMe Devices (empty = HDD-only mode)
+# Populate when NVMe passthrough is available
+pbs_zfs_nvme_devices: []
+
+# ZFS Pool Mode
+# false = HDD mirror only (current configuration)
+# true  = HDD mirror + NVMe special vdev (requires pbs_zfs_nvme_devices)
+pbs_zfs_use_special_vdev: false
+
+# ZFS Parameters
+pbs_zfs_ashift: 12
+pbs_zfs_compression: "zstd"
+pbs_zfs_atime: "off"
+pbs_zfs_recordsize: "128K"
+pbs_zfs_special_small_blocks: "128K"
+
+# PBS Datastore
+pbs_datastore_name: "backup-storage"
+pbs_gc_schedule: "daily"

@@ -7,11 +7,7 @@
       ping:
 
   roles:
-    - role: pbs
-      tags: [pbs_core]
-
-    - role: pbs_zfs
-      tags: [pbs_storage]
+    - pbs
 
 - name: Verify PBS Deployment
   hosts: pbs

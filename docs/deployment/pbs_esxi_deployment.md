@@ -2,9 +2,14 @@
 
 > **说明**：本指南覆盖在 ESXi 8.x 环境中通过 Infrastructure as Code 方式部署 Proxmox Backup Server，包含 LSI 3008 HBA 直通、ZFS 分层存储（special vdev）配置、Terraform 与 Ansible 集成的完整实施流程。
 
-**文档版本**: 1.0  
+**文档版本**: 1.1  
 **创建日期**: 2026-01-29  
+**最后更新**: 2026-01-31  
 **适用环境**: ESXi 8.x, vCenter Server, Terraform 1.14+, Ansible 2.16+
+
+> **⚠️ 重要更新 (2026-01-31)**  
+> `pbs_zfs` role 已合并到 `pbs` role 中。ZFS 相关 tasks 现位于 `ansible/roles/pbs/tasks/zfs-*.yml`。  
+> 本文档中对 `roles/pbs_zfs/` 的引用仅作历史参考，实际文件路径已变更为 `roles/pbs/tasks/zfs-*.yml`。
 
 ---
 

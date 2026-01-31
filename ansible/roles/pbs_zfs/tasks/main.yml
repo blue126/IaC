@@ -1,9 +1,0 @@
----
-- include_tasks: verify-devices.yml
-  tags: [verify, zfs]
-
-- include_tasks: create-pool.yml
-  tags: [zfs]
-
-- include_tasks: datastore.yml
-  tags: [pbs_datastore]
