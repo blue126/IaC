@@ -3,12 +3,12 @@
 
 # Ansible connection settings
 ansible_user: ubuntu
-ansible_ssh_pass: ubuntu
-ansible_become_password: ubuntu
+ansible_ssh_pass: "{{ vault_vm_default_password }}"
+ansible_become_password: "{{ vault_vm_default_password }}"
 
 # cloud-init configuration
 vm_ciuser: ubuntu
-vm_cipassword: ubuntu
+vm_cipassword: "{{ vault_vm_default_password }}"
 vm_ssh_pwauth: true
 
 # VM template and storage defaults

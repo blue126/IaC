@@ -3,5 +3,4 @@ proxmox_vmid: 100
 proxmox_node: pve0
 netbox_name: anki-sync-server
 anki_port: 8080
-anki_sync_users:
-  - "anki:anki"
+

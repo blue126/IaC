@@ -130,6 +130,29 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
 - **Idempotency**: All tasks must be safely re-runnable. Use `creates:`, `when:`, `failed_when:` guards
 - **Fix playbooks first**: If an Ansible playbook fails, fix the playbook — do not bypass with CLI workarounds
 
+### Ansible Vault Architecture
+
+**Single vault file**: `ansible/inventory/group_vars/all/vault.yml` — all secrets in one encrypted file, auto-decrypted via `ansible/.vault_pass` (gitignored).
+
+**Naming convention**: All vault variables use `vault_` prefix (e.g., `vault_pbs_root_password`). Consumer variables drop the prefix (e.g., `pbs_root_password`).
+
+**Indirection pattern — choose by variable scope**:
+
+| Scope | Pattern | Alias location | Example |
+|-------|---------|----------------|---------|
+| Host-specific secrets | Pattern A | `inventory/host_vars/<host>.yml` | `homepage.yml`: `proxmox_api_password: "{{ vault_proxmox_api_password_homepage }}"` |
+| Group-shared secrets | Pattern A | `inventory/group_vars/<group>.yml` | `tailscale.yml`: `tailscale_auth_key: "{{ vault_tailscale_auth_key }}"` |
+| Role config secrets (no host/group distinction) | Pattern B | `roles/<role>/defaults/main.yml` | `caddy/defaults`: `cloudflare_api_token: "{{ vault_cloudflare_api_token }}"` |
+| Terraform-only secrets | No alias | Only in vault, consumed by `scripts/get-secrets.sh` | `vault_proxmox_password` |
+
+**Terraform secrets bridge**: Ansible Vault is the **single source of truth** for all secrets. Terraform does not have its own secrets store — instead, `scripts/get-secrets.sh` extracts `vault_` variables from the encrypted vault and writes them into `*.auto.tfvars` files (gitignored) that Terraform reads at plan/apply time. This means: add secrets to the Ansible vault first, then run `get-secrets.sh` to sync them to Terraform.
+
+**Rules**:
+- Never store plaintext credentials in inventory files or role defaults — always use vault indirection
+- When adding a new secret: add `vault_` variable to vault.yml, then create the alias in the appropriate location per the scope table above
+- Role defaults with vault references must include a comment: `# ... (vault indirect reference)`
+- Playbook `vars:` should NOT be used for vault indirection — use role defaults or inventory instead
+
 ### Python
 
 - **Version**: 3.12 (devcontainer default)

@@ -8,4 +8,4 @@ immich_compose_source: "https://github.com/immich-app/immich/releases/latest/dow
 immich_version: release
 immich_db_username: postgres
 immich_db_name: immich
-immich_db_password: admin
+
