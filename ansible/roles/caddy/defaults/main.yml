@@ -9,4 +9,5 @@ caddy_webdav_root: /var/www/webdav
 caddy_webdav_port: 8080
 caddy_domain: localhost
 caddy_reverse_proxies: []
-cloudflare_api_token: ""
+# Cloudflare API token for DNS challenge (vault indirect reference)
+cloudflare_api_token: "{{ vault_cloudflare_api_token }}"

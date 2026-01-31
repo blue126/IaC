@@ -34,8 +34,6 @@
   hosts: caddy
   become: true
   vars:
-    cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
-    # cloudflare_api_token: "YOUR_CLOUDFLARE_API_TOKEN_HERE"
     # WebDAV Password: 'Admin123...' (hashed for Caddy)
     caddy_webdav_password_hash: "{{ 'Admin123...' | password_hash('blowfish') }}"
   roles:
