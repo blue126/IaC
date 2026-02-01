@@ -300,30 +300,55 @@ Error: VERIFY bora/devices/pcipassthru/pciPassthru.c:2254
 - Device hangs during PCIe reset sequence
 - ESXi crashes when attempting to reclaim the device
 
-**Workaround** (NOT YET TESTED):
+**Workaround** (✅ TESTED 2026-01-31 - WORKING):
+
+使用 D3→D0 电源状态转换代替 FLR 重置。原理：D3（深度睡眠）→ D0（正常工作）的电源状态切换会触发硬件级重置，绕过 SM963 固件的 FLR 缺陷。
+
 ```bash
 # On ESXi host, edit the VM .vmx file
 ssh root@192.168.1.251
 cd /vmfs/volumes/*/proxmox-backup-server/
 vi proxmox-backup-server.vmx
 
-# Add these lines for Samsung NVMe devices:
-# (Replace X with the actual pciPassthru device index)
-pciPassthru0.resetMethod = "d3d0"  # Try D3-D0 power cycle instead of FLR
-pciPassthru0.msiEnabled = "FALSE"  # Disable MSI if d3d0 doesn't work
+# First, check which pciPassthru index corresponds to Samsung NVMe:
+grep pciPassthru proxmox-backup-server.vmx
+# Look for vendorId = "0x144d" (Samsung) to identify the correct index
 
-# Alternative method:
-pciPassthru0.resetMethod = "link"  # Try link-level reset
+# Add resetMethod for Samsung NVMe devices (adjust index as needed):
+pciPassthru1.resetMethod = "d3d0"
+pciPassthru2.resetMethod = "d3d0"
 ```
 
-**Alternative Solutions**:
-1. Use different NVMe model (e.g., Intel DC P3700, Samsung PM981)
-2. Test firmware updates for SM963
-3. Deploy without NVMe acceleration (HDD-only ZFS pool)
+| Reset Method | 原理 | 适用场景 |
+|--------------|------|----------|
+| FLR (默认) | PCIe 功能级重置命令 | 需要设备固件支持 |
+| **d3d0** | D3→D0 电源状态切换 | ✅ 推荐 - 绕过固件问题 |
+| link | PCIe 链路级重置 | 备选方案 |
 
-#### 2.4.4. Revised Architecture (HDD-Only Configuration)
+**注意事项**:
+- 必须在 VM 关机状态下修改 .vmx 文件
+- pciPassthru 索引从 0 开始，按设备添加顺序排列
+- 只需给 Samsung NVMe 配置，HBA 等其他设备无需修改
 
-Given the NVMe compatibility issues, the **RECOMMENDED** deployment uses HDD-only:
+#### 2.4.4. Architecture Options
+
+**✅ RECOMMENDED: HDD + NVMe Special vdev**（FLR workaround 已验证可用）
+
+```
+backup-pool (Full Configuration with Special vdev)
+│
+├─ Data vdev: mirror-0
+│   ├─ /dev/sdb (8TB HDD #1)
+│   └─ /dev/sdc (8TB HDD #2)
+│
+└─ Special vdev: mirror-1 (metadata + small blocks)
+    ├─ /dev/nvme0n1 (Samsung SM963 256GB #1)
+    └─ /dev/nvme1n1 (Samsung SM963 256GB #2)
+    • Metadata IOPS: 100,000+
+    • Small block acceleration: <128K files on NVMe
+```
+
+**备选: HDD-Only Configuration**（如不使用 NVMe）
 
 ```
 backup-pool (Simplified Configuration)
@@ -337,15 +362,16 @@ backup-pool (Simplified Configuration)
     • Network Bottleneck: 1Gbps = 125 MB/s (actual limit)
 ```
 
-**Performance Expectations (HDD-only)**:
-| Workload | Performance | Bottleneck |
-|----------|-------------|------------|
-| Backup Write | ~120 MB/s | 1Gbps Network |
-| Restore Read | ~120 MB/s | 1Gbps Network |
-| Metadata Operations | 50-100ms | HDD Seek Time |
-| ZFS Scrub | ~150 MB/s | HDD Sequential |
+**Performance Comparison**:
+| Workload | HDD-Only | HDD + NVMe Special |
+|----------|----------|-------------------|
+| Backup Write | ~120 MB/s | ~120 MB/s |
+| Restore Read | ~120 MB/s | ~120 MB/s |
+| Metadata Operations | 50-100ms | **<1ms** |
+| ZFS Scrub | ~150 MB/s | ~150 MB/s |
+| Web UI Responsiveness | Slow | **Fast** |
 
-**Key Insight**: For 1Gbps network environments, HDD-only configuration is **sufficient** since network (125 MB/s) is the bottleneck, not disk (200+ MB/s).
+**Key Insight**: Special vdev 主要提升 **元数据操作性能**（目录浏览、快照管理、Web UI 响应），对大文件顺序读写影响不大。
 
 ### 2.5. Network Topology
 

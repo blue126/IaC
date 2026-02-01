@@ -20,14 +20,16 @@ pbs_zfs_hdd_devices:
   - /dev/sdb
   - /dev/sdc
 
-# NVMe Devices (empty = HDD-only mode)
-# Populate when NVMe passthrough is available
-pbs_zfs_nvme_devices: []
+# NVMe Devices for special vdev (Samsung SM963)
+# Requires ESXi .vmx resetMethod = "d3d0" to avoid FLR crash
+pbs_zfs_nvme_devices:
+  - /dev/nvme0n1
+  - /dev/nvme1n1
 
 # ZFS Pool Mode
-# false = HDD mirror only (current configuration)
+# false = HDD mirror only
 # true  = HDD mirror + NVMe special vdev (requires pbs_zfs_nvme_devices)
-pbs_zfs_use_special_vdev: false
+pbs_zfs_use_special_vdev: true
 
 # ZFS Parameters
 pbs_zfs_ashift: 12

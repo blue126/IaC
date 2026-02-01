@@ -14,3 +14,4 @@ ansible/credentials/
 .vault_pass
 .opencode/
 _bmad/
+_bmad-output/

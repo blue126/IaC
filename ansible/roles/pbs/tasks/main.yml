@@ -12,9 +12,18 @@
 # ZFS storage setup
 - include_tasks: zfs-verify.yml
   tags: [verify, zfs]
+  args:
+    apply:
+      tags: [verify, zfs]
 
 - include_tasks: zfs-pool.yml
   tags: [zfs]
+  args:
+    apply:
+      tags: [zfs]
 
 - include_tasks: zfs-datastore.yml
   tags: [pbs_datastore]
+  args:
+    apply:
+      tags: [pbs_datastore]
