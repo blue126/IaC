@@ -26,8 +26,9 @@ module "pbs" {
   # PCIe Passthrough
   # Currently managed manually via ESXi Web UI (not by Terraform)
   # to avoid VM recreation. Actual passthrough config on ESXi:
-  #   - LSI 3008 HBA: 0000:01:00.0 (enabled, provides /dev/sdb, /dev/sdc)
-  #   - Samsung SM963 NVMe: disabled (PCIe bifurcation not available in BIOS)
+  #   - LSI 3008 HBA: 0000:03:00.0 (enabled, provides /dev/sdb, /dev/sdc)
+  #   - Samsung SM963 NVMe x2: 0000:08:00.0, 0000:11:00.0 (enabled, ZFS special vdev)
+  #     Note: Requires .vmx resetMethod="d3d0" to avoid FLR crash on VM shutdown
   #   - Intel Optane Memory: removed (incompatible, firmware has no namespace support)
   # To enable Terraform-managed passthrough in the future:
   #   pci_device_ids = concat(

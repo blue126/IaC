@@ -169,5 +169,52 @@ Proxmox (pve0, 192.168.1.50)
   ├── 存储后端: pbs-backup (PBS 类型, active)
   └── 备份任务: 每天 02:00, snapshot+zstd
        ├── VMID: 100-106 (7 个工作负载)
-       └── 保留: 7日 + 4周 + 6月
+        └── 保留: 7日 + 4周 + 6月
+```
+
+---
+
+## 更新：Samsung SM963 NVMe FLR 问题解决 (2026-02-01)
+
+### 问题现象
+
+Samsung SM963 NVMe 通过 ESXi PCIe passthrough 传递给 PBS VM 后，VM shutdown 会导致 ESXi PSOD（紫屏死机）：
+
+```
+VERIFY bora/devices/pcipassthru/pciPassthru.c:2254
+```
+
+### 根因分析
+
+- **FLR (Function Level Reset)** 是 PCIe 规范的设备重置命令
+- VM 关机时，ESXi 需要通过 FLR 回收 passthrough 设备
+- Samsung SM963 **固件有缺陷**，无法正确响应 FLR 命令，设备卡住
+- ESXi 等待超时后触发崩溃
+
+### 解决方案
+
+在 VM `.vmx` 文件中配置 `resetMethod = "d3d0"`，使用 D3→D0 电源状态切换代替 FLR：
+
+```
+pciPassthru1.resetMethod = "d3d0"
+pciPassthru2.resetMethod = "d3d0"
+```
+
+| Reset Method | 原理 | 适用场景 |
+|--------------|------|----------|
+| FLR (默认) | PCIe 功能级重置命令 | 需要设备固件支持 |
+| **d3d0** | D3(睡眠)→D0(唤醒) 电源切换 | ✅ 绕过固件问题 |
+| link | PCIe 链路级重置 | 备选方案 |
+
+### 为什么 d3d0 有效
+
+D3→D0 是 PCIe 电源管理的基本功能，几乎所有设备都支持。设备从深度睡眠唤醒时，硬件会自动重置到初始状态，不依赖固件的 FLR 实现。
+
+### 最终存储架构
+
+```
+backup-pool (7.5TB)
+├── mirror-0 (HDD 8TB x2) — 数据存储
+└── special mirror-1 (NVMe 256GB x2) — 元数据 + <128K 小文件
+    special_small_blocks = 128K
 ```
