@@ -1,3 +1,2 @@
 plugin: cloud.terraform.terraform_provider
-project_path: /workspaces/IaC/terraform/proxmox
-state_file: /workspaces/IaC/terraform/proxmox/terraform.tfstate
+project_path: terraform/proxmox

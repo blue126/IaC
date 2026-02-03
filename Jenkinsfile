@@ -4,8 +4,9 @@ pipeline {
     environment {
         // Terraform Cloud token
         TF_TOKEN_app_terraform_io = credentials('terraform-cloud-token')
-        // Ansible Vault password file path
-        ANSIBLE_VAULT_PASSWORD_FILE = "${WORKSPACE}/.vault_pass"
+        // Ansible configuration
+        ANSIBLE_CONFIG = "${WORKSPACE}/ansible/ansible.cfg"
+        ANSIBLE_VAULT_PASSWORD_FILE = "${WORKSPACE}/ansible/.vault_pass"
     }
 
     options {
@@ -49,11 +50,7 @@ pipeline {
                         fi
                     '''
                 }
-                // Update inventory paths for Jenkins workspace
-                sh '''
-                    sed -i "s|/workspaces/IaC|${WORKSPACE}|g" ansible/inventory/terraform.yml
-                    sed -i "s|/workspaces/IaC|${WORKSPACE}|g" ansible/inventory/terraform-esxi.yml
-                '''
+
             }
         }
 
@@ -71,11 +68,9 @@ pipeline {
                 }
                 stage('Ansible Lint') {
                     steps {
-                        dir('ansible') {
-                            sh 'ansible-lint --version'
-                            // Syntax check all playbooks
-                            sh 'ansible-playbook playbooks/*.yml --syntax-check'
-                        }
+                        // Run from project root for relative inventory paths
+                        sh 'ansible-lint --version'
+                        sh 'ansible-playbook ansible/playbooks/*.yml --syntax-check'
                     }
                 }
             }
@@ -119,13 +114,8 @@ pipeline {
 
         stage('Ansible Deploy') {
             steps {
-                dir('ansible') {
-                    // Run all playbooks or specific ones based on changes
-                    // For now, only run verification to test the pipeline
-                    sh '''
-                        ansible-playbook playbooks/deploy-jenkins.yml --tags verify
-                    '''
-                }
+                // Run from project root for relative inventory paths
+                sh 'ansible-playbook ansible/playbooks/deploy-jenkins.yml --tags verify'
             }
         }
     }

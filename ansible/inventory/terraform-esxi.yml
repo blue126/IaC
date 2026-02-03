@@ -1,3 +1,2 @@
 plugin: cloud.terraform.terraform_provider
-project_path: /workspaces/IaC/terraform/esxi
-state_file: /workspaces/IaC/terraform/esxi/terraform.tfstate
+project_path: terraform/esxi
