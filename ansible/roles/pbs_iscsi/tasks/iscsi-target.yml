@@ -1,0 +1,74 @@
+---
+# iSCSI Target Configuration Tasks
+
+- name: Install targetcli-fb package
+  ansible.builtin.apt:
+    name: targetcli-fb
+    state: present
+    update_cache: no
+
+- name: Enable and start target service
+  ansible.builtin.systemd:
+    name: rtslib-fb-targetctl
+    enabled: yes
+    state: started
+
+- name: Check if backstore exists
+  ansible.builtin.command:
+    cmd: "targetcli ls /backstores/block/{{ pbs_iscsi_backstore_name }}"
+  register: backstore_check
+  failed_when: false
+  changed_when: false
+
+- name: Create block backstore from ZVol
+  ansible.builtin.command:
+    cmd: >-
+      targetcli /backstores/block create
+      {{ pbs_iscsi_backstore_name }}
+      /dev/zvol/{{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}
+  when: backstore_check.rc != 0
+  notify: Save targetcli config
+
+- name: Check if iSCSI target exists
+  ansible.builtin.command:
+    cmd: "targetcli ls /iscsi/{{ pbs_iscsi_iqn }}"
+  register: target_check
+  failed_when: false
+  changed_when: false
+
+- name: Create iSCSI target
+  ansible.builtin.command:
+    cmd: "targetcli /iscsi create {{ pbs_iscsi_iqn }}"
+  when: target_check.rc != 0
+  notify: Save targetcli config
+
+- name: Configure iSCSI portal
+  ansible.builtin.command:
+    cmd: >-
+      targetcli /iscsi/{{ pbs_iscsi_iqn }}/tpg1/portals create
+      {{ pbs_iscsi_portal_ip }} {{ pbs_iscsi_portal_port }}
+  register: portal_result
+  failed_when: portal_result.rc != 0 and 'already exists' not in portal_result.stderr
+  changed_when: portal_result.rc == 0
+  notify: Save targetcli config
+
+- name: Create LUN mapping
+  ansible.builtin.command:
+    cmd: >-
+      targetcli /iscsi/{{ pbs_iscsi_iqn }}/tpg1/luns create
+      /backstores/block/{{ pbs_iscsi_backstore_name }}
+  register: lun_result
+  failed_when: lun_result.rc != 0 and 'already exists' not in lun_result.stderr
+  changed_when: lun_result.rc == 0
+  notify: Save targetcli config
+
+- name: Configure demo mode (no authentication)
+  ansible.builtin.command:
+    cmd: >-
+      targetcli /iscsi/{{ pbs_iscsi_iqn }}/tpg1 set attribute
+      authentication=0
+      demo_mode_write_protect=0
+      generate_node_acls=1
+      cache_dynamic_acls=1
+  when: pbs_iscsi_demo_mode
+  notify: Save targetcli config

@@ -1,0 +1,57 @@
+---
+# Deploy PBS iSCSI Target for Veeam
+# Usage:
+#   ansible-playbook playbooks/deploy-pbs-iscsi.yml
+#   ansible-playbook playbooks/deploy-pbs-iscsi.yml --tags verify
+
+- name: Deploy PBS iSCSI Target
+  hosts: pbs
+  become: yes
+  roles:
+    - role: pbs_iscsi
+      tags: [pbs_iscsi]
+
+- name: Verify PBS iSCSI Deployment
+  hosts: pbs
+  become: yes
+  tags: [verify]
+  vars:
+    pbs_zfs_pool_name: "{{ pbs_zfs_pool | default('backup-pool') }}"
+    pbs_iscsi_zvol_name: "veeam-vol"
+    pbs_iscsi_iqn: "iqn.2026-02.lan.pbs:veeam"
+    pbs_iscsi_portal_port: 3260
+  tasks:
+    - name: Verify ZVol exists
+      ansible.builtin.command:
+        cmd: "zfs list {{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}"
+      changed_when: false
+
+    - name: Verify ZVol properties
+      ansible.builtin.command:
+        cmd: "zfs get volsize,volblocksize,compression {{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}"
+      changed_when: false
+      register: zvol_props
+
+    - name: Display ZVol properties
+      ansible.builtin.debug:
+        var: zvol_props.stdout_lines
+
+    - name: Verify iSCSI target exists
+      ansible.builtin.command:
+        cmd: "targetcli ls /iscsi/{{ pbs_iscsi_iqn }}"
+      changed_when: false
+
+    - name: Verify iSCSI portal is listening
+      ansible.builtin.wait_for:
+        port: "{{ pbs_iscsi_portal_port }}"
+        timeout: 10
+
+    - name: Display iSCSI target summary
+      ansible.builtin.command:
+        cmd: "targetcli ls /iscsi"
+      changed_when: false
+      register: iscsi_summary
+
+    - name: Show iSCSI configuration
+      ansible.builtin.debug:
+        var: iscsi_summary.stdout_lines

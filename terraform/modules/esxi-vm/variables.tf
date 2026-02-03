@@ -59,3 +59,15 @@ variable "pci_device_ids" {
   type    = list(string)
   default = []
 }
+
+variable "power_on" {
+  description = "Whether to power on the VM after creation"
+  type        = bool
+  default     = false
+}
+
+variable "extra_config" {
+  description = "Extra VMX configuration parameters"
+  type        = map(string)
+  default     = {}
+}

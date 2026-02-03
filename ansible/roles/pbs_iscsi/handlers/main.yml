@@ -1,0 +1,12 @@
+---
+# PBS iSCSI Role - Handlers
+
+- name: Save targetcli config
+  ansible.builtin.command:
+    cmd: targetcli saveconfig
+  listen: Save targetcli config
+
+- name: Restart target service
+  ansible.builtin.systemd:
+    name: rtslib-fb-targetctl
+    state: restarted

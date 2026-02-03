@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# PBS iSCSI Role - Default Variables
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# ZVol Configuration
+# -----------------------------------------------------------------------------
+pbs_iscsi_zvol_name: "veeam-vol"
+# ZVol 名称，将创建在 {{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}
+
+pbs_iscsi_zvol_size: "2T"
+# ZVol 大小，支持 ZFS 单位格式 (K, M, G, T)
+
+pbs_iscsi_zvol_blocksize: "64K"
+# 卷块大小，64K 适合 iSCSI + ReFS 场景
+
+pbs_iscsi_zvol_compression: "lz4"
+# 压缩算法，lz4 提供良好的压缩比和低 CPU 开销
+
+pbs_iscsi_zvol_sparse: true
+# 精简置备，不预分配全部空间
+
+# -----------------------------------------------------------------------------
+# iSCSI Target Configuration
+# -----------------------------------------------------------------------------
+pbs_iscsi_iqn: "iqn.2026-02.lan.pbs:veeam"
+# iSCSI Qualified Name，遵循 RFC 3720 格式
+
+pbs_iscsi_portal_ip: "0.0.0.0"
+# Portal 监听 IP，0.0.0.0 表示所有接口
+
+pbs_iscsi_portal_port: 3260
+# iSCSI 标准端口
+
+pbs_iscsi_backstore_name: "veeam-backstore"
+# LIO backstore 名称
+
+# -----------------------------------------------------------------------------
+# Demo Mode (No Authentication)
+# -----------------------------------------------------------------------------
+pbs_iscsi_demo_mode: true
+# 启用 demo 模式，允许任何 initiator 连接
+# 生产环境应设为 false 并配置 ACL
+
+# -----------------------------------------------------------------------------
+# Dependencies (from pbs role)
+# -----------------------------------------------------------------------------
+pbs_zfs_pool_name: "{{ pbs_zfs_pool | default('backup-pool') }}"
+# ZFS pool name, defaults to pbs_zfs_pool from inventory or 'backup-pool'

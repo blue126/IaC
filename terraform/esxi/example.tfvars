@@ -37,3 +37,13 @@ pbs_hba_pci_id = "0000:01:00.0"
 #   "0000:08:00.0",
 #   "0000:0b:00.0"
 # ]
+
+# ==========================================
+# Windows Server Configuration (Veeam Host)
+# ==========================================
+
+windows_vm_name        = "windows-server"
+windows_ip_address     = "192.168.1.248"
+windows_num_cpus       = 4
+windows_memory_mb      = 16384
+windows_system_disk_gb = 60

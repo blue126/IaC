@@ -1,0 +1,172 @@
+---
+# Deploy Windows iSCSI Configuration
+# Usage:
+#   ansible-playbook playbooks/deploy-windows-iscsi.yml
+#   ansible-playbook playbooks/deploy-windows-iscsi.yml --tags verify
+#
+# Prerequisites:
+#   - Windows Server installed with WinRM enabled
+#   - PBS iSCSI target configured (deploy-pbs-iscsi.yml)
+
+- name: Configure Windows iSCSI and ReFS Volume
+  hosts: windows-server
+  gather_facts: yes
+  tasks:
+    - name: Ensure iSCSI Initiator service is running
+      ansible.windows.win_service:
+        name: MSiSCSI
+        start_mode: auto
+        state: started
+
+    - name: Add iSCSI target portal
+      ansible.windows.win_powershell:
+        script: |
+          $portal = Get-IscsiTargetPortal -TargetPortalAddress "{{ iscsi_target_ip }}" -ErrorAction SilentlyContinue
+          if (-not $portal) {
+              New-IscsiTargetPortal -TargetPortalAddress "{{ iscsi_target_ip }}"
+              $Ansible.Changed = $true
+          } else {
+              $Ansible.Changed = $false
+          }
+      register: portal_result
+
+    - name: Discover iSCSI targets
+      ansible.windows.win_powershell:
+        script: |
+          $targets = Get-IscsiTarget
+          $Ansible.Result = $targets | Select-Object NodeAddress, IsConnected | ConvertTo-Json
+      register: targets_discovery
+
+    - name: Connect to iSCSI target
+      ansible.windows.win_powershell:
+        script: |
+          $target = Get-IscsiTarget -NodeAddress "{{ iscsi_target_iqn }}" -ErrorAction SilentlyContinue
+          if ($target -and -not $target.IsConnected) {
+              Connect-IscsiTarget -NodeAddress "{{ iscsi_target_iqn }}" -IsPersistent $true
+              $Ansible.Changed = $true
+          } elseif (-not $target) {
+              throw "iSCSI target {{ iscsi_target_iqn }} not found. Check PBS iSCSI configuration."
+          } else {
+              $Ansible.Changed = $false
+          }
+      register: connect_result
+
+    - name: Wait for iSCSI disk to appear
+      ansible.windows.win_powershell:
+        script: |
+          $retries = 10
+          $disk = $null
+          while ($retries -gt 0 -and -not $disk) {
+              $disk = Get-Disk | Where-Object { $_.BusType -eq 'iSCSI' -and $_.OperationalStatus -eq 'Offline' }
+              if (-not $disk) {
+                  Start-Sleep -Seconds 2
+                  $retries--
+              }
+          }
+          if ($disk) {
+              $Ansible.Result = @{ DiskNumber = $disk.Number; Size = $disk.Size }
+          } else {
+              # Check if already online
+              $onlineDisk = Get-Disk | Where-Object { $_.BusType -eq 'iSCSI' -and $_.OperationalStatus -eq 'Online' }
+              if ($onlineDisk) {
+                  $Ansible.Result = @{ DiskNumber = $onlineDisk.Number; Size = $onlineDisk.Size; AlreadyOnline = $true }
+              } else {
+                  throw "No iSCSI disk found after waiting"
+              }
+          }
+      register: iscsi_disk
+
+    - name: Initialize and format iSCSI disk as ReFS
+      ansible.windows.win_powershell:
+        script: |
+          $diskNumber = {{ iscsi_disk.result.DiskNumber }}
+          $disk = Get-Disk -Number $diskNumber
+
+          # Check if already initialized and formatted
+          $partition = Get-Partition -DiskNumber $diskNumber -ErrorAction SilentlyContinue | Where-Object { $_.Type -eq 'Basic' }
+          if ($partition) {
+              $volume = Get-Volume -Partition $partition -ErrorAction SilentlyContinue
+              if ($volume -and $volume.FileSystem -eq 'ReFS') {
+                  $Ansible.Changed = $false
+                  $Ansible.Result = @{ DriveLetter = $volume.DriveLetter; Status = "Already formatted" }
+                  return
+              }
+          }
+
+          # Bring disk online if offline
+          if ($disk.OperationalStatus -eq 'Offline') {
+              Set-Disk -Number $diskNumber -IsOffline $false
+          }
+
+          # Clear readonly if set
+          if ($disk.IsReadOnly) {
+              Set-Disk -Number $diskNumber -IsReadOnly $false
+          }
+
+          # Initialize if not initialized
+          if ($disk.PartitionStyle -eq 'RAW') {
+              Initialize-Disk -Number $diskNumber -PartitionStyle GPT
+          }
+
+          # Create partition and format as ReFS with 64K allocation unit
+          $partition = New-Partition -DiskNumber $diskNumber -UseMaximumSize -AssignDriveLetter
+          Format-Volume -Partition $partition -FileSystem ReFS -AllocationUnitSize 65536 -NewFileSystemLabel "VeeamRepo" -Confirm:$false
+
+          $Ansible.Changed = $true
+          $Ansible.Result = @{ DriveLetter = $partition.DriveLetter; Status = "Formatted" }
+      register: format_result
+      when: iscsi_disk.result.AlreadyOnline is not defined or not iscsi_disk.result.AlreadyOnline
+
+    - name: Display configuration result
+      ansible.builtin.debug:
+        msg:
+          - "iSCSI Target: {{ iscsi_target_iqn }}"
+          - "Disk Number: {{ iscsi_disk.result.DiskNumber }}"
+          - "Drive Letter: {{ format_result.result.DriveLetter | default('Already configured') }}"
+          - "Status: {{ format_result.result.Status | default('Skipped') }}"
+
+- name: Verify Windows iSCSI Configuration
+  hosts: windows-server
+  gather_facts: no
+  tags: [verify]
+  tasks:
+    - name: Verify iSCSI connection
+      ansible.windows.win_powershell:
+        script: |
+          $session = Get-IscsiSession | Where-Object { $_.TargetNodeAddress -eq "{{ iscsi_target_iqn }}" }
+          if (-not $session) {
+              throw "No active iSCSI session to {{ iscsi_target_iqn }}"
+          }
+          $Ansible.Result = @{
+              TargetNodeAddress = $session.TargetNodeAddress
+              IsConnected = $session.IsConnected
+              IsPersistent = $session.IsPersistent
+          }
+      register: session_check
+
+    - name: Verify ReFS volume exists
+      ansible.windows.win_powershell:
+        script: |
+          $volume = Get-Volume | Where-Object { $_.FileSystem -eq 'ReFS' -and $_.FileSystemLabel -eq 'VeeamRepo' }
+          if (-not $volume) {
+              throw "ReFS volume 'VeeamRepo' not found"
+          }
+          $Ansible.Result = @{
+              DriveLetter = $volume.DriveLetter
+              FileSystem = $volume.FileSystem
+              SizeGB = [math]::Round($volume.Size / 1GB, 2)
+              FreeSpaceGB = [math]::Round($volume.SizeRemaining / 1GB, 2)
+          }
+      register: volume_check
+
+    - name: Display verification summary
+      ansible.builtin.debug:
+        msg:
+          - "=== iSCSI Session ==="
+          - "Target: {{ session_check.result.TargetNodeAddress }}"
+          - "Connected: {{ session_check.result.IsConnected }}"
+          - "Persistent: {{ session_check.result.IsPersistent }}"
+          - "=== ReFS Volume ==="
+          - "Drive: {{ volume_check.result.DriveLetter }}:"
+          - "Size: {{ volume_check.result.SizeGB }} GB"
+          - "Free: {{ volume_check.result.FreeSpaceGB }} GB"

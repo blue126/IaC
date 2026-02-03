@@ -5,3 +5,4 @@ collections:
   - name: community.docker
   - name: ansible.posix
   - name: netbox.netbox
+  - name: ansible.windows

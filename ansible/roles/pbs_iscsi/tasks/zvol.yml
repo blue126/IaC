@@ -1,0 +1,26 @@
+---
+# ZVol Creation Tasks
+
+- name: Check if ZVol already exists
+  ansible.builtin.command:
+    cmd: "zfs list {{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}"
+  register: zvol_check
+  failed_when: false
+  changed_when: false
+
+- name: Create ZVol for iSCSI target
+  ansible.builtin.command:
+    cmd: >-
+      zfs create
+      -V {{ pbs_iscsi_zvol_size }}
+      {{ '-s' if pbs_iscsi_zvol_sparse else '' }}
+      -o volblocksize={{ pbs_iscsi_zvol_blocksize }}
+      -o compression={{ pbs_iscsi_zvol_compression }}
+      {{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}
+  when: zvol_check.rc != 0
+
+- name: Verify ZVol device exists
+  ansible.builtin.stat:
+    path: "/dev/zvol/{{ pbs_zfs_pool_name }}/{{ pbs_iscsi_zvol_name }}"
+  register: zvol_device
+  failed_when: not zvol_device.stat.exists

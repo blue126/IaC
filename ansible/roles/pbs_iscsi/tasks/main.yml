@@ -1,0 +1,10 @@
+---
+# PBS iSCSI Role - Main Entry Point
+
+- name: Include ZVol creation tasks
+  ansible.builtin.include_tasks: zvol.yml
+  tags: [zvol, iscsi]
+
+- name: Include iSCSI target configuration tasks
+  ansible.builtin.include_tasks: iscsi-target.yml
+  tags: [iscsi]

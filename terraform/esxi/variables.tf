@@ -82,3 +82,36 @@ variable "pbs_nvme_pci_ids" {
   description = "NVMe PCI IDs - currently unused (bifurcation not available)"
   default     = []
 }
+
+# ==========================================
+# Windows Server VM Configuration
+# ==========================================
+
+variable "windows_vm_name" {
+  description = "Windows Server VM name"
+  type        = string
+  default     = "windows-server"
+}
+
+variable "windows_ip_address" {
+  description = "Windows Server static IP address"
+  type        = string
+}
+
+variable "windows_num_cpus" {
+  description = "Number of vCPUs for Windows Server"
+  type        = number
+  default     = 4
+}
+
+variable "windows_memory_mb" {
+  description = "Memory in MB for Windows Server"
+  type        = number
+  default     = 16384
+}
+
+variable "windows_system_disk_gb" {
+  description = "System disk size in GB for Windows Server"
+  type        = number
+  default     = 60
+}

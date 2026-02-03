@@ -1,0 +1,179 @@
+---
+# Deploy Samba Time Machine share on PBS
+# Usage:
+#   ansible-playbook playbooks/deploy-pbs-timemachine.yml
+#   ansible-playbook playbooks/deploy-pbs-timemachine.yml --tags verify
+
+- name: Configure PBS as Time Machine Server
+  hosts: pbs
+  become: yes
+  vars:
+    timemachine_zfs_dataset: "backup-pool/timemachine"
+    timemachine_path: "/backup-pool/timemachine"
+    timemachine_size_quota: "500G"
+    timemachine_user: "timemachine"
+    timemachine_password: "{{ vault_timemachine_password | default('timemachine') }}"
+  tasks:
+    - name: Install Samba and Avahi
+      ansible.builtin.apt:
+        name:
+          - samba
+          - avahi-daemon
+        state: present
+        update_cache: no
+
+    - name: Check if Time Machine dataset exists
+      ansible.builtin.command:
+        cmd: "zfs list {{ timemachine_zfs_dataset }}"
+      register: tm_dataset_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create ZFS dataset for Time Machine
+      ansible.builtin.command:
+        cmd: >-
+          zfs create
+          -o quota={{ timemachine_size_quota }}
+          -o compression=lz4
+          {{ timemachine_zfs_dataset }}
+      when: tm_dataset_check.rc != 0
+
+    - name: Create Time Machine user
+      ansible.builtin.user:
+        name: "{{ timemachine_user }}"
+        shell: /usr/sbin/nologin
+        create_home: no
+        system: yes
+
+    - name: Set Samba password for Time Machine user
+      ansible.builtin.shell:
+        cmd: "(echo '{{ timemachine_password }}'; echo '{{ timemachine_password }}') | smbpasswd -a -s {{ timemachine_user }}"
+      changed_when: true
+      no_log: true
+
+    - name: Set ownership on Time Machine directory
+      ansible.builtin.file:
+        path: "{{ timemachine_path }}"
+        owner: "{{ timemachine_user }}"
+        group: "{{ timemachine_user }}"
+        mode: '0750'
+
+    - name: Configure Samba for Time Machine
+      ansible.builtin.copy:
+        dest: /etc/samba/smb.conf
+        content: |
+          [global]
+          workgroup = WORKGROUP
+          server string = PBS Time Machine
+          security = user
+          map to guest = never
+          
+          # macOS compatibility
+          vfs objects = fruit streams_xattr
+          fruit:metadata = stream
+          fruit:model = MacSamba
+          fruit:posix_rename = yes
+          fruit:veto_appledouble = no
+          fruit:nfs_aces = no
+          fruit:wipe_intentionally_left_blank_rfork = yes
+          fruit:delete_empty_adfiles = yes
+          
+          # Performance
+          socket options = TCP_NODELAY IPTOS_LOWDELAY
+          
+          [TimeMachine]
+          path = {{ timemachine_path }}
+          valid users = {{ timemachine_user }}
+          writable = yes
+          browseable = yes
+          
+          # Time Machine specific
+          fruit:time machine = yes
+          fruit:time machine max size = {{ timemachine_size_quota }}
+        mode: '0644'
+      notify: Restart Samba
+
+    - name: Configure Avahi for Time Machine discovery
+      ansible.builtin.copy:
+        dest: /etc/avahi/services/timemachine.service
+        content: |
+          <?xml version="1.0" standalone='no'?>
+          <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+          <service-group>
+            <name replace-wildcards="yes">%h Time Machine</name>
+            <service>
+              <type>_smb._tcp</type>
+              <port>445</port>
+            </service>
+            <service>
+              <type>_device-info._tcp</type>
+              <port>9</port>
+              <txt-record>model=TimeCapsule8,119</txt-record>
+            </service>
+            <service>
+              <type>_adisk._tcp</type>
+              <port>9</port>
+              <txt-record>dk0=adVN=TimeMachine,adVF=0x82</txt-record>
+              <txt-record>sys=adVF=0x100</txt-record>
+            </service>
+          </service-group>
+        mode: '0644'
+      notify: Restart Avahi
+
+    - name: Enable and start Samba
+      ansible.builtin.systemd:
+        name: smbd
+        enabled: yes
+        state: started
+
+    - name: Enable and start Avahi
+      ansible.builtin.systemd:
+        name: avahi-daemon
+        enabled: yes
+        state: started
+
+  handlers:
+    - name: Restart Samba
+      ansible.builtin.systemd:
+        name: smbd
+        state: restarted
+
+    - name: Restart Avahi
+      ansible.builtin.systemd:
+        name: avahi-daemon
+        state: restarted
+
+- name: Verify Time Machine Configuration
+  hosts: pbs
+  become: yes
+  tags: [verify]
+  vars:
+    timemachine_zfs_dataset: "backup-pool/timemachine"
+  tasks:
+    - name: Verify ZFS dataset exists
+      ansible.builtin.command:
+        cmd: "zfs list {{ timemachine_zfs_dataset }}"
+      changed_when: false
+
+    - name: Verify Samba is running
+      ansible.builtin.systemd:
+        name: smbd
+      register: smbd_status
+
+    - name: Verify Avahi is running
+      ansible.builtin.systemd:
+        name: avahi-daemon
+      register: avahi_status
+
+    - name: Verify SMB port is listening
+      ansible.builtin.wait_for:
+        port: 445
+        timeout: 10
+
+    - name: Display status
+      ansible.builtin.debug:
+        msg:
+          - "Samba: {{ 'running' if smbd_status.status.ActiveState == 'active' else 'stopped' }}"
+          - "Avahi: {{ 'running' if avahi_status.status.ActiveState == 'active' else 'stopped' }}"
+          - "Time Machine share ready at: smb://{{ ansible_host }}/TimeMachine"
+          - "Username: timemachine"

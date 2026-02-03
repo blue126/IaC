@@ -39,5 +39,18 @@ resource "vsphere_virtual_machine" "vm" {
   }
 
   wait_for_guest_net_timeout = 0
+  wait_for_guest_ip_timeout  = 0
+
+  # Do not force power on - let lifecycle scripts handle it
+  force_power_off = false
+
+  # Extra VMX configuration parameters
+  extra_config = var.extra_config
+
+  # Ignore PCI passthrough changes to avoid provider bug (v2.15.0)
+  # PCI devices are managed manually via ESXi Web UI
+  lifecycle {
+    ignore_changes = [pci_device_id, extra_config]
+  }
 }
 
