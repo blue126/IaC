@@ -6,10 +6,6 @@ pipeline {
         TF_TOKEN_app_terraform_io = credentials('terraform-cloud-token')
         // Ansible Vault password file path
         ANSIBLE_VAULT_PASSWORD_FILE = "${WORKSPACE}/.vault_pass"
-        // Disable color output to avoid ANSI escape codes in Jenkins console
-        TF_CLI_ARGS = '-no-color'
-        ANSIBLE_NOCOLOR = 'true'
-        NO_COLOR = '1'
     }
 
     options {
@@ -19,6 +15,8 @@ pipeline {
         timeout(time: 30, unit: 'MINUTES')
         // Don't run concurrent builds
         disableConcurrentBuilds()
+        // Enable ANSI color output
+        ansiColor('xterm')
     }
 
     stages {
