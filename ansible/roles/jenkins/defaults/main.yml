@@ -1,0 +1,24 @@
+---
+# Default variables for Jenkins role
+
+# Jenkins configuration
+jenkins_http_port: 8080
+jenkins_home: /var/lib/jenkins
+
+# Java version (Jenkins LTS requires Java 17+)
+jenkins_java_package: openjdk-17-jdk
+
+# Terraform version to install
+jenkins_terraform_version: "1.7.5"
+
+# Additional packages needed for CI/CD operations
+jenkins_packages:
+  - git
+  - curl
+  - unzip
+  - gnupg
+  - software-properties-common
+  - python3
+  - python3-pip
+  - python3-venv
+  - sshpass

@@ -1,0 +1,122 @@
+---
+# Jenkins CI/CD Server Installation
+# Installs Jenkins LTS + Terraform + Ansible
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install required system packages
+  apt:
+    name: "{{ jenkins_packages }}"
+    state: present
+
+# === Java Installation ===
+- name: Install Java (Jenkins requirement)
+  apt:
+    name: "{{ jenkins_java_package }}"
+    state: present
+
+- name: Verify Java installation
+  command: java -version
+  register: java_version
+  changed_when: false
+
+- name: Display Java version
+  debug:
+    msg: "{{ java_version.stderr_lines[0] }}"
+
+# === Jenkins Installation ===
+- name: Import Jenkins GPG key from keyserver
+  shell: |
+    gpg --batch --keyserver keyserver.ubuntu.com --recv-keys 7198F4B714ABFC68
+    gpg --batch --export 7198F4B714ABFC68 > /usr/share/keyrings/jenkins-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/jenkins-keyring.gpg
+
+- name: Add Jenkins apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/jenkins.list
+    content: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian-stable binary/\n"
+    mode: '0644'
+
+- name: Update apt cache for Jenkins
+  apt:
+    update_cache: yes
+
+- name: Install Jenkins
+  apt:
+    name: jenkins
+    state: present
+    update_cache: yes
+
+- name: Ensure Jenkins service is enabled and started
+  systemd:
+    name: jenkins
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Wait for Jenkins to start
+  wait_for:
+    port: "{{ jenkins_http_port }}"
+    delay: 10
+    timeout: 120
+
+# === Terraform Installation ===
+- name: Add HashiCorp GPG key
+  get_url:
+    url: https://apt.releases.hashicorp.com/gpg
+    dest: /usr/share/keyrings/hashicorp-archive-keyring.asc
+    mode: '0644'
+
+- name: Add HashiCorp apt repository
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    state: present
+    filename: hashicorp
+
+- name: Install Terraform
+  apt:
+    name: terraform
+    state: present
+    update_cache: yes
+
+- name: Verify Terraform installation
+  command: terraform version
+  register: terraform_version
+  changed_when: false
+
+- name: Display Terraform version
+  debug:
+    msg: "{{ terraform_version.stdout_lines[0] }}"
+
+# === Ansible Installation ===
+- name: Install Ansible via apt
+  apt:
+    name:
+      - ansible
+      - ansible-lint
+    state: present
+
+- name: Verify Ansible installation
+  command: ansible --version
+  register: ansible_version_output
+  changed_when: false
+
+- name: Display Ansible version
+  debug:
+    msg: "{{ ansible_version_output.stdout_lines[0] }}"
+
+# === Get Initial Admin Password ===
+- name: Get Jenkins initial admin password
+  slurp:
+    src: "{{ jenkins_home }}/secrets/initialAdminPassword"
+  register: jenkins_initial_password
+  ignore_errors: yes
+
+- name: Display Jenkins initial admin password
+  debug:
+    msg: "Jenkins initial admin password: {{ jenkins_initial_password.content | b64decode | trim }}"
+  when: jenkins_initial_password is succeeded

@@ -1,0 +1,60 @@
+---
+- name: Deploy Jenkins CI/CD Server
+  hosts: jenkins
+  gather_facts: true
+  become: true
+  roles:
+    - common
+    - jenkins
+
+- name: Verify Jenkins Deployment
+  hosts: jenkins
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Wait for Jenkins to start
+      wait_for:
+        port: 8080
+        delay: 5
+        timeout: 120
+
+    - name: Check Jenkins service status
+      systemd:
+        name: jenkins
+      register: service_status
+
+    - name: Assert Jenkins service is active
+      assert:
+        that:
+          - service_status.status.ActiveState == "active"
+        success_msg: "Jenkins service is running"
+        fail_msg: "Jenkins service is not running"
+
+    - name: Test Jenkins HTTP accessibility
+      uri:
+        url: http://localhost:8080/login
+        status_code: 200
+        timeout: 10
+      register: http_check
+      ignore_errors: yes
+
+    - name: Verify Terraform is installed
+      command: terraform version
+      register: terraform_check
+      changed_when: false
+
+    - name: Verify Ansible is installed
+      command: ansible --version
+      register: ansible_check
+      changed_when: false
+
+    - name: Display deployment info
+      debug:
+        msg: |
+          ======================================
+          Jenkins Deployment Complete
+          URL: http://{{ ansible_host }}:8080
+          Terraform: {{ terraform_check.stdout_lines[0] }}
+          Ansible: {{ ansible_check.stdout_lines[0] }}
+          ======================================

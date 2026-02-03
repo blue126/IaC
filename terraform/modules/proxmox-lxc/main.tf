@@ -16,7 +16,7 @@ resource "proxmox_lxc" "lxc" {
   start        = var.start
   ostype       = var.ostype
   password     = var.password
-  
+
   # Resources
   cores  = var.cores
   memory = var.memory
@@ -54,6 +54,8 @@ resource "proxmox_lxc" "lxc" {
       # Ignore template changes after container creation
       ostemplate,
       description,
+      # Ignore SSH key changes to avoid destroying existing containers
+      ssh_public_keys,
     ]
   }
 }
