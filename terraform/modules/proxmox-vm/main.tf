@@ -73,6 +73,8 @@ resource "proxmox_vm_qemu" "vm" {
       efidisk,
       # Ignore SSH key changes to avoid requiring VM shutdown
       sshkeys,
+      # Ignore tags drift (Proxmox returns " " instead of null)
+      tags,
     ]
   }
 }
