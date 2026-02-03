@@ -37,9 +37,16 @@ pipeline {
                 }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
-                // Install Ansible Galaxy collections to project directory
+                // Install Ansible Galaxy collections if not present
                 dir('ansible') {
-                    sh 'ansible-galaxy collection install -r requirements.yml -p collections --force'
+                    sh '''
+                        if [ ! -d "collections/ansible_collections/community/docker" ]; then
+                            echo "Installing Ansible Galaxy collections..."
+                            ansible-galaxy collection install -r requirements.yml -p collections
+                        else
+                            echo "Ansible collections already installed, skipping..."
+                        fi
+                    '''
                 }
             }
         }
