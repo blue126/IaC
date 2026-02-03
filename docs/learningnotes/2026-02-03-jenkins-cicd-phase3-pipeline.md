@@ -242,6 +242,108 @@ TERRAFORM_DIR="${PROJECT_ROOT}/terraform/proxmox"
 - 后续阶段复用初始化结果
 - 或使用不同的工作目录
 
+### 5. Ansible Galaxy Collections 缺失 (community.docker)
+
+**问题**：Pipeline 在 Ansible Lint 阶段失败
+```
+couldn't resolve module/action 'community.docker.docker_compose_v2'
+```
+
+**原因**：Jenkins 上没有安装 Ansible Galaxy collections
+
+**解决**：在 Jenkinsfile Setup 阶段条件安装 collections
+```groovy
+dir('ansible') {
+    sh '''
+        if [ ! -d "collections/ansible_collections/community/docker" ] || \
+           [ ! -d "collections/ansible_collections/cloud/terraform" ]; then
+            echo "Installing Ansible Galaxy collections..."
+            ansible-galaxy collection install -r requirements.yml -p collections
+        else
+            echo "Ansible collections already installed, skipping..."
+        fi
+    '''
+}
+```
+
+**关键点**：
+- 使用条件判断避免每次都安装
+- 安装到项目目录 `collections/` 而非系统目录
+- 在 `ansible.cfg` 中配置 `collections_path = collections:~/.ansible/collections`
+
+### 6. Terraform Inventory 路径问题
+
+**问题**：Ansible 无法解析动态 inventory
+```
+No such file or directory: '/workspaces/IaC/terraform/proxmox'
+```
+
+**原因**：`terraform.yml` 和 `terraform-esxi.yml` 使用了硬编码的绝对路径
+
+**错误配置**：
+```yaml
+plugin: cloud.terraform.terraform_provider
+project_path: /workspaces/IaC/terraform/proxmox
+state_file: /workspaces/IaC/terraform/proxmox/terraform.tfstate
+```
+
+**正确配置**：
+```yaml
+plugin: cloud.terraform.terraform_provider
+project_path: terraform/proxmox
+```
+
+**关键点**：
+- 使用相对路径，相对于运行 ansible 命令的目录
+- 只需要 `project_path`，不需要 `state_file`（插件会自动找）
+- **必须从项目根目录运行 Ansible**，而不是 `ansible/` 目录
+
+**Jenkinsfile 调整**：
+```groovy
+environment {
+    ANSIBLE_CONFIG = "${WORKSPACE}/ansible/ansible.cfg"
+    ANSIBLE_VAULT_PASSWORD_FILE = "${WORKSPACE}/ansible/.vault_pass"
+}
+
+// 从项目根目录运行，不用 dir('ansible')
+sh 'ansible-playbook ansible/playbooks/deploy-jenkins.yml --tags verify'
+```
+
+### 7. Ansible 版本过低
+
+**问题**：Jenkins 上的 Ansible 2.14.18 不支持新版 collections
+```
+Collection cloud.terraform does not support Ansible version 2.14.18
+Collection ansible.posix does not support Ansible version 2.14.18
+```
+
+**原因**：Debian apt 仓库的 Ansible 版本太旧
+
+**解决**：修改 Jenkins role，使用 pipx 安装最新版 Ansible
+```yaml
+- name: Remove old apt-installed Ansible if present
+  apt:
+    name:
+      - ansible
+      - ansible-core
+    state: absent
+
+- name: Install pipx
+  apt:
+    name: pipx
+    state: present
+
+- name: Install Ansible via pipx
+  command: pipx install --include-deps ansible
+  args:
+    creates: /usr/local/bin/ansible
+  environment:
+    PIPX_HOME: /opt/pipx
+    PIPX_BIN_DIR: /usr/local/bin
+```
+
+**结果**：Ansible 2.14.18 → 2.19.6
+
 ## 创建的文件
 
 ```
@@ -268,6 +370,35 @@ A:
 **Q: post 块的执行顺序是什么？**
 A: `always` → `success`/`failure`/`unstable` → `cleanup`
 
+## 其他发现
+
+### Proxmox Terraform Provider 的 tags drift 问题
+
+**问题**：每次 `terraform plan` 都显示 tags 变化
+```
+- tags = " " -> null
+```
+
+**原因**：telmate/proxmox provider 的 bug
+- Proxmox API 返回 `" "`（空格）表示空 tags
+- 但 provider 不接受 `" "` 作为输入值（验证失败）
+- 导致永久性 drift
+
+**解决**：在 `lifecycle` 中忽略 tags
+```hcl
+lifecycle {
+  ignore_changes = [
+    tags,
+  ]
+}
+```
+
+**更好的方案**：迁移到 **bpg/proxmox** provider
+- 更活跃的开发
+- 更少的 drift 问题
+- 更好的 Proxmox 8.x 支持
+- 更智能的 in-place 更新
+
 ## 进阶：未来改进方向
 
 1. **通知集成**：失败时发送 Slack/邮件通知
@@ -275,3 +406,4 @@ A: `always` → `success`/`failure`/`unstable` → `cleanup`
 3. **Artifact 归档**：保存 terraform plan 输出
 4. **动态 Playbook 选择**：根据变更的文件决定运行哪些 playbook
 5. **环境分离**：dev/staging/prod 不同的审批策略
+6. **迁移到 bpg/proxmox provider**：解决 telmate provider 的各种 drift 问题
