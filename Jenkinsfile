@@ -35,10 +35,6 @@ pipeline {
                         chmod 600 $ANSIBLE_VAULT_PASSWORD_FILE
                     '''
                 }
-                // Install Ansible Galaxy collections
-                dir('ansible') {
-                    sh 'ansible-galaxy collection install -r requirements.yml --force'
-                }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
             }
