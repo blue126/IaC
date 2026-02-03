@@ -49,6 +49,11 @@ pipeline {
                         fi
                     '''
                 }
+                // Update inventory paths for Jenkins workspace
+                sh '''
+                    sed -i "s|/workspaces/IaC|${WORKSPACE}|g" ansible/inventory/terraform.yml
+                    sed -i "s|/workspaces/IaC|${WORKSPACE}|g" ansible/inventory/terraform-esxi.yml
+                '''
             }
         }
 
