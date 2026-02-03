@@ -40,7 +40,8 @@ pipeline {
                 // Install Ansible Galaxy collections if not present
                 dir('ansible') {
                     sh '''
-                        if [ ! -d "collections/ansible_collections/community/docker" ]; then
+                        if [ ! -d "collections/ansible_collections/community/docker" ] || \
+                           [ ! -d "collections/ansible_collections/cloud/terraform" ]; then
                             echo "Installing Ansible Galaxy collections..."
                             ansible-galaxy collection install -r requirements.yml -p collections
                         else
