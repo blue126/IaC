@@ -3,7 +3,10 @@
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
+# Ignore sensitive tfvars (secrets), but allow non-sensitive terraform.auto.tfvars
 *.tfvars
+!terraform.auto.tfvars
+secrets.auto.tfvars
 venv/
 .venv/
 __pycache__/
