@@ -18,7 +18,7 @@ resource "proxmox_vm_qemu" "vm" {
   machine = var.machine
   agent   = var.agent
   onboot  = var.onboot
-  
+
   # Serial Console for Copy-Paste
   serial {
     id   = 0
@@ -28,9 +28,9 @@ resource "proxmox_vm_qemu" "vm" {
   cpu {
     cores = var.cores
   }
-  
-  memory  = var.memory
-  scsihw  = "virtio-scsi-pci"
+
+  memory = var.memory
+  scsihw = "virtio-scsi-pci"
 
   # Network
   network {
@@ -55,15 +55,15 @@ resource "proxmox_vm_qemu" "vm" {
     size    = var.disk_size
     slot    = "scsi0"
     discard = true
-    format  = "raw"  //to avoid cosmetic drift status of terraform
+    format  = "raw" //to avoid cosmetic drift status of terraform
   }
 
   # Cloud-Init Settings
-  os_type   = "cloud-init"
-  ciuser    = var.ciuser
-  cicustom  = var.cicustom
-  sshkeys   = var.sshkeys
-  ipconfig0 = var.ip_address != null ? "ip=${var.ip_address},gw=${var.gateway}" : "ip=dhcp"
+  os_type    = "cloud-init"
+  ciuser     = var.ciuser
+  cicustom   = var.cicustom
+  sshkeys    = var.sshkeys
+  ipconfig0  = var.ip_address != null ? "ip=${var.ip_address},gw=${var.gateway}" : "ip=dhcp"
   nameserver = var.nameserver
 
   lifecycle {
@@ -71,6 +71,8 @@ resource "proxmox_vm_qemu" "vm" {
       clone,
       full_clone,
       efidisk,
+      # Ignore SSH key changes to avoid requiring VM shutdown
+      sshkeys,
     ]
   }
 }

@@ -22,3 +22,11 @@ jenkins_packages:
   - python3-pip
   - python3-venv
   - sshpass
+
+# Ansible Galaxy collections required for CI/CD pipelines
+jenkins_ansible_collections:
+  - community.general
+  - community.docker
+  - cloud.terraform
+  - ansible.posix
+  - netbox.netbox

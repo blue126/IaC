@@ -100,6 +100,11 @@
       - ansible-lint
     state: present
 
+- name: Install Ansible Galaxy collections
+  command: ansible-galaxy collection install {{ item }} --force
+  loop: "{{ jenkins_ansible_collections }}"
+  changed_when: false
+
 - name: Verify Ansible installation
   command: ansible --version
   register: ansible_version_output
