@@ -1,11 +1,17 @@
 #!/bin/bash
 set -e
 
-# Define paths
-TERRAFORM_DIR="/workspaces/IaC/terraform/proxmox"
+# Get the project root directory (parent of scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Define paths relative to project root
+TERRAFORM_DIR="${PROJECT_ROOT}/terraform/proxmox"
 STATE_FILE="terraform.tfstate"
 
 echo "Refreshing Terraform state from Cloud..."
+echo "Project root: $PROJECT_ROOT"
+echo "Terraform dir: $TERRAFORM_DIR"
 
 if [ ! -d "$TERRAFORM_DIR" ]; then
     echo "Error: Directory $TERRAFORM_DIR does not exist."
