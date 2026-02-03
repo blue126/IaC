@@ -14,6 +14,7 @@ __pycache__/
 .DS_Store
 .env
 ansible/credentials/
+ansible/collections/
 .vault_pass
 .opencode/
 _bmad/
