@@ -143,3 +143,9 @@ variable "onboot" {
   type        = bool
   default     = true
 }
+
+variable "tags" {
+  description = "Tags for the VM (semicolon-separated)"
+  type        = string
+  default     = ""
+}

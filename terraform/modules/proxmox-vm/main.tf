@@ -18,6 +18,7 @@ resource "proxmox_vm_qemu" "vm" {
   machine = var.machine
   agent   = var.agent
   onboot  = var.onboot
+  tags    = var.tags
 
   # Serial Console for Copy-Paste
   serial {
@@ -73,7 +74,7 @@ resource "proxmox_vm_qemu" "vm" {
       efidisk,
       # Ignore SSH key changes to avoid requiring VM shutdown
       sshkeys,
-      # Ignore tags drift (Proxmox returns " " instead of null)
+      # Ignore tags drift (Proxmox API returns " " but provider rejects " " as input)
       tags,
     ]
   }
