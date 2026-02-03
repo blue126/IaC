@@ -37,6 +37,10 @@ pipeline {
                 }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
+                // Install Ansible Galaxy collections to project directory
+                dir('ansible') {
+                    sh 'ansible-galaxy collection install -r requirements.yml -p collections --force'
+                }
             }
         }
 
