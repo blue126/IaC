@@ -89,55 +89,31 @@ ansible-playbook playbooks/deploy-xxx.yml   # 又要等待...
 
 ### 整体架构图
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              GitHub Repository                               │
-│                         (IaC - Infrastructure as Code)                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ Poll SCM (每5分钟)
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Jenkins Server (LXC)                               │
-│                          192.168.1.107:8080                                  │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                         Jenkins Pipeline                             │    │
-│  │  ┌──────────┐  ┌───────┐  ┌───────┐  ┌──────────┐  ┌────────┐      │    │
-│  │  │ Checkout │→ │ Check │→ │ Setup │→ │ Validate │→ │  Plan  │      │    │
-│  │  └──────────┘  └───┬───┘  └───────┘  └──────────┘  └────┬───┘      │    │
-│  │                     │                                     │          │    │
-│  │              非IaC变更?                                   ▼          │    │
-│  │              跳过构建  ┌────────┐ ┌───────┐ ┌────────┐ ┌────────┐   │    │
-│  │              (NOT_BUILT)│  Apply │←│Refresh│←│ Deploy │←│Approval│   │    │
-│  │                        └────────┘ └───────┘ └────────┘ └────────┘   │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  ┌──────────────────────┐  ┌──────────────────────┐                         │
-│  │    Terraform CLI     │  │     Ansible CLI      │                         │
-│  │    (已安装)          │  │     (已安装)         │                         │
-│  └──────────────────────┘  └──────────────────────┘                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │                              │
-         │ API                          │ SSH
-         ▼                              ▼
-┌─────────────────────┐    ┌─────────────────────────────────────────────────┐
-│  HCP Terraform      │    │              Proxmox Cluster                     │
-│  Cloud              │    │  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-│  ┌───────────────┐  │    │  │  pve0   │  │  pve1   │  │  pve2   │          │
-│  │ Remote State  │  │    │  │         │  │         │  │         │          │
-│  │ (tfstate)     │  │    │  │ VMs:    │  │         │  │         │          │
-│  └───────────────┘  │    │  │ -immich │  │         │  │         │          │
-│                     │    │  │ -netbox │  │         │  │         │          │
-│  ┌───────────────┐  │    │  │ -rustdsk│  │         │  │         │          │
-│  │ Plan/Apply    │  │    │  │         │  │         │  │         │          │
-│  │ Execution     │  │    │  │ LXCs:   │  │         │  │         │          │
-│  └───────────────┘  │    │  │ -anki   │  │         │  │         │          │
-└─────────────────────┘    │  │ -caddy  │  │         │  │         │          │
-                           │  │ -homepg │  │         │  │         │          │
-                           │  │ -jenkins│  │         │  │         │          │
-                           │  │ -n8n    │  │         │  │         │          │
-                           │  └─────────┘  └─────────┘  └─────────┘          │
-                           └─────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph GitHub["GitHub"]
+        Repo[IaC Repo]
+    end
+
+    subgraph Jenkins["Jenkins Server (192.168.1.107)"]
+        direction TB
+        Pipeline["Pipeline:<br/>Checkout → Check Changes → Setup<br/>→ Validate → Plan → Approval<br/>→ Apply → Refresh → Deploy"]
+        Tools["Terraform CLI + Ansible CLI"]
+    end
+
+    subgraph HCP["HCP Terraform Cloud"]
+        State[Remote State]
+    end
+
+    subgraph Proxmox["Proxmox Cluster"]
+        pve0[pve0]
+        pve1[pve1]
+        pve2[pve2]
+    end
+
+    Repo -- "Poll SCM (5min)" --> Jenkins
+    Jenkins -- "API" --> HCP
+    Jenkins -- "SSH" --> Proxmox
 ```
 
 ### 组件说明
@@ -167,78 +143,36 @@ ansible-playbook playbooks/deploy-xxx.yml   # 又要等待...
 
 ### 流程图
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                           Pipeline Stages                                   │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│  ┌──────────┐                                                              │
-│  │ Checkout │  从 GitHub 拉取最新代码                                       │
-│  └────┬─────┘                                                              │
-│       │                                                                    │
-│       ▼                                                                    │
-│  ┌──────────────┐  检查变更文件路径                                         │
-│  │Check Changes │  terraform/ ansible/ scripts/ Jenkinsfile → 继续         │
-│  │              │  docs/ 等其他路径 → 跳过构建 (NOT_BUILT)                  │
-│  └──────┬───────┘                                                          │
-│         │                                                                  │
-│         ▼ (仅当有 IaC 变更)                                                │
-│  ┌──────────┐  1. 写入 Vault 密码文件                                       │
-│  │  Setup   │  2. 执行 get-secrets.sh 生成 tfvars                          │
-│  │          │  3. 条件安装 Ansible Galaxy Collections                       │
-│  └────┬─────┘                                                              │
-│       │                                                                    │
-│       ▼                                                                    │
-│  ┌──────────────────────────────────────┐                                  │
-│  │           Validate (并行)            │                                  │
-│  │  ┌─────────────────┐ ┌─────────────┐ │                                  │
-│  │  │Terraform Validate│ │ Ansible Lint│ │                                  │
-│  │  │ - init          │ │ - syntax    │ │                                  │
-│  │  │ - validate      │ │   check     │ │                                  │
-│  │  │ - fmt check     │ │             │ │                                  │
-│  │  └─────────────────┘ └─────────────┘ │                                  │
-│  └────────────┬─────────────────────────┘                                  │
-│               │                                                            │
-│               ▼                                                            │
-│  ┌────────────────┐                                                        │
-│  │ Terraform Plan │  生成执行计划，保存到 tfplan 文件                        │
-│  └───────┬────────┘                                                        │
-│          │                                                                 │
-│          ▼                                                                 │
-│  ┌────────────────┐                                                        │
-│  │   Approval 1   │  人工审批: 确认 Terraform Plan                          │
-│  │  (Manual Gate) │                                                        │
-│  └───────┬────────┘                                                        │
-│          │                                                                 │
-│          ▼                                                                 │
-│  ┌─────────────────┐                                                       │
-│  │ Terraform Apply │  执行基础设施变更                                       │
-│  └───────┬─────────┘                                                       │
-│          │                                                                 │
-│          ▼                                                                 │
-│  ┌───────────────────┐                                                     │
-│  │ Refresh Inventory │  从 Terraform Cloud 拉取最新 state                   │
-│  │                   │  更新 Ansible 动态 Inventory                         │
-│  └───────┬───────────┘                                                     │
-│          │                                                                 │
-│          ▼                                                                 │
-│  ┌────────────────┐                                                        │
-│  │   Approval 2   │  人工审批: 确认进行 Ansible 部署                         │
-│  │  (Manual Gate) │                                                        │
-│  └───────┬────────┘                                                        │
-│          │                                                                 │
-│          ▼                                                                 │
-│  ┌────────────────┐                                                        │
-│  │ Ansible Deploy │  执行配置管理和应用部署                                  │
-│  └───────┬────────┘                                                        │
-│          │                                                                 │
-│          ▼                                                                 │
-│  ┌────────────────┐                                                        │
-│  │    Cleanup     │  清理敏感文件 (vault密码, tfvars)                        │
-│  │   (post块)     │                                                        │
-│  └────────────────┘                                                        │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+> 交互式版本: [cicd-pipeline-flowchart.excalidraw](cicd-pipeline-flowchart.excalidraw) (用 [excalidraw.com](https://excalidraw.com) 打开)
+
+```mermaid
+flowchart LR
+    Start([Start]) --> Checkout[Checkout]
+    Checkout --> CheckChanges[Check Changes]
+    CheckChanges --> Decision1{IaC<br/>Changes?}
+
+    Decision1 -- No --> NotBuilt[NOT_BUILT]
+    Decision1 -- Yes --> Setup["Setup"]
+
+    Setup --> TFValidate["TF Validate"]
+    Setup --> AnsibleLint["Ansible Lint"]
+
+    TFValidate --> TFPlan[TF Plan]
+    AnsibleLint --> TFPlan
+
+    TFPlan --> Decision2{Approve<br/>Apply?}
+    Decision2 -- No --> Abort1[Abort]
+    Decision2 -- Yes --> TFApply[TF Apply]
+
+    TFApply --> Refresh[Refresh Inventory]
+    Refresh --> Decision3{Approve<br/>Deploy?}
+
+    Decision3 -- No --> Abort2[Abort]
+    Decision3 -- Yes --> Deploy[Ansible Deploy]
+
+    Deploy --> Cleanup[Cleanup]
+    Cleanup --> End([End])
+
 ```
 
 ### 阶段详解
@@ -447,55 +381,20 @@ post {
 
 ### 凭据流转图
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Credentials Flow                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    JC["Jenkins<br/>Credentials"]
 
-┌──────────────────────┐
-│  Jenkins Credentials │
-│  (安全存储)          │
-└──────────┬───────────┘
-           │
-           ├─────────────────────────────────────────────────────┐
-           │                                                     │
-           ▼                                                     ▼
-┌──────────────────────┐                          ┌──────────────────────────┐
-│ ansible-vault-password│                          │ terraform-cloud-token    │
-│                      │                          │                          │
-│ 写入临时文件:        │                          │ 设为环境变量:            │
-│ $WORKSPACE/ansible/  │                          │ TF_TOKEN_app_terraform_io│
-│ .vault_pass          │                          │                          │
-└──────────┬───────────┘                          └────────────┬─────────────┘
-           │                                                   │
-           ▼                                                   │
-┌──────────────────────┐                                       │
-│   get-secrets.sh     │                                       │
-│                      │                                       │
-│ 解密 Ansible Vault   │                                       │
-│ 生成 secrets.auto.   │                                       │
-│ tfvars               │                                       │
-└──────────┬───────────┘                                       │
-           │                                                   │
-           ▼                                                   ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                          Terraform                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │ 读取变量:                                                           │ │
-│  │ - terraform.auto.tfvars (非敏感, 已提交)                             │ │
-│  │ - secrets.auto.tfvars (敏感, 动态生成)                               │ │
-│  │                                                                      │ │
-│  │ 认证 Terraform Cloud:                                                │ │
-│  │ - 使用 TF_TOKEN_app_terraform_io 环境变量                            │ │
-│  └─────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────┘
+    JC --> VaultPass["Vault Password<br/>→ .vault_pass"]
+    JC --> TFToken["TF Cloud Token<br/>→ 环境变量"]
 
-┌──────────────────────────────────────────────────────────────────────────┐
-│                       Pipeline 结束时清理                                 │
-│  - rm -f $ANSIBLE_VAULT_PASSWORD_FILE                                    │
-│  - rm -f terraform/proxmox/secrets.auto.tfvars                           │
-│  - rm -f terraform/oci/secrets.auto.tfvars                               │
-└──────────────────────────────────────────────────────────────────────────┘
+    VaultPass --> GetSecrets["get-secrets.sh<br/>→ tfvars"]
+
+    GetSecrets --> TF["Terraform<br/>tfvars + TF Cloud"]
+    TFToken --> TF
+
+    TF --> Cleanup["Cleanup<br/>清理敏感文件"]
+
 ```
 
 ### 敏感信息存储位置
@@ -513,64 +412,23 @@ post {
 ### 架构
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Ansible Dynamic Inventory                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────┐
-│  HCP Terraform Cloud │
-│  ┌────────────────┐  │
-│  │  Remote State  │  │
-│  │  (tfstate)     │  │
-│  └───────┬────────┘  │
-└──────────┼───────────┘
-           │
-           │ terraform state pull
-           ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│  terraform/proxmox/terraform.tfstate (本地缓存)                          │
-│                                                                          │
-│  包含 ansible_host 资源:                                                 │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │ resource "ansible_host" "jenkins" {                                │ │
-│  │   name   = "jenkins"                                               │ │
-│  │   groups = ["pve_lxc", "jenkins"]                                  │ │
-│  │   variables = { ansible_host = "192.168.1.107" }                   │ │
-│  │ }                                                                  │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────┘
-           │
-           │ cloud.terraform.terraform_provider plugin
-           ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│  ansible/inventory/terraform.yml                                         │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │ plugin: cloud.terraform.terraform_provider                         │ │
-│  │ project_path: terraform/proxmox                                    │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────┘
-           │
-           │ ansible-inventory --list
-           ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Generated Inventory                                                     │
-│                                                                          │
-│  @all:                                                                   │
-│    |--@pve_lxc:                                                          │
-│    |  |--anki     (192.168.1.100)                                        │
-│    |  |--caddy    (192.168.1.105)                                        │
-│    |  |--homepage (192.168.1.103)                                        │
-│    |  |--jenkins  (192.168.1.107)                                        │
-│    |  |--n8n      (192.168.1.106)                                        │
-│    |--@pve_vms:                                                          │
-│    |  |--immich   (192.168.1.101)                                        │
-│    |  |--netbox   (192.168.1.104)                                        │
-│    |  |--rustdesk (192.168.1.102)                                        │
-│    |--@jenkins:                                                          │
-│    |  |--jenkins                                                         │
-│    |--@proxmox_cluster:                                                  │
-│    |  |--pve0, pve1, pve2                                                │
-└──────────────────────────────────────────────────────────────────────────┘
+HCP Terraform Cloud (Remote State)
+        │
+        │  terraform state pull
+        ▼
+本地 tfstate 缓存 (ansible_host resources)
+        │
+        │  cloud.terraform plugin
+        ▼
+terraform.yml (动态 Inventory 插件)
+        │
+        │  ansible-inventory
+        ▼
+Generated Inventory
+   ├── pve_lxc
+   ├── pve_vms
+   ├── jenkins
+   └── pve0, pve1, pve2
 ```
 
 ### Inventory 文件结构
@@ -643,42 +501,13 @@ triggers {
 
 ### 审批机制
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                         Approval Flow                                       │
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    Plan["TF Plan<br/>生成计划"] --> Output["Plan Output<br/>变更摘要"]
+    Output --> Decision{"Review<br/>Proceed?"}
+    Decision -- "Abort" --> Terminated["Pipeline 终止"]
+    Decision -- "Apply" --> Apply["TF Apply<br/>执行变更"]
 
-  Terraform Plan
-       │
-       ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                      Plan Output (Console)                              │
-  │  ┌───────────────────────────────────────────────────────────────────┐ │
-  │  │ # module.jenkins.proxmox_lxc.lxc will be created                  │ │
-  │  │ + resource "proxmox_lxc" "lxc" {                                  │ │
-  │  │     + hostname = "jenkins"                                        │ │
-  │  │     + memory   = 2048                                             │ │
-  │  │     ...                                                           │ │
-  │  │ }                                                                 │ │
-  │  │                                                                   │ │
-  │  │ Plan: 1 to add, 0 to change, 0 to destroy.                       │ │
-  │  └───────────────────────────────────────────────────────────────────┘ │
-  └─────────────────────────────────────────────────────────────────────────┘
-       │
-       ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                      Manual Approval                                    │
-  │  ┌───────────────────────────────────────────────────────────────────┐ │
-  │  │ Review the Terraform plan above. Proceed with apply?              │ │
-  │  │                                                                   │ │
-  │  │                    [Apply]  [Abort]                               │ │
-  │  └───────────────────────────────────────────────────────────────────┘ │
-  └─────────────────────────────────────────────────────────────────────────┘
-       │
-       ├──────────────── Abort ──────────────► Pipeline 终止
-       │
-       ▼ Apply
-  Terraform Apply
 ```
 
 ## 错误处理
@@ -1012,30 +841,26 @@ post {
 
 ## 改进路线图
 
+```mermaid
+timeline
+    title Improvement Roadmap
+    section 2026 Q1 (Short-term)
+        High Priority : Build Notification (Telegram/Slack)
+                      : Proxmox Provider Migration (telmate to bpg)
+        Medium Priority : Plan Output Archival
+    section 2026 Q2 (Mid-term)
+        Medium Priority : Smart Playbook Selection
+                        : Branch Strategy (feature/develop/master)
+        Low Priority : Approval Timeout Handling
+                     : Parallel Ansible Execution
+    section 2026 Q3-Q4 (Long-term)
+        Evaluating : GitOps Architecture
+                   : Infrastructure Testing
+                   : Multi-cluster Support
+                   : Auto Rollback
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Improvement Roadmap                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-2026 Q1 (短期)
-├── [高] 构建通知 (Telegram/Slack)
-├── [高] Proxmox Provider 迁移 (telmate → bpg)
-└── [中] Plan 输出归档
-
-2026 Q2 (中期)
-├── [中] 智能 Playbook 选择
-├── [中] 分支策略 (feature/develop/master)
-├── [低] 审批超时处理
-└── [低] 并行 Ansible 执行
-
-2026 Q3-Q4 (长期)
-├── [评估] GitOps 架构
-├── [评估] 基础设施测试
-├── [评估] 多集群支持
-└── [评估] 自动回滚
-
-注: 优先级可能根据实际需求调整
-```
+> 注: 优先级可能根据实际需求调整
 
 ## 附录
 
