@@ -270,9 +270,13 @@ stage('Setup') {
                 chmod 600 $ANSIBLE_VAULT_PASSWORD_FILE
             '''
         }
-        // 2. 初始化 Terraform (Ansible 动态 inventory 依赖)
-        dir('terraform/proxmox') { sh 'terraform init -input=false' }
-        dir('terraform/esxi') { sh 'terraform init -input=false' }
+        // 2. 条件初始化 Terraform (按需)
+        script {
+            def initProxmox = (env.NEEDS_TF_PROXMOX == 'true' || env.ANSIBLE_PLAYBOOKS?.trim())
+            def initEsxi = (env.NEEDS_TF_ESXI == 'true' || env.ANSIBLE_PLAYBOOKS?.trim())
+            if (initProxmox) { dir('terraform/proxmox') { sh 'terraform init -input=false' } }
+            if (initEsxi) { dir('terraform/esxi') { sh 'terraform init -input=false' } }
+        }
         // 3. 生成 Terraform secrets
         sh './scripts/get-secrets.sh'
         // 4. 条件安装 Collections
@@ -289,7 +293,11 @@ stage('Setup') {
 
 **关键操作**:
 1. 从 Jenkins Credentials 获取 Vault 密码，写入临时文件
-2. 初始化 Terraform providers（Ansible 动态 inventory 插件需要 `terraform show` 来解析 state，必须先 init）
+2. 条件初始化 Terraform providers：
+   - `terraform/proxmox/` 变更或有 playbook 需要部署 → init proxmox
+   - `terraform/esxi/` 变更或有 playbook 需要部署 → init esxi
+   - `terraform/modules/` 变更 → 两个都 init（共享模块）
+   - 仅 scripts/Jenkinsfile 变更 → 跳过 init
 3. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`
 4. 检查并安装 Ansible Galaxy Collections (仅首次)
 
