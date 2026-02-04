@@ -68,13 +68,20 @@ pipeline {
                         chmod 600 $ANSIBLE_VAULT_PASSWORD_FILE
                     '''
                 }
+                // Initialize Terraform providers (needed by Ansible dynamic inventory)
+                dir('terraform/proxmox') {
+                    sh 'terraform init -input=false'
+                }
+                dir('terraform/esxi') {
+                    sh 'terraform init -input=false'
+                }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
                 // Install Python dependencies for Notion sync (skip if already installed)
                 sh '''
                     if ! python3 -c "import notion_client" 2>/dev/null; then
                         echo "Installing Python dependencies for Notion sync..."
-                        pip install -r scripts/requirements.txt --quiet
+                        pip install --user -r scripts/requirements.txt --quiet
                     else
                         echo "Python dependencies already installed, skipping..."
                     fi
@@ -101,7 +108,6 @@ pipeline {
                 stage('Terraform Validate') {
                     steps {
                         dir('terraform/proxmox') {
-                            sh 'terraform init -input=false'
                             sh 'terraform validate'
                             // Check format but don't fail (warning only)
                             sh 'terraform fmt -check -recursive || echo "Warning: Some files need formatting"'
