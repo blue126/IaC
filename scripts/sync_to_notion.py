@@ -12,7 +12,27 @@ import yaml
 from notion_client import Client
 
 # --- Configuration ---
-SECRETS_FILE = "terraform/proxmox/secrets.auto.tfvars"
+# Load .env file from project root (contains NOTION_TOKEN, NOTION_DATABASE_ID)
+def _load_dotenv():
+    """Load key=value pairs from .env file into os.environ."""
+    env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, _, value = line.partition('=')
+            os.environ.setdefault(key.strip(), value.strip())
+
+_load_dotenv()
+
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
+# Project root (resolved from this script's location)
+PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+SECRETS_FILE = os.path.join(PROJECT_ROOT, "terraform/proxmox/secrets.auto.tfvars")
 DRY_RUN = True  # Set to False to actually write to Notion
 
 # Column Mapping
@@ -78,8 +98,8 @@ def load_secrets():
     secrets = {}
 
     # Primary: Ansible Vault (contains ALL secrets)
-    vault_file = "ansible/inventory/group_vars/all/vault.yml"
-    vault_pass = "ansible/.vault_pass"
+    vault_file = os.path.join(PROJECT_ROOT, "ansible/inventory/group_vars/all/vault.yml")
+    vault_pass = os.path.join(PROJECT_ROOT, "ansible/.vault_pass")
     if os.path.exists(vault_file) and os.path.exists(vault_pass):
         try:
             result = subprocess.run(
@@ -308,8 +328,8 @@ def load_resources():
 
     # State file -> default parent node mapping
     state_configs = [
-        ("terraform/proxmox/terraform.tfstate", None),       # Proxmox: node comes from resource
-        ("terraform/esxi/terraform.tfstate", "esxi-01"),     # ESXi: all VMs belong to esxi-01
+        (os.path.join(PROJECT_ROOT, "terraform/proxmox/terraform.tfstate"), None),
+        (os.path.join(PROJECT_ROOT, "terraform/esxi/terraform.tfstate"), "esxi-01"),
     ]
 
     for state_path, default_parent in state_configs:
@@ -397,18 +417,15 @@ def ensure_columns_exist():
 
 
 def sync():
-    global client, NOTION_DATABASE_ID
+    global client
+
+    if not NOTION_TOKEN or not NOTION_DATABASE_ID:
+        print("Error: NOTION_TOKEN and NOTION_DATABASE_ID environment variables must be set.")
+        sys.exit(1)
+    client = Client(auth=NOTION_TOKEN)
 
     print("Loading secrets...")
     secrets = load_secrets()
-
-    # Initialize Notion client from vault secrets (env vars as fallback)
-    notion_token = secrets.get("vault_notion_token") or os.getenv("NOTION_TOKEN")
-    NOTION_DATABASE_ID = secrets.get("vault_notion_database_id") or os.getenv("NOTION_DATABASE_ID")
-    if not notion_token or not NOTION_DATABASE_ID:
-        print("Error: Notion credentials not found in vault or environment.")
-        sys.exit(1)
-    client = Client(auth=notion_token)
 
     print("Ensuring Notion DB columns exist...")
     ensure_columns_exist()

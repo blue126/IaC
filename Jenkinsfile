@@ -4,8 +4,7 @@ pipeline {
     environment {
         // Terraform Cloud token
         TF_TOKEN_app_terraform_io = credentials('terraform-cloud-token')
-        // Ansible configuration
-        ANSIBLE_CONFIG = "${WORKSPACE}/ansible/ansible.cfg"
+        // Ansible Vault password file path
         ANSIBLE_VAULT_PASSWORD_FILE = "${WORKSPACE}/ansible/.vault_pass"
     }
 
@@ -102,9 +101,10 @@ pipeline {
                 }
                 stage('Ansible Lint') {
                     steps {
-                        // Run from project root for relative inventory paths
-                        sh 'ansible-lint --version'
-                        sh 'ansible-playbook ansible/playbooks/*.yml --syntax-check'
+                        dir('ansible') {
+                            sh 'ansible-lint --version'
+                            sh 'ansible-playbook playbooks/*.yml --syntax-check'
+                        }
                     }
                 }
             }
@@ -154,8 +154,9 @@ pipeline {
         stage('Ansible Deploy') {
             when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
-                // Run from project root for relative inventory paths
-                sh 'ansible-playbook ansible/playbooks/deploy-jenkins.yml --tags verify'
+                dir('ansible') {
+                    sh 'ansible-playbook playbooks/deploy-jenkins.yml --tags verify'
+                }
             }
         }
     }
