@@ -95,8 +95,13 @@ flowchart LR
         Repo[IaC Repo]
     end
 
+    subgraph CF["Cloudflare Edge"]
+        Tunnel["Cloudflare Tunnel"]
+    end
+
     subgraph Jenkins["Jenkins Server (192.168.1.107)"]
         direction TB
+        Cloudflared["cloudflared (Daemon)"]
         Pipeline["Pipeline:<br/>Checkout → Check Changes → Setup<br/>→ Validate → Plan → Approval<br/>→ Apply → Refresh → Deploy"]
         Tools["Terraform CLI + Ansible CLI"]
     end
@@ -111,9 +116,12 @@ flowchart LR
         pve2[pve2]
     end
 
-    Repo -- "Poll SCM (5min)" --> Jenkins
-    Jenkins -- "API" --> HCP
-    Jenkins -- "SSH" --> Proxmox
+    Repo -- "Webhook (Push Event)" --> Tunnel
+    Tunnel -- "Encrypted Tunnel" --> Cloudflared
+    Cloudflared -- "localhost:8080" --> Pipeline
+
+    Pipeline -- "API" --> HCP
+    Pipeline -- "SSH" --> Proxmox
 ```
 
 ### 组件说明
@@ -450,19 +458,27 @@ ansible/inventory/
 
 ## 触发机制
 
-### Poll SCM
+### Webhook (via Cloudflare Tunnel)
 
 ```groovy
 // Jenkins Job 配置
 triggers {
-    pollSCM('H/5 * * * *')  // 每 5 分钟检查一次
+    githubPush()
 }
 ```
 
-**选择 Poll SCM 而非 Webhook 的原因**:
-- Jenkins 部署在内网，无法接收外部 Webhook
-- 不需要暴露 Jenkins 到公网
-- 5 分钟延迟对于 homelab 场景可接受
+**架构变革**:
+- 引入 **Cloudflare Tunnel** 将内网 Jenkins 安全暴露给 GitHub
+- 替代了之前的 Poll SCM (5分钟轮询) 机制
+- 实现 **实时触发** 构建
+
+### 触发流程
+
+1. 开发者 Push 代码到 GitHub
+2. GitHub 发送 `push` 事件到 `https://jenkins.willfan.me/github-webhook/`
+3. 请求到达 Cloudflare Edge，经由加密隧道转发到 Jenkins 本地 `cloudflared` 守护进程
+4. `cloudflared` 将请求转发给 Jenkins `localhost:8080`
+5. Jenkins 验证 Payload 并触发 Pipeline
 
 ### 触发条件
 
