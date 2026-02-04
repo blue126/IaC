@@ -151,7 +151,8 @@ pipeline {
                     }
 
                     // Set environment variables for downstream stages
-                    env.ANSIBLE_PLAYBOOKS = playbooks.join(',')
+                    // Note: Force unique() because CPS serialization may break Set behavior
+                    env.ANSIBLE_PLAYBOOKS = playbooks.toList().unique().join(',')
 
                     // --- Summary ---
                     echo "=== Build Scope ==="
