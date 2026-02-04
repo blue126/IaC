@@ -1,191 +1,100 @@
-# IaC 项目文档中心
+# Directory Index
 
-欢迎来到基础设施即代码（Infrastructure as Code）项目的文档中心。本文档库包含完整的部署指南、学习笔记、故障排查和最佳实践。
+## Files
 
----
+- **[README.md](./README.md)** - Documentation index and navigation hub.
 
-## 📚 文档导航
+## Subdirectories
 
-### 🎯 快速开始
+### deployment/
 
-**新手推荐路径**：
-1. 📖 阅读 [项目规划](PLANNING.md) 了解整体架构
-2. 🔧 浏览 [部署指南](#-部署指南) 快速上手
-3. 📝 查看 [学习笔记](#-学习笔记) 深入理解
-4. 🔍 遇到问题？访问 [故障排查](#-故障排查)
+- **[immich-deployment.md](./deployment/immich-deployment.md)** - Immich deployment guide covering Terraform, Ansible, and Docker.
+- **[netbox-deployment.md](./deployment/netbox-deployment.md)** - Netbox deployment architecture, infrastructure provisioning, and application setup.
+- **[pbs-esxi-deployment.md](./deployment/pbs-esxi-deployment.md)** - Proxmox Backup Server on ESXi deployment with ZFS/PCIe passthrough.
+- **[pbs-iscsi-veeam-guide.md](./deployment/pbs-iscsi-veeam-guide.md)** - Hybrid backup architecture guide for PBS and Veeam using iSCSI.
+- **[proxmox-vm-deployment.md](./deployment/proxmox-vm-deployment.md)** - Guide for managing Proxmox VMs using Terraform.
+- **[README.md](./deployment/README.md)** - Index and overview of deployment guides.
+- **[veeam-backup-deployment-guide.md](./deployment/veeam-backup-deployment-guide.md)** - Veeam Backup & Replication deployment and configuration guide.
 
----
+### designs/
 
-## 📂 文档分类
+- **[ansible-role-architecture.md](./designs/ansible-role-architecture.md)** - Ansible Role architecture design, boundaries, and dependencies.
+- **[ansible-vault-architecture.md](./designs/ansible-vault-architecture.md)** - Ansible Vault secret management design and integration principles.
+- **[cicd-architecture.md](./designs/cicd-architecture.md)** - Jenkins CI/CD pipeline architecture for Terraform and Ansible.
+- **[cicd-pipeline-flowchart.excalidraw](./designs/cicd-pipeline-flowchart.excalidraw)** - Excalidraw flowchart visualizing the CI/CD pipeline steps.
 
-### 🚀 部署指南
+### guides/
 
-**位置**: `deployment/`
+- **[ansible-patterns-and-best-practices.md](./guides/ansible-patterns-and-best-practices.md)** - Comprehensive guide on Ansible best practices and patterns.
+- **[notion-sync-setup.md](./guides/notion-sync-setup.md)** - Setup guide for syncing Terraform state to Notion.
+- **[proxmox-provider-migration-guide.md](./guides/proxmox-provider-migration-guide.md)** - Guide for migrating from telmate to bpg Proxmox Terraform provider.
+- **[QUICK-REFERENCE.md](./guides/QUICK-REFERENCE.md)** - Quick reference card for Terraform and Proxmox operations.
+- **[README.md](./guides/README.md)** - Index for comprehensive guides.
+- **[terraform-proxmox-complete-guide.md](./guides/terraform-proxmox-complete-guide.md)** - Complete guide for Terraform automation with Proxmox.
 
-生产级部署文档，提供详细的步骤说明和配置示例。
+### improvement/
 
-| 服务 | 文档 | 说明 |
-|------|------|------|
-| **Netbox** | [netbox-deployment.md](deployment/netbox-deployment.md) | 网络资源管理系统部署 |
-| **Proxmox VM** | [proxmox-vm-deployment.md](deployment/proxmox-vm-deployment.md) | Terraform VM 模块化部署 |
-| **Immich** | [immich-deployment.md](deployment/immich-deployment.md) | 照片管理与 ML 分析服务 |
-| **PBS + ESXi** | [pbs-esxi-deployment.md](deployment/pbs-esxi-deployment.md) | Proxmox Backup Server 集成 |
+- **[inventory-and-document-sync-via-cicd.md](./improvement/inventory-and-document-sync-via-cicd.md)** - Proposal for change-driven automated documentation synchronization.
+- **[PLANNING.md](./improvement/PLANNING.md)** - High-level project planning, roadmap, and goals.
 
+### improvement/implemented/
 
-**查看更多**: [deployment/README.md](deployment/README.md)
+- **[cloudflare-tunnel-webhook.md](./improvement/implemented/cloudflare-tunnel-webhook.md)** - Implementation details for Cloudflare Tunnel GitHub Webhook trigger.
+- **[proxmox-provider-migration.md](./improvement/implemented/proxmox-provider-migration.md)** - Plan and record of the Proxmox Terraform provider migration.
 
----
+### learningnotes/
 
-### 📘 综合指南
+- **[2025-11-28-terraform-modules-netbox-debugging.md](./learningnotes/2025-11-28-terraform-modules-netbox-debugging.md)** - Notes on Terraform modules and Netbox debugging.
+- **[2025-11-28-terraform-proxmox.md](./learningnotes/2025-11-28-terraform-proxmox.md)** - Initial learning notes on Terraform Proxmox deployment.
+- **[2025-11-29-ansible-netbox-docker.md](./learningnotes/2025-11-29-ansible-netbox-docker.md)** - Notes on Ansible deployment for Netbox and Docker.
+- **[2025-11-29-netbox-deployment-version-troubleshooting.md](./learningnotes/2025-11-29-netbox-deployment-version-troubleshooting.md)** - Troubleshooting Netbox deployment version compatibility.
+- **[2025-11-30-anki-sync-server-deployment.md](./learningnotes/2025-11-30-anki-sync-server-deployment.md)** - Notes on deploying Anki Sync Server.
+- **[2025-11-30-ansible-deployment-verification.md](./learningnotes/2025-11-30-ansible-deployment-verification.md)** - Patterns for verifying Ansible deployments.
+- **[2025-11-30-lxc-vm-network-bridge.md](./learningnotes/2025-11-30-lxc-vm-network-bridge.md)** - Notes on LXC and VM network bridging topology.
+- **[2025-11-30-terraform-proxmox-provider-crash.md](./learningnotes/2025-11-30-terraform-proxmox-provider-crash.md)** - Analysis of Terraform Proxmox provider crashes.
+- **[2025-11-30-terraform-refactoring-best-practices.md](./learningnotes/2025-11-30-terraform-refactoring-best-practices.md)** - Best practices for refactoring Terraform code.
+- **[2025-12-01-homepage-lxc-deployment.md](./learningnotes/2025-12-01-homepage-lxc-deployment.md)** - Notes on deploying Homepage on LXC.
+- **[2025-12-01-homepage-proxmox-integration.md](./learningnotes/2025-12-01-homepage-proxmox-integration.md)** - Guide for integrating Homepage with Proxmox.
+- **[2025-12-02-ansible-inventory-refactoring.md](./learningnotes/2025-12-02-ansible-inventory-refactoring.md)** - Notes on refactoring Ansible inventory structure.
+- **[2025-12-02-ansible-vault-secret-management.md](./learningnotes/2025-12-02-ansible-vault-secret-management.md)** - Guide to managing secrets with Ansible Vault.
+- **[2025-12-02-proxmox-terraform-ansible-immich.md](./learningnotes/2025-12-02-proxmox-terraform-ansible-immich.md)** - Integration notes for Proxmox, Terraform, Ansible, and Immich.
+- **[2025-12-02-tailscale-integration-refactoring.md](./learningnotes/2025-12-02-tailscale-integration-refactoring.md)** - Deep integration of Tailscale in LXC and hybrid cloud.
+- **[2025-12-03-ansible-abstraction-levels.md](./learningnotes/2025-12-03-ansible-abstraction-levels.md)** - Discussion on Ansible abstraction levels (Role vs Task).
+- **[2025-12-03-caddy-webdav-tailscale-troubleshooting.md](./learningnotes/2025-12-03-caddy-webdav-tailscale-troubleshooting.md)** - Troubleshooting Caddy WebDAV and Tailscale ACLs.
+- **[2025-12-04-ansible-tags-and-variables.md](./learningnotes/2025-12-04-ansible-tags-and-variables.md)** - Notes on Ansible tags and variable scoping.
+- **[2025-12-04-hybrid-iac-netbox-workflow.md](./learningnotes/2025-12-04-hybrid-iac-netbox-workflow.md)** - Workflow for hybrid IaC management with Netbox.
+- **[2025-12-04-netbox-population-terraform-vs-ansible.md](./learningnotes/2025-12-04-netbox-population-terraform-vs-ansible.md)** - Comparison of Netbox population methods.
+- **[2025-12-04-tailscale-magicdns-and-split-dns.md](./learningnotes/2025-12-04-tailscale-magicdns-and-split-dns.md)** - Explanation of Tailscale MagicDNS and Split DNS.
+- **[2025-12-04-terraform-proxmox-disk-and-cloudinit-troubleshooting.md](./learningnotes/2025-12-04-terraform-proxmox-disk-and-cloudinit-troubleshooting.md)** - Troubleshooting Terraform Proxmox disk and Cloud-Init issues.
+- **[2025-12-04-zfs-pool-migration-and-expansion.md](./learningnotes/2025-12-04-zfs-pool-migration-and-expansion.md)** - Notes on ZFS pool migration and expansion.
+- **[2025-12-11-elk-vs-lpg-comparison.md](./learningnotes/2025-12-11-elk-vs-lpg-comparison.md)** - Comparison between ELK and LPG logging stacks.
+- **[2025-12-15-deploying-n8n-on-lxc.md](./learningnotes/2025-12-15-deploying-n8n-on-lxc.md)** - Guide for deploying n8n on LXC.
+- **[2025-12-21-esxi-integration-and-venv.md](./learningnotes/2025-12-21-esxi-integration-and-venv.md)** - Notes on ESXi integration and Ansible venv.
+- **[2026-01-28-rustdesk-terraform.md](./learningnotes/2026-01-28-rustdesk-terraform.md)** - Terraform management for Rustdesk deployment.
+- **[2026-01-28-ssh-key-management-strategy.md](./learningnotes/2026-01-28-ssh-key-management-strategy.md)** - Mixed SSH key management strategy with Terraform and Ansible.
+- **[2026-01-29-ansible-troubleshooting.md](./learningnotes/2026-01-29-ansible-troubleshooting.md)** - Log of Ansible troubleshooting experiences.
+- **[2026-01-29-inventory-migration-trap.md](./learningnotes/2026-01-29-inventory-migration-trap.md)** - Analysis of data loss risks during inventory migration.
+- **[2026-01-29-rustdesk-deployment-lessons.md](./learningnotes/2026-01-29-rustdesk-deployment-lessons.md)** - Lessons learned from Rustdesk deployment.
+- **[2026-01-31-ansible-role-refactoring.md](./learningnotes/2026-01-31-ansible-role-refactoring.md)** - Notes on Ansible role architecture refactoring.
+- **[2026-01-31-ansible-vault-architecture-refactoring.md](./learningnotes/2026-01-31-ansible-vault-architecture-refactoring.md)** - Notes on Ansible Vault architecture standardization.
+- **[2026-01-31-pbs-proxmox-backup-integration.md](./learningnotes/2026-01-31-pbs-proxmox-backup-integration.md)** - Integration notes for Proxmox Backup Server.
+- **[2026-02-03-esxi-vm-infrastructure-improvements.md](./learningnotes/2026-02-03-esxi-vm-infrastructure-improvements.md)** - Improvements to ESXi VM infrastructure.
+- **[2026-02-03-jenkins-cicd-phase1-infrastructure.md](./learningnotes/2026-02-03-jenkins-cicd-phase1-infrastructure.md)** - Phase 1 of Jenkins CI/CD infrastructure setup.
+- **[2026-02-03-jenkins-cicd-phase2-configuration.md](./learningnotes/2026-02-03-jenkins-cicd-phase2-configuration.md)** - Phase 2 of Jenkins CI/CD configuration.
+- **[2026-02-03-jenkins-cicd-phase3-pipeline.md](./learningnotes/2026-02-03-jenkins-cicd-phase3-pipeline.md)** - Phase 3 of Jenkins CI/CD pipeline implementation.
+- **[2026-02-04-ansible-cloudflared-review.md](./learningnotes/2026-02-04-ansible-cloudflared-review.md)** - Code review and learning notes for Cloudflared Ansible role.
+- **[INDEX.md](./learningnotes/INDEX.md)** - Index file for learning notes.
 
-**位置**: `guides/`
+### specs/
 
-从学习笔记中提炼的系统性知识，深入讲解核心技术栈。
+- **[pbs-iscsi-veeam-spec.md](./specs/pbs-iscsi-veeam-spec.md)** - Implementation specifications for PBS iSCSI Target for Veeam.
 
-| 指南 | 文档 | 说明 |
-|------|------|------|
-| **Terraform + Proxmox** | [terraform-proxmox-complete-guide.md](guides/terraform-proxmox-complete-guide.md) | 完整的 Terraform 实践指南（2000+行） |
-| **Ansible 最佳实践** | ⏳ 计划中 | Ansible 模式与实践（待创建） |
-| **Netbox 集成** | ⏳ 计划中 | Netbox 与 IaC 工具集成（待创建） |
-| **LXC/VM 网络** | ⏳ 计划中 | 容器与虚拟机网络配置（待创建） |
+### troubleshooting/
 
-**查看更多**: [guides/README.md](guides/README.md)
-
----
-
-### 🔧 故障排查
-
-**位置**: `troubleshooting/`
-
-按问题类型分类的故障诊断和解决方案集合。
-
-| 类别 | 文档 | 覆盖问题 |
-|------|------|---------|
-| **Terraform 问题** | [terraform-issues.md](troubleshooting/terraform-issues.md) | Provider崩溃、磁盘配置、Cloud-Init等（8个问题） |
-| **Ansible 问题** | [ansible-issues.md](troubleshooting/ansible-issues.md) | Callback错误、Inventory陷阱、幂等性等（6个问题） |
-| **网络连接** | [network-connectivity.md](troubleshooting/network-connectivity.md) | SMB慢速、DNS冲突、路由问题等（5个问题） |
-| **部署问题** | [deployment-issues.md](troubleshooting/deployment-issues.md) | 版本兼容、超时、架构误解等（4个问题） |
-
-**快速诊断**: [troubleshooting/README.md](troubleshooting/README.md)
-
----
-
-### 📝 学习笔记
-
-**位置**: `learningnotes/`
-
-按时间顺序记录的学习日志（2025年11月至今，共31篇），包含探索过程、踩坑经历和经验总结。
-
-**主题分类**：
-- **Terraform** (10篇) - 从初学到模块化重构
-- **Ansible** (10篇) - 从基础到高级模式
-- **Netbox** (6篇) - 部署、集成、数据管理
-- **网络** (8篇) - Tailscale、LXC、DNS
-- **应用部署** (10篇) - Homepage、n8n、RustDesk等
-
-**完整索引**: [learningnotes/INDEX.md](learningnotes/INDEX.md)
-
-**学习路径推荐**：
-1. **Terraform 路径**: 初学 → 模块化 → 最佳实践 → 故障排查 → SSH密钥策略
-2. **Ansible 路径**: 基础 → Inventory → Vault → 抽象层次 → 验证模式
-3. **Netbox 路径**: 部署 → Docker集成 → 数据填充 → 混合工作流
-
----
-
-### 📋 其他文档
-
-| 文档 | 说明 |
-|------|------|
-| [PLANNING.md](PLANNING.md) | 项目整体规划和架构目标 |
-| [infrastructure-notes.md](infrastructure-notes.md) | 网络拓扑和基础设施笔记 |
-
-| [slow-smb-over-wifi.md](slow-smb-over-wifi.md) | SMB性能问题案例研究 |
-
----
-
-## 🗂️ 文档类型说明
-
-| 类型 | 用途 | 特点 | 何时使用 |
-|------|------|------|---------|
-| **部署指南** | 生产级部署 | 详细步骤、可复现 | 需要部署新服务时 |
-| **综合指南** | 系统性学习 | 深度讲解、最佳实践 | 想深入理解技术栈时 |
-| **故障排查** | 问题诊断 | 症状→原因→方案 | 遇到具体问题时 |
-| **学习笔记** | 探索记录 | 时间序列、真实过程 | 想了解思考过程时 |
-
----
-
-## 🔍 如何查找文档？
-
-### 按场景查找
-
-| 场景 | 推荐文档 |
-|------|---------|
-| 🆕 我是新手，想了解项目 | [PLANNING.md](PLANNING.md) → [guides/](guides/) |
-| 🚀 我要部署一个服务 | [deployment/README.md](deployment/README.md) |
-| ❓ 我遇到了问题 | [troubleshooting/README.md](troubleshooting/README.md) |
-| 📖 我想系统学习 Terraform | [guides/terraform-proxmox-complete-guide.md](guides/terraform-proxmox-complete-guide.md) |
-| 🔗 我想了解 Netbox 集成 | [learningnotes/INDEX.md](learningnotes/INDEX.md) → Netbox 分类 |
-| 🌐 我在配置网络 | [troubleshooting/network-connectivity.md](troubleshooting/network-connectivity.md) |
-
-### 按技术栈查找
-
-| 技术 | 相关文档 |
-|------|---------|
-| **Terraform** | [guides/terraform-proxmox-complete-guide.md](guides/terraform-proxmox-complete-guide.md) + [troubleshooting/terraform-issues.md](troubleshooting/terraform-issues.md) |
-| **Ansible** | [troubleshooting/ansible-issues.md](troubleshooting/ansible-issues.md) + learningnotes Ansible系列 |
-| **Netbox** | [deployment/netbox-deployment.md](deployment/netbox-deployment.md) + learningnotes Netbox系列 |
-| **Proxmox** | [deployment/proxmox-vm-deployment.md](deployment/proxmox-vm-deployment.md) |
-| **Docker** | deployment/ 中的各个服务部署文档 |
-
----
-
-## 📊 项目统计
-
-- **文档总数**: 40+ 篇
-- **部署指南**: 11 篇
-- **综合指南**: 1 篇（更多计划中）
-- **故障排查**: 4 大类，23 个问题
-- **学习笔记**: 31 篇
-- **覆盖技术**: Terraform, Ansible, Proxmox, Docker, Netbox, Tailscale...
-
----
-
-## 🔄 文档维护
-
-### 最近更新
-- ✅ 2026-01-30: 重组文档结构，新增 guides/ 和 troubleshooting/ 目录
-- ✅ 2026-01-30: 创建 Terraform 综合指南（2000+行）
-- ✅ 2026-01-30: 增强 learningnotes/INDEX.md
-- ✅ 2026-02-04: 统一文件命名为 kebab-case（连字符）风格
-- ✅ 2026-01-30: 重组文档结构
-
-### 文档关联关系
-- **learningnotes** → 提炼为 → **guides**（系统性知识）
-- **learningnotes** → 提炼为 → **troubleshooting**（问题解决方案）
-- **guides** + **troubleshooting** → 支持 → **deployment**（部署实践）
-
----
-
-## 🎯 下一步计划
-
-- [ ] 创建 Ansible 最佳实践综合指南
-- [ ] 创建 Netbox 集成综合指南
-- [ ] 创建 LXC/VM 网络配置指南
-- [ ] 添加快速参考卡片（quick_reference/）
-- [ ] 建立文档搜索功能
-
----
-
-## 📞 帮助与反馈
-
-遇到问题？
-1. 先查看 [troubleshooting/README.md](troubleshooting/README.md)
-2. 搜索 [learningnotes/INDEX.md](learningnotes/INDEX.md) 中的相关主题
-3. 查看对应的部署指南或综合指南
-
-建议改进？欢迎提交反馈！
-
----
-
-**最后更新**: 2026-01-30
-**文档版本**: v2.0（重组版）
+- **[ansible-issues.md](./troubleshooting/ansible-issues.md)** - Troubleshooting guide for common Ansible issues.
+- **[deployment-issues.md](./troubleshooting/deployment-issues.md)** - Troubleshooting guide for general deployment issues (Docker, etc.).
+- **[network-connectivity.md](./troubleshooting/network-connectivity.md)** - Troubleshooting guide for network connectivity, VPN, and proxy issues.
+- **[README.md](./troubleshooting/README.md)** - Index and overview of troubleshooting guides.
+- **[slow-smb-over-wifi.md](./troubleshooting/slow-smb-over-wifi.md)** - Specific troubleshooting log for slow SMB transfer speeds.
+- **[STRUCTURE.md](./troubleshooting/STRUCTURE.md)** - Structure definition for the troubleshooting documentation.
+- **[terraform-issues.md](./troubleshooting/terraform-issues.md)** - Troubleshooting guide for Terraform and Proxmox issues.
