@@ -29,7 +29,7 @@ pipeline {
         stage('Check Changes') {
             steps {
                 script {
-                    // Get changed files since last successful build
+                    // Get changed files since last commit
                     def changes = sh(
                         script: 'git diff --name-only HEAD~1 HEAD || echo ""',
                         returnStdout: true
@@ -37,12 +37,13 @@ pipeline {
 
                     echo "Changed files:\n${changes}"
 
-                    // Paths that should trigger a build
+                    def changedFiles = changes.split('\n').findAll { it.trim() }
+
+                    // --- Determine if build is needed at all ---
                     def buildPaths = ['terraform/', 'ansible/', 'scripts/', 'Jenkinsfile']
                     env.SHOULD_BUILD = 'false'
-
                     for (path in buildPaths) {
-                        if (changes.split('\n').any { it.startsWith(path) }) {
+                        if (changedFiles.any { it.startsWith(path) }) {
                             env.SHOULD_BUILD = 'true'
                             break
                         }
@@ -50,10 +51,120 @@ pipeline {
 
                     if (env.SHOULD_BUILD == 'false') {
                         currentBuild.description = 'Skipped: docs/non-IaC changes only'
-                        echo "No infrastructure changes detected. Skipping remaining stages."
-                    } else {
-                        echo "Infrastructure changes detected. Proceeding with build."
+                        echo 'No infrastructure changes detected. Skipping remaining stages.'
+                        return
                     }
+
+                    // --- Classify changes ---
+                    env.NEEDS_TF = changedFiles.any { it.startsWith('terraform/') }.toString()
+                    env.NEEDS_ANSIBLE_LINT = changedFiles.any { it.startsWith('ansible/') }.toString()
+
+                    // Broad-impact paths: only syntax-check, no auto-deploy
+                    def broadImpactPrefixes = [
+                        'ansible/roles/common/',
+                        'ansible/roles/docker/',
+                        'ansible/inventory/group_vars/',
+                        'terraform/modules/',
+                    ]
+
+                    def playbooks = [] as Set
+                    def unmatchedFiles = []
+
+                    for (file in changedFiles) {
+                        // Skip non-IaC files and broad-impact paths
+                        if (!buildPaths.any { file.startsWith(it) }) continue
+                        if (broadImpactPrefixes.any { file.startsWith(it) }) continue
+                        // Skip files that don't need playbook matching
+                        if (file == 'Jenkinsfile') continue
+                        if (file.startsWith('scripts/')) continue
+                        if (file.startsWith('ansible/inventory/group_vars/')) continue
+                        if (file.startsWith('ansible/requirements.yml')) continue
+                        if (file.startsWith('ansible/ansible.cfg')) continue
+
+                        def matched = false
+
+                        // 1. Terraform service file: <service>.tf -> deploy-<service>.yml
+                        def tfMatch = (file =~ /^terraform\/(?:proxmox|esxi)\/([^\/]+)\.tf$/)
+                        if (tfMatch) {
+                            def serviceName = tfMatch[0][1]
+                            // Skip non-service tf files
+                            if (!['versions', 'provider', 'variables', 'main', 'provisioning', 'pve_cluster'].contains(serviceName)) {
+                                def candidate = "deploy-${serviceName}.yml"
+                                if (fileExists("ansible/playbooks/${candidate}")) {
+                                    playbooks.add(candidate)
+                                    matched = true
+                                }
+                            } else {
+                                matched = true  // Infrastructure file, no playbook needed
+                            }
+                        }
+
+                        // 2. Ansible role: roles/<role>/** -> deploy-<role>.yml
+                        if (!matched) {
+                            def roleMatch = (file =~ /^ansible\/roles\/([^\/]+)\//)
+                            if (roleMatch) {
+                                def roleName = roleMatch[0][1]
+                                def candidate = "deploy-${roleName}.yml"
+                                if (fileExists("ansible/playbooks/${candidate}")) {
+                                    playbooks.add(candidate)
+                                    matched = true
+                                }
+                            }
+                        }
+
+                        // 3. Playbook file itself: deploy-*.yml
+                        if (!matched) {
+                            def pbMatch = (file =~ /^ansible\/playbooks\/(deploy-[^\/]+\.yml)$/)
+                            if (pbMatch) {
+                                playbooks.add(pbMatch[0][1])
+                                matched = true
+                            }
+                        }
+
+                        // 4. Host vars: host_vars/<host>.yml -> deploy-<host>.yml
+                        if (!matched) {
+                            def hvMatch = (file =~ /^ansible\/inventory\/host_vars\/([^\/\.]+)/)
+                            if (hvMatch) {
+                                def hostName = hvMatch[0][1]
+                                def candidate = "deploy-${hostName}.yml"
+                                if (fileExists("ansible/playbooks/${candidate}")) {
+                                    playbooks.add(candidate)
+                                    matched = true
+                                }
+                            }
+                        }
+
+                        if (!matched) {
+                            unmatchedFiles.add(file)
+                        }
+                    }
+
+                    // Set environment variables for downstream stages
+                    env.ANSIBLE_PLAYBOOKS = playbooks.join(',')
+
+                    // --- Summary ---
+                    echo "=== Build Scope ==="
+                    echo "Needs Terraform: ${env.NEEDS_TF}"
+                    echo "Needs Ansible Lint: ${env.NEEDS_ANSIBLE_LINT}"
+
+                    if (playbooks) {
+                        echo "Playbooks to deploy: ${playbooks.join(', ')}"
+                    } else {
+                        echo "No specific playbooks to deploy."
+                    }
+                    if (unmatchedFiles) {
+                        echo "WARNING: The following changed files could not be matched to a playbook:"
+                        unmatchedFiles.each { echo "  - ${it}" }
+                        echo "Please review and deploy manually if needed."
+                    }
+
+                    // Build description for quick visibility in build history
+                    def desc = []
+                    if (env.NEEDS_TF == 'true') desc.add('TF')
+                    if (playbooks) desc.add(playbooks.join(', '))
+                    if (unmatchedFiles) desc.add("⚠ ${unmatchedFiles.size()} unmatched")
+                    if (!desc) desc.add('validate only')
+                    currentBuild.description = desc.join(' | ')
                 }
             }
         }
@@ -89,7 +200,6 @@ pipeline {
                         fi
                     '''
                 }
-
             }
         }
 
@@ -97,15 +207,16 @@ pipeline {
             when { environment name: 'SHOULD_BUILD', value: 'true' }
             parallel {
                 stage('Terraform Validate') {
+                    when { environment name: 'NEEDS_TF', value: 'true' }
                     steps {
                         dir('terraform/proxmox') {
                             sh 'terraform validate'
-                            // Check format but don't fail (warning only)
                             sh 'terraform fmt -check -recursive || echo "Warning: Some files need formatting"'
                         }
                     }
                 }
                 stage('Ansible Lint') {
+                    when { environment name: 'NEEDS_ANSIBLE_LINT', value: 'true' }
                     steps {
                         dir('ansible') {
                             sh 'ansible-lint --version'
@@ -117,11 +228,13 @@ pipeline {
         }
 
         stage('Terraform Plan') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                environment name: 'NEEDS_TF', value: 'true'
+            }
             steps {
                 dir('terraform/proxmox') {
                     script {
-                        // Exit code 0 = no changes, 2 = has changes, 1 = error
                         def exitCode = sh(
                             script: 'terraform plan -out=tfplan -input=false -detailed-exitcode',
                             returnStatus: true
@@ -129,8 +242,8 @@ pipeline {
                         if (exitCode == 1) {
                             error 'Terraform plan failed'
                         }
-                        env.HAS_TF_CHANGES = (exitCode == 2) ? 'true' : 'false'
-                        if (env.HAS_TF_CHANGES == 'false') {
+                        env.HAS_TF_PLAN_CHANGES = (exitCode == 2) ? 'true' : 'false'
+                        if (env.HAS_TF_PLAN_CHANGES == 'false') {
                             echo 'No infrastructure changes detected in Terraform plan.'
                         }
                     }
@@ -141,7 +254,7 @@ pipeline {
         stage('Approval - Terraform Apply') {
             when {
                 environment name: 'SHOULD_BUILD', value: 'true'
-                environment name: 'HAS_TF_CHANGES', value: 'true'
+                environment name: 'HAS_TF_PLAN_CHANGES', value: 'true'
             }
             steps {
                 input message: 'Review the Terraform plan above. Proceed with apply?',
@@ -152,7 +265,7 @@ pipeline {
         stage('Terraform Apply') {
             when {
                 environment name: 'SHOULD_BUILD', value: 'true'
-                environment name: 'HAS_TF_CHANGES', value: 'true'
+                environment name: 'HAS_TF_PLAN_CHANGES', value: 'true'
             }
             steps {
                 dir('terraform/proxmox') {
@@ -169,24 +282,42 @@ pipeline {
         }
 
         stage('Approval - Ansible Deploy') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                expression { env.ANSIBLE_PLAYBOOKS?.trim() }
+            }
             steps {
-                input message: 'Terraform apply completed. Proceed with Ansible deployment?',
-                      ok: 'Deploy'
+                script {
+                    def playbookList = env.ANSIBLE_PLAYBOOKS.split(',').collect { "  - ${it}" }.join('\n')
+                    input message: "The following playbooks will be executed:\n${playbookList}\n\nProceed with Ansible deployment?",
+                          ok: 'Deploy'
+                }
             }
         }
 
         stage('Ansible Deploy') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                expression { env.ANSIBLE_PLAYBOOKS?.trim() }
+            }
             steps {
                 dir('ansible') {
-                    sh 'ansible-playbook playbooks/deploy-jenkins.yml --tags verify'
+                    script {
+                        def playbooks = env.ANSIBLE_PLAYBOOKS.split(',')
+                        for (pb in playbooks) {
+                            echo "Deploying: ${pb}"
+                            sh "ansible-playbook playbooks/${pb}"
+                        }
+                    }
                 }
             }
         }
 
         stage('Sync to Notion') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                expression { env.ANSIBLE_PLAYBOOKS?.trim() }
+            }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     withCredentials([

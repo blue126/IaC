@@ -157,34 +157,39 @@ flowchart LR
 ```mermaid
 flowchart LR
     Start([Start]) --> Checkout[Checkout]
-    Checkout --> CheckChanges[Check Changes]
+    Checkout --> CheckChanges["Check Changes<br/>(classify + match playbooks)"]
     CheckChanges --> Decision1{IaC<br/>Changes?}
 
     Decision1 -- No --> NotBuilt[NOT_BUILT]
     Decision1 -- Yes --> Setup["Setup"]
 
-    Setup --> TFValidate["TF Validate"]
-    Setup --> AnsibleLint["Ansible Lint"]
+    Setup --> Validate
 
-    TFValidate --> TFPlan[TF Plan]
-    AnsibleLint --> TFPlan
+    subgraph Validate["Validate (parallel, conditional)"]
+        TFValidate["TF Validate<br/>(if terraform/ changed)"]
+        AnsibleLint["Ansible Lint<br/>(if ansible/ changed)"]
+    end
 
-    TFPlan --> Decision2{TF<br/>Changes?}
-    Decision2 -- No --> Refresh
-    Decision2 -- Yes --> Approval1{Approve<br/>Apply?}
-    Approval1 -- No --> Abort1[Abort]
-    Approval1 -- Yes --> TFApply[TF Apply]
+    Validate --> TFNeeded{terraform/<br/>changed?}
+    TFNeeded -- No --> AnsibleNeeded
+    TFNeeded -- Yes --> TFPlan[TF Plan]
+    TFPlan --> TFChanges{TF Plan<br/>has changes?}
+    TFChanges -- No --> AnsibleNeeded
+    TFChanges -- Yes --> Approval1{Approve<br/>Apply?}
+    Approval1 -- Abort --> Abort1[Abort]
+    Approval1 -- Apply --> TFApply[TF Apply]
+    TFApply --> AnsibleNeeded
 
-    TFApply --> Refresh[Refresh Inventory]
-    Refresh --> Decision3{Approve<br/>Deploy?}
-
-    Decision3 -- No --> Abort2[Abort]
-    Decision3 -- Yes --> Deploy[Ansible Deploy]
+    AnsibleNeeded{Playbooks<br/>matched?}
+    AnsibleNeeded -- No --> Cleanup
+    AnsibleNeeded -- Yes --> Refresh[Refresh Inventory]
+    Refresh --> Approval2{Approve<br/>Deploy?}
+    Approval2 -- Abort --> Abort2[Abort]
+    Approval2 -- Deploy --> Deploy[Ansible Deploy]
 
     Deploy --> NotionSync[Sync to Notion]
     NotionSync --> Cleanup[Cleanup]
     Cleanup --> End([End])
-
 ```
 
 ### 阶段详解
@@ -203,27 +208,11 @@ stage('Checkout') {
 - 自动使用 Deploy Key 认证
 - 拉取触发构建的 commit
 
-#### 2. Check Changes (路径过滤)
+#### 2. Check Changes (智能变更分析)
 
-```groovy
-stage('Check Changes') {
-    steps {
-        script {
-            def changes = sh(script: 'git diff --name-only HEAD~1 HEAD', returnStdout: true).trim()
-            def buildPaths = ['terraform/', 'ansible/', 'scripts/', 'Jenkinsfile']
-            env.SHOULD_BUILD = 'false'
-            for (path in buildPaths) {
-                if (changes.split('\n').any { it.startsWith(path) }) {
-                    env.SHOULD_BUILD = 'true'
-                    break
-                }
-            }
-        }
-    }
-}
-```
+本阶段执行三层分析：
 
-检查本次 commit 变更的文件路径，只有以下路径的变更才触发构建：
+**第一层：是否需要构建？**
 
 | 路径 | 触发构建 | 原因 |
 |------|----------|------|
@@ -233,9 +222,41 @@ stage('Check Changes') {
 | `Jenkinsfile` | ✓ | Pipeline 本身变更 |
 | `docs/**` | ✗ | 文档变更，无需部署 |
 | `.github/**` | ✗ | 仓库配置，无需部署 |
-| `AGENTS.md` 等 | ✗ | 项目说明，无需部署 |
 
-不触发构建时，后续所有阶段通过 `when { environment name: 'SHOULD_BUILD', value: 'true' }` 条件跳过，构建状态标记为 `NOT_BUILT`。
+**第二层：需要哪些验证？**
+
+| 变更类型 | TF Validate | Ansible Lint | TF Plan/Apply | Ansible Deploy |
+|----------|:-----------:|:------------:|:-------------:|:--------------:|
+| `terraform/**` | ✓ | ✗ | ✓ | 仅匹配到 playbook 时 |
+| `ansible/**` | ✗ | ✓ | ✗ | 仅匹配到 playbook 时 |
+| `scripts/` / `Jenkinsfile` | ✗ | ✗ | ✗ | ✗ |
+
+**第三层：自动匹配 Playbook（约定优于配置）**
+
+基于命名约定自动推导，**新增服务无需修改 Jenkinsfile**：
+
+| 变更文件 | 推导规则 | 示例 |
+|----------|----------|------|
+| `terraform/proxmox/<service>.tf` | → 查找 `deploy-<service>.yml` | `netbox.tf` → `deploy-netbox.yml` |
+| `ansible/roles/<role>/**` | → 查找 `deploy-<role>.yml` | `roles/caddy/` → `deploy-caddy.yml` |
+| `ansible/playbooks/deploy-*.yml` | → 直接加入部署列表 | `deploy-n8n.yml` → `deploy-n8n.yml` |
+| `ansible/inventory/host_vars/<host>*` | → 查找 `deploy-<host>.yml` | `host_vars/pbs.yml` → `deploy-pbs.yml` |
+
+**广泛影响路径**（不自动部署，仅做 lint/validate）：
+- `ansible/roles/common/`、`ansible/roles/docker/` — 被多个服务共用
+- `ansible/inventory/group_vars/` — 影响范围不确定
+- `terraform/modules/` — 影响所有使用该 module 的服务
+
+**未匹配文件**：在构建日志中输出 WARNING，写入构建描述（`⚠ N unmatched`），不阻断流程，由人工判断是否需要手动部署。
+
+构建历史描述示例：
+```
+#15  TF | deploy-netbox.yml | ⚠ 1 unmatched
+#14  TF
+#13  deploy-caddy.yml
+#12  validate only
+#11  Skipped: docs/non-IaC changes only
+```
 
 #### 3. Setup (条件执行)
 
@@ -326,21 +347,22 @@ stage('Terraform Plan') {
 
 #### 6. Approval Gates
 
+**两个审批点（均为条件触发）**:
+
+1. **Terraform Apply 前** — 仅当 `terraform plan -detailed-exitcode` 检测到实际变更时触发
+2. **Ansible Deploy 前** — 仅当有匹配到的 playbook 时触发，审批信息列出将要执行的 playbook 列表
+
 ```groovy
-stage('Approval - Terraform Apply') {
-    when {
-        environment name: 'HAS_TF_CHANGES', value: 'true'  // 仅有变更时触发
-    }
+stage('Approval - Ansible Deploy') {
+    when { expression { env.ANSIBLE_PLAYBOOKS?.trim() } }
     steps {
-        input message: 'Review the Terraform plan above. Proceed with apply?',
-              ok: 'Apply'
+        script {
+            def playbookList = env.ANSIBLE_PLAYBOOKS.split(',').collect { "  - ${it}" }.join('\n')
+            input message: "The following playbooks will be executed:\n${playbookList}\n\nProceed?"
+        }
     }
 }
 ```
-
-**两个审批点**:
-1. **Terraform Apply 前** - 仅当 Plan 检测到变更时才触发审核
-2. **Ansible Deploy 前** - 确认进行配置部署
 
 #### 7. Terraform Apply
 
@@ -374,14 +396,23 @@ stage('Refresh Inventory') {
 
 ```groovy
 stage('Ansible Deploy') {
+    when { expression { env.ANSIBLE_PLAYBOOKS?.trim() } }
     steps {
-        sh 'ansible-playbook ansible/playbooks/deploy-jenkins.yml --tags verify'
+        dir('ansible') {
+            script {
+                def playbooks = env.ANSIBLE_PLAYBOOKS.split(',')
+                for (pb in playbooks) {
+                    sh "ansible-playbook playbooks/${pb}"
+                }
+            }
+        }
     }
 }
 ```
 
-- 执行配置管理
-- 部署应用和服务
+- 仅当 Check Changes 阶段匹配到具体 playbook 时执行
+- 逐个运行匹配到的 playbook
+- 无匹配 playbook 时自动跳过
 
 #### 10. Sync to Notion
 
@@ -403,6 +434,7 @@ stage('Sync to Notion') {
 - 从 Terraform state 读取所有 VM/LXC 资源信息
 - 从 Ansible Vault 读取凭据（用户名、密码、API Token 等）
 - 同步到 Notion 数据库，自动创建或更新资源页面
+- **仅在 Ansible Deploy 实际执行后触发**（有匹配的 playbook 才有意义同步）
 - 使用 `catchError` 包裹：**同步失败不会影响整体构建结果**（stage 标红但 build 仍为 SUCCESS）
 - `NOTION_DRY_RUN=false` 环境变量控制实际写入（默认为 dry run，安全）
 
@@ -617,18 +649,15 @@ options {
 
 ## 当前局限性
 
-### 1. 全量部署问题
+### ~~1. 全量部署问题~~ (已解决)
 
-**现状**: Ansible Deploy 阶段目前只运行单个 playbook 验证
+~~**现状**: Ansible Deploy 阶段目前只运行单个 playbook 验证~~
 
-**问题**: 
-- 无法根据代码变更智能选择要运行的 playbook
-- 全量运行所有 playbook 耗时长
-- 无关服务也会被重新配置
+已通过 Check Changes 阶段的智能 Playbook 匹配解决。基于命名约定自动推导 `deploy-<service>.yml`，无法匹配的文件输出 WARNING 由人工判断。
 
 ### 2. 审批阻塞
 
-**现状**: 两个人工审批节点
+**现状**: 两个条件触发的人工审批节点（无变更时自动跳过）
 
 **问题**:
 - 审批期间占用 Jenkins executor
@@ -691,41 +720,9 @@ stage('Terraform Plan') {
 
 ### 中期改进 (1-3 月)
 
-#### 1. 智能 Playbook 选择
+#### ~~1. 智能 Playbook 选择~~ (已实现)
 
-**目标**: 根据 Git 变更自动选择要运行的 playbook
-
-**方案**:
-```groovy
-stage('Detect Changes') {
-    steps {
-        script {
-            def changes = sh(script: 'git diff --name-only HEAD~1', returnStdout: true)
-            if (changes.contains('ansible/roles/jenkins/')) {
-                env.RUN_JENKINS = 'true'
-            }
-            if (changes.contains('ansible/roles/netbox/')) {
-                env.RUN_NETBOX = 'true'
-            }
-        }
-    }
-}
-
-stage('Ansible Deploy') {
-    steps {
-        script {
-            if (env.RUN_JENKINS == 'true') {
-                sh 'ansible-playbook ansible/playbooks/deploy-jenkins.yml'
-            }
-            if (env.RUN_NETBOX == 'true') {
-                sh 'ansible-playbook ansible/playbooks/deploy-netbox.yml'
-            }
-        }
-    }
-}
-```
-
-**优先级**: 中 - 减少不必要的部署时间
+已通过 Check Changes 阶段基于命名约定自动推导实现。详见「阶段详解 - 2. Check Changes」。
 
 #### 2. 分支策略
 
