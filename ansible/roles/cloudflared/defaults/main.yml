@@ -1,0 +1,15 @@
+---
+# Default variables for cloudflared role
+
+# Tunnel configuration
+cloudflared_tunnel_name: jenkins-webhook
+cloudflared_tunnel_id: "{{ vault_cloudflared_tunnel_id }}"  # ... (vault indirect reference)
+cloudflared_hostname: "{{ vault_cloudflared_hostname }}"  # ... (vault indirect reference)
+
+# Service to proxy
+cloudflared_service_url: "http://localhost:8080"
+cloudflared_service_path: /github-webhook/
+
+# Config paths
+cloudflared_config_dir: /etc/cloudflared
+cloudflared_credentials_dir: /root/.cloudflared

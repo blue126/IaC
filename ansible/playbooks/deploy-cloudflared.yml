@@ -1,0 +1,47 @@
+---
+- name: Deploy Cloudflare Tunnel (cloudflared)
+  hosts: jenkins
+  gather_facts: true
+  become: true
+  roles:
+    - common
+    - cloudflared
+
+- name: Verify Cloudflare Tunnel Deployment
+  hosts: jenkins
+  gather_facts: false
+  become: true
+  tags: [verify]
+  pre_tasks:
+    - name: Load cloudflared role defaults
+      include_vars:
+        file: ../roles/cloudflared/defaults/main.yml
+  tasks:
+    - name: Check cloudflared service status
+      systemd:
+        name: cloudflared
+      register: service_status
+
+    - name: Assert cloudflared service is active
+      assert:
+        that:
+          - service_status.status.ActiveState == "active"
+        success_msg: "cloudflared service is running"
+        fail_msg: "cloudflared service is not running"
+
+    - name: Verify tunnel connectivity
+      command: cloudflared tunnel info {{ cloudflared_tunnel_name }}
+      register: tunnel_info
+      changed_when: false
+      failed_when: false
+
+    - name: Assert tunnel is reachable
+      assert:
+        that:
+          - tunnel_info.rc == 0
+        success_msg: "Tunnel {{ cloudflared_tunnel_name }} is active"
+        fail_msg: "Tunnel connectivity check failed: {{ tunnel_info.stderr | default('unknown error') }}"
+
+    - name: Display tunnel info
+      debug:
+        msg: "{{ tunnel_info.stdout_lines | default(['Tunnel info not available']) }}"

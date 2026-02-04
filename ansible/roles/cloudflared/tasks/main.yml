@@ -1,0 +1,90 @@
+---
+# Cloudflare Tunnel (cloudflared) Installation and Configuration
+# Exposes internal services to the internet via Cloudflare's network.
+#
+# PREREQUISITE (manual one-time setup):
+#   1. cloudflared tunnel login        → generates ~/.cloudflared/cert.pem
+#   2. cloudflared tunnel create {{ cloudflared_tunnel_name }}
+#                                       → generates ~/.cloudflared/<TUNNEL_ID>.json
+#   3. cloudflared tunnel route dns {{ cloudflared_tunnel_name }} {{ cloudflared_hostname }}
+#   4. Add vault_cloudflared_tunnel_id and vault_cloudflared_hostname to Ansible Vault
+
+# === Install cloudflared ===
+
+- name: Add Cloudflare GPG key
+  get_url:
+    url: https://pkg.cloudflare.com/cloudflare-main.gpg
+    dest: /usr/share/keyrings/cloudflare-main.gpg
+    mode: '0644'
+
+- name: Add Cloudflare apt repository
+  copy:
+    dest: /etc/apt/sources.list.d/cloudflared.list
+    content: "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main\n"
+    mode: '0644'
+  register: cloudflared_repo
+
+- name: Install cloudflared
+  apt:
+    name: cloudflared
+    state: present
+    update_cache: "{{ cloudflared_repo.changed }}"
+
+- name: Verify cloudflared installation
+  command: cloudflared --version
+  register: cloudflared_version
+  changed_when: false
+
+- name: Display cloudflared version
+  debug:
+    msg: "{{ cloudflared_version.stdout }}"
+
+# === Configure tunnel ===
+# NOTE: Config and credentials assume cloudflared runs as root (default in LXC)
+
+- name: Check tunnel credentials file exists
+  stat:
+    path: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
+  register: tunnel_credentials
+
+- name: Fail if tunnel credentials not found
+  fail:
+    msg: >
+      Tunnel credentials file not found at
+      {{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json.
+      Run 'cloudflared tunnel login' and 'cloudflared tunnel create {{ cloudflared_tunnel_name }}'
+      manually first.
+  when: not tunnel_credentials.stat.exists
+
+# Install systemd service before deploying config, because
+# 'cloudflared service install' may copy ~/.cloudflared/config.yml
+# to /etc/cloudflared/ and overwrite our template-managed version.
+- name: Install cloudflared as systemd service
+  command: cloudflared service install
+  register: service_install
+  failed_when:
+    - service_install.rc != 0
+    - "'already exists' not in (service_install.stderr | default(''))"
+  changed_when: service_install.rc == 0
+
+- name: Create cloudflared config directory
+  file:
+    path: "{{ cloudflared_config_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Deploy cloudflared config
+  template:
+    src: config.yml.j2
+    dest: "{{ cloudflared_config_dir }}/config.yml"
+    mode: '0600'
+  notify: Restart cloudflared
+
+# === Enable service ===
+
+- name: Enable and start cloudflared service
+  systemd:
+    name: cloudflared
+    enabled: yes
+    state: started
+    daemon_reload: yes

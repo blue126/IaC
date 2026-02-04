@@ -244,9 +244,12 @@ ansible/roles/cloudflared/
 ```yaml
 ---
 cloudflared_tunnel_name: jenkins-webhook
-cloudflared_hostname: jenkins-webhook.yourdomain.com
-cloudflared_service_port: 8080
+cloudflared_tunnel_id: "{{ vault_cloudflared_tunnel_id }}"    # ... (vault indirect reference)
+cloudflared_hostname: "{{ vault_cloudflared_hostname }}"      # ... (vault indirect reference)
+cloudflared_service_url: "http://localhost:8080"
 cloudflared_service_path: /github-webhook/
+cloudflared_config_dir: /etc/cloudflared
+cloudflared_credentials_dir: /root/.cloudflared
 ```
 
 ### tasks/main.yml
@@ -299,13 +302,13 @@ cloudflared_service_path: /github-webhook/
 ### templates/config.yml.j2
 
 ```yaml
-tunnel: {{ cloudflared_tunnel_id }}
-credentials-file: /root/.cloudflared/{{ cloudflared_tunnel_id }}.json
+tunnel: "{{ cloudflared_tunnel_id }}"
+credentials-file: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
 
 ingress:
-  - hostname: {{ cloudflared_hostname }}
-    path: {{ cloudflared_service_path }}
-    service: http://localhost:{{ cloudflared_service_port }}
+  - hostname: "{{ cloudflared_hostname }}"
+    path: "{{ cloudflared_service_path }}"
+    service: "{{ cloudflared_service_url }}"
   - service: http_status:404
 ```
 
