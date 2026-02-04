@@ -102,7 +102,7 @@ flowchart LR
     subgraph Jenkins["Jenkins Server (192.168.1.107)"]
         direction TB
         Cloudflared["cloudflared (Daemon)"]
-        Pipeline["Pipeline:<br/>Checkout → Check Changes → Setup<br/>→ Validate → Plan → Approval<br/>→ Apply → Refresh → Deploy"]
+        Pipeline["Pipeline:<br/>Checkout → Check Changes → Setup<br/>→ Validate → Plan → Approval<br/>→ Apply → Refresh → Deploy<br/>→ Sync to Notion"]
         Tools["Terraform CLI + Ansible CLI"]
     end
 
@@ -139,6 +139,7 @@ flowchart LR
 - Terraform CLI
 - Ansible (via pipx)
 - Ansible Galaxy Collections
+- Python notion-client (Notion 同步脚本依赖)
 
 #### HCP Terraform Cloud
 
@@ -168,9 +169,11 @@ flowchart LR
     TFValidate --> TFPlan[TF Plan]
     AnsibleLint --> TFPlan
 
-    TFPlan --> Decision2{Approve<br/>Apply?}
-    Decision2 -- No --> Abort1[Abort]
-    Decision2 -- Yes --> TFApply[TF Apply]
+    TFPlan --> Decision2{TF<br/>Changes?}
+    Decision2 -- No --> Refresh
+    Decision2 -- Yes --> Approval1{Approve<br/>Apply?}
+    Approval1 -- No --> Abort1[Abort]
+    Approval1 -- Yes --> TFApply[TF Apply]
 
     TFApply --> Refresh[Refresh Inventory]
     Refresh --> Decision3{Approve<br/>Deploy?}
@@ -178,7 +181,8 @@ flowchart LR
     Decision3 -- No --> Abort2[Abort]
     Decision3 -- Yes --> Deploy[Ansible Deploy]
 
-    Deploy --> Cleanup[Cleanup]
+    Deploy --> NotionSync[Sync to Notion]
+    NotionSync --> Cleanup[Cleanup]
     Cleanup --> End([End])
 
 ```
@@ -245,9 +249,12 @@ stage('Setup') {
                 chmod 600 $ANSIBLE_VAULT_PASSWORD_FILE
             '''
         }
-        // 2. 生成 Terraform secrets
+        // 2. 初始化 Terraform (Ansible 动态 inventory 依赖)
+        dir('terraform/proxmox') { sh 'terraform init -input=false' }
+        dir('terraform/esxi') { sh 'terraform init -input=false' }
+        // 3. 生成 Terraform secrets
         sh './scripts/get-secrets.sh'
-        // 3. 条件安装 Collections
+        // 4. 条件安装 Collections
         dir('ansible') {
             sh '''
                 if [ ! -d "collections/..." ]; then
@@ -261,8 +268,9 @@ stage('Setup') {
 
 **关键操作**:
 1. 从 Jenkins Credentials 获取 Vault 密码，写入临时文件
-2. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`
-3. 检查并安装 Ansible Galaxy Collections (仅首次)
+2. 初始化 Terraform providers（Ansible 动态 inventory 插件需要 `terraform show` 来解析 state，必须先 init）
+3. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`
+4. 检查并安装 Ansible Galaxy Collections (仅首次)
 
 #### 4. Validate (并行)
 
@@ -272,7 +280,6 @@ stage('Validate') {
         stage('Terraform Validate') {
             steps {
                 dir('terraform/proxmox') {
-                    sh 'terraform init -input=false'
                     sh 'terraform validate'
                     sh 'terraform fmt -check -recursive || echo "Warning"'
                 }
@@ -280,7 +287,9 @@ stage('Validate') {
         }
         stage('Ansible Lint') {
             steps {
-                sh 'ansible-playbook ansible/playbooks/*.yml --syntax-check'
+                dir('ansible') {
+                    sh 'ansible-playbook playbooks/*.yml --syntax-check'
+                }
             }
         }
     }
@@ -288,28 +297,40 @@ stage('Validate') {
 ```
 
 **并行执行**:
-- Terraform: 初始化、语法验证、格式检查
-- Ansible: 所有 playbook 语法检查
+- Terraform: 语法验证、格式检查（init 已在 Setup 阶段完成）
+- Ansible: 所有 playbook 语法检查（从 `ansible/` 目录执行）
 
-#### 5. Terraform Plan
+#### 5. Terraform Plan (智能变更检测)
 
 ```groovy
 stage('Terraform Plan') {
     steps {
         dir('terraform/proxmox') {
-            sh 'terraform plan -out=tfplan -input=false'
+            script {
+                // -detailed-exitcode: 0=无变更, 2=有变更, 1=错误
+                def exitCode = sh(
+                    script: 'terraform plan -out=tfplan -input=false -detailed-exitcode',
+                    returnStatus: true
+                )
+                if (exitCode == 1) { error 'Terraform plan failed' }
+                env.HAS_TF_CHANGES = (exitCode == 2) ? 'true' : 'false'
+            }
         }
     }
 }
 ```
 
-- 生成执行计划
-- 保存到 `tfplan` 文件确保 apply 执行的是审批过的计划
+- 使用 `-detailed-exitcode` 检测是否有实际变更
+- **无变更时**：自动跳过 Approval 和 Apply 阶段，直接进入后续步骤
+- **有变更时**：触发人工审批流程
 
 #### 6. Approval Gates
 
 ```groovy
 stage('Approval - Terraform Apply') {
+    when {
+        environment name: 'HAS_TF_CHANGES', value: 'true'  // 仅有变更时触发
+    }
     steps {
         input message: 'Review the Terraform plan above. Proceed with apply?',
               ok: 'Apply'
@@ -318,7 +339,7 @@ stage('Approval - Terraform Apply') {
 ```
 
 **两个审批点**:
-1. **Terraform Apply 前** - 审核基础设施变更
+1. **Terraform Apply 前** - 仅当 Plan 检测到变更时才触发审核
 2. **Ansible Deploy 前** - 确认进行配置部署
 
 #### 7. Terraform Apply
@@ -362,7 +383,30 @@ stage('Ansible Deploy') {
 - 执行配置管理
 - 部署应用和服务
 
-#### 10. Cleanup (post)
+#### 10. Sync to Notion
+
+```groovy
+stage('Sync to Notion') {
+    steps {
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            withCredentials([
+                string(credentialsId: 'notion-token', variable: 'NOTION_TOKEN'),
+                string(credentialsId: 'notion-database-id', variable: 'NOTION_DATABASE_ID')
+            ]) {
+                sh 'NOTION_DRY_RUN=false python3 scripts/sync_to_notion.py'
+            }
+        }
+    }
+}
+```
+
+- 从 Terraform state 读取所有 VM/LXC 资源信息
+- 从 Ansible Vault 读取凭据（用户名、密码、API Token 等）
+- 同步到 Notion 数据库，自动创建或更新资源页面
+- 使用 `catchError` 包裹：**同步失败不会影响整体构建结果**（stage 标红但 build 仍为 SUCCESS）
+- `NOTION_DRY_RUN=false` 环境变量控制实际写入（默认为 dry run，安全）
+
+#### 11. Cleanup (post)
 
 ```groovy
 post {
@@ -386,6 +430,8 @@ post {
 | `github-ssh-key` | SSH Private Key | GitHub Deploy Key，克隆仓库 |
 | `terraform-cloud-token` | Secret Text | HCP Terraform Cloud API Token |
 | `ansible-vault-password` | Secret Text | Ansible Vault 解密密码 |
+| `notion-token` | Secret Text | Notion Integration Token (Sync to Notion) |
+| `notion-database-id` | Secret Text | Notion 数据库 ID (Sync to Notion) |
 
 ### 凭据流转图
 
@@ -866,6 +912,8 @@ ansible/roles/jenkins/                # Jenkins 配置 role
 ansible/playbooks/deploy-jenkins.yml  # Jenkins 部署 playbook
 scripts/get-secrets.sh                # 从 Vault 提取 secrets
 scripts/refresh_terraform_state.sh    # 刷新 Terraform state
+scripts/sync_to_notion.py            # 同步 Terraform state 到 Notion 数据库
+requirements.txt                     # Python 依赖 (含 notion-client)
 ```
 
 ### 参考文档

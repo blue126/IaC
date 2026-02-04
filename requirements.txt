@@ -6,3 +6,4 @@ requests
 netaddr
 pyvmomi
 passlib
+notion-client==2.2.1

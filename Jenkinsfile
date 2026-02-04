@@ -120,13 +120,29 @@ pipeline {
             when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 dir('terraform/proxmox') {
-                    sh 'terraform plan -out=tfplan -input=false'
+                    script {
+                        // Exit code 0 = no changes, 2 = has changes, 1 = error
+                        def exitCode = sh(
+                            script: 'terraform plan -out=tfplan -input=false -detailed-exitcode',
+                            returnStatus: true
+                        )
+                        if (exitCode == 1) {
+                            error 'Terraform plan failed'
+                        }
+                        env.HAS_TF_CHANGES = (exitCode == 2) ? 'true' : 'false'
+                        if (env.HAS_TF_CHANGES == 'false') {
+                            echo 'No infrastructure changes detected in Terraform plan.'
+                        }
+                    }
                 }
             }
         }
 
         stage('Approval - Terraform Apply') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                environment name: 'HAS_TF_CHANGES', value: 'true'
+            }
             steps {
                 input message: 'Review the Terraform plan above. Proceed with apply?',
                       ok: 'Apply'
@@ -134,7 +150,10 @@ pipeline {
         }
 
         stage('Terraform Apply') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                environment name: 'HAS_TF_CHANGES', value: 'true'
+            }
             steps {
                 dir('terraform/proxmox') {
                     sh 'terraform apply -input=false tfplan'
