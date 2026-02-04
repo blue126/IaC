@@ -77,11 +77,16 @@ pipeline {
                 }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
-                // Install Python dependencies for Notion sync (skip if already installed)
+                // Setup Python venv for Notion sync (reuse if exists)
                 sh '''
+                    if [ ! -d ".venv" ]; then
+                        echo "Creating Python venv..."
+                        python3 -m venv .venv
+                    fi
+                    . .venv/bin/activate
                     if ! python3 -c "import notion_client" 2>/dev/null; then
                         echo "Installing Python dependencies for Notion sync..."
-                        pip install --user -r scripts/requirements.txt --quiet
+                        pip install -r scripts/requirements.txt --quiet
                     else
                         echo "Python dependencies already installed, skipping..."
                     fi
@@ -183,7 +188,7 @@ pipeline {
                         string(credentialsId: 'notion-token', variable: 'NOTION_TOKEN'),
                         string(credentialsId: 'notion-database-id', variable: 'NOTION_DATABASE_ID')
                     ]) {
-                        sh 'NOTION_DRY_RUN=false python3 scripts/sync_to_notion.py'
+                        sh '. .venv/bin/activate && NOTION_DRY_RUN=false python3 scripts/sync_to_notion.py'
                     }
                 }
             }
