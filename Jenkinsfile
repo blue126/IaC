@@ -27,7 +27,40 @@ pipeline {
             }
         }
 
+        stage('Check Changes') {
+            steps {
+                script {
+                    // Get changed files since last successful build
+                    def changes = sh(
+                        script: 'git diff --name-only HEAD~1 HEAD || echo ""',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changes}"
+
+                    // Paths that should trigger a build
+                    def buildPaths = ['terraform/', 'ansible/', 'scripts/', 'Jenkinsfile']
+                    env.SHOULD_BUILD = 'false'
+
+                    for (path in buildPaths) {
+                        if (changes.split('\n').any { it.startsWith(path) }) {
+                            env.SHOULD_BUILD = 'true'
+                            break
+                        }
+                    }
+
+                    if (env.SHOULD_BUILD == 'false') {
+                        currentBuild.description = 'Skipped: docs/non-IaC changes only'
+                        echo "No infrastructure changes detected. Skipping remaining stages."
+                    } else {
+                        echo "Infrastructure changes detected. Proceeding with build."
+                    }
+                }
+            }
+        }
+
         stage('Setup') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 // Write Ansible Vault password to file
                 withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
@@ -55,6 +88,7 @@ pipeline {
         }
 
         stage('Validate') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             parallel {
                 stage('Terraform Validate') {
                     steps {
@@ -77,6 +111,7 @@ pipeline {
         }
 
         stage('Terraform Plan') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 dir('terraform/proxmox') {
                     sh 'terraform plan -out=tfplan -input=false'
@@ -85,6 +120,7 @@ pipeline {
         }
 
         stage('Approval - Terraform Apply') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 input message: 'Review the Terraform plan above. Proceed with apply?',
                       ok: 'Apply'
@@ -92,6 +128,7 @@ pipeline {
         }
 
         stage('Terraform Apply') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 dir('terraform/proxmox') {
                     sh 'terraform apply -input=false tfplan'
@@ -100,12 +137,14 @@ pipeline {
         }
 
         stage('Refresh Inventory') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 sh './scripts/refresh_terraform_state.sh'
             }
         }
 
         stage('Approval - Ansible Deploy') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 input message: 'Terraform apply completed. Proceed with Ansible deployment?',
                       ok: 'Deploy'
@@ -113,6 +152,7 @@ pipeline {
         }
 
         stage('Ansible Deploy') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
             steps {
                 // Run from project root for relative inventory paths
                 sh 'ansible-playbook ansible/playbooks/deploy-jenkins.yml --tags verify'
