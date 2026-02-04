@@ -56,7 +56,13 @@ pipeline {
                     }
 
                     // --- Classify changes ---
-                    env.NEEDS_TF = changedFiles.any { it.startsWith('terraform/') }.toString()
+                    env.NEEDS_TF_PROXMOX = changedFiles.any {
+                        it.startsWith('terraform/proxmox/') || it.startsWith('terraform/modules/')
+                    }.toString()
+                    env.NEEDS_TF_ESXI = changedFiles.any {
+                        it.startsWith('terraform/esxi/') || it.startsWith('terraform/modules/')
+                    }.toString()
+                    env.NEEDS_TF = (env.NEEDS_TF_PROXMOX == 'true' || env.NEEDS_TF_ESXI == 'true').toString()
                     env.NEEDS_ANSIBLE_LINT = changedFiles.any { it.startsWith('ansible/') }.toString()
 
                     // Broad-impact paths: only syntax-check, no auto-deploy
@@ -179,12 +185,21 @@ pipeline {
                         chmod 600 $ANSIBLE_VAULT_PASSWORD_FILE
                     '''
                 }
-                // Initialize Terraform providers (needed by Ansible dynamic inventory)
-                dir('terraform/proxmox') {
-                    sh 'terraform init -input=false'
-                }
-                dir('terraform/esxi') {
-                    sh 'terraform init -input=false'
+                // Initialize Terraform providers
+                // - For TF changes: only init the affected directory
+                // - For Ansible deploy: both needed (dynamic inventory depends on terraform show)
+                script {
+                    def initProxmox = (env.NEEDS_TF_PROXMOX == 'true' || env.ANSIBLE_PLAYBOOKS?.trim())
+                    def initEsxi = (env.NEEDS_TF_ESXI == 'true' || env.ANSIBLE_PLAYBOOKS?.trim())
+                    if (initProxmox) {
+                        dir('terraform/proxmox') { sh 'terraform init -input=false' }
+                    }
+                    if (initEsxi) {
+                        dir('terraform/esxi') { sh 'terraform init -input=false' }
+                    }
+                    if (!initProxmox && !initEsxi) {
+                        echo 'Skipping Terraform init: no TF changes and no playbooks to deploy.'
+                    }
                 }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
@@ -207,7 +222,7 @@ pipeline {
             when { environment name: 'SHOULD_BUILD', value: 'true' }
             parallel {
                 stage('Terraform Validate') {
-                    when { environment name: 'NEEDS_TF', value: 'true' }
+                    when { environment name: 'NEEDS_TF_PROXMOX', value: 'true' }
                     steps {
                         dir('terraform/proxmox') {
                             sh 'terraform validate'
@@ -230,7 +245,7 @@ pipeline {
         stage('Terraform Plan') {
             when {
                 environment name: 'SHOULD_BUILD', value: 'true'
-                environment name: 'NEEDS_TF', value: 'true'
+                environment name: 'NEEDS_TF_PROXMOX', value: 'true'
             }
             steps {
                 dir('terraform/proxmox') {
