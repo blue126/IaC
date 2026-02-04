@@ -3,8 +3,8 @@
 本文档汇总了网络层、VPN、反向代理等问题的排查指南。
 
 **来源**:
-- `/mnt/docs/slow_smb_over_wifi.md`
-- `/mnt/docs/learningnotes/2025-12-03-caddy-webdav-tailscale-troubleshooting.md`
+- `./slow-smb-over-wifi.md`
+- `../learningnotes/2025-12-03-caddy-webdav-tailscale-troubleshooting.md`
 
 ---
 

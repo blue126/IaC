@@ -27,12 +27,13 @@
     "vscode": {
       // Extensions to install
       "extensions": [
-        "hashicorp.terraform", // Terraform syntax and IntelliSense
-        "redhat.ansible", // Ansible language support (includes YAML)
-        "ms-python.python", // Python language support
-        "ms-python.vscode-pylance", // Python IntelliSense
-        "ms-azuretools.vscode-docker", // Docker management
-        "mhutchie.git-graph" // Git history visualization
+        "hashicorp.terraform",
+        "redhat.ansible",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "mhutchie.git-graph",
+        "TanishqKancharla.opencode-vscode"
       ],
       // Editor settings
       "settings": {
