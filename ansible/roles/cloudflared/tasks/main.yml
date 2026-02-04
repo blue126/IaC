@@ -42,6 +42,12 @@
 # === Configure tunnel ===
 # NOTE: Config and credentials assume cloudflared runs as root (default in LXC)
 
+- name: Create cloudflared config directory
+  file:
+    path: "{{ cloudflared_config_dir }}"
+    state: directory
+    mode: '0755'
+
 - name: Check tunnel credentials file exists
   stat:
     path: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
@@ -56,23 +62,6 @@
       manually first.
   when: not tunnel_credentials.stat.exists
 
-# Install systemd service before deploying config, because
-# 'cloudflared service install' may copy ~/.cloudflared/config.yml
-# to /etc/cloudflared/ and overwrite our template-managed version.
-- name: Install cloudflared as systemd service
-  command: cloudflared service install
-  register: service_install
-  failed_when:
-    - service_install.rc != 0
-    - "'already exists' not in (service_install.stderr | default(''))"
-  changed_when: service_install.rc == 0
-
-- name: Create cloudflared config directory
-  file:
-    path: "{{ cloudflared_config_dir }}"
-    state: directory
-    mode: '0755'
-
 - name: Deploy cloudflared config
   template:
     src: config.yml.j2
@@ -81,6 +70,14 @@
   notify: Restart cloudflared
 
 # === Enable service ===
+
+- name: Install cloudflared as systemd service
+  command: cloudflared service install
+  register: service_install
+  failed_when:
+    - service_install.rc != 0
+    - "'already exists' not in (service_install.stderr | default(''))"
+  changed_when: service_install.rc == 0
 
 - name: Enable and start cloudflared service
   systemd:
