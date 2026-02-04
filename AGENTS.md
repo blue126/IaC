@@ -177,6 +177,7 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
 
 From `.github/copilot-instructions.md` and `.agent/`:
 
+0. **🔴 CRITICAL: NO AUTOMATIC COMMITS** — You must **NEVER** commit code without explicit, specific authorization from the user for that specific commit. Even if a workflow implies a commit at the end, you must STOP and ask: "Ready to commit?"
 1. **Explain CLI commands** briefly before executing them
 2. **Incremental changes**: Large modifications must be split into logical units, one at a time
 3. **Multi-step operations**: Present 1–2 steps at a time. **Stop and wait for user confirmation** before proceeding to the next step. Do NOT execute multiple logical steps in a row without pausing for approval — even if the steps seem straightforward

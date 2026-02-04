@@ -607,15 +607,6 @@ options {
 - 需要人工检查构建状态
 - 容易错过失败的部署
 
-### 5. Terraform Provider 限制
-
-**现状**: 使用 telmate/proxmox provider
-
-**问题**:
-- 存在 tags drift 等 bug
-- 小改动容易触发资源重建
-- 维护不够活跃
-
 ## 未来改进
 
 ### 短期改进 (1-2 周)
@@ -636,20 +627,7 @@ post {
 
 **优先级**: 高 - 解决无人值守时的感知问题
 
-#### 2. Terraform Provider 迁移
-
-**目标**: 从 telmate/proxmox 迁移到 bpg/proxmox
-
-**收益**:
-- 解决 tags drift 问题
-- 更好的 in-place 更新
-- 更活跃的社区支持
-
-**详细计划**: 见 `docs/improvement/proxmox-provider-migration.md`
-
-**优先级**: 高 - 影响日常使用体验
-
-#### 3. Plan 输出归档
+#### 2. Plan 输出归档
 
 **目标**: 保存每次构建的 Terraform plan 输出
 
@@ -862,7 +840,6 @@ timeline
     title Improvement Roadmap
     section 2026 Q1 (Short-term)
         High Priority : Build Notification (Telegram/Slack)
-                      : Proxmox Provider Migration (telmate to bpg)
         Medium Priority : Plan Output Archival
     section 2026 Q2 (Mid-term)
         Medium Priority : Smart Playbook Selection
