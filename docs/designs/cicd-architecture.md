@@ -102,7 +102,7 @@ flowchart LR
     subgraph Jenkins["Jenkins Server (192.168.1.107)"]
         direction TB
         Cloudflared["cloudflared (Daemon)"]
-        Pipeline["Pipeline:<br/>Checkout → Check Changes → Setup<br/>→ Validate → Plan → Approval<br/>→ Apply → Refresh → Deploy<br/>→ Sync to Notion"]
+        Pipeline["Pipeline:<br/>Check Changes → Setup<br/>→ Validate → Plan → Approval<br/>→ Apply → Refresh → Deploy<br/>→ Sync to Notion"]
         Tools["Terraform CLI + Ansible CLI"]
     end
 
@@ -156,8 +156,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Start([Start]) --> Checkout[Checkout]
-    Checkout --> CheckChanges["Check Changes<br/>(classify + match playbooks)"]
+    Start([Start]) --> CheckChanges["Check Changes<br/>(classify + match playbooks)"]
     CheckChanges --> Decision1{IaC<br/>Changes?}
 
     Decision1 -- No --> NotBuilt[NOT_BUILT]
@@ -194,21 +193,9 @@ flowchart LR
 
 ### 阶段详解
 
-#### 1. Checkout
+> **Note**: Jenkins 声明式 Pipeline 会在执行 stages 之前自动 checkout SCM，无需显式定义 Checkout stage。
 
-```groovy
-stage('Checkout') {
-    steps {
-        checkout scm
-    }
-}
-```
-
-- 使用 Jenkins 内置 SCM 配置
-- 自动使用 Deploy Key 认证
-- 拉取触发构建的 commit
-
-#### 2. Check Changes (智能变更分析)
+#### 1. Check Changes (智能变更分析)
 
 本阶段执行三层分析：
 
@@ -242,6 +229,9 @@ stage('Checkout') {
 | `ansible/playbooks/deploy-*.yml` | → 直接加入部署列表 | `deploy-n8n.yml` → `deploy-n8n.yml` |
 | `ansible/inventory/host_vars/<host>*` | → 查找 `deploy-<host>.yml` | `host_vars/pbs.yml` → `deploy-pbs.yml` |
 
+**Terraform 基础设施文件**（不触发 playbook 匹配，仅做 validate/plan）：
+- `versions.tf`, `provider.tf`, `variables.tf`, `main.tf`, `provisioning.tf`, `pve-cluster.tf`
+
 **广泛影响路径**（不自动部署，仅做 lint/validate）：
 - `ansible/roles/common/`、`ansible/roles/docker/` — 被多个服务共用
 - `ansible/inventory/group_vars/` — 影响范围不确定
@@ -258,7 +248,7 @@ stage('Checkout') {
 #11  Skipped: docs/non-IaC changes only
 ```
 
-#### 3. Setup (条件执行)
+#### 2. Setup (条件执行)
 
 ```groovy
 stage('Setup') {
@@ -282,8 +272,12 @@ stage('Setup') {
         // 4. 条件安装 Collections
         dir('ansible') {
             sh '''
-                if [ ! -d "collections/..." ]; then
+                if [ ! -d "collections/ansible_collections/community/docker" ] || \
+                   [ ! -d "collections/ansible_collections/cloud/terraform" ]; then
+                    echo "Installing Ansible Galaxy collections..."
                     ansible-galaxy collection install -r requirements.yml -p collections
+                else
+                    echo "Ansible collections already installed, skipping..."
                 fi
             '''
         }
@@ -301,7 +295,7 @@ stage('Setup') {
 3. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`（使用 `-i localhost,` 显式指定 inventory，避免加载 terraform 动态 inventory）
 4. 检查并安装 Ansible Galaxy Collections (仅首次)
 
-#### 4. Validate (并行)
+#### 3. Validate (并行)
 
 ```groovy
 stage('Validate') {
@@ -329,7 +323,7 @@ stage('Validate') {
 - Terraform: 语法验证、格式检查（init 已在 Setup 阶段完成）
 - Ansible: 所有 playbook 语法检查（从 `ansible/` 目录执行）
 
-#### 5. Terraform Plan (智能变更检测)
+#### 4. Terraform Plan (智能变更检测)
 
 ```groovy
 stage('Terraform Plan') {
@@ -353,7 +347,7 @@ stage('Terraform Plan') {
 - **无变更时**：自动跳过 Approval 和 Apply 阶段，直接进入后续步骤
 - **有变更时**：触发人工审批流程
 
-#### 6. Approval Gates
+#### 5. Approval Gates
 
 **两个审批点（均为条件触发）**:
 
@@ -372,7 +366,7 @@ stage('Approval - Ansible Deploy') {
 }
 ```
 
-#### 7. Terraform Apply
+#### 6. Terraform Apply
 
 ```groovy
 stage('Terraform Apply') {
@@ -387,7 +381,7 @@ stage('Terraform Apply') {
 - 执行之前保存的 plan
 - 创建/更新/删除基础设施资源
 
-#### 8. Refresh Inventory
+#### 7. Refresh Inventory
 
 ```groovy
 stage('Refresh Inventory') {
@@ -401,7 +395,7 @@ stage('Refresh Inventory') {
 - 保存到本地供 Ansible 动态 inventory 使用
 - **条件执行**：仅在有 Terraform 变更或有 playbook 需要部署时执行（纯 scripts/Jenkinsfile 变更时跳过）
 
-#### 9. Ansible Deploy
+#### 8. Ansible Deploy
 
 ```groovy
 stage('Ansible Deploy') {
@@ -423,7 +417,7 @@ stage('Ansible Deploy') {
 - 逐个运行匹配到的 playbook
 - 无匹配 playbook 时自动跳过
 
-#### 10. Sync to Notion
+#### 9. Sync to Notion
 
 ```groovy
 stage('Sync to Notion') {
@@ -447,7 +441,7 @@ stage('Sync to Notion') {
 - 使用 `catchError` 包裹：**同步失败不会影响整体构建结果**（stage 标红但 build 仍为 SUCCESS）
 - `NOTION_DRY_RUN=false` 环境变量控制实际写入（默认为 dry run，安全）
 
-#### 11. Cleanup (post)
+#### 10. Cleanup (post)
 
 ```groovy
 post {
@@ -636,6 +630,40 @@ flowchart LR
 2. **Ansible 回滚**
    - 大部分操作幂等，重新运行即可
    - 复杂回滚需要专门的回滚 playbook
+
+### Jenkins CPS 已知问题
+
+Jenkins Pipeline 使用 CPS (Continuation Passing Style) 执行引擎，在某些步骤（如 `fileExists()`、`input`）处会"冻结"当前状态以支持暂停/恢复。这会导致一些 Groovy 对象行为异常。
+
+#### 1. Regex Matcher 不可序列化
+
+**问题**: `=~` 操作符返回的 `java.util.regex.Matcher` 对象无法被 CPS 序列化，导致 `NotSerializableException`。
+
+**症状**:
+```
+java.io.NotSerializableException: java.util.regex.Matcher
+```
+
+**解决方案**: 立即提取匹配结果，然后将 Matcher 置为 null：
+```groovy
+def matcher = (file =~ /pattern/)
+def result = matcher ? matcher[0][1] : null
+matcher = null  // 在任何 CPS 步骤之前丢弃
+if (result) {
+    fileExists(...)  // CPS checkpoint
+}
+```
+
+#### 2. Set 集合去重失效
+
+**问题**: `[] as Set` 创建的集合在 CPS 序列化/反序列化后可能丢失 Set 语义，退化为普通 List，导致重复元素。
+
+**解决方案**: 在使用前显式调用 `unique()`：
+```groovy
+def items = [] as Set
+// ... 循环中多次 add ...
+env.RESULT = items.toList().unique().join(',')
+```
 
 ## 监控与日志
 
