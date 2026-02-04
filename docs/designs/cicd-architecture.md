@@ -298,7 +298,7 @@ stage('Setup') {
    - `terraform/esxi/` 变更或有 playbook 需要部署 → init esxi
    - `terraform/modules/` 变更 → 两个都 init（共享模块）
    - 仅 scripts/Jenkinsfile 变更 → 跳过 init
-3. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`
+3. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`（使用 `-i localhost,` 显式指定 inventory，避免加载 terraform 动态 inventory）
 4. 检查并安装 Ansible Galaxy Collections (仅首次)
 
 #### 4. Validate (并行)
@@ -399,6 +399,7 @@ stage('Refresh Inventory') {
 
 - 从 Terraform Cloud 拉取最新 state
 - 保存到本地供 Ansible 动态 inventory 使用
+- **条件执行**：仅在有 Terraform 变更或有 playbook 需要部署时执行（纯 scripts/Jenkinsfile 变更时跳过）
 
 #### 9. Ansible Deploy
 

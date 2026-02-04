@@ -15,7 +15,9 @@ echo "Fetching secrets from Ansible Vault..."
 # 1. Generate Proxmox Secrets using a temporary playbook
 echo "Writing terraform/proxmox/secrets.auto.tfvars..."
 
-ansible-playbook /dev/stdin << PLAYBOOK
+# Use explicit localhost inventory to avoid loading terraform dynamic inventory
+# (which requires terraform init and may not be available at this point)
+ansible-playbook -i localhost, /dev/stdin << PLAYBOOK
 ---
 - hosts: localhost
   connection: local
@@ -37,7 +39,7 @@ PLAYBOOK
 # 2. Generate OCI Secrets
 echo "Writing terraform/oci/secrets.auto.tfvars..."
 
-ansible-playbook /dev/stdin << PLAYBOOK
+ansible-playbook -i localhost, /dev/stdin << PLAYBOOK
 ---
 - hosts: localhost
   connection: local

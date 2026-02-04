@@ -290,7 +290,13 @@ pipeline {
         }
 
         stage('Refresh Inventory') {
-            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            when {
+                environment name: 'SHOULD_BUILD', value: 'true'
+                anyOf {
+                    environment name: 'NEEDS_TF', value: 'true'
+                    expression { env.ANSIBLE_PLAYBOOKS?.trim() }
+                }
+            }
             steps {
                 sh './scripts/refresh_terraform_state.sh'
             }
