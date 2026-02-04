@@ -90,12 +90,13 @@ pipeline {
                         def matched = false
 
                         // 1. Terraform service file: <service>.tf -> deploy-<service>.yml
-                        def tfMatch = (file =~ /^terraform\/(?:proxmox|esxi)\/([^\/]+)\.tf$/)
-                        if (tfMatch) {
-                            def serviceName = tfMatch[0][1]
+                        def tfMatcher = (file =~ /^terraform\/(?:proxmox|esxi)\/([^\/]+)\.tf$/)
+                        def tfServiceName = tfMatcher ? tfMatcher[0][1] : null
+                        tfMatcher = null  // Discard Matcher before CPS checkpoint
+                        if (tfServiceName) {
                             // Skip non-service tf files
-                            if (!['versions', 'provider', 'variables', 'main', 'provisioning', 'pve_cluster'].contains(serviceName)) {
-                                def candidate = "deploy-${serviceName}.yml"
+                            if (!['versions', 'provider', 'variables', 'main', 'provisioning', 'pve-cluster'].contains(tfServiceName)) {
+                                def candidate = "deploy-${tfServiceName}.yml"
                                 if (fileExists("ansible/playbooks/${candidate}")) {
                                     playbooks.add(candidate)
                                     matched = true
@@ -107,9 +108,10 @@ pipeline {
 
                         // 2. Ansible role: roles/<role>/** -> deploy-<role>.yml
                         if (!matched) {
-                            def roleMatch = (file =~ /^ansible\/roles\/([^\/]+)\//)
-                            if (roleMatch) {
-                                def roleName = roleMatch[0][1]
+                            def roleMatcher = (file =~ /^ansible\/roles\/([^\/]+)\//)
+                            def roleName = roleMatcher ? roleMatcher[0][1] : null
+                            roleMatcher = null  // Discard Matcher before CPS checkpoint
+                            if (roleName) {
                                 def candidate = "deploy-${roleName}.yml"
                                 if (fileExists("ansible/playbooks/${candidate}")) {
                                     playbooks.add(candidate)
@@ -120,18 +122,21 @@ pipeline {
 
                         // 3. Playbook file itself: deploy-*.yml
                         if (!matched) {
-                            def pbMatch = (file =~ /^ansible\/playbooks\/(deploy-[^\/]+\.yml)$/)
-                            if (pbMatch) {
-                                playbooks.add(pbMatch[0][1])
+                            def pbMatcher = (file =~ /^ansible\/playbooks\/(deploy-[^\/]+\.yml)$/)
+                            def pbName = pbMatcher ? pbMatcher[0][1] : null
+                            pbMatcher = null  // Discard Matcher before CPS checkpoint
+                            if (pbName) {
+                                playbooks.add(pbName)
                                 matched = true
                             }
                         }
 
                         // 4. Host vars: host_vars/<host>.yml -> deploy-<host>.yml
                         if (!matched) {
-                            def hvMatch = (file =~ /^ansible\/inventory\/host_vars\/([^\/\.]+)/)
-                            if (hvMatch) {
-                                def hostName = hvMatch[0][1]
+                            def hvMatcher = (file =~ /^ansible\/inventory\/host_vars\/([^\/\.]+)/)
+                            def hostName = hvMatcher ? hvMatcher[0][1] : null
+                            hvMatcher = null  // Discard Matcher before CPS checkpoint
+                            if (hostName) {
                                 def candidate = "deploy-${hostName}.yml"
                                 if (fileExists("ansible/playbooks/${candidate}")) {
                                     playbooks.add(candidate)
