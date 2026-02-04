@@ -8,8 +8,8 @@
   hosts: pbs
   become: yes
   roles:
-    - role: pbs_iscsi
-      tags: [pbs_iscsi]
+    - role: pbs-iscsi
+      tags: [pbs-iscsi]
 
 - name: Verify PBS iSCSI Deployment
   hosts: pbs

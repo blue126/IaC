@@ -57,7 +57,7 @@ graph TD
 
 ### 3.1 PBS 端配置 (Ansible 自动化)
 
-我们需要编写一个新的 Ansible Role (`pbs_iscsi`) 来执行以下任务：
+我们需要编写一个新的 Ansible Role (`pbs-iscsi`) 来执行以下任务：
 
 1.  **安装依赖**: `targetcli-fb` (Linux LIO iSCSI 管理工具)。
 2.  **创建 ZVol**:
@@ -125,5 +125,5 @@ graph TD
 ## 7. 下一步行动
 
 1.  确认 ZFS 存储池剩余空间。
-2.  编写 `ansible/roles/pbs_iscsi`。
+2.  编写 `ansible/roles/pbs-iscsi`。
 3.  准备 Windows Server 镜像和 License。

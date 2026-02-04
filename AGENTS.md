@@ -175,7 +175,7 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
 | **Terraform HCL identifiers** (resources, variables, modules, outputs) | `snake_case` | `module "windows_server"`, `var.vm_password` |
 | **Terraform `.tf` filenames** | `kebab-case` | `pve-cluster.tf`, `windows-server.tf` |
 | **Terraform module directories** | `kebab-case` | `proxmox-vm/`, `esxi-vm/` |
-| **Ansible role directories** | `snake_case` | `pbs_client/`, `netbox_sync/` |
+| **Ansible role directories** | `kebab-case` | `pbs-client/`, `netbox-sync/` |
 | **Ansible playbook filenames** | `kebab-case` | `deploy-pbs-iscsi.yml`, `sync-netbox.yml` |
 | **Ansible variable names** | `snake_case` | `pbs_zfs_pool_name`, `anki_port` |
 | **Ansible group names** | `snake_case` | `pve_vms`, `proxmox_cluster` |
@@ -187,7 +187,7 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
 | **Docker Compose service names** | `kebab-case` | Linux convention |
 | **Documentation filenames** | `kebab-case` | `YYYY-MM-DD-topic-description.md` |
 
-**Memory aid**: If it's a **code identifier** (variable, resource, role name) → **underscore**. If it's a **filename or infrastructure name** (hostname, service unit, .tf file) → **hyphen**.
+**Memory aid**: If it's a **code identifier** (variable, resource, group name) → **underscore**. If it's a **filename or infrastructure name** (hostname, role directory, service unit, .tf file) → **hyphen**.
 
 ### General
 

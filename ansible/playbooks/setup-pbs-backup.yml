@@ -17,10 +17,10 @@
   become: true
   gather_facts: false
   vars_files:
-    - ../roles/pbs_client/defaults/main.yml
+    - ../roles/pbs-client/defaults/main.yml
   tasks:
     - name: Include PBS token and fingerprint tasks
-      ansible.builtin.include_tasks: ../roles/pbs_client/tasks/pbs-token.yml
+      ansible.builtin.include_tasks: ../roles/pbs-client/tasks/pbs-token.yml
 
     # Export facts to hostvars so the next play can access them
     - name: Export PBS connection facts for Proxmox play
@@ -39,7 +39,7 @@
     pbs_fingerprint: "{{ hostvars['localhost']['pbs_fingerprint'] }}"
     pbs_api_token_value: "{{ hostvars['localhost']['pbs_api_token_value'] | default(omit) }}"
   roles:
-    - role: pbs_client
+    - role: pbs-client
 
 - name: Verify PBS Backup Configuration
   hosts: pve0

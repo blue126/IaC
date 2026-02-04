@@ -128,17 +128,17 @@ Playbook 中需要在 PBS 主机获取信息（token、指纹），然后在 Pro
 **问题**: 在 playbook 中通过 `include_tasks` 引入角色内的 task 文件时，角色的 `defaults/main.yml` **不会自动加载**。
 
 ```yaml
-# 这样不会加载 pbs_client/defaults/main.yml 中的变量！
+# 这样不会加载 pbs-client/defaults/main.yml 中的变量！
 tasks:
-  - include_tasks: ../roles/pbs_client/tasks/pbs-token.yml
+  - include_tasks: ../roles/pbs-client/tasks/pbs-token.yml
 ```
 
 **解决方案**: 显式加载变量文件：
 ```yaml
 vars_files:
-  - ../roles/pbs_client/defaults/main.yml
+  - ../roles/pbs-client/defaults/main.yml
 tasks:
-  - include_tasks: ../roles/pbs_client/tasks/pbs-token.yml
+  - include_tasks: ../roles/pbs-client/tasks/pbs-token.yml
 ```
 
 而如果通过 `roles:` 引入，defaults 会自动加载 —— 这是 Ansible role 机制的一部分。

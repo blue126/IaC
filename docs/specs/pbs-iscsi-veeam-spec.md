@@ -39,7 +39,7 @@
 ```
 ansible/
   roles/
-    pbs_iscsi/
+    pbs-iscsi/
       tasks/
         main.yml              # 主入口，包含其他任务文件
         zvol.yml              # ZVol 创建任务
@@ -66,7 +66,7 @@ terraform/
 
 ## 4. 详细规范
 
-### 4.1 Ansible Role: `pbs_iscsi`
+### 4.1 Ansible Role: `pbs-iscsi`
 
 #### `defaults/main.yml`
 
@@ -277,8 +277,8 @@ pbs_iscsi_demo_mode: true
   hosts: pbs
   become: yes
   roles:
-    - role: pbs_iscsi
-      tags: [pbs_iscsi]
+    - role: pbs-iscsi
+      tags: [pbs-iscsi]
 
 - name: Verify PBS iSCSI Deployment
   hosts: pbs
@@ -426,13 +426,13 @@ output "windows_server_ip" {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Phase 1: Ansible Role (pbs_iscsi)                               │
+│ Phase 1: Ansible Role (pbs-iscsi)                               │
 ├─────────────────────────────────────────────────────────────────┤
-│ 1. ansible/roles/pbs_iscsi/defaults/main.yml     ← 先定义变量   │
-│ 2. ansible/roles/pbs_iscsi/handlers/main.yml     ← handler      │
-│ 3. ansible/roles/pbs_iscsi/tasks/zvol.yml        ← ZVol 任务    │
-│ 4. ansible/roles/pbs_iscsi/tasks/iscsi-target.yml← iSCSI 任务   │
-│ 5. ansible/roles/pbs_iscsi/tasks/main.yml        ← 主入口       │
+│ 1. ansible/roles/pbs-iscsi/defaults/main.yml     ← 先定义变量   │
+│ 2. ansible/roles/pbs-iscsi/handlers/main.yml     ← handler      │
+│ 3. ansible/roles/pbs-iscsi/tasks/zvol.yml        ← ZVol 任务    │
+│ 4. ansible/roles/pbs-iscsi/tasks/iscsi-target.yml← iSCSI 任务   │
+│ 5. ansible/roles/pbs-iscsi/tasks/main.yml        ← 主入口       │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -556,4 +556,4 @@ terraform plan
 
 部署完成后需更新：
 - `docs/deployment/pbs-iscsi-veeam-guide.md` — 标记实施状态为"已完成"
-- `ansible/README.md` — 添加 `pbs_iscsi` role 说明
+- `ansible/README.md` — 添加 `pbs-iscsi` role 说明

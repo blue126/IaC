@@ -25,7 +25,7 @@ ansible/
 │   ├── docker/          # 基础设施 —— 容器运行环境
 │   ├── tailscale/       # 基础设施 —— VPN 接入
 │   ├── netbox/          # 应用服务
-│   ├── netbox_sync/     # 工具 —— 同步 inventory 到 Netbox
+│   ├── netbox-sync/     # 工具 —— 同步 inventory 到 Netbox
 │   ├── homepage/        # 应用服务
 │   ├── immich/          # 应用服务
 │   ├── caddy/           # 应用服务
@@ -33,7 +33,7 @@ ansible/
 │   ├── anki/            # 应用服务
 │   ├── rustdesk/        # 应用服务
 │   ├── pbs/             # 应用服务（含 ZFS 存储配置）
-│   └── pbs_client/      # 工具 —— 配置 Proxmox 节点连接 PBS
+│   └── pbs-client/      # 工具 —— 配置 Proxmox 节点连接 PBS
 └── inventory/           # 数据层：主机定义、变量赋值、vault 密钥
 ```
 
@@ -72,8 +72,8 @@ ansible/
 
 | Role | 职责 | 触发方式 |
 |------|------|----------|
-| `netbox_sync` | 将 Ansible facts 同步到 Netbox | `sync-netbox.yml`（按需运行） |
-| `pbs_client` | 配置 Proxmox 节点连接 PBS | `setup-pbs-backup.yml`（一次性配置） |
+| `netbox-sync` | 将 Ansible facts 同步到 Netbox | `sync-netbox.yml`（按需运行） |
+| `pbs-client` | 配置 Proxmox 节点连接 PBS | `setup-pbs-backup.yml`（一次性配置） |
 
 ---
 
@@ -92,7 +92,7 @@ roles/<role_name>/
 
 ### 规则
 
-- **命名**：`snake_case`，不使用连字符
+- **命名**：`kebab-case`，与 playbook 文件名保持一致
 - **最小化目录**：只创建实际需要的目录，不保留空目录
 - **`defaults/` vs `vars/`**：几乎所有变量都放 `defaults/`（可覆盖）。`vars/` 仅用于角色内部常量（当前无 role 使用 `vars/`）
 - **无 `defaults/` 的例外**：`docker` 和 `n8n` — 所有值都是固定的（标准端口、版本号等），不需要可配置变量
@@ -105,7 +105,7 @@ roles/<role_name>/
 | docker | — | ✅ | — | — | 纯安装，无可配置参数 |
 | tailscale | ✅ | ✅ | — | — | auth_key 在 `group_vars/tailscale.yml` |
 | netbox | ✅ | ✅ | — | — | |
-| netbox_sync | ✅ | ✅ | — | — | 需要 `netbox.netbox` collection |
+| netbox-sync | ✅ | ✅ | — | — | 需要 `netbox.netbox` collection |
 | homepage | ✅ | ✅ | ✅ | ✅ (6) | 模板包含 dashboard 配置 |
 | immich | ✅ | ✅ | ✅ | ✅ (2) | |
 | caddy | ✅ | ✅ | ✅ | ✅ (1) | Alpine Linux，需要 SSH/Python 预启动 |
@@ -113,7 +113,7 @@ roles/<role_name>/
 | anki | ✅ | ✅ | ✅ | ✅ (1) | |
 | rustdesk | ✅ | ✅ | — | ✅ (1) | |
 | pbs | ✅ | ✅ | — | — | tasks 含 ZFS 配置（zfs-verify/zfs-pool/zfs-datastore） |
-| pbs_client | ✅ | ✅ | — | — | tasks 拆分为 storage/backup-jobs/pbs-token |
+| pbs-client | ✅ | ✅ | — | — | tasks 拆分为 storage/backup-jobs/pbs-token |
 
 ---
 
@@ -247,13 +247,13 @@ role defaults (优先级 2)          → 可覆盖的默认值
 | `pbs_zfs_compression` | `"zstd"` | 压缩算法 |
 | *(另有 10+ ZFS 配置变量)* | | 详见 `roles/pbs/defaults/main.yml` |
 
-**pbs_client**（20 个变量，详见 `roles/pbs_client/defaults/main.yml`）
+**pbs-client**（20 个变量，详见 `roles/pbs-client/defaults/main.yml`）
 
 主要包括：PBS 连接信息、Proxmox API 凭据、备份调度、保留策略、VM ID 列表等。
 
 #### 工具 Role
 
-**netbox_sync**
+**netbox-sync**
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `netbox_url` | `"http://192.168.1.104:8080"` | Netbox 服务地址 |
@@ -291,7 +291,7 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
         │
         ▼ （需要 PBS 先部署完成）
   ┌────────────┐
-  │ pbs_client │  （setup-pbs-backup.yml）
+  │ pbs-client │  （setup-pbs-backup.yml）
   └────────────┘
 
     独立 Role（无依赖）:
@@ -347,8 +347,8 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 | `deploy-anki.yml` | anki | anki | pip venv |
 | `deploy-n8n.yml` | n8n | n8n | npm 全局安装 |
 | `install-tailscale.yml` | tailscale | tailscale | 脚本安装 |
-| `setup-pbs-backup.yml` | pbs, pve0 | pbs_client | API 配置 |
-| `sync-netbox.yml` | pve_lxc:pve_vms:proxmox_cluster | netbox_sync | API 同步 |
+| `setup-pbs-backup.yml` | pbs, pve0 | pbs-client | API 配置 |
+| `sync-netbox.yml` | pve_lxc:pve_vms:proxmox_cluster | netbox-sync | API 同步 |
 
 ---
 
@@ -396,7 +396,7 @@ Internet
 | `cloud.terraform` | Terraform 动态 inventory |
 | `community.docker` | Docker Compose 管理（rustdesk, immich, netbox） |
 | `ansible.posix` | POSIX 模块（sysctl 等） |
-| `netbox.netbox` | Netbox API 模块（netbox_sync role） |
+| `netbox.netbox` | Netbox API 模块（netbox-sync role） |
 
 ---
 

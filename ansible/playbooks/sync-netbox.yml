@@ -3,4 +3,4 @@
   hosts: pve_lxc:pve_vms:proxmox_cluster
   gather_facts: true
   roles:
-    - netbox_sync
+    - netbox-sync

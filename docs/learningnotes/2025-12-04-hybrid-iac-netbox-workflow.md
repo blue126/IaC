@@ -48,7 +48,7 @@ resource "netbox_virtual_machine" "example" {
 
 ## 3. 实施细节
 
-*   **Ansible Role**: `netbox_sync`
+*   **Ansible Role**: `netbox-sync`
     *   逻辑：判断是物理机还是虚拟机，分别调用 `netbox_device` 或 `netbox_virtual_machine` 模块。
     *   技巧：使用 `default(omit)` 处理缺失字段，使用 Jinja2 过滤器处理磁盘大小计算。
 *   **Playbook**: `sync-netbox.yml`

@@ -38,7 +38,7 @@
 | group_vars | `inventory/group_vars/tailscale.yml` | tailscale |
 | group_vars (无消费者) | `inventory/group_vars/oci.yml` | OCI（仅 Terraform 用） |
 | host_vars | `inventory/host_vars/homepage.yml` | homepage |
-| role defaults | `roles/pbs/defaults/main.yml` 等 | pbs, pbs_client, caddy |
+| role defaults | `roles/pbs/defaults/main.yml` 等 | pbs, pbs-client, caddy |
 | ~~playbook vars~~ | ~~`playbooks/deploy-caddy.yml`~~ | ~~caddy（已修复）~~ |
 
 其中 playbook vars 的方式是最不合适的 —— 在修复前 caddy 的 `cloudflare_api_token` 是唯一一个在 playbook `vars:` 中做间接引用的变量。
@@ -111,12 +111,12 @@ ansible/
 | | `vault_oci_fingerprint` | 同上 |
 | | `vault_oci_private_key_path` | 同上 |
 | **Proxmox** | `vault_proxmox_password` | Terraform-only (get-secrets.sh) |
-| | `vault_proxmox_api_token_id` | Terraform + Ansible (pbs_client role defaults) |
-| | `vault_proxmox_api_token_secret` | Terraform + Ansible (pbs_client role defaults) |
+| | `vault_proxmox_api_token_id` | Terraform + Ansible (pbs-client role defaults) |
+| | `vault_proxmox_api_token_secret` | Terraform + Ansible (pbs-client role defaults) |
 | **Tailscale** | `vault_tailscale_auth_key` | Ansible (group_vars → tailscale role) |
 | **PBS** | `vault_pbs_root_password` | Ansible (role defaults → pbs role) |
 | | `vault_pbs_backup_user_password` | Ansible (role defaults → pbs role) |
-| | `vault_pbs_api_token_value` | Ansible (role defaults → pbs_client role) |
+| | `vault_pbs_api_token_value` | Ansible (role defaults → pbs-client role) |
 | **VM 默认凭证** | `vault_vm_default_password` | Ansible (group_vars → pve_vms 组) |
 | **Immich** | `vault_immich_db_password` | Ansible (role defaults → immich role) |
 | **Anki** | `vault_anki_sync_users` | Ansible (role defaults → anki role) |
@@ -130,7 +130,7 @@ ansible/
 |--------|------|----------|----------|
 | 主机特定的密码 | Pattern A | `host_vars/<host>.yml` | homepage 的 3 个 API key |
 | 组级别共享的密码 | Pattern A | `group_vars/<group>.yml` | tailscale_auth_key, vm_default_password |
-| Role 配置参数型密码 | Pattern B | `roles/<role>/defaults/main.yml` | caddy, pbs, pbs_client, immich, anki |
+| Role 配置参数型密码 | Pattern B | `roles/<role>/defaults/main.yml` | caddy, pbs, pbs-client, immich, anki |
 | Terraform-only 密码 | 不建别名 | 仅在 vault 中 | vault_proxmox_password |
 
 #### Pattern A: Inventory 层别名
@@ -203,7 +203,7 @@ ansible/inventory/group_vars/all/vault.yml
 
 **变量分类**：
 - **Terraform-only**: `vault_proxmox_password` — 没有 Ansible 消费者
-- **共享**: `vault_proxmox_api_token_id/secret` — Terraform 和 Ansible (pbs_client) 都用
+- **共享**: `vault_proxmox_api_token_id/secret` — Terraform 和 Ansible (pbs-client) 都用
 - **Ansible-only**: 其余 13 个 — Terraform 不需要
 
 **工作流**: 新增密码时，先加到 vault.yml，然后运行 `get-secrets.sh` 同步到 Terraform。
@@ -246,11 +246,11 @@ vault.yml (18 个变量)
 │   │   └── pbs_backup_user_password ← vault_pbs_backup_user_password
 │   │         └──> pbs role (tasks/users.yml)
 │   │
-│   ├── roles/pbs_client/defaults/main.yml
+│   ├── roles/pbs-client/defaults/main.yml
 │   │   ├── pbs_api_token_value      ← vault_pbs_api_token_value
 │   │   ├── proxmox_api_token_id     ← vault_proxmox_api_token_id
 │   │   └── proxmox_api_token_secret ← vault_proxmox_api_token_secret
-│   │         └──> pbs_client role (tasks/storage.yml, tasks/pbs-token.yml)
+│   │         └──> pbs-client role (tasks/storage.yml, tasks/pbs-token.yml)
 │   │
 │   ├── roles/immich/defaults/main.yml
 │   │   └── immich_db_password ← vault_immich_db_password
