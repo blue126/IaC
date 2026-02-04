@@ -56,7 +56,7 @@ mv ansible/roles/pbs-zfs ansible/roles/pbs_zfs
 **影响范围**（全部已更新）：
 - `ansible/playbooks/deploy-pbs.yml` — role 引用
 - `AGENTS.md` — role 列表
-- `docs/deployment/pbs_esxi_deployment.md` — 13 处文档引用
+- `docs/deployment/pbs-esxi-deployment.md` — 13 处文档引用
 
 **注意**：只改 role 目录名，不改 playbook 文件名（`deploy-pbs.yml` 保持不变，因为文件名不是 Ansible 标识符）。
 
@@ -77,6 +77,8 @@ mv ansible/roles/anki-sync-server ansible/roles/anki_sync_server
 - Terraform `lxc_name` / Netbox `name`
 
 **设计决策**：Role 目录名是 Ansible 内部标识符，遵循 `snake_case`；systemd 服务名、Terraform 资源名是外部基础设施标识符，保持原样不动。这是两个不同的命名空间。
+
+> **后续更新（2026-02-04）**：`anki_sync_server` 进一步重命名为 `anki`，使 role 名与 Terraform 文件名 (`anki.tf`)、playbook (`deploy-anki.yml`) 完全一致，确保 CI/CD 管道的 convention-based 自动匹配能正确关联 `ansible/roles/anki/` 的变更。
 
 ### 3.3 修复 `common` Role 变量作用域
 
@@ -281,11 +283,11 @@ a6c5e1c refactor(ansible): standardize role naming, variable scope, and playbook
 ```
 
 包含以下文件变更：
-- 重命名：`pbs-zfs/` → `pbs_zfs/`，`anki-sync-server/` → `anki_sync_server/`
+- 重命名：`pbs-zfs/` → `pbs_zfs/`，`anki-sync-server/` → `anki_sync_server/`（后续进一步重命名为 `anki/`）
 - 新增：`inventory/group_vars/all/common.yml`，`roles/common/defaults/main.yml`，`roles/netbox_sync/defaults/main.yml`
 - 修改：`deploy-pbs.yml`，`deploy-anki.yml`，`deploy-rustdesk.yml`，`sync-netbox.yml`，`rustdesk/tasks/main.yml`
 - 删除：`common/vars/main.yml`，空 `handlers/` 目录
-- 文档：`AGENTS.md`，`pbs_esxi_deployment.md`，vault 相关文档
+- 文档：`AGENTS.md`，`pbs-esxi-deployment.md`，vault 相关文档
 
 ### Phase 2 提交记录
 
@@ -320,4 +322,4 @@ a6c5e1c refactor(ansible): standardize role naming, variable scope, and playbook
 - 更新：`pbs/tasks/main.yml` — 添加 ZFS tasks include
 - 简化：`deploy-pbs.yml` — 只使用 `pbs` role
 - 删除：`ansible/roles/pbs_zfs/` 目录
-- 文档：更新 `AGENTS.md`、`ansible-role-architecture.md`、`pbs_esxi_deployment.md`
+- 文档：更新 `AGENTS.md`、`ansible-role-architecture.md`、`pbs-esxi-deployment.md`

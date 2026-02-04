@@ -54,7 +54,7 @@
 
 **重复文件**：
 - ❌ **删除**：`/netbox_deployment.md` (根目录，5.3KB)
-- ✅ **保留**：`deployment/netbox_deployment.md` (单一真实来源)
+- ✅ **保留**：`deployment/netbox-deployment.md` (单一真实来源)
 
 **原因**：两个文件内容100%相同，保留deployment/目录中的版本作为正式部署指南。
 
@@ -68,10 +68,10 @@
 
 | 文件 | 大小 | 说明 |
 |------|------|------|
-| `terraform_proxmox_complete_guide.md` | 46KB | 整合5个Terraform learningnotes，2022行 |
-| `ansible_patterns_and_best_practices.md` | 30KB | Ansible最佳实践综合指南 |
+| `terraform-proxmox-complete-guide.md` | 46KB | 整合5个Terraform learningnotes，2022行 |
+| `ansible-patterns-and-best-practices.md` | 30KB | Ansible最佳实践综合指南 |
 | `README.md` | 5.1KB | guides/ 目录导航 |
-| `QUICK_REFERENCE.md` | 5.2KB | 快速参考卡片 |
+| `QUICK-REFERENCE.md` | 5.2KB | 快速参考卡片 |
 
 **覆盖的learningnotes**：
 - Terraform系列：
@@ -99,10 +99,10 @@
 |------|------|-----------|
 | `README.md` | 6.0KB | 总索引和快速诊断流程 |
 | `STRUCTURE.md` | 9.0KB | 文档结构和学习路径 |
-| `terraform_issues.md` | 14KB | 8个Terraform问题 |
-| `ansible_issues.md` | 15KB | 6个Ansible问题 |
-| `network_connectivity.md` | 12KB | 5个网络问题 |
-| `deployment_issues.md` | 16KB | 4个部署问题 |
+| `terraform-issues.md` | 14KB | 8个Terraform问题 |
+| `ansible-issues.md` | 15KB | 6个Ansible问题 |
+| `network-connectivity.md` | 12KB | 5个网络问题 |
+| `deployment-issues.md` | 16KB | 4个部署问题 |
 
 **总计**：23个完整的问题-原因-解决方案
 
@@ -122,7 +122,7 @@
   - `2026-01-29-ansible-troubleshooting.md`
   - `2026-01-29-inventory-migration-trap.md`
 - 网络问题：
-  - `slow_smb_over_wifi.md`
+  - `slow-smb-over-wifi.md`
   - `2025-12-03-caddy-webdav-tailscale-troubleshooting.md`
 - 部署问题：
   - `2025-11-29-netbox-deployment-version-troubleshooting.md`
@@ -218,13 +218,13 @@ docs/
 ├── deployment/ (11个文件，命名统一)
 ├── guides/ (7个文件，新增) ⭐
 │   ├── README.md
-│   ├── terraform_proxmox_complete_guide.md (46KB)
-│   ├── ansible_patterns_and_best_practices.md (30KB)
+│   ├── terraform-proxmox-complete-guide.md (46KB)
+│   ├── ansible-patterns-and-best-practices.md (30KB)
 │   └── ...
 ├── troubleshooting/ (6个文件，新增) ⭐
 │   ├── README.md
-│   ├── terraform_issues.md
-│   ├── ansible_issues.md
+│   ├── terraform-issues.md
+│   ├── ansible-issues.md
 │   └── ...
 ├── learningnotes/ (32个文件，INDEX.md增强) ⭐
 │   ├── INDEX.md (435行，完整索引)

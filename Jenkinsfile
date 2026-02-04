@@ -298,7 +298,7 @@ pipeline {
                 }
             }
             steps {
-                sh './scripts/refresh_terraform_state.sh'
+                sh './scripts/refresh-terraform-state.sh'
             }
         }
 
@@ -345,7 +345,7 @@ pipeline {
                         string(credentialsId: 'notion-token', variable: 'NOTION_TOKEN'),
                         string(credentialsId: 'notion-database-id', variable: 'NOTION_DATABASE_ID')
                     ]) {
-                        sh 'NOTION_DRY_RUN=false python3 scripts/sync_to_notion.py'
+                        sh 'NOTION_DRY_RUN=false python3 scripts/sync-to-notion.py'
                     }
                 }
             }

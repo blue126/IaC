@@ -30,7 +30,7 @@ ansible/
 │   ├── immich/          # 应用服务
 │   ├── caddy/           # 应用服务
 │   ├── n8n/             # 应用服务
-│   ├── anki_sync_server/# 应用服务
+│   ├── anki/            # 应用服务
 │   ├── rustdesk/        # 应用服务
 │   ├── pbs/             # 应用服务（含 ZFS 存储配置）
 │   └── pbs_client/      # 工具 —— 配置 Proxmox 节点连接 PBS
@@ -62,7 +62,7 @@ ansible/
 | `immich` | Immich 照片管理 | Docker Compose（官方 compose 文件） | immich (VM) |
 | `caddy` | Caddy 反向代理 + WebDAV | 自定义二进制（Alpine + systemd） | caddy (LXC) |
 | `n8n` | n8n 工作流自动化 | npm 全局安装 + systemd | n8n (LXC) |
-| `anki_sync_server` | Anki 同步服务 | pip venv 安装 + systemd | anki (LXC) |
+| `anki` | Anki 同步服务 | pip venv 安装 + systemd | anki (LXC) |
 | `rustdesk` | RustDesk 远程桌面 | Docker Compose | rustdesk (VM) |
 | `pbs` | Proxmox Backup Server + ZFS 存储 | 系统包 + ZFS 命令 + API 配置 | pbs (VM) |
 
@@ -110,7 +110,7 @@ roles/<role_name>/
 | immich | ✅ | ✅ | ✅ | ✅ (2) | |
 | caddy | ✅ | ✅ | ✅ | ✅ (1) | Alpine Linux，需要 SSH/Python 预启动 |
 | n8n | — | ✅ | ✅ | ✅ (1) | 无可配置参数 |
-| anki_sync_server | ✅ | ✅ | ✅ | ✅ (1) | |
+| anki | ✅ | ✅ | ✅ | ✅ (1) | |
 | rustdesk | ✅ | ✅ | — | ✅ (1) | |
 | pbs | ✅ | ✅ | — | — | tasks 含 ZFS 配置（zfs-verify/zfs-pool/zfs-datastore） |
 | pbs_client | ✅ | ✅ | — | — | tasks 拆分为 storage/backup-jobs/pbs-token |
@@ -225,7 +225,7 @@ role defaults (优先级 2)          → 可覆盖的默认值
 | `rustdesk_data_dir` | `"/var/lib/rustdesk"` | 数据目录 |
 | `rustdesk_image` | `"rustdesk/rustdesk-server:latest"` | Docker 镜像 |
 
-**anki_sync_server**
+**anki**
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `anki_port` | `8080` | 监听端口 |
@@ -296,8 +296,8 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 
     独立 Role（无依赖）:
     ┌───────┐  ┌──────────────────┐  ┌──────────────┐
-    │ caddy │  │ anki_sync_server │  │     n8n      │
-    └───────┘  └──────────────────┘  └──────────────┘
+    │ caddy │  │      anki        │  │     n8n      │
+    └───────┘  └─────────────────┘  └──────────────┘
 ```
 
 ---
@@ -344,7 +344,7 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 | `deploy-homepage.yml` | homepage | tailscale → homepage | 源码构建 |
 | `deploy-pbs.yml` | pbs | pbs | 系统包 + ZFS |
 | `deploy-caddy.yml` | caddy | caddy | 自定义二进制（含 SSH 预启动） |
-| `deploy-anki.yml` | anki | anki_sync_server | pip venv |
+| `deploy-anki.yml` | anki | anki | pip venv |
 | `deploy-n8n.yml` | n8n | n8n | npm 全局安装 |
 | `install-tailscale.yml` | tailscale | tailscale | 脚本安装 |
 | `setup-pbs-backup.yml` | pbs, pve0 | pbs_client | API 配置 |
@@ -404,5 +404,5 @@ Internet
 
 - [Ansible Vault Architecture Design](./ansible-vault-architecture.md) — 密钥管理架构
 - [Ansible Role 重构历程](../learningnotes/2026-01-31-ansible-role-refactoring.md) — 重构过程记录
-- [Ansible Patterns and Best Practices](../guides/ansible_patterns_and_best_practices.md) — 最佳实践指南
-- [PBS ESXi Deployment Guide](../deployment/pbs_esxi_deployment.md) — PBS 部署指南
+- [Ansible Patterns and Best Practices](../guides/ansible-patterns-and-best-practices.md) — 最佳实践指南
+- [PBS ESXi Deployment Guide](../deployment/pbs-esxi-deployment.md) — PBS 部署指南

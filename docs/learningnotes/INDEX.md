@@ -101,7 +101,7 @@
 | 2025-11-30 | [Anki Sync Server Deployment - Learning Notes](./2025-11-30-anki-sync-server-deployment.md) | Anki, Deployment, Terraform, Ansible | **Active** | Anki Sync Server 在 LXC 上的部署、配置、数据库管理 |
 | 2025-11-30 | [Ansible 部署验证模式与 Immich 模块化重构](./2025-11-30-ansible-deployment-verification.md) | Ansible, Verification, Immich, Patterns | **Active** | 部署后验证模式 (ports, services, HTTP, DB)、Immich 角色重构 |
 | 2025-11-30 | [LXC 与 VM 网络桥接拓扑学习笔记](./2025-11-30-lxc-vm-network-bridge.md) | LXC, VM, Network, Proxmox, Netbox | **Active** | veth/tap 网络绑定、vmbr 桥接配置、Netbox 建模 |
-| 2025-11-30 | [Terraform Proxmox Provider 崩溃与版本兼容性问题](./2025-11-30-terraform-proxmox-provider-crash.md) | Terraform, Proxmox, Provider, Troubleshooting | **Superseded** | 参考 `guides/terraform_proxmox_complete_guide.md` |
+| 2025-11-30 | [Terraform Proxmox Provider 崩溃与版本兼容性问题](./2025-11-30-terraform-proxmox-provider-crash.md) | Terraform, Proxmox, Provider, Troubleshooting | **Superseded** | 参考 `guides/terraform-proxmox-complete-guide.md` |
 | 2025-11-30 | [Terraform 代码重构与状态对齐](./2025-11-30-terraform-refactoring-best-practices.md) | Terraform, Refactoring, Modules, State | **Superseded** | 已整合到正式指南中 |
 
 ### 2025-11-29
@@ -115,8 +115,8 @@
 
 | 日期 | 标题 | 标签 | 状态 | 摘要 |
 |------|------|------|------|------|
-| 2025-11-28 | [Terraform 模块化重构、Netbox 部署与 Cloud-Init 深度调试](./2025-11-28-terraform-modules-netbox-debugging.md) | Terraform, Proxmox, Cloud-Init, Netbox | **Superseded** | 已整合到 `guides/terraform_proxmox_complete_guide.md` |
-| 2025-11-28 | [Terraform Learning Notes - Proxmox Deployment](./2025-11-28-terraform-proxmox.md) | Terraform, Proxmox, IaC | **Superseded** | 已整合到 `guides/terraform_proxmox_complete_guide.md` |
+| 2025-11-28 | [Terraform 模块化重构、Netbox 部署与 Cloud-Init 深度调试](./2025-11-28-terraform-modules-netbox-debugging.md) | Terraform, Proxmox, Cloud-Init, Netbox | **Superseded** | 已整合到 `guides/terraform-proxmox-complete-guide.md` |
+| 2025-11-28 | [Terraform Learning Notes - Proxmox Deployment](./2025-11-28-terraform-proxmox.md) | Terraform, Proxmox, IaC | **Superseded** | 已整合到 `guides/terraform-proxmox-complete-guide.md` |
 
 ---
 
@@ -139,7 +139,7 @@
 - [混合 IaC 工作流：Terraform 与 Ansible 协同管理 Netbox](./2025-12-04-hybrid-iac-netbox-workflow.md) - 与 Ansible 协同
 
 **相关正式指南**
-- 📖 `guides/terraform_proxmox_complete_guide.md` - 完整参考
+- 📖 `guides/terraform-proxmox-complete-guide.md` - 完整参考
 
 ---
 
@@ -243,7 +243,7 @@
 ### Terraform 学习路径
 
 **初学者 (Beginner)**
-1. 📖 `guides/terraform_proxmox_complete_guide.md` - 完整指南
+1. 📖 `guides/terraform-proxmox-complete-guide.md` - 完整指南
 2. [Terraform Learning Notes - Proxmox Deployment](./2025-11-28-terraform-proxmox.md) - 基础概念
 3. [SSH Key 管理的混合策略](./2026-01-28-ssh-key-management-strategy.md) - 实践模式
 
@@ -300,10 +300,10 @@
 
 | 学习笔记 | 相关正式指南 | 状态 |
 |---------|------------|------|
-| 2025-11-28-terraform-proxmox.md | `guides/terraform_proxmox_complete_guide.md` | Superseded |
-| 2025-11-28-terraform-modules-netbox-debugging.md | `guides/terraform_proxmox_complete_guide.md` | Superseded |
-| 2025-11-30-terraform-proxmox-provider-crash.md | `guides/terraform_proxmox_complete_guide.md` | Superseded |
-| 2025-11-30-terraform-refactoring-best-practices.md | `guides/terraform_proxmox_complete_guide.md` | Superseded |
+| 2025-11-28-terraform-proxmox.md | `guides/terraform-proxmox-complete-guide.md` | Superseded |
+| 2025-11-28-terraform-modules-netbox-debugging.md | `guides/terraform-proxmox-complete-guide.md` | Superseded |
+| 2025-11-30-terraform-proxmox-provider-crash.md | `guides/terraform-proxmox-complete-guide.md` | Superseded |
+| 2025-11-30-terraform-refactoring-best-practices.md | `guides/terraform-proxmox-complete-guide.md` | Superseded |
 | 2025-11-29-netbox-deployment-version-troubleshooting.md | `guides/netbox_deployment_guide.md` | Superseded |
 
 ### 已提升到故障排查指南

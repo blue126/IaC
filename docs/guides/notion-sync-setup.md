@@ -27,7 +27,7 @@
 
 ## 3. Configure Script (Column Mapping)
 
-The script `scripts/sync_to_notion.py` has a `COLUMN_MAPPING` section at the top. 
+The script `scripts/sync-to-notion.py` has a `COLUMN_MAPPING` section at the top. 
 **You MUST match these values to your actual Notion Database column names.**
 
 Default configuration:
@@ -60,7 +60,7 @@ pip install -r scripts/requirements.txt
 # 2. Set env vars and run
 export NOTION_TOKEN="secret_..."
 export NOTION_DATABASE_ID="a8ae..."
-python3 scripts/sync_to_notion.py
+python3 scripts/sync-to-notion.py
 ```
 
 ## 5. Jenkins Integration
@@ -71,7 +71,7 @@ Add this to your `Jenkinsfile` in the `post { success { ... } }` block:
 withCredentials([string(credentialsId: 'notion-token', variable: 'NOTION_TOKEN'), 
                  string(credentialsId: 'notion-db-id', variable: 'NOTION_DATABASE_ID')]) {
     sh 'pip install -r scripts/requirements.txt'
-    sh 'python3 scripts/sync_to_notion.py'
+    sh 'python3 scripts/sync-to-notion.py'
 }
 ```
 *(Note: You need to add `notion-token` and `notion-db-id` to Jenkins Credentials first)*

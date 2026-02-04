@@ -52,14 +52,14 @@
 
     - name: Add VM to in-memory inventory
       add_host:
-        name: template_vm
+        name: template-vm
         ansible_host: "{{ vm_ip.stdout }}"
         ansible_user: ubuntu
         ansible_ssh_pass: ubuntu
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
 
 - name: Install QEMU Guest Agent in VM
-  hosts: template_vm
+  hosts: template-vm
   become: true
   gather_facts: false
   

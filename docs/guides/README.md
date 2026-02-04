@@ -5,7 +5,7 @@
 ## 文档概览
 
 ### 主指南
-- **terraform_proxmox_complete_guide.md** (2022 行)
+- **terraform-proxmox-complete-guide.md** (2022 行)
   - 综合指南，集合 5 个学习笔记的核心内容
   - 涵盖从基础配置到生产级最佳实践
   - 包含 40+ 个常见问题与解决方案

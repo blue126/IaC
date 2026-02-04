@@ -119,7 +119,7 @@ ansible/
 | | `vault_pbs_api_token_value` | Ansible (role defaults → pbs_client role) |
 | **VM 默认凭证** | `vault_vm_default_password` | Ansible (group_vars → pve_vms 组) |
 | **Immich** | `vault_immich_db_password` | Ansible (role defaults → immich role) |
-| **Anki** | `vault_anki_sync_users` | Ansible (role defaults → anki_sync_server role) |
+| **Anki** | `vault_anki_sync_users` | Ansible (role defaults → anki role) |
 | **Cloudflare** | `vault_cloudflare_api_token` | Ansible (role defaults → caddy role) |
 
 ### 4.2 间接引用模式选择规则
@@ -256,7 +256,7 @@ vault.yml (18 个变量)
 │   │   └── immich_db_password ← vault_immich_db_password
 │   │         └──> immich role (templates/env.j2)
 │   │
-│   └── roles/anki_sync_server/defaults/main.yml
+│   └── roles/anki/defaults/main.yml
 │       └── anki_sync_users ← vault_anki_sync_users
 │             └──> anki role (templates/anki-sync-server.service.j2)
 │
@@ -280,7 +280,7 @@ vault.yml (18 个变量)
 | 2 | `group_vars/pve_vms.yml` | 3 个明文密码 → `"{{ vault_vm_default_password }}"` |
 | 3 | `roles/immich/defaults/main.yml` | `immich_db_password: admin` → `"{{ vault_immich_db_password }}"` |
 | 4 | `host_vars/immich.yml` | 删除 `immich_db_password` 行（role defaults 接管） |
-| 5 | `roles/anki_sync_server/defaults/main.yml` | `anki_sync_users: ["user:pass"]` → `"{{ vault_anki_sync_users }}"` |
+| 5 | `roles/anki/defaults/main.yml` | `anki_sync_users: ["user:pass"]` → `"{{ vault_anki_sync_users }}"` |
 | 6 | `host_vars/anki.yml` | 删除 `anki_sync_users` 行（role defaults 接管） |
 | 7 | `AGENTS.md` | 新增 Vault Architecture 章节 |
 
@@ -319,7 +319,7 @@ ansible immich -m debug -a "var=immich_db_password"
 
 **A**: host_vars 优先级更高，会覆盖 role defaults。重构前 `immich_db_password` 就是这种情况 — host_vars 中有 `admin`，role defaults 中也有 `admin`，实际使用的是 host_vars 的值。重构时需要先改 role defaults 为 vault 引用，再删 host_vars 中的重复定义，确保 vault 引用能生效。
 
-### Q: Terraform 中的明文密码（pve_cluster.tf 的 `ansible_ssh_pass = "Admin123..."`）要不要一起迁？
+### Q: Terraform 中的明文密码（pve-cluster.tf 的 `ansible_ssh_pass = "Admin123..."`）要不要一起迁？
 
 **A**: 本次暂不处理。方案有两个：(A) Terraform 用 `var.pm_password` 引用 secrets.auto.tfvars；(B) 从 Terraform 删除 `ansible_ssh_pass`，改在 Ansible `group_vars/proxmox_cluster.yml` 中管理。方案 B 更符合"Ansible 管密码、Terraform 管基础设施"的分工原则，但改动较大，留作后续任务。
 

@@ -10,20 +10,20 @@
 
 | 症状描述 | 相关文档 | 关键词 |
 |---------|---------|-------|
-| Terraform 命令崩溃或报权限错误 | [terraform_issues.md](./terraform_issues.md) | Provider版本、Proxmox兼容性、API Token |
-| 虚拟机无法启动或进入UEFI Shell | [terraform_issues.md](./terraform_issues.md) | 磁盘调整、Cloud-Init、QEMU Agent |
-| Ansible连接失败或依赖缺失 | [ansible_issues.md](./ansible_issues.md) | Callback插件、环境依赖、模块导入 |
-| Inventory变更导致配置丢失 | [ansible_issues.md](./ansible_issues.md) | 动态Inventory、变量迁移、数据分离 |
-| SMB/文件传输速度异常慢 | [network_connectivity.md](./network_connectivity.md) | Tailscale路由、网络延迟、MTU碎片 |
-| Caddy WebDAV或反代配置出错 | [network_connectivity.md](./network_connectivity.md) | Caddyfile语法、指令顺序、ACL限制 |
-| Netbox容器启动失败 | [deployment_issues.md](./deployment_issues.md) | Docker版本、配置参数、数据库迁移 |
-| RustDesk客户端连不上 | [deployment_issues.md](./deployment_issues.md) | DNS解析、端口直连、架构设计 |
+| Terraform 命令崩溃或报权限错误 | [terraform-issues.md](./terraform-issues.md) | Provider版本、Proxmox兼容性、API Token |
+| 虚拟机无法启动或进入UEFI Shell | [terraform-issues.md](./terraform-issues.md) | 磁盘调整、Cloud-Init、QEMU Agent |
+| Ansible连接失败或依赖缺失 | [ansible-issues.md](./ansible-issues.md) | Callback插件、环境依赖、模块导入 |
+| Inventory变更导致配置丢失 | [ansible-issues.md](./ansible-issues.md) | 动态Inventory、变量迁移、数据分离 |
+| SMB/文件传输速度异常慢 | [network-connectivity.md](./network-connectivity.md) | Tailscale路由、网络延迟、MTU碎片 |
+| Caddy WebDAV或反代配置出错 | [network-connectivity.md](./network-connectivity.md) | Caddyfile语法、指令顺序、ACL限制 |
+| Netbox容器启动失败 | [deployment-issues.md](./deployment-issues.md) | Docker版本、配置参数、数据库迁移 |
+| RustDesk客户端连不上 | [deployment-issues.md](./deployment-issues.md) | DNS解析、端口直连、架构设计 |
 
 ---
 
 ## 文档概览
 
-### 1. [terraform_issues.md](./terraform_issues.md) - Terraform故障排查
+### 1. [terraform-issues.md](./terraform-issues.md) - Terraform故障排查
 **包含内容**:
 - Terraform Proxmox Provider版本选择 (rc04 vs rc05 vs v2.9.14)
 - Provider崩溃和权限错误的原因与解决方案
@@ -40,7 +40,7 @@
 
 ---
 
-### 2. [ansible_issues.md](./ansible_issues.md) - Ansible故障排查
+### 2. [ansible-issues.md](./ansible-issues.md) - Ansible故障排查
 **包含内容**:
 - Ansible 输出格式 (Callback 插件) 演变
 - DevContainer 环境依赖缺失：passlib、ansible.posix
@@ -56,7 +56,7 @@
 
 ---
 
-### 3. [network_connectivity.md](./network_connectivity.md) - 网络连接问题
+### 3. [network-connectivity.md](./network-connectivity.md) - 网络连接问题
 **包含内容**:
 - Windows SMB 上传速度慢：Tailscale子网路由优先级问题
 - 网络诊断三板斧：Ping、Tracert、路由表
@@ -66,12 +66,12 @@
 - Caddyfile 最佳实践
 
 **来源**:
-- `/mnt/docs/slow_smb_over_wifi.md`
+- `/mnt/docs/slow-smb-over-wifi.md`
 - `/mnt/docs/learningnotes/2025-12-03-caddy-webdav-tailscale-troubleshooting.md`
 
 ---
 
-### 4. [deployment_issues.md](./deployment_issues.md) - 部署相关问题
+### 4. [deployment-issues.md](./deployment-issues.md) - 部署相关问题
 **包含内容**:
 - Netbox 版本兼容性：netbox-docker vs Netbox应用版本
 - DATABASE (单数) vs DATABASES (复数) 配置
@@ -94,13 +94,13 @@
 ```
 遇到问题
  │
- ├─ 是否涉及Terraform? ─────────→ 查看 terraform_issues.md
+ ├─ 是否涉及Terraform? ─────────→ 查看 terraform-issues.md
  │
- ├─ 是否涉及Ansible/Inventory? ──→ 查看 ansible_issues.md
+ ├─ 是否涉及Ansible/Inventory? ──→ 查看 ansible-issues.md
  │
- ├─ 是否涉及网络/性能/连接? ─────→ 查看 network_connectivity.md
+ ├─ 是否涉及网络/性能/连接? ─────→ 查看 network-connectivity.md
  │
- └─ 是否涉及Docker/容器/部署? ──→ 查看 deployment_issues.md
+ └─ 是否涉及Docker/容器/部署? ──→ 查看 deployment-issues.md
 ```
 
 ---

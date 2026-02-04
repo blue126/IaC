@@ -5,10 +5,10 @@
 | 文件名 | 大小 | 问题数 | 主要关键词 |
 |------|------|--------|-----------|
 | **README.md** | 6.0K | - | 导航、快速诊断、最佳实践 |
-| **terraform_issues.md** | 14K | 8 | Provider版本、磁盘调整、API Token |
-| **ansible_issues.md** | 15K | 6 | 依赖管理、Inventory迁移、模板参数化 |
-| **network_connectivity.md** | 12K | 4 | SMB性能、Tailscale、Caddy、DNS |
-| **deployment_issues.md** | 16K | 4 | Netbox版本、异步任务、RustDesk架构 |
+| **terraform-issues.md** | 14K | 8 | Provider版本、磁盘调整、API Token |
+| **ansible-issues.md** | 15K | 6 | 依赖管理、Inventory迁移、模板参数化 |
+| **network-connectivity.md** | 12K | 4 | SMB性能、Tailscale、Caddy、DNS |
+| **deployment-issues.md** | 16K | 4 | Netbox版本、异步任务、RustDesk架构 |
 | **总计** | **63K** | **22** | 综合覆盖 |
 
 ---
@@ -32,7 +32,7 @@
 
 ---
 
-### terraform_issues.md (Terraform 故障)
+### terraform-issues.md (Terraform 故障)
 **问题数**: 8 个完整问题
 
 #### 问题列表:
@@ -78,7 +78,7 @@
 
 ---
 
-### ansible_issues.md (Ansible 故障)
+### ansible-issues.md (Ansible 故障)
 **问题数**: 6 个完整问题
 
 #### 问题列表:
@@ -116,7 +116,7 @@
 
 ---
 
-### network_connectivity.md (网络问题)
+### network-connectivity.md (网络问题)
 **问题数**: 4 个完整问题 + 1 个诊断指南
 
 #### 问题列表:
@@ -150,7 +150,7 @@
 
 ---
 
-### deployment_issues.md (部署问题)
+### deployment-issues.md (部署问题)
 **问题数**: 4 个完整问题
 
 #### 问题列表:
@@ -191,10 +191,10 @@
 
 ### 场景 2: 学习基础设施部署
 推荐阅读顺序:
-1. **terraform_issues.md** - 理解基础设施代码管理
-2. **ansible_issues.md** - 理解配置管理
-3. **network_connectivity.md** - 理解网络架构
-4. **deployment_issues.md** - 理解容器部署
+1. **terraform-issues.md** - 理解基础设施代码管理
+2. **ansible-issues.md** - 理解配置管理
+3. **network-connectivity.md** - 理解网络架构
+4. **deployment-issues.md** - 理解容器部署
 
 ### 场景 3: 完全新手
 1. 先读 **README.md** 的"最佳实践建议"

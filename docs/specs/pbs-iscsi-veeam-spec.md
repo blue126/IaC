@@ -3,11 +3,11 @@
 > **版本**: 1.0  
 > **日期**: 2026-02-03  
 > **状态**: 已批准  
-> **关联文档**: [pbs_iscsi_veeam_guide.md](../deployment/pbs_iscsi_veeam_guide.md)
+> **关联文档**: [pbs-iscsi-veeam-guide.md](../deployment/pbs-iscsi-veeam-guide.md)
 
 ## 1. 背景概述
 
-本规范基于 `docs/deployment/pbs_iscsi_veeam_guide.md` 中描述的混合备份架构方案，定义具体的 IaC 实施细节。
+本规范基于 `docs/deployment/pbs-iscsi-veeam-guide.md` 中描述的混合备份架构方案，定义具体的 IaC 实施细节。
 
 **核心需求**: T7910 冷备份服务器上的 PBS VM 通过 HBA 直通独占物理硬盘。需要在不改变硬件配置的情况下，让同主机的 Windows Server VM 能够使用底层 ZFS 存储空间运行 Veeam VBR。
 
@@ -555,5 +555,5 @@ terraform plan
 ### 7.3 相关文档更新
 
 部署完成后需更新：
-- `docs/deployment/pbs_iscsi_veeam_guide.md` — 标记实施状态为"已完成"
+- `docs/deployment/pbs-iscsi-veeam-guide.md` — 标记实施状态为"已完成"
 - `ansible/README.md` — 添加 `pbs_iscsi` role 说明

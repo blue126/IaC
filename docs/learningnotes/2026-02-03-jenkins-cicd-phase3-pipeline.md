@@ -197,7 +197,7 @@ options {
 
 ### 1. 脚本路径硬编码
 
-**问题**：`refresh_terraform_state.sh` 使用硬编码路径 `/workspaces/IaC/`
+**问题**：`refresh-terraform-state.sh` 使用硬编码路径 `/workspaces/IaC/`
 
 **表现**：在 Jenkins 中失败，因为工作目录是 `/var/lib/jenkins/workspace/IaC-Homelab-Pipeline/`
 
@@ -348,7 +348,7 @@ Collection ansible.posix does not support Ansible version 2.14.18
 
 ```
 Jenkinsfile                    # Pipeline 定义
-scripts/refresh_terraform_state.sh  # 修复路径问题
+scripts/refresh-terraform-state.sh  # 修复路径问题
 ```
 
 ## Q&A 汇总

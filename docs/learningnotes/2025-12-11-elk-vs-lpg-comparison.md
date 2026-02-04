@@ -1,7 +1,7 @@
 # ELK 与 LPG (PLG) 日志方案对比
 
 **日期**: 2025-12-11
-**背景**: 在规划 [LPG-Stack-deployment-plan.md](../deployment/LPG-Stack-deployment-plan.md) 时，我们选择了 LPG (Loki-Prometheus-Grafana) 栈而不是传统的 ELK。为了更好地理解这一决策，我们需要明确两者的核心区别。
+**背景**: 在规划 LPG Stack 部署时，我们选择了 LPG (Loki-Prometheus-Grafana) 栈而不是传统的 ELK。为了更好地理解这一决策，我们需要明确两者的核心区别。
 
 ## 1. 核心概念定义
 

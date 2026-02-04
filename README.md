@@ -64,7 +64,7 @@ We use a **split inventory** approach for better organization and scalability:
 ### 1. Environment Setup
 ```bash
 # Initialize Python virtual environment
-./scripts/setup_env.sh
+./scripts/setup-env.sh
 source .venv/bin/activate
 ```
 
@@ -138,10 +138,9 @@ connections.tf               # Cable：vmbr1 ↔ eth0
 字段所有权当前策略：规格与存在性由 Terraform 权威；标签、描述等可由 NetBox 补充。后期 pull 功能上线时不覆盖人工字段，只做校验。更多细节参见子目录说明文档。
 
 ### Deployment Guides
-- [Netbox Deployment](docs/deployment/netbox_deployment.md) - Docker Compose setup with health checks
-- [Proxmox VM Provisioning](docs/deployment/proxmox_vm_deployment.md) - Terraform module usage
-- [Samba File Server](docs/deployment/SAMBA_VM_DEPLOYMENT.md) - SMB/NetBIOS configuration
-- [Immich Deployment](docs/deployment/immich_deployment.md) - Photo management + ML stack
+- [Netbox Deployment](docs/deployment/netbox-deployment.md) - Docker Compose setup with health checks
+- [Proxmox VM Provisioning](docs/deployment/proxmox-vm-deployment.md) - Terraform module usage
+- [Immich Deployment](docs/deployment/immich-deployment.md) - Photo management + ML stack
 
 ### Learning Notes
 - [Verification Pattern Guide](docs/learningnotes/2025-11-30-ansible-deployment-verification.md) - Automated health checks

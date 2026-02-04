@@ -185,7 +185,7 @@ permissions for user/token root@pam are not sufficient... missing: [VM.Monitor]
 **在生成 Terraform 变量的脚本中加入校验**:
 
 ```python
-# fetch_planned_vms.py (伪代码)
+# fetch-planned-vms.py (伪代码)
 def calculate_disk_size(netbox_vm, template_vm):
     netbox_size_gb = netbox_vm.disk / 1024  # API返回MB，需转换
     template_size_gb = query_proxmox_template_size(template_vm.template_id)

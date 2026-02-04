@@ -114,7 +114,7 @@ provider "proxmox" {
 | F3 | 模板查找无保护 | 高 | 模板不存在时会 crash |
 | F4 | 迁移脚本 import 格式错误 | 高 | `node/qemu/vmid` 应为 `node/vmid` |
 | F5 | 孤立变量未清理 | 低 | telmate 遗留变量 |
-| F6 | pve_cluster.tf 硬编码密码 | 高 | SSH 密码明文写在代码中 |
+| F6 | pve-cluster.tf 硬编码密码 | 高 | SSH 密码明文写在代码中 |
 | F7 | LXC outputs 引用错误 | 中 | bpg 不支持旧的输出路径 |
 | F8 | 串口控制台缺失 | 中 | 需要 `serial_device` + `vga { type = "serial0" }` |
 | F9 | CPU type 硬编码 | 低 | 提取为变量 |
@@ -124,7 +124,7 @@ provider "proxmox" {
 
 迁移中顺带完成的安全改进：
 
-- `pve_cluster.tf` 中硬编码的 SSH 密码（`Admin123...`）替换为 Vault 变量引用
+- `pve-cluster.tf` 中硬编码的 SSH 密码（`Admin123...`）替换为 Vault 变量引用
 - `terraform.tfvars` 中的 API token 和 SSH key 移除，改由 `secrets.auto.tfvars`（gitignored）管理
 - `scripts/get-secrets.sh` 更新，新增 `proxmox_ssh_password` 提取
 
@@ -183,7 +183,7 @@ sshkeys = [{% set keys = vault_sshkeys.strip().splitlines() | select | list %}{%
 
 ## 5. 迁移后问题修复
 
-迁移后遇到了多个需要逐一排查和修复的问题。详细的症状、诊断步骤和解决方案记录在 [Terraform 故障排查文档](../troubleshooting/terraform_issues.md) 中（问题 9-13），以下是概要。
+迁移后遇到了多个需要逐一排查和修复的问题。详细的症状、诊断步骤和解决方案记录在 [Terraform 故障排查文档](../troubleshooting/terraform-issues.md) 中（问题 9-13），以下是概要。
 
 ### 5.1 EFI Disk pre_enrolled_keys 不一致
 
@@ -195,11 +195,11 @@ telmate 使用 `"pc"` 作为 machine type，确认 bpg 直接接受 `"pc"`，移
 
 ### 5.3 Apply 超时与锁文件残留
 
-Apply 时 rustdesk VM 从关机状态启动，provider 等待 QEMU Guest Agent 返回 IP（默认超时 15 分钟）。同时 PVE 节点上存在之前操作残留的空锁文件，阻塞了 API 调用。清理锁文件后问题解决。详见[问题 9、10](../troubleshooting/terraform_issues.md#问题-9-apply-超时--vm-启动后-provider-长时间等待)。
+Apply 时 rustdesk VM 从关机状态启动，provider 等待 QEMU Guest Agent 返回 IP（默认超时 15 分钟）。同时 PVE 节点上存在之前操作残留的空锁文件，阻塞了 API 调用。清理锁文件后问题解决。详见[问题 9、10](../troubleshooting/terraform-issues.md#问题-9-apply-超时--vm-启动后-provider-长时间等待)。
 
 ### 5.4 State 迁移 — 旧资源无法移除
 
-Provider 切换后 `terraform state rm` 无法解析旧 schema。通过直接操作 state JSON 文件绕过。详见[问题 13](../troubleshooting/terraform_issues.md#问题-13-state-迁移后-terraform-state-rm-无法移除旧资源)。
+Provider 切换后 `terraform state rm` 无法解析旧 schema。通过直接操作 state JSON 文件绕过。详见[问题 13](../troubleshooting/terraform-issues.md#问题-13-state-迁移后-terraform-state-rm-无法移除旧资源)。
 
 ### 5.5 ignore_changes 逐项审查
 
@@ -209,8 +209,8 @@ Provider 切换后 `terraform state rm` 无法解析旧 schema。通过直接操
 |-------------------|------|------|------|
 | VM `tags` | 移除 | 类型改为 `list(string)` | — |
 | VM `clone` | 保留 | 写入 state 会影响 30+ 属性的 refresh | — |
-| LXC `unprivileged` | 移除 | 修补 state（provider bug） | [问题 11](../troubleshooting/terraform_issues.md#问题-11-lxc-ignore_changes-中-unprivileged-的-provider-bug) |
-| LXC `template_file_id` | 移除 | 修补 state（containerRead 保留现有值） | [问题 12](../troubleshooting/terraform_issues.md#问题-12-lxc-template_file_id-在-state-中为-null) |
+| LXC `unprivileged` | 移除 | 修补 state（provider bug） | [问题 11](../troubleshooting/terraform-issues.md#问题-11-lxc-ignore_changes-中-unprivileged-的-provider-bug) |
+| LXC `template_file_id` | 移除 | 修补 state（containerRead 保留现有值） | [问题 12](../troubleshooting/terraform-issues.md#问题-12-lxc-template_file_id-在-state-中为-null) |
 | LXC `user_account` | 保留 | ForceNew + API 不返回 | — |
 
 ## 6. 经验总结
@@ -295,7 +295,7 @@ Plan: 0 to add, 0 to change, 0 to destroy.
 | `terraform/proxmox/versions.tf` | Provider source 切换 |
 | `terraform/proxmox/provider.tf` | 认证方式重写 |
 | `terraform/proxmox/variables.tf` | sshkeys 类型改为 list(string) |
-| `terraform/proxmox/pve_cluster.tf` | 硬编码密码改为 vault 变量 |
+| `terraform/proxmox/pve-cluster.tf` | 硬编码密码改为 vault 变量 |
 | `terraform/proxmox/terraform.tfvars` | 移除敏感值 |
 | `terraform/modules/proxmox-vm/main.tf` | 资源重写 |
 | `terraform/modules/proxmox-vm/variables.tf` | 新增 cpu_type/vga_type，tags 改类型 |
@@ -309,6 +309,6 @@ Plan: 0 to add, 0 to change, 0 to destroy.
 
 - [bpg/proxmox 官方文档](https://registry.terraform.io/providers/bpg/proxmox/latest/docs)
 - [bpg/proxmox GitHub](https://github.com/bpg/terraform-provider-proxmox)
-- [迁移技术方案](../improvement/proxmox-provider-migration.md)（本仓库）
+- [迁移技术方案](../improvement/implemented/proxmox-provider-migration.md)（本仓库）
 - [bpg provider 源码 - container.go](https://github.com/bpg/terraform-provider-proxmox/blob/main/proxmoxtf/resource/container/container.go)
 - [bpg provider 源码 - vm.go](https://github.com/bpg/terraform-provider-proxmox/blob/main/proxmoxtf/resource/vm/vm.go)

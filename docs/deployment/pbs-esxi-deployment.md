@@ -713,7 +713,7 @@ IaC/
 │
 └── docs/
     └── deployment/
-        └── pbs_esxi_deployment.md      # 📄 本文档
+        └── pbs-esxi-deployment.md      # 📄 本文档
 ```
 
 **符号说明**：
@@ -2180,7 +2180,7 @@ proxmox-backup-manager datastore list
 
 ### 13.3. Related Documentation
 
-- Netbox Deployment: `docs/deployment/netbox_deployment.md`
+- Netbox Deployment: `docs/deployment/netbox-deployment.md`
 - Ansible Verification: `docs/learningnotes/2025-11-30-ansible-deployment-verification.md`
 - Proxmox Terraform: `docs/learningnotes/2025-11-28-terraform-proxmox.md`
 

@@ -26,14 +26,11 @@
 
 | 服务 | 文档 | 说明 |
 |------|------|------|
-| **Netbox** | [netbox_deployment.md](deployment/netbox_deployment.md) | 网络资源管理系统部署 |
-| **Proxmox VM** | [proxmox_vm_deployment.md](deployment/proxmox_vm_deployment.md) | Terraform VM 模块化部署 |
-| **Immich** | [immich_deployment.md](deployment/immich_deployment.md) | 照片管理与 ML 分析服务 |
-| **PBS + ESXi** | [pbs_esxi_deployment.md](deployment/pbs_esxi_deployment.md) | Proxmox Backup Server 集成 |
-| **Caddy** | [caddy_deployment.md](deployment/caddy_deployment.md) | Web 服务器与反向代理 |
-| **Tailscale** | [tailscale_deployment.md](deployment/tailscale_deployment.md) | VPN 零配置网络 |
-| **Homepage Dashboard** | [homepage_dashboard_deployment.md](deployment/homepage_dashboard_deployment.md) | 服务监控仪表板 |
-| **N8N** | [n8n_deployment.md](deployment/n8n_deployment.md) | 工作流自动化平台 |
+| **Netbox** | [netbox-deployment.md](deployment/netbox-deployment.md) | 网络资源管理系统部署 |
+| **Proxmox VM** | [proxmox-vm-deployment.md](deployment/proxmox-vm-deployment.md) | Terraform VM 模块化部署 |
+| **Immich** | [immich-deployment.md](deployment/immich-deployment.md) | 照片管理与 ML 分析服务 |
+| **PBS + ESXi** | [pbs-esxi-deployment.md](deployment/pbs-esxi-deployment.md) | Proxmox Backup Server 集成 |
+
 
 **查看更多**: [deployment/README.md](deployment/README.md)
 
@@ -47,7 +44,7 @@
 
 | 指南 | 文档 | 说明 |
 |------|------|------|
-| **Terraform + Proxmox** | [terraform_proxmox_complete_guide.md](guides/terraform_proxmox_complete_guide.md) | 完整的 Terraform 实践指南（2000+行） |
+| **Terraform + Proxmox** | [terraform-proxmox-complete-guide.md](guides/terraform-proxmox-complete-guide.md) | 完整的 Terraform 实践指南（2000+行） |
 | **Ansible 最佳实践** | ⏳ 计划中 | Ansible 模式与实践（待创建） |
 | **Netbox 集成** | ⏳ 计划中 | Netbox 与 IaC 工具集成（待创建） |
 | **LXC/VM 网络** | ⏳ 计划中 | 容器与虚拟机网络配置（待创建） |
@@ -64,10 +61,10 @@
 
 | 类别 | 文档 | 覆盖问题 |
 |------|------|---------|
-| **Terraform 问题** | [terraform_issues.md](troubleshooting/terraform_issues.md) | Provider崩溃、磁盘配置、Cloud-Init等（8个问题） |
-| **Ansible 问题** | [ansible_issues.md](troubleshooting/ansible_issues.md) | Callback错误、Inventory陷阱、幂等性等（6个问题） |
-| **网络连接** | [network_connectivity.md](troubleshooting/network_connectivity.md) | SMB慢速、DNS冲突、路由问题等（5个问题） |
-| **部署问题** | [deployment_issues.md](troubleshooting/deployment_issues.md) | 版本兼容、超时、架构误解等（4个问题） |
+| **Terraform 问题** | [terraform-issues.md](troubleshooting/terraform-issues.md) | Provider崩溃、磁盘配置、Cloud-Init等（8个问题） |
+| **Ansible 问题** | [ansible-issues.md](troubleshooting/ansible-issues.md) | Callback错误、Inventory陷阱、幂等性等（6个问题） |
+| **网络连接** | [network-connectivity.md](troubleshooting/network-connectivity.md) | SMB慢速、DNS冲突、路由问题等（5个问题） |
+| **部署问题** | [deployment-issues.md](troubleshooting/deployment-issues.md) | 版本兼容、超时、架构误解等（4个问题） |
 
 **快速诊断**: [troubleshooting/README.md](troubleshooting/README.md)
 
@@ -100,10 +97,9 @@
 | 文档 | 说明 |
 |------|------|
 | [PLANNING.md](PLANNING.md) | 项目整体规划和架构目标 |
-| [infrastructure_notes.md](infrastructure_notes.md) | 网络拓扑和基础设施笔记 |
-| [concepts_qna.md](concepts_qna.md) | 核心概念问答 |
-| [troubleshooting_issues.md](troubleshooting_issues.md) | 常见问题汇总 |
-| [slow_smb_over_wifi.md](slow_smb_over_wifi.md) | SMB性能问题案例研究 |
+| [infrastructure-notes.md](infrastructure-notes.md) | 网络拓扑和基础设施笔记 |
+
+| [slow-smb-over-wifi.md](slow-smb-over-wifi.md) | SMB性能问题案例研究 |
 
 ---
 
@@ -127,20 +123,19 @@
 | 🆕 我是新手，想了解项目 | [PLANNING.md](PLANNING.md) → [guides/](guides/) |
 | 🚀 我要部署一个服务 | [deployment/README.md](deployment/README.md) |
 | ❓ 我遇到了问题 | [troubleshooting/README.md](troubleshooting/README.md) |
-| 📖 我想系统学习 Terraform | [guides/terraform_proxmox_complete_guide.md](guides/terraform_proxmox_complete_guide.md) |
+| 📖 我想系统学习 Terraform | [guides/terraform-proxmox-complete-guide.md](guides/terraform-proxmox-complete-guide.md) |
 | 🔗 我想了解 Netbox 集成 | [learningnotes/INDEX.md](learningnotes/INDEX.md) → Netbox 分类 |
-| 🌐 我在配置网络 | [troubleshooting/network_connectivity.md](troubleshooting/network_connectivity.md) |
+| 🌐 我在配置网络 | [troubleshooting/network-connectivity.md](troubleshooting/network-connectivity.md) |
 
 ### 按技术栈查找
 
 | 技术 | 相关文档 |
 |------|---------|
-| **Terraform** | [guides/terraform_proxmox_complete_guide.md](guides/terraform_proxmox_complete_guide.md) + [troubleshooting/terraform_issues.md](troubleshooting/terraform_issues.md) |
-| **Ansible** | [troubleshooting/ansible_issues.md](troubleshooting/ansible_issues.md) + learningnotes Ansible系列 |
-| **Netbox** | [deployment/netbox_deployment.md](deployment/netbox_deployment.md) + learningnotes Netbox系列 |
-| **Proxmox** | [deployment/proxmox_vm_deployment.md](deployment/proxmox_vm_deployment.md) |
+| **Terraform** | [guides/terraform-proxmox-complete-guide.md](guides/terraform-proxmox-complete-guide.md) + [troubleshooting/terraform-issues.md](troubleshooting/terraform-issues.md) |
+| **Ansible** | [troubleshooting/ansible-issues.md](troubleshooting/ansible-issues.md) + learningnotes Ansible系列 |
+| **Netbox** | [deployment/netbox-deployment.md](deployment/netbox-deployment.md) + learningnotes Netbox系列 |
+| **Proxmox** | [deployment/proxmox-vm-deployment.md](deployment/proxmox-vm-deployment.md) |
 | **Docker** | deployment/ 中的各个服务部署文档 |
-| **Tailscale** | [deployment/tailscale_deployment.md](deployment/tailscale_deployment.md) |
 
 ---
 
@@ -161,7 +156,8 @@
 - ✅ 2026-01-30: 重组文档结构，新增 guides/ 和 troubleshooting/ 目录
 - ✅ 2026-01-30: 创建 Terraform 综合指南（2000+行）
 - ✅ 2026-01-30: 增强 learningnotes/INDEX.md
-- ✅ 2026-01-30: 统一文件命名为小写+下划线风格
+- ✅ 2026-02-04: 统一文件命名为 kebab-case（连字符）风格
+- ✅ 2026-01-30: 重组文档结构
 
 ### 文档关联关系
 - **learningnotes** → 提炼为 → **guides**（系统性知识）

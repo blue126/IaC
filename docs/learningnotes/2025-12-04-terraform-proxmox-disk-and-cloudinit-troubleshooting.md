@@ -66,7 +66,7 @@ Netbox API 返回的 `disk` 字段单位是 **MB** (4096 MB)，但 Terraform 脚
 
 ## 解决方案总结
 
-1.  **修复脚本 (`fetch_planned_vms.py`)**:
+1.  **修复脚本 (`fetch-planned-vms.py`)**:
     *   增加逻辑：SSH 到 Proxmox 查询模板的真实磁盘大小。
     *   增加逻辑：`final_size = max(netbox_size, template_size)`，防止缩容导致的磁盘替换。
     *   增加逻辑：`disk_size_gb = vm.disk / 1024`，修复单位错误。

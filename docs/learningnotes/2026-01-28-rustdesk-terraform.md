@@ -9,7 +9,7 @@
 2.  **Rustdesk 客户端连接配置**: 需要显式指定 Relay Server 地址以确保客户端在复杂网络环境下能正确连接。
 
 ### 变更内容
--   **脚本**: 新增 `scripts/refresh_terraform_state.sh`，用于从 Terraform Cloud 拉取最新的 state 到本地 `terraform/proxmox/terraform.tfstate`。
+-   **脚本**: 新增 `scripts/refresh-terraform-state.sh`，用于从 Terraform Cloud 拉取最新的 state 到本地 `terraform/proxmox/terraform.tfstate`。
 -   **Ansible**: 修改 `roles/rustdesk/templates/docker-compose.yml.j2`，为 `hbbs` 添加 `-r` 参数。
 
 ## 2. 核心概念定义：Rustdesk Relay
@@ -35,4 +35,4 @@ Relay 是“中继”的意思。
 当 Terraform stack 使用 `cloud` backend 时，本地只有配置指引，没有实际的资源状态数据。Ansible 的 `terraform_provider` 插件通常需要读取本地的 `.tfstate` 文件来解析 host。
 
 **解决方案**:
-通过 `terraform state pull` 将远程状态“拉取”为本地的一个临时文件，供 Ansible 读取。这也是我们在 `scripts/refresh_terraform_state.sh` 中实现的逻辑。
+通过 `terraform state pull` 将远程状态“拉取”为本地的一个临时文件，供 Ansible 读取。这也是我们在 `scripts/refresh-terraform-state.sh` 中实现的逻辑。

@@ -11,7 +11,7 @@
   gather_facts: true
   become: true
   roles:
-    - anki_sync_server
+    - anki
 
 - name: Verify Anki Sync Server Deployment
   hosts: anki

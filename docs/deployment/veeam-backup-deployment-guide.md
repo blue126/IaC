@@ -333,5 +333,5 @@ Connect-IscsiTarget -NodeAddress "iqn.2026-02.lan.pbs:veeam" -IsPersistent $true
 
 ## 8. 相关文档
 
-- [PBS iSCSI Veeam 架构方案](pbs_iscsi_veeam_guide.md)
+- [PBS iSCSI Veeam 架构方案](pbs-iscsi-veeam-guide.md)
 - [PBS iSCSI 实施规范](../specs/pbs-iscsi-veeam-spec.md)

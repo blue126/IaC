@@ -392,7 +392,7 @@ stage('Terraform Apply') {
 ```groovy
 stage('Refresh Inventory') {
     steps {
-        sh './scripts/refresh_terraform_state.sh'
+        sh './scripts/refresh-terraform-state.sh'
     }
 }
 ```
@@ -433,7 +433,7 @@ stage('Sync to Notion') {
                 string(credentialsId: 'notion-token', variable: 'NOTION_TOKEN'),
                 string(credentialsId: 'notion-database-id', variable: 'NOTION_DATABASE_ID')
             ]) {
-                sh 'NOTION_DRY_RUN=false python3 scripts/sync_to_notion.py'
+                sh 'NOTION_DRY_RUN=false python3 scripts/sync-to-notion.py'
             }
         }
     }
@@ -917,8 +917,8 @@ terraform/proxmox/jenkins.tf          # Jenkins LXC 定义
 ansible/roles/jenkins/                # Jenkins 配置 role
 ansible/playbooks/deploy-jenkins.yml  # Jenkins 部署 playbook
 scripts/get-secrets.sh                # 从 Vault 提取 secrets
-scripts/refresh_terraform_state.sh    # 刷新 Terraform state
-scripts/sync_to_notion.py            # 同步 Terraform state 到 Notion 数据库
+scripts/refresh-terraform-state.sh    # 刷新 Terraform state
+scripts/sync-to-notion.py            # 同步 Terraform state 到 Notion 数据库
 requirements.txt                     # Python 依赖 (含 notion-client)
 ```
 
