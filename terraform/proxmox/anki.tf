@@ -16,8 +16,8 @@ module "anki" {
   unprivileged   = true
   features       = ["nesting=1"]
   ostype         = "debian"
-  
-  sshkeys        = var.sshkeys
+
+  sshkeys = var.sshkeys
 }
 
 output "anki_ip" {

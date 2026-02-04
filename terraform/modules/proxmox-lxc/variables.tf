@@ -70,8 +70,8 @@ variable "gateway" {
 
 variable "sshkeys" {
   description = "SSH Public Keys"
-  type        = string
-  default     = null
+  type        = list(string)
+  default     = []
 }
 
 variable "unprivileged" {

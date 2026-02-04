@@ -1,6 +1,6 @@
 output "vm_id" {
   description = "The ID of the VM"
-  value       = proxmox_vm_qemu.vm.id
+  value       = proxmox_virtual_environment_vm.vm.vm_id
 }
 
 output "default_ip" {

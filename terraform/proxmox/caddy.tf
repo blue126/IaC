@@ -16,8 +16,8 @@ module "caddy" {
   unprivileged   = true
   features       = ["nesting=1"]
   ostype         = "alpine"
-  
-  sshkeys        = var.sshkeys
+
+  sshkeys = var.sshkeys
 }
 
 output "caddy_ip" {

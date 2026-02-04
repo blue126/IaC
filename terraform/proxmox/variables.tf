@@ -3,18 +3,6 @@ variable "pm_api_url" {
   type        = string
 }
 
-variable "pm_user" {
-  description = "Proxmox User"
-  type        = string
-}
-
-variable "pm_password" {
-  description = "Proxmox Password"
-  type        = string
-  sensitive   = true
-  default     = null
-}
-
 variable "pm_api_token_id" {
   description = "Proxmox API Token ID"
   type        = string
@@ -49,7 +37,7 @@ variable "vm_name" {
 
 variable "sshkeys" {
   description = "SSH Public Keys"
-  type        = string
+  type        = list(string)
 }
 
 variable "vmid" {
@@ -82,14 +70,20 @@ variable "ip_config" {
   default     = "ip=dhcp"
 }
 
+variable "proxmox_ssh_password" {
+  description = "SSH password for Proxmox cluster nodes (from Ansible Vault)"
+  type        = string
+  sensitive   = true
+}
+
 variable "netbox_provisioned_vms" {
   description = "List of VMs to provision, fetched from Netbox"
   type = list(object({
-    name        = string
-    target_node = string
-    template    = string
-    cores       = number
-    memory      = number
+    name           = string
+    target_node    = string
+    template       = string
+    cores          = number
+    memory         = number
     disk_size      = string
     ip_address     = string
     vmid           = number

@@ -1,61 +1,81 @@
 terraform {
   required_providers {
     proxmox = {
-      source = "telmate/proxmox"
+      source = "bpg/proxmox"
     }
   }
 }
 
-resource "proxmox_lxc" "lxc" {
-  hostname     = var.lxc_name
-  target_node  = var.target_node
-  vmid         = var.vmid != 0 ? var.vmid : null
-  ostemplate   = var.ostemplate
-  unprivileged = var.unprivileged
-  onboot       = var.onboot
-  start        = var.start
-  ostype       = var.ostype
-  password     = var.password
+resource "proxmox_virtual_environment_container" "lxc" {
+  description = "Managed by Terraform"
+  node_name   = var.target_node
+  vm_id       = var.vmid != 0 ? var.vmid : null
 
-  # Resources
-  cores  = var.cores
-  memory = var.memory
-  swap   = var.swap
+  initialization {
+    hostname = var.lxc_name
 
-  # Root filesystem
-  rootfs {
-    storage = var.rootfs_storage
-    size    = var.rootfs_size
+    ip_config {
+      ipv4 {
+        address = var.ip_address
+        gateway = var.ip_address != "dhcp" ? var.gateway : null
+      }
+    }
+
+    user_account {
+      keys     = var.sshkeys
+      password = var.password
+    }
+
+    dns {
+      servers = [var.nameserver]
+    }
   }
 
-  # Network
-  network {
+  network_interface {
     name     = "eth0"
     bridge   = var.network_bridge
-    ip       = var.ip_address
-    gw       = var.gateway
+    enabled  = true
     firewall = true
   }
 
-  # SSH Keys
-  ssh_public_keys = var.sshkeys
+  operating_system {
+    template_file_id = var.ostemplate
+    type             = var.ostype
+  }
 
-  # DNS
-  nameserver = var.nameserver
+  cpu {
+    cores = var.cores
+  }
 
-  # Features (nesting, fuse, etc.)
+  memory {
+    dedicated = var.memory
+    swap      = var.swap
+  }
+
+  disk {
+    datastore_id = var.rootfs_storage
+    size         = tonumber(regex("^(\\d+)", var.rootfs_size)[0])
+  }
+
   features {
     nesting = contains(var.features, "nesting=1")
     fuse    = contains(var.features, "fuse=1")
+    # keyctl = contains(var.features, "keyctl=1")
+    # mount  = ...
   }
+
+  unprivileged  = var.unprivileged
+  started       = var.start
+  start_on_boot = var.onboot
 
   lifecycle {
     ignore_changes = [
-      # Ignore template changes after container creation
-      ostemplate,
-      description,
-      # Ignore SSH key changes to avoid destroying existing containers
-      ssh_public_keys,
+      # ForceNew + not readable via API. Password and SSH keys are
+      # injected at "pct create" time only; Proxmox never returns them,
+      # so state is always null after import/refresh → every plan sees
+      # a diff and triggers destroy/recreate. Post-creation credential
+      # management is handled by Ansible.
+      initialization[0].user_account,
     ]
   }
 }

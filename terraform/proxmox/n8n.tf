@@ -16,8 +16,8 @@ module "n8n" {
   unprivileged   = true
   features       = ["nesting=1"]
   ostype         = "debian"
-  
-  sshkeys        = var.sshkeys
+
+  sshkeys = var.sshkeys
 }
 
 output "n8n_ip" {

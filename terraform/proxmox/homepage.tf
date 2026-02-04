@@ -16,8 +16,8 @@ module "homepage" {
   unprivileged   = true
   features       = ["nesting=1"]
   ostype         = "debian"
-  
-  sshkeys        = var.sshkeys
+
+  sshkeys = var.sshkeys
 }
 
 output "homepage_ip" {

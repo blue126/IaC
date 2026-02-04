@@ -26,6 +26,12 @@ variable "cores" {
   default     = 2
 }
 
+variable "cpu_type" {
+  description = "CPU type for the VM (e.g., host, kvm64, x86-64-v2-AES)"
+  type        = string
+  default     = "host"
+}
+
 variable "memory" {
   description = "Amount of memory in MB"
   type        = number
@@ -58,8 +64,8 @@ variable "ciuser" {
 
 variable "sshkeys" {
   description = "SSH Public Keys"
-  type        = string
-  default     = null
+  type        = list(string)
+  default     = []
 }
 
 variable "agent" {
@@ -144,8 +150,14 @@ variable "onboot" {
   default     = true
 }
 
-variable "tags" {
-  description = "Tags for the VM (semicolon-separated)"
+variable "vga_type" {
+  description = "VGA type (serial0 for serial console, std for standard VGA)"
   type        = string
-  default     = ""
+  default     = "serial0"
+}
+
+variable "tags" {
+  description = "Tags for the VM"
+  type        = list(string)
+  default     = []
 }

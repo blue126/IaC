@@ -491,3 +491,328 @@ resource "proxmox_vm_qemu" "vm" {
 | ID 漂移 | 从 IP 地址最后一段提取 VMID |
 | 虚假变更 | 显式定义字段或使用 `ignore_changes` |
 
+---
+
+## bpg/proxmox Provider 迁移相关问题
+
+> 以下问题在从 telmate/proxmox 迁移到 bpg/proxmox 过程中遇到。
+> 完整迁移指南见 [Proxmox Provider 迁移实战指南](../guides/proxmox-provider-migration-guide.md)。
+
+---
+
+## 问题 9: Apply 超时 — VM 启动后 Provider 长时间等待
+
+### 症状
+
+`terraform apply` 修改 VM 时，某个 VM 卡在 "Still modifying..." 长达数分钟，最终超时或报错：
+
+```
+Error: error updating VM: received an HTTP 500 response -
+Reason: can't lock file '/var/lock/qemu-server/lock-102.conf' - got timeout
+```
+
+其他 VM 的修改在 10 秒内就完成了。
+
+### 诊断步骤
+
+1. 检查该 VM 的 plan 是否包含 `started = false -> true`（从关机到启动）
+2. 检查 PVE 节点上是否有该 VM 的残留锁文件：
+   ```bash
+   ls -la /var/lock/qemu-server/lock-<vmid>.conf
+   cat /var/lock/qemu-server/lock-<vmid>.conf
+   ```
+3. 检查 provider 的 agent timeout 配置：
+   ```bash
+   terraform state show '<resource_address>' | grep -A5 "agent"
+   ```
+
+### 原因分析
+
+这是**两个问题叠加**的结果：
+
+**问题 A：QEMU Guest Agent 等待**
+
+bpg provider 在 VM 启动后（`started` 从 false 变为 true），如果 `agent.enabled = true`，会等待 QEMU Guest Agent 上线并返回 IP 地址。默认超时 `agent.timeout = "15m"`（15 分钟）。
+
+对于长期关机后冷启动的 VM，系统启动 → 网络配置 → qemu-guest-agent 服务启动的整个链路需要较长时间。
+
+**问题 B：锁文件残留**
+
+PVE 节点上存在该 VM 的残留锁文件（空文件），是之前的 Terraform 操作（如 state 迁移、import、plan refresh）留下的。Terraform provider 通过 API 操作 VM 时触发 PVE 创建锁文件，但**操作完成后 provider 和 PVE 都不会清理空锁文件**。
+
+残留锁文件导致后续 API 调用被阻塞，直到 PVE 的锁等待超时返回 HTTP 500。
+
+### 解决方案
+
+**立即修复**：清理 PVE 节点上的残留锁文件：
+
+```bash
+# 检查锁文件（空文件 = 残留，有内容 = 正在进行的操作，勿删）
+ls -la /var/lock/qemu-server/lock-*.conf
+cat /var/lock/qemu-server/lock-*.conf
+
+# 确认内容为空后删除
+rm /var/lock/qemu-server/lock-<vmid>.conf
+```
+
+**长期预防**：每次执行大规模 Terraform 操作（apply、import、state 迁移）后，检查 PVE 节点上的锁文件残留。
+
+---
+
+## 问题 10: PVE 锁文件残留 — Terraform 操作后未清理
+
+### 症状
+
+PVE 节点上 `/var/lock/qemu-server/` 出现多个空锁文件，时间戳与 Terraform 操作时间吻合：
+
+```
+-rw-r--r-- 1 root root 0 Jan 27 12:11 lock-101.conf
+-rw-r--r-- 1 root root 0 Jan 27 12:11 lock-102.conf
+-rw-r--r-- 1 root root 0 Jan 27 12:11 lock-104.conf
+-rw-r--r-- 1 root root 0 Jan 27 12:11 lock--1.conf
+-rw-r--r-- 1 root root 0 Jan 28 17:31 lock-9000.conf
+```
+
+### 诊断步骤
+
+1. 检查文件内容——**空文件**是残留，有内容（如 `backup`、`migrate`）表示正在进行的操作：
+   ```bash
+   cat /var/lock/qemu-server/lock-*.conf
+   ```
+2. 通过时间戳和 git log 追溯创建时间对应的操作：
+   ```bash
+   git log --oneline --after="2026-01-26" --before="2026-01-29"
+   ```
+
+### 原因分析
+
+Terraform provider（telmate 和 bpg 都会触发）通过 Proxmox API 操作 VM 时，PVE 会创建锁文件。以下操作都可能触发：
+
+- `terraform apply`（修改 VM 配置）
+- `terraform import`（导入资源时读取 VM 状态）
+- `terraform init -migrate-state`（迁移 state 时 refresh 所有资源）
+- `terraform plan` / `terraform refresh`（刷新状态时查询 API）
+
+PVE 创建锁文件后，如果 API 操作正常完成，锁文件**有时不会被清理**。原因可能是：
+- Provider 没有显式释放锁
+- PVE 的锁清理机制对空锁文件不生效
+- 操作中断（如超时、网络断开）导致锁未释放
+
+特殊的 `lock--1.conf` 中 VM ID 为 `-1`，是 provider 在 import/refresh 过程中使用的临时/默认 ID。
+
+### 解决方案
+
+安全清理所有空锁文件：
+
+```bash
+# 列出所有锁文件并检查内容
+for f in /var/lock/qemu-server/lock-*.conf; do
+  echo "=== $f ==="
+  ls -la "$f"
+  cat "$f"
+done
+
+# 删除空锁文件
+find /var/lock/qemu-server -name 'lock-*.conf' -empty -delete
+```
+
+---
+
+## 问题 11: LXC ignore_changes 中 unprivileged 的 Provider Bug
+
+### 症状
+
+从 telmate 迁移到 bpg 后，`terraform plan` 对所有 LXC 容器显示：
+
+```
++ unprivileged = true  # forces replacement
+```
+
+即使容器实际上就是 unprivileged 的，import/refresh 后 state 中 `unprivileged` 始终为 null。
+
+### 诊断步骤
+
+1. 确认 PVE 上容器的实际 unprivileged 状态：
+   ```bash
+   pct config <vmid> | grep unprivileged
+   ```
+2. 检查 state 中的值：
+   ```bash
+   terraform state pull | python3 -c "
+   import json, sys
+   state = json.load(sys.stdin)
+   for r in state.get('resources', []):
+       if 'container' in r.get('type', ''):
+           for inst in r.get('instances', []):
+               mod = r.get('module', '')
+               val = inst['attributes'].get('unprivileged')
+               print(f'{mod}: unprivileged = {val}')
+   "
+   ```
+
+### 原因分析
+
+bpg provider 的 `containerRead` 函数中有一个条件守卫：
+
+```go
+currentUnprivileged := types.CustomBool(d.Get(mkUnprivileged).(bool))
+if len(clone) == 0 || currentUnprivileged {
+    if containerConfig.Unprivileged != nil {
+        e = d.Set(mkUnprivileged, bool(*containerConfig.Unprivileged))
+    }
+}
+```
+
+Proxmox API **确实返回** `unprivileged` 字段，但 provider 在 import 后读取时，由于 state 中该值初始为 null（Go 中 bool 默认 false），条件 `currentUnprivileged` 为 false。对于非 clone 容器 `len(clone) == 0` 应为 true，理论上条件满足，但实际结果是值未被写入 state。这是一个 **provider bug**。
+
+由于 `unprivileged` 是 ForceNew 属性，state 中的 null 与代码中的 true 产生 diff，触发所有容器的 destroy/recreate。
+
+### 解决方案
+
+通过 Python 手动修补 state：
+
+```bash
+terraform state pull > /tmp/state_fix.json
+
+python3 -c "
+import json
+with open('/tmp/state_fix.json') as f:
+    state = json.load(f)
+
+for r in state.get('resources', []):
+    if 'container' in r.get('type', ''):
+        for inst in r.get('instances', []):
+            attrs = inst.get('attributes', {})
+            if attrs.get('unprivileged') is None:
+                attrs['unprivileged'] = True
+                print(f'Fixed {r.get(\"module\", \"\")}: unprivileged -> True')
+
+state['serial'] = state.get('serial', 0) + 1
+with open('/tmp/state_fix.json', 'w') as f:
+    json.dump(state, f, indent=2)
+"
+
+terraform state push /tmp/state_fix.json
+```
+
+修补后 `unprivileged` 可以从 `ignore_changes` 中移除，由 Terraform 正常管理。
+
+---
+
+## 问题 12: LXC template_file_id 在 State 中为 Null
+
+### 症状
+
+与问题 11 类似，`terraform plan` 对所有 LXC 容器显示：
+
+```
++ template_file_id = "local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst"  # forces replacement
+```
+
+`template_file_id` 是 ForceNew 属性，会触发容器销毁重建。
+
+### 原因分析
+
+与 `unprivileged` 不同，这**不是 provider bug，而是 Proxmox API 的设计**。
+
+`ostemplate` 是 LXC 容器创建时的参数（`pct create` 的 `--ostemplate`），Proxmox 在创建后不保留这个信息——`GET /nodes/{node}/lxc/{vmid}/config` 的返回中不包含 `ostemplate` 字段。模板解压后就和容器无关了。
+
+bpg provider 的 `containerRead` 对此的处理是**从 state 中复制现有值**：
+
+```go
+operatingSystem[mkOperatingSystemTemplateFileID] =
+    currentOperatingSystemMap[mkOperatingSystemTemplateFileID]
+```
+
+这意味着：如果 state 中已有正确值，refresh 不会覆盖它。但 import 后初始值为 null，就会一直是 null。
+
+### 解决方案
+
+与问题 11 相同，手动修补 state。需要知道每个 LXC 对应的正确模板值（可从 plan 输出或各 `.tf` 文件的 `ostemplate` 参数获取）：
+
+```bash
+terraform state pull > /tmp/state_fix.json
+
+python3 -c "
+import json
+templates = {
+    'module.anki': 'local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst',
+    'module.caddy': 'local:vztmpl/alpine-3.22-default_20250617_amd64.tar.xz',
+    'module.homepage': 'local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst',
+    'module.jenkins': 'local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst',
+    'module.n8n': 'local:vztmpl/debian-12-turnkey-nodejs_18.0-1_amd64.tar.gz',
+}
+
+with open('/tmp/state_fix.json') as f:
+    state = json.load(f)
+
+for r in state.get('resources', []):
+    mod = r.get('module', '')
+    if mod in templates and 'container' in r.get('type', ''):
+        for inst in r.get('instances', []):
+            os = inst['attributes'].get('operating_system', [{}])
+            if os and os[0] is not None:
+                os[0]['template_file_id'] = templates[mod]
+                print(f'Fixed {mod}: template_file_id -> {templates[mod]}')
+
+state['serial'] = state.get('serial', 0) + 1
+with open('/tmp/state_fix.json', 'w') as f:
+    json.dump(state, f, indent=2)
+"
+
+terraform state push /tmp/state_fix.json
+```
+
+修补后 `template_file_id` 可以从 `ignore_changes` 中移除。Provider 的 `containerRead` 会保留 state 中的值，不会在 refresh 时覆盖。
+
+---
+
+## 问题 13: State 迁移后 `terraform state rm` 无法移除旧资源
+
+### 症状
+
+Provider 已从 telmate 切换到 bpg 后，尝试用 `terraform state rm` 移除旧的 telmate 资源时报错：
+
+```
+Error: Could not remove item, provider schema not available
+```
+
+### 原因分析
+
+`terraform state rm` 需要 provider 的 schema 来解析 state 中的资源。provider 已经切换到 bpg 后，telmate 的 schema 不再可用，Terraform 无法解析旧资源的属性结构。
+
+### 解决方案
+
+直接操作 state JSON 文件，绕过 provider schema：
+
+```bash
+terraform state pull > state.json
+
+python3 -c "
+import json
+with open('state.json') as f:
+    state = json.load(f)
+
+# 移除旧的 telmate 资源（按 type 过滤）
+state['resources'] = [
+    r for r in state['resources']
+    if r.get('type') not in ('proxmox_vm_qemu', 'proxmox_lxc')
+]
+
+state['serial'] = state.get('serial', 0) + 1
+with open('state.json', 'w') as f:
+    json.dump(state, f, indent=2)
+"
+
+terraform state push state.json
+```
+
+之后用 bpg 格式重新 import：
+
+```bash
+terraform import 'module.anki.proxmox_virtual_environment_container.lxc' 'pve0/100'
+terraform import 'module.immich.proxmox_virtual_environment_vm.vm' 'pve0/101'
+```
+
+---
+

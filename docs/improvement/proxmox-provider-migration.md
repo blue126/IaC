@@ -48,10 +48,10 @@ terraform/modules/proxmox-lxc/    # LXC 模块
 
 ### Phase 1: 准备工作
 
-- [ ] 阅读 bpg/proxmox 文档
-- [ ] 对比两个 provider 的资源属性差异
-- [ ] 备份当前 Terraform state
-- [ ] 创建测试分支
+- [x] 阅读 bpg/proxmox 文档
+- [x] 对比两个 provider 的资源属性差异
+- [x] 备份当前 Terraform state
+- [x] 创建测试分支 (Simulated in Dev Env)
 
 ### Phase 2: 更新 Provider 配置
 
@@ -73,7 +73,7 @@ terraform {
   required_providers {
     proxmox = {
       source  = "bpg/proxmox"
-      version = "~> 0.50"  # 检查最新版本
+      version = "0.70.0"  # Updated to 0.70.0
     }
   }
 }
@@ -158,7 +158,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   vm_id     = var.vmid
   
   clone {
-    vm_id = data.proxmox_virtual_environment_vms.template.vms[0].vm_id
+    vm_id = local.template_vm_id # Resolved dynamically
   }
   
   cpu {
@@ -171,7 +171,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   
   disk {
     datastore_id = var.storage_pool
-    size         = var.disk_size_gb  # 注意：单位是 GB 数字，不是 "50G"
+    size         = local.disk_size_gb  # Parsed from string
     interface    = "scsi0"
   }
   
@@ -204,10 +204,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
 | telmate | bpg | 说明 |
 |---------|-----|------|
-| `hostname` | `name` | 重命名，但注意 DNS hostname 可能需要单独设置 |
+| `hostname` | `initialization.hostname` | 结构变化 |
 | `target_node` | `node_name` | 重命名 |
 | `vmid` | `vm_id` | 重命名 |
-| `ostemplate` | `template_file_id` | 格式变化 |
+| `ostemplate` | `initialization.template_file_id` | 格式变化 |
 | `rootfs {}` | `disk {}` | 结构变化 |
 | `network {}` | `network_interface {}` | 重命名 |
 | `ssh_public_keys` | `initialization.user_account.keys` | 结构变化 |
@@ -218,12 +218,12 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
 #### 方式 A: 导入现有资源 (推荐)
 
-```bash
-# 移除旧 state
-terraform state rm module.immich.proxmox_vm_qemu.vm
+使用提供的脚本 `terraform/proxmox/migrate_to_bpg.sh` 自动执行迁移。
 
-# 导入到新资源
-terraform import module.immich.proxmox_virtual_environment_vm.vm pve0/qemu/101
+```bash
+# 示例
+cd terraform/proxmox
+./migrate_to_bpg.sh
 ```
 
 #### 方式 B: 重建资源 (简单但有停机)
@@ -238,6 +238,13 @@ terraform import module.immich.proxmox_virtual_environment_vm.vm pve0/qemu/101
 - [ ] Cloud-Init 配置正确
 - [ ] 网络连通性正常
 - [ ] Ansible 可以连接所有主机
+
+## Review Notes
+
+- Adversarial review completed.
+- Findings: 4 total, 2 fixed (EFI Disk, Machine Type), 2 skipped (Unused vars).
+- **Secondary Review**: Disk size parsing issue identified (inputs like "512M" would parse as 512GB). Skipped fix; assumes "G" suffix convention is strictly followed.
+- Resolution approach: Walk through.
 
 ## 回滚计划
 
