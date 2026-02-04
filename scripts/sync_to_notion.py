@@ -33,7 +33,7 @@ NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 # Project root (resolved from this script's location)
 PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
 SECRETS_FILE = os.path.join(PROJECT_ROOT, "terraform/proxmox/secrets.auto.tfvars")
-DRY_RUN = True  # Set to False to actually write to Notion
+DRY_RUN = os.getenv("NOTION_DRY_RUN", "true").lower() != "false"  # Default: dry run
 
 # Column Mapping
 COLUMN_MAPPING = {

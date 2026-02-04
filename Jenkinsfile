@@ -70,6 +70,15 @@ pipeline {
                 }
                 // Generate Terraform secrets from Ansible Vault
                 sh './scripts/get-secrets.sh'
+                // Install Python dependencies for Notion sync (skip if already installed)
+                sh '''
+                    if ! python3 -c "import notion_client" 2>/dev/null; then
+                        echo "Installing Python dependencies for Notion sync..."
+                        pip install -r scripts/requirements.txt --quiet
+                    else
+                        echo "Python dependencies already installed, skipping..."
+                    fi
+                '''
                 // Install Ansible Galaxy collections if not present
                 dir('ansible') {
                     sh '''
@@ -156,6 +165,20 @@ pipeline {
             steps {
                 dir('ansible') {
                     sh 'ansible-playbook playbooks/deploy-jenkins.yml --tags verify'
+                }
+            }
+        }
+
+        stage('Sync to Notion') {
+            when { environment name: 'SHOULD_BUILD', value: 'true' }
+            steps {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    withCredentials([
+                        string(credentialsId: 'notion-token', variable: 'NOTION_TOKEN'),
+                        string(credentialsId: 'notion-database-id', variable: 'NOTION_DATABASE_ID')
+                    ]) {
+                        sh 'NOTION_DRY_RUN=false python3 scripts/sync_to_notion.py'
+                    }
                 }
             }
         }
