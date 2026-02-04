@@ -102,14 +102,14 @@ ansible-playbook playbooks/deploy-xxx.yml   # 又要等待...
 │                          192.168.1.107:8080                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                         Jenkins Pipeline                             │    │
-│  │  ┌──────────┐  ┌───────┐  ┌──────────┐  ┌────────┐  ┌────────────┐  │    │
-│  │  │ Checkout │→ │ Setup │→ │ Validate │→ │  Plan  │→ │  Approval  │  │    │
-│  │  └──────────┘  └───────┘  └──────────┘  └────────┘  └────────────┘  │    │
-│  │                               │              │             │         │    │
-│  │                               ▼              ▼             ▼         │    │
-│  │  ┌─────────┐  ┌──────────┐  ┌───────┐  ┌────────┐  ┌────────────┐  │    │
-│  │  │  Apply  │← │ Approval │← │Refresh│← │ Deploy │← │  Cleanup   │  │    │
-│  │  └─────────┘  └──────────┘  └───────┘  └────────┘  └────────────┘  │    │
+│  │  ┌──────────┐  ┌───────┐  ┌───────┐  ┌──────────┐  ┌────────┐      │    │
+│  │  │ Checkout │→ │ Check │→ │ Setup │→ │ Validate │→ │  Plan  │      │    │
+│  │  └──────────┘  └───┬───┘  └───────┘  └──────────┘  └────┬───┘      │    │
+│  │                     │                                     │          │    │
+│  │              非IaC变更?                                   ▼          │    │
+│  │              跳过构建  ┌────────┐ ┌───────┐ ┌────────┐ ┌────────┐   │    │
+│  │              (NOT_BUILT)│  Apply │←│Refresh│←│ Deploy │←│Approval│   │    │
+│  │                        └────────┘ └───────┘ └────────┘ └────────┘   │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 │  ┌──────────────────────┐  ┌──────────────────────┐                         │
@@ -177,6 +177,12 @@ ansible-playbook playbooks/deploy-xxx.yml   # 又要等待...
 │  └────┬─────┘                                                              │
 │       │                                                                    │
 │       ▼                                                                    │
+│  ┌──────────────┐  检查变更文件路径                                         │
+│  │Check Changes │  terraform/ ansible/ scripts/ Jenkinsfile → 继续         │
+│  │              │  docs/ 等其他路径 → 跳过构建 (NOT_BUILT)                  │
+│  └──────┬───────┘                                                          │
+│         │                                                                  │
+│         ▼ (仅当有 IaC 变更)                                                │
 │  ┌──────────┐  1. 写入 Vault 密码文件                                       │
 │  │  Setup   │  2. 执行 get-secrets.sh 生成 tfvars                          │
 │  │          │  3. 条件安装 Ansible Galaxy Collections                       │
@@ -251,7 +257,41 @@ stage('Checkout') {
 - 自动使用 Deploy Key 认证
 - 拉取触发构建的 commit
 
-#### 2. Setup
+#### 2. Check Changes (路径过滤)
+
+```groovy
+stage('Check Changes') {
+    steps {
+        script {
+            def changes = sh(script: 'git diff --name-only HEAD~1 HEAD', returnStdout: true).trim()
+            def buildPaths = ['terraform/', 'ansible/', 'scripts/', 'Jenkinsfile']
+            env.SHOULD_BUILD = 'false'
+            for (path in buildPaths) {
+                if (changes.split('\n').any { it.startsWith(path) }) {
+                    env.SHOULD_BUILD = 'true'
+                    break
+                }
+            }
+        }
+    }
+}
+```
+
+检查本次 commit 变更的文件路径，只有以下路径的变更才触发构建：
+
+| 路径 | 触发构建 | 原因 |
+|------|----------|------|
+| `terraform/**` | ✓ | 基础设施变更 |
+| `ansible/**` | ✓ | 配置管理变更 |
+| `scripts/**` | ✓ | 辅助脚本变更 |
+| `Jenkinsfile` | ✓ | Pipeline 本身变更 |
+| `docs/**` | ✗ | 文档变更，无需部署 |
+| `.github/**` | ✗ | 仓库配置，无需部署 |
+| `AGENTS.md` 等 | ✗ | 项目说明，无需部署 |
+
+不触发构建时，后续所有阶段通过 `when { environment name: 'SHOULD_BUILD', value: 'true' }` 条件跳过，构建状态标记为 `NOT_BUILT`。
+
+#### 3. Setup (条件执行)
 
 ```groovy
 stage('Setup') {
@@ -282,7 +322,7 @@ stage('Setup') {
 2. 执行 `get-secrets.sh` 解密 Vault，生成 `secrets.auto.tfvars`
 3. 检查并安装 Ansible Galaxy Collections (仅首次)
 
-#### 3. Validate (并行)
+#### 4. Validate (并行)
 
 ```groovy
 stage('Validate') {
@@ -309,7 +349,7 @@ stage('Validate') {
 - Terraform: 初始化、语法验证、格式检查
 - Ansible: 所有 playbook 语法检查
 
-#### 4. Terraform Plan
+#### 5. Terraform Plan
 
 ```groovy
 stage('Terraform Plan') {
@@ -324,7 +364,7 @@ stage('Terraform Plan') {
 - 生成执行计划
 - 保存到 `tfplan` 文件确保 apply 执行的是审批过的计划
 
-#### 5. Approval Gates
+#### 6. Approval Gates
 
 ```groovy
 stage('Approval - Terraform Apply') {
@@ -339,7 +379,7 @@ stage('Approval - Terraform Apply') {
 1. **Terraform Apply 前** - 审核基础设施变更
 2. **Ansible Deploy 前** - 确认进行配置部署
 
-#### 6. Terraform Apply
+#### 7. Terraform Apply
 
 ```groovy
 stage('Terraform Apply') {
@@ -354,7 +394,7 @@ stage('Terraform Apply') {
 - 执行之前保存的 plan
 - 创建/更新/删除基础设施资源
 
-#### 7. Refresh Inventory
+#### 8. Refresh Inventory
 
 ```groovy
 stage('Refresh Inventory') {
@@ -367,7 +407,7 @@ stage('Refresh Inventory') {
 - 从 Terraform Cloud 拉取最新 state
 - 保存到本地供 Ansible 动态 inventory 使用
 
-#### 8. Ansible Deploy
+#### 9. Ansible Deploy
 
 ```groovy
 stage('Ansible Deploy') {
@@ -380,7 +420,7 @@ stage('Ansible Deploy') {
 - 执行配置管理
 - 部署应用和服务
 
-#### 9. Cleanup (post)
+#### 10. Cleanup (post)
 
 ```groovy
 post {
