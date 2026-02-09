@@ -108,10 +108,10 @@ pipeline {
                         errors.add("Missing field: model")
                     }
                     if (!env.netbox_object_id) {
-                        errors.add("Missing field: snapshots.postchange.id")
+                        errors.add("Missing field: data.id")
                     }
                     if (!env.netbox_object_name) {
-                        errors.add("Missing field: snapshots.postchange.name")
+                        errors.add("Missing field: data.name")
                     }
                     
                     // Check required Custom Fields from Story 1.1

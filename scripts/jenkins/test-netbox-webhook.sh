@@ -1,26 +1,27 @@
 #!/bin/bash
-# 测试 NetBox Webhook Payload
-# Story 1.2: 配置 NetBox Webhook 到 Jenkins
+# Test NetBox Webhook Payload Listener
+# Story 1.2: Configure NetBox Webhook to Jenkins
+# Creates a local Python webhook listener for debugging payload format.
 
-set -e
+set -euo pipefail
 
 echo "=========================================="
-echo "NetBox Webhook 测试脚本"
+echo "NetBox Webhook Test Script"
 echo "=========================================="
 echo ""
 
-# 配置
-NETBOX_URL="http://192.168.1.104:8080"
-NETBOX_TOKEN="${NETBOX_API_TOKEN:-0123456789abcdef0123456789abcdef01234567}"
+# Configuration — read from environment, fail if token not set
+NETBOX_URL="${NETBOX_URL:-http://192.168.1.104:8080}"
+NETBOX_TOKEN="${NETBOX_API_TOKEN:?ERROR: NETBOX_API_TOKEN environment variable is not set}"
 WEBHOOK_LISTENER_PORT="${WEBHOOK_PORT:-9000}"
 
-# 启动临时 webhook 监听器
-echo "1. 启动临时 Webhook 监听器 (端口 $WEBHOOK_LISTENER_PORT)"
-echo "   使用 Python http.server..."
+# Create a temporary Python webhook listener
+echo "1. Creating webhook listener (port $WEBHOOK_LISTENER_PORT)"
+echo "   Using Python http.server..."
 
-# 创建临时 Python 脚本来接收 Webhook
 cat > /tmp/webhook_listener.py <<'EOF'
 #!/usr/bin/env python3
+"""Temporary webhook listener for debugging NetBox payload format."""
 import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import sys
@@ -29,74 +30,74 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
-        
-        print("\n" + "="*60)
-        print("📥 Webhook 接收成功！")
-        print("="*60)
-        print(f"\n🔹 Path: {self.path}")
-        print(f"🔹 Headers:")
+
+        print("\n" + "=" * 60)
+        print("Webhook received!")
+        print("=" * 60)
+        print(f"\nPath: {self.path}")
+        print("Headers:")
         for header, value in self.headers.items():
             print(f"   {header}: {value}")
-        
-        print(f"\n🔹 Payload:")
+
+        print("\nPayload:")
         try:
             payload = json.loads(post_data)
             print(json.dumps(payload, indent=2, ensure_ascii=False))
-            
-            # 提取关键字段
+
+            # Extract key fields (NetBox 4.x format: data in $.data)
             if 'data' in payload:
                 data = payload['data']
-                print(f"\n🔹 解析结果:")
+                print(f"\nParsed fields:")
                 print(f"   Event: {payload.get('event', 'N/A')}")
                 print(f"   Model: {payload.get('model', 'N/A')}")
                 print(f"   Object ID: {data.get('id', 'N/A')}")
                 print(f"   Object Name: {data.get('name', 'N/A')}")
-                
+
                 if 'custom_fields' in data:
-                    print(f"   Custom Fields:")
+                    print("   Custom Fields:")
                     for key, value in data['custom_fields'].items():
                         print(f"      - {key}: {value}")
         except json.JSONDecodeError:
             print(post_data.decode('utf-8'))
-        
-        print("\n" + "="*60 + "\n")
-        
-        # 返回成功响应
+
+        print("\n" + "=" * 60 + "\n")
+
+        # Return success response
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
         self.wfile.write(b'Webhook received')
-    
+
     def log_message(self, format, *args):
-        # 静默访问日志
+        # Suppress default access log
         pass
 
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 9000
     server = HTTPServer(('0.0.0.0', port), WebhookHandler)
-    print(f"🎧 Webhook 监听器启动在端口 {port}")
-    print(f"📡 等待 NetBox Webhook 请求...\n")
-    print(f"💡 提示：在 NetBox 中创建或修改虚拟机来触发 Webhook")
-    print(f"💡 或使用 Ctrl+C 停止监听器\n")
+    print(f"Webhook listener started on port {port}")
+    print(f"Waiting for NetBox webhook requests...\n")
+    print(f"Tip: Create or modify a VM in NetBox to trigger a webhook")
+    print(f"     Or use Ctrl+C to stop the listener\n")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n\n👋 监听器已停止")
+        print("\n\nListener stopped")
         sys.exit(0)
 EOF
 
 chmod +x /tmp/webhook_listener.py
 
 echo ""
-echo "2. 启动方式:"
+echo "2. Usage:"
 echo "   python3 /tmp/webhook_listener.py $WEBHOOK_LISTENER_PORT"
 echo ""
-echo "3. 测试 Webhook:"
-echo "   - 方式 A: 在 NetBox UI 创建测试虚拟机"
-echo "   - 方式 B: 使用 curl 模拟 Webhook 请求:"
+echo "3. Test webhook:"
+echo "   - Option A: Create a test VM in NetBox UI"
+echo "   - Option B: Simulate with curl:"
 echo ""
-echo '   curl -X POST http://localhost:'"$WEBHOOK_LISTENER_PORT"'/webhook \\'
-echo '     -H "Content-Type: application/json" \\'
+echo '   curl -X POST http://localhost:'"$WEBHOOK_LISTENER_PORT"'/webhook \'
+echo '     -H "Content-Type: application/json" \'
 echo '     -d '"'"'{'
 echo '       "event": "created",'
 echo '       "timestamp": "2026-02-09T03:40:00Z",'
@@ -114,14 +115,14 @@ echo '       }'
 echo '     }'"'"
 echo ""
 echo "=========================================="
-echo "📋 当前 NetBox Webhook 配置:"
+echo "Current NetBox Webhook configuration:"
 echo "=========================================="
 
-# 查询当前 Webhook 配置
+# Query current webhook config
 curl -s "$NETBOX_URL/api/extras/webhooks/" \
   -H "Authorization: Token $NETBOX_TOKEN" \
-  | jq -r '.results[] | 
-    "\n🔹 Webhook: \(.name)\n" +
+  | jq -r '.results[] |
+    "\nWebhook: \(.name)\n" +
     "   ID: \(.id)\n" +
     "   URL: \(.payload_url)\n" +
     "   Method: \(.http_method)\n" +
@@ -130,10 +131,10 @@ curl -s "$NETBOX_URL/api/extras/webhooks/" \
 
 echo ""
 echo "=========================================="
-echo "✅ 脚本准备完成！"
+echo "Setup complete!"
 echo "=========================================="
 echo ""
-echo "下一步："
-echo "1. 在另一个终端运行: python3 /tmp/webhook_listener.py $WEBHOOK_LISTENER_PORT"
-echo "2. 在 NetBox 创建测试虚拟机触发 Webhook"
-echo "3. 检查监听器输出验证 Payload 格式"
+echo "Next steps:"
+echo "1. In another terminal: python3 /tmp/webhook_listener.py $WEBHOOK_LISTENER_PORT"
+echo "2. Create a test VM in NetBox to trigger the webhook"
+echo "3. Check listener output to verify payload format"

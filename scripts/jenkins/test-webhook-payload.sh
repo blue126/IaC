@@ -1,12 +1,21 @@
 #!/bin/bash
 # Test NetBox Webhook Payload to Jenkins
-# Simulates NetBox webhook trigger for testing
+# Simulates a NetBox 4.x webhook trigger for testing the router pipeline.
+# Usage: ./test-webhook-payload.sh
 
-set -e
+set -euo pipefail
 
-JENKINS_URL="http://192.168.1.107:8080"
-WEBHOOK_TOKEN="netbox-webhook"
+JENKINS_URL="${JENKINS_URL:-http://192.168.1.107:8080}"
+WEBHOOK_TOKEN="${WEBHOOK_TOKEN:-netbox-webhook}"
 WEBHOOK_ENDPOINT="${JENKINS_URL}/generic-webhook-trigger/invoke?token=${WEBHOOK_TOKEN}"
+
+# Verify dependencies
+for cmd in curl jq; do
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "ERROR: Required command '$cmd' not found" >&2
+        exit 1
+    fi
+done
 
 # Test Payload - simulates NetBox 4.x webhook payload
 # NetBox maps event types internally: object_created->"created", object_updated->"updated"
