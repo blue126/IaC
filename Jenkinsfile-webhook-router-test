@@ -87,14 +87,9 @@ pipeline {
                     echo "=========================================="
                     echo ""
                     
-                    // Parse and pretty-print full payload for debugging
-                    if (env.webhook_payload) {
-                        echo "Full Webhook Payload:"
-                        def payload = readJSON text: env.webhook_payload
-                        echo groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(payload))
-                    } else {
-                        echo "WARNING: webhook_payload is empty"
-                    }
+                    // Note: Full webhook payload is available in env.webhook_payload
+                    // Generic Webhook Trigger has already extracted all needed variables above
+                    // No need to parse JSON manually - all Custom Fields are directly accessible
                 }
             }
         }
