@@ -12,6 +12,8 @@ This directory contains shell scripts, Python scripts, or other utilities that s
 scripts/
 ├── jenkins/               # Jenkins webhook and pipeline testing scripts
 │   ├── test-webhook-payload.sh       # Simulate NetBox webhook POST to Jenkins
+│   ├── test-webhook-router.sh        # Automated test suite for Webhook Router
+│   ├── create-webhook-router-job.groovy # Job DSL for Webhook-Router job
 │   └── test-netbox-webhook.sh        # Python webhook listener for debugging
 ├── netbox/                # NetBox API integration scripts
 │   ├── create-netbox-custom-fields.py # Create Custom Fields via API (Story 1.1)
@@ -20,14 +22,10 @@ scripts/
 │   └── discover-pci-devices.sh        # PCI device discovery for GPU passthrough
 ├── get-secrets.sh         # Extract Ansible Vault secrets to Terraform *.auto.tfvars
 ├── refresh-terraform-state.sh # Pull remote Terraform state for Ansible inventory
-├── setup-env.sh           # Initialize Python venv and Ansible Galaxy collections
 └── sync-to-notion.py      # Sync documentation to Notion (optional)
 ```
 
 ## Core Scripts
-
-### Environment Setup
-- **`setup-env.sh`**: Creates Python venv, installs pip dependencies, and Ansible Galaxy collections. Runs automatically in devcontainer post-create hook.
 
 ### Secrets Management
 - **`get-secrets.sh`**: Extracts `vault_*` variables from Ansible Vault and writes them to Terraform `*.auto.tfvars` files. Ansible Vault is the single source of truth for all secrets.

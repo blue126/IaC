@@ -63,9 +63,10 @@ We use a **split inventory** approach for better organization and scalability:
 
 ### 1. Environment Setup
 ```bash
-# Initialize Python virtual environment
-./scripts/setup-env.sh
-source .venv/bin/activate
+# Environment is set up automatically by devcontainer postCreateCommand
+# For manual setup outside devcontainer:
+pip install --user -r requirements.txt
+cd ansible && ansible-galaxy collection install -r requirements.yml
 ```
 
 ### 2. Provision Infrastructure (Terraform)

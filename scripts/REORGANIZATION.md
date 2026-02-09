@@ -19,7 +19,6 @@ scripts/
 │   └── discover-pci-devices.sh
 ├── get-secrets.sh         # Secrets management (Ansible Vault → Terraform)
 ├── refresh-terraform-state.sh # Terraform state sync
-├── setup-env.sh           # Environment initialization
 └── sync-to-notion.py      # Cross-service integration (Terraform → Jenkins → Notion)
 ```
 
@@ -28,7 +27,7 @@ scripts/
 Scripts remain at root level when they:
 - Bridge multiple services (e.g., `sync-to-notion.py` integrates Terraform, Jenkins, and Notion)
 - Serve core infrastructure functions (e.g., `get-secrets.sh` for secrets management)
-- Are invoked from multiple contexts (e.g., `setup-env.sh` from devcontainer and manual setup)
+- Are invoked from multiple contexts (e.g., `get-secrets.sh` from CLI and CI)
 
 ### Moved Files
 

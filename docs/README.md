@@ -3,8 +3,13 @@
 ## Files
 
 - **[README.md](./README.md)** - Documentation index and navigation hub.
+- **[netbox-custom-fields-reference.md](./netbox-custom-fields-reference.md)** - NetBox Custom Fields definition reference (Epic 1).
 
 ## Subdirectories
+
+### agent-setup/
+
+- **[bmad-opencode-subagent-integration.md](./agent-setup/bmad-opencode-subagent-integration.md)** - BMAD + OpenCode two-layer agent architecture integration guide and optimization records.
 
 ### deployment/
 
@@ -22,10 +27,12 @@
 - **[ansible-vault-architecture.md](./designs/ansible-vault-architecture.md)** - Ansible Vault secret management design and integration principles.
 - **[cicd-architecture.md](./designs/cicd-architecture.md)** - Jenkins CI/CD pipeline architecture for Terraform and Ansible.
 - **[cicd-pipeline-flowchart.excalidraw](./designs/cicd-pipeline-flowchart.excalidraw)** - Excalidraw flowchart visualizing the CI/CD pipeline steps.
+- **[homelab-iac-architecture.md](./designs/homelab-iac-architecture.md)** - Full system architecture document for the homelab IaC project.
 
 ### guides/
 
 - **[ansible-patterns-and-best-practices.md](./guides/ansible-patterns-and-best-practices.md)** - Comprehensive guide on Ansible best practices and patterns.
+- **[jenkins-webhook-router-setup.md](./guides/jenkins-webhook-router-setup.md)** - Jenkins Webhook-Router job manual configuration guide (Story 2.1).
 - **[notion-sync-setup.md](./guides/notion-sync-setup.md)** - Setup guide for syncing Terraform state to Notion.
 - **[proxmox-provider-migration-guide.md](./guides/proxmox-provider-migration-guide.md)** - Guide for migrating from telmate to bpg Proxmox Terraform provider.
 - **[QUICK-REFERENCE.md](./guides/QUICK-REFERENCE.md)** - Quick reference card for Terraform and Proxmox operations.
@@ -84,6 +91,10 @@
 - **[2026-02-03-jenkins-cicd-phase3-pipeline.md](./learningnotes/2026-02-03-jenkins-cicd-phase3-pipeline.md)** - Phase 3 of Jenkins CI/CD pipeline implementation.
 - **[2026-02-04-ansible-cloudflared-review.md](./learningnotes/2026-02-04-ansible-cloudflared-review.md)** - Code review and learning notes for Cloudflared Ansible role.
 - **[INDEX.md](./learningnotes/INDEX.md)** - Index file for learning notes.
+
+### learningnotes/refactoring/
+
+- **[2026-02-09-epic1-netbox-webhook-jenkins-learning.md](./learningnotes/refactoring/2026-02-09-epic1-netbox-webhook-jenkins-learning.md)** - Epic 1 learning review: NetBox, Jenkins, webhooks, and API concepts.
 
 ### specs/
 

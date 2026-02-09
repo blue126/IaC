@@ -2018,5 +2018,5 @@ network_gateway
 
 **文档版本**: 1.0
 **最后更新**: 2026-01-30
-**编译者**: Claude AI
+**编译者**: Opencode AI
 **许可证**: CC BY 4.0
