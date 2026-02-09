@@ -215,3 +215,19 @@ ss -tlnp | grep PORT_NUMBER
 ```
 
 See individual service documentation for specific troubleshooting steps.
+
+## NetBox Custom Fields Quick Reference
+
+**核心字段** (必填):
+- `infrastructure_platform`: `proxmox` | `esxi` | `physical`
+- `automation_level`: `fully_automated` | `requires_approval` | `manual_only`
+
+**Proxmox 专用字段**:
+- `proxmox_node`: `pve0` | `pve1` | `pve2`
+- `proxmox_vmid`: 100-999
+
+**Ansible 集成字段**:
+- `ansible_groups`: 多选 (`pve_lxc`, `docker`, `tailscale`, ...)
+- `playbook_name`: 可选，默认根据 `ansible_groups` 推导
+
+**详细文档**: [Custom Fields Reference](docs/netbox-custom-fields-reference.md)
