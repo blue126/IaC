@@ -11,32 +11,33 @@ properties([
                 [key: 'webhook_payload', value: '$', expressionType: 'JSONPath'],
                 
                 // NetBox 4.x Event metadata
+                // Note: NetBox maps event types: object_created->"created", object_updated->"updated"
                 [key: 'netbox_event', value: '$.event', expressionType: 'JSONPath'],
                 [key: 'netbox_model', value: '$.model', expressionType: 'JSONPath'],
                 [key: 'netbox_username', value: '$.username', expressionType: 'JSONPath'],
                 [key: 'netbox_request_id', value: '$.request_id', expressionType: 'JSONPath'],
                 
-                // NetBox 4.x uses snapshots.postchange instead of data
-                [key: 'netbox_object_id', value: '$.snapshots.postchange.id', expressionType: 'JSONPath'],
-                [key: 'netbox_object_name', value: '$.snapshots.postchange.name', expressionType: 'JSONPath'],
-                [key: 'netbox_object_status', value: '$.snapshots.postchange.status.value', expressionType: 'JSONPath'],
+                // NetBox 4.x webhook payload: object data in $.data, snapshots in $.snapshots
+                [key: 'netbox_object_id', value: '$.data.id', expressionType: 'JSONPath'],
+                [key: 'netbox_object_name', value: '$.data.name', expressionType: 'JSONPath'],
+                [key: 'netbox_object_status', value: '$.data.status.value', expressionType: 'JSONPath'],
                 
-                // Custom Fields from Story 1.1
-                [key: 'infrastructure_platform', value: '$.snapshots.postchange.custom_fields.infrastructure_platform', expressionType: 'JSONPath'],
-                [key: 'automation_level', value: '$.snapshots.postchange.custom_fields.automation_level', expressionType: 'JSONPath'],
-                [key: 'proxmox_node', value: '$.snapshots.postchange.custom_fields.proxmox_node', expressionType: 'JSONPath'],
-                [key: 'proxmox_vmid', value: '$.snapshots.postchange.custom_fields.proxmox_vmid', expressionType: 'JSONPath'],
-                [key: 'ansible_groups', value: '$.snapshots.postchange.custom_fields.ansible_groups', expressionType: 'JSONPath'],
-                [key: 'playbook_name', value: '$.snapshots.postchange.custom_fields.playbook_name', expressionType: 'JSONPath']
+                // Custom Fields from Story 1.1 (via $.data)
+                [key: 'infrastructure_platform', value: '$.data.custom_fields.infrastructure_platform', expressionType: 'JSONPath'],
+                [key: 'automation_level', value: '$.data.custom_fields.automation_level', expressionType: 'JSONPath'],
+                [key: 'proxmox_node', value: '$.data.custom_fields.proxmox_node', expressionType: 'JSONPath'],
+                [key: 'proxmox_vmid', value: '$.data.custom_fields.proxmox_vmid', expressionType: 'JSONPath'],
+                [key: 'ansible_groups', value: '$.data.custom_fields.ansible_groups', expressionType: 'JSONPath'],
+                [key: 'playbook_name', value: '$.data.custom_fields.playbook_name', expressionType: 'JSONPath']
             ],
             
             // Token authentication (matches NetBox Webhook URL)
             token: 'netbox-webhook',
             
-            // Optional: Filter to only trigger on specific events
-            // Regexp matches against "$netbox_event $netbox_model"
+            // Filter to only trigger on specific events
+            // NetBox 4.x maps event types: object_created->"created", object_updated->"updated"
             regexpFilterText: '$netbox_event $netbox_model',
-            regexpFilterExpression: '^(object_created|object_updated) (virtualmachine|device)$',
+            regexpFilterExpression: '^(created|updated) (virtualmachine|device)$',
             
             // Enable debug logging
             printContributedVariables: true,

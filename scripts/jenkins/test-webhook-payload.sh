@@ -8,39 +8,55 @@ JENKINS_URL="http://192.168.1.107:8080"
 WEBHOOK_TOKEN="netbox-webhook"
 WEBHOOK_ENDPOINT="${JENKINS_URL}/generic-webhook-trigger/invoke?token=${WEBHOOK_TOKEN}"
 
-# Test Payload - simulates NetBox Virtual Machine Created event
+# Test Payload - simulates NetBox 4.x webhook payload
+# NetBox maps event types internally: object_created->"created", object_updated->"updated"
+# Object data is in $.data (full serialized object), snapshots in $.snapshots
 TEST_PAYLOAD='{
-  "event": "object_created",
+  "event": "created",
   "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")'",
   "model": "virtualmachine",
   "username": "admin",
   "request_id": "test-webhook-'$(date +%s)'",
+  "data": {
+    "id": 999,
+    "url": "http://192.168.1.104:8080/api/virtualization/virtual-machines/999/",
+    "display_url": "http://192.168.1.104:8080/virtualization/virtual-machines/999/",
+    "display": "test-webhook-vm",
+    "name": "test-webhook-vm",
+    "status": {
+      "value": "planned",
+      "label": "Planned"
+    },
+    "memory": 2048,
+    "vcpus": 2,
+    "disk": 20,
+    "cluster": {
+      "id": 1,
+      "url": "http://192.168.1.104:8080/api/virtualization/clusters/1/",
+      "display": "HomeLab Cluster",
+      "name": "HomeLab Cluster"
+    },
+    "primary_ip4": {
+      "id": 100,
+      "url": "http://192.168.1.104:8080/api/ipam/ip-addresses/100/",
+      "display": "192.168.1.201/24",
+      "address": "192.168.1.201/24"
+    },
+    "custom_fields": {
+      "infrastructure_platform": "proxmox",
+      "automation_level": "requires_approval",
+      "proxmox_node": "pve0",
+      "proxmox_vmid": 201,
+      "ansible_groups": ["pve_lxc", "tailscale"],
+      "playbook_name": null
+    },
+    "created": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")'",
+    "last_updated": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")'"
+  },
   "snapshots": {
     "prechange": null,
     "postchange": {
-      "id": 999,
-      "url": "http://192.168.1.104:8080/api/virtualization/virtual-machines/999/",
-      "display": "test-webhook-vm",
-      "name": "test-webhook-vm",
-      "status": {
-        "value": "planned",
-        "label": "Planned"
-      },
-      "memory": 2048,
-      "vcpus": 2,
-      "disk": 20,
-      "cluster": {
-        "id": 1,
-        "url": "http://192.168.1.104:8080/api/virtualization/clusters/1/",
-        "display": "Proxmox VE Cluster",
-        "name": "proxmox-cluster"
-      },
-      "primary_ip4": {
-        "id": 100,
-        "url": "http://192.168.1.104:8080/api/ipam/ip-addresses/100/",
-        "display": "192.168.1.201/24",
-        "address": "192.168.1.201/24"
-      },
+      "created": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")'",
       "custom_fields": {
         "infrastructure_platform": "proxmox",
         "automation_level": "requires_approval",
@@ -48,9 +64,7 @@ TEST_PAYLOAD='{
         "proxmox_vmid": 201,
         "ansible_groups": ["pve_lxc", "tailscale"],
         "playbook_name": null
-      },
-      "created": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")'",
-      "last_updated": "'$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")'"
+      }
     }
   }
 }'

@@ -115,7 +115,7 @@ Jenkinsfile-webhook-router-test
 cd /workspaces/IaC
 
 # 运行 webhook 测试脚本
-bash scripts/test-webhook-payload.sh
+bash scripts/jenkins/test-webhook-payload.sh
 ```
 
 **预期输出**:
@@ -192,7 +192,7 @@ Event Type      : object_created
 START=$(date +%s)
 
 # 发送 webhook
-bash scripts/test-webhook-payload.sh
+bash scripts/jenkins/test-webhook-payload.sh
 
 # 获取 Jenkins 构建开始时间 (需要 jq)
 BUILD_START=$(curl -s http://192.168.1.107:8080/job/Webhook-Router-Test/lastBuild/api/json | jq '.timestamp / 1000')
@@ -342,7 +342,7 @@ Jenkins → Manage Jenkins → Manage Plugins → Available
 - **Story 文档**: `/workspaces/IaC/_bmad-output/implementation-artifacts/1-2-配置-netbox-webhook-到-jenkins.md`
 - **实施进度**: `/workspaces/IaC/_bmad-output/implementation-artifacts/1-2-implementation-progress.md`
 - **Custom Fields 参考**: `/workspaces/IaC/docs/netbox-custom-fields-reference.md`
-- **测试脚本**: `/workspaces/IaC/scripts/test-webhook-payload.sh`
+- **测试脚本**: `/workspaces/IaC/scripts/jenkins/test-webhook-payload.sh`
 
 ---
 
