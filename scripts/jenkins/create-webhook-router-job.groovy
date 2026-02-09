@@ -25,8 +25,8 @@ pipelineJob('Webhook-Router') {
             scm {
                 git {
                     remote {
-                        url('https://github.com/your-org/IaC.git')  // TODO: Update with actual repo URL
-                        credentials('github-credentials-id')  // TODO: Update with actual credentials ID
+                        url('git@github.com:blue126/IaC.git')
+                        credentials('github-ssh-key')
                     }
                     branches('*/main')
                     extensions {
@@ -35,7 +35,6 @@ pipelineJob('Webhook-Router') {
                 }
             }
             scriptPath('Jenkinsfile-webhook-router')
-            lightweight(true)
         }
     }
     
@@ -44,7 +43,7 @@ pipelineJob('Webhook-Router') {
 }
 
 println "Webhook-Router job created successfully"
-println "Webhook endpoint: http://192.168.1.107:8080/generic-webhook-trigger/invoke?token=netbox-webhook"
+println "Webhook endpoint: JENKINS_URL/generic-webhook-trigger/invoke (token via HTTP header)"
 println ""
 println "Next steps:"
 println "1. Run this job manually once to register the Generic Webhook Trigger"

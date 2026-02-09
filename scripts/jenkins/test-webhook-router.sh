@@ -1,11 +1,15 @@
 #!/bin/bash
 # Test script for Webhook Router Pipeline
 # Tests all routing scenarios and error handling
+#
+# Usage: WEBHOOK_TOKEN=<your-token> ./test-webhook-router.sh
+# Optional: JENKINS_URL=http://host:port (default: http://192.168.1.107:8080)
 
-set -e
+command -v jq >/dev/null 2>&1 || { echo "Error: jq is required but not installed"; exit 1; }
 
-JENKINS_URL="http://192.168.1.107:8080"
-WEBHOOK_ENDPOINT="${JENKINS_URL}/generic-webhook-trigger/invoke?token=netbox-webhook"
+JENKINS_URL="${JENKINS_URL:-http://192.168.1.107:8080}"
+WEBHOOK_TOKEN="${WEBHOOK_TOKEN:?Error: WEBHOOK_TOKEN environment variable is required}"
+WEBHOOK_ENDPOINT="${JENKINS_URL}/generic-webhook-trigger/invoke"
 JOB_NAME="Webhook-Router"
 
 # Colors for output
@@ -14,32 +18,75 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+PASS_COUNT=0
+FAIL_COUNT=0
+
 echo "=========================================="
 echo "  Webhook Router Pipeline Test Suite"
 echo "=========================================="
 echo ""
 
-# Function to send webhook
+# Function to send webhook and assert trigger result
 send_webhook() {
     local test_name=$1
     local payload=$2
-    local expected_result=$3
+    local expected=$3  # "triggered" or "not_triggered"
     
     echo -e "${YELLOW}Test: ${test_name}${NC}"
-    echo "Payload: ${payload}"
     
+    # Token sent via header to avoid URL logging and encoding issues
     response=$(curl -s -w "\n%{http_code}" -X POST "${WEBHOOK_ENDPOINT}" \
         -H "Content-Type: application/json" \
-        -d "${payload}")
+        -H "token: ${WEBHOOK_TOKEN}" \
+        -d "${payload}" 2>&1)
+    local curl_exit=$?
+    
+    if [ "$curl_exit" -ne 0 ]; then
+        echo -e "${RED}  ✗ FAIL - curl error (exit code: ${curl_exit})${NC}"
+        echo "  Response: $response"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        echo ""
+        return
+    fi
     
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | head -n-1)
     
-    if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
-        echo -e "${GREEN}✓ Webhook accepted (HTTP ${http_code})${NC}"
+    # Validate http_code is numeric
+    if ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
+        echo -e "${RED}  ✗ FAIL - invalid HTTP response code: ${http_code}${NC}"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        echo ""
+        return
+    fi
+    
+    if [ "$http_code" -ne 200 ] && [ "$http_code" -ne 201 ]; then
+        echo -e "${RED}  ✗ FAIL - HTTP ${http_code} (expected 200)${NC}"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        echo ""
+        return
+    fi
+    
+    # Check if pipeline was triggered from response body
+    triggered=$(echo "$body" | jq -r '.jobs | to_entries[0].value.triggered // false' 2>/dev/null)
+    if [ $? -ne 0 ] || [ -z "$triggered" ]; then
+        echo -e "${RED}  ✗ FAIL - failed to parse response JSON${NC}"
+        echo "  Response: $body"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        echo ""
+        return
+    fi
+    
+    if [ "$expected" = "triggered" ] && [ "$triggered" = "true" ]; then
+        echo -e "${GREEN}  ✓ PASS - Pipeline triggered as expected${NC}"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    elif [ "$expected" = "not_triggered" ] && [ "$triggered" != "true" ]; then
+        echo -e "${GREEN}  ✓ PASS - Pipeline not triggered (filtered) as expected${NC}"
+        PASS_COUNT=$((PASS_COUNT + 1))
     else
-        echo -e "${RED}✗ Webhook rejected (HTTP ${http_code})${NC}"
-        echo "Response: $body"
+        echo -e "${RED}  ✗ FAIL - expected: ${expected}, triggered: ${triggered}${NC}"
+        echo "  Response: $body"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
     echo ""
 }
@@ -57,7 +104,7 @@ send_webhook "Test 1: Proxmox VM Creation" '{
       "automation_level": "fully_automated"
     }
   }
-}' "success"
+}' "triggered"
 
 # Test 2: ESXi VM Update
 send_webhook "Test 2: ESXi VM Update" '{
@@ -72,7 +119,7 @@ send_webhook "Test 2: ESXi VM Update" '{
       "automation_level": "requires_approval"
     }
   }
-}' "success"
+}' "triggered"
 
 # Test 3: Physical Device Creation
 send_webhook "Test 3: Physical Device Creation" '{
@@ -87,9 +134,9 @@ send_webhook "Test 3: Physical Device Creation" '{
       "automation_level": "manual_only"
     }
   }
-}' "success"
+}' "triggered"
 
-# Test 4: Invalid Platform (should trigger error handling)
+# Test 4: Invalid Platform (should trigger pipeline, fails at validation)
 send_webhook "Test 4: Invalid Platform (Oracle)" '{
   "event": "created",
   "model": "virtualmachine",
@@ -102,9 +149,9 @@ send_webhook "Test 4: Invalid Platform (Oracle)" '{
       "automation_level": "fully_automated"
     }
   }
-}' "error"
+}' "triggered"
 
-# Test 5: Missing Platform Field (should trigger error handling)
+# Test 5: Missing Platform Field (should trigger pipeline, fails at validation)
 send_webhook "Test 5: Missing Platform Field" '{
   "event": "created",
   "model": "virtualmachine",
@@ -114,10 +161,10 @@ send_webhook "Test 5: Missing Platform Field" '{
     "status": {"value": "planned"},
     "custom_fields": {}
   }
-}' "error"
+}' "triggered"
 
-# Test 6: Filtered Event (deleted - should be rejected by regexpFilter)
-send_webhook "Test 6: Filtered Event (Deleted)" '{
+# Test 6: Deleted VM (should trigger pipeline, router passes event to downstream)
+send_webhook "Test 6: Deleted VM Event" '{
   "event": "deleted",
   "model": "virtualmachine",
   "data": {
@@ -129,22 +176,38 @@ send_webhook "Test 6: Filtered Event (Deleted)" '{
       "automation_level": "fully_automated"
     }
   }
-}' "filtered"
+}' "triggered"
+
+# Test 7: IP Address event (should be filtered by regexpFilter - not a VM/Device)
+send_webhook "Test 7: Non-VM Object (IP Address)" '{
+  "event": "created",
+  "model": "ipaddress",
+  "data": {
+    "id": 500,
+    "name": "192.168.1.100/24",
+    "custom_fields": {}
+  }
+}' "not_triggered"
 
 echo "=========================================="
 echo "  Test Results Summary"
 echo "=========================================="
 echo ""
+echo "  Passed: ${PASS_COUNT}"
+echo "  Failed: ${FAIL_COUNT}"
+echo "  Total:  $((PASS_COUNT + FAIL_COUNT))"
+echo ""
 echo "Check Jenkins Job: ${JENKINS_URL}/job/${JOB_NAME}/"
 echo ""
 echo "Expected Outcomes:"
-echo "  - Tests 1-3: Should trigger pipeline and route successfully"
-echo "  - Tests 4-5: Should trigger pipeline but FAIL with clear error message"
-echo "  - Test 6: Should be filtered by regexpFilter (no pipeline trigger)"
+echo "  - Tests 1-3: Triggered, route to platform pipeline"
+echo "  - Tests 4-5: Triggered, fail at platform validation"
+echo "  - Test 6:    Triggered, deleted event routed to downstream"
+echo "  - Test 7:    Not triggered, filtered by regexpFilter (not VM/Device)"
 echo ""
-echo "Verify in Jenkins Console Output:"
-echo "  1. Routing decision logs present"
-echo "  2. Platform validation messages"
-echo "  3. Error messages for invalid/missing platforms"
-echo "  4. Performance timing < 10s"
-echo ""
+if [ "$FAIL_COUNT" -gt 0 ]; then
+    echo -e "${RED}RESULT: SOME TESTS FAILED${NC}"
+    exit 1
+else
+    echo -e "${GREEN}RESULT: ALL TESTS PASSED${NC}"
+fi

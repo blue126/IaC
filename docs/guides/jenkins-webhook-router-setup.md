@@ -1,8 +1,29 @@
 # Jenkins Job Configuration: Webhook-Router
 
+## Prerequisites
+
+- **Generic Webhook Trigger Plugin** >= 1.86.0 (required for `tokenCredentialId` support)
+  - If using an older version, either upgrade the plugin or temporarily replace `tokenCredentialId` with `token` in the Jenkinsfile
+- **Pipeline Plugin** (standard Jenkins installation)
+- **Git Plugin** (standard Jenkins installation)
+
 ## Manual Configuration Steps (Jenkins UI)
 
-### Step 1: Create New Pipeline Job
+### Step 1: Create Webhook Token Credential
+
+1. Navigate to Jenkins: http://192.168.1.107:8080/credentials/
+2. Select the appropriate domain (or "Global")
+3. Click "Add Credentials"
+4. **Kind**: Secret text
+5. **Secret**: Enter your chosen webhook token value (e.g., a random string)
+6. **ID**: `netbox-webhook-token`
+7. **Description**: `Token for NetBox webhook trigger`
+8. Click "Create"
+
+> This credential is referenced by `tokenCredentialId` in the Jenkinsfile.  
+> The same token value must be configured in the NetBox Event Rule URL.
+
+### Step 2: Create New Pipeline Job
 
 1. Navigate to Jenkins: http://192.168.1.107:8080
 2. Click "New Item"
@@ -10,7 +31,7 @@
 4. Select: **Pipeline**
 5. Click OK
 
-### Step 2: General Settings
+### Step 3: General Settings
 
 - **Description**: `NetBox Webhook Router Pipeline - Routes VM/Device events to platform-specific pipelines`
 - **Discard old builds**: ✅ Enabled
@@ -18,21 +39,21 @@
   - Days to keep builds: 30
   - Max # of builds to keep: 50
 
-### Step 3: Build Triggers
+### Step 4: Build Triggers
 
 ⚠️ **Important**: Do NOT check "Generic Webhook Trigger" in the UI trigger section.  
 The trigger is configured **inside the Jenkinsfile** using the `triggers {}` block.
 
-### Step 4: Pipeline Configuration
+### Step 5: Pipeline Configuration
 
 - **Definition**: Pipeline script from SCM
 - **SCM**: Git
-- **Repository URL**: `https://github.com/<your-org>/IaC.git` (or your Git repo URL)
+- **Repository URL**: `git@github.com:blue126/IaC.git`
 - **Credentials**: Select appropriate Git credentials
 - **Branches to build**: `*/main` (or your default branch)
 - **Script Path**: `Jenkinsfile-webhook-router`
 
-### Step 5: Save Configuration
+### Step 6: Save Configuration
 
 Click "Save" at the bottom of the page.
 
@@ -82,10 +103,10 @@ jobs:
             scm {
               git {
                 remote {
-                  url('https://github.com/<your-org>/IaC.git')
-                  credentials('github-credentials-id')
+                  url('git@github.com:blue126/IaC.git')
+                  credentials('github-ssh-key')
                 }
-                branch('*/main')
+                branches('*/main')
               }
             }
             scriptPath('Jenkinsfile-webhook-router')
@@ -106,10 +127,18 @@ jobs:
 After job creation, the webhook endpoint will be:
 
 ```
-http://192.168.1.107:8080/generic-webhook-trigger/invoke?token=netbox-webhook
+http://192.168.1.107:8080/generic-webhook-trigger/invoke
 ```
 
-This should already be configured in NetBox (from Story 1.2).
+**Token authentication**: The token should be sent via HTTP header (not URL query string)
+to avoid exposure in access logs and proxy logs.
+
+**NetBox Webhook configuration** (Operations > Webhooks):
+- **URL**: `http://192.168.1.107:8080/generic-webhook-trigger/invoke`
+- **Additional Headers**: `token: <value-from-netbox-webhook-token-credential>`
+
+The token value is stored in Jenkins credential `netbox-webhook-token` (Step 1).  
+The Generic Webhook Trigger plugin accepts the token via header, query parameter, or Bearer token.
 
 ---
 

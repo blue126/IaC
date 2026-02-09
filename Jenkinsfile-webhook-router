@@ -15,9 +15,9 @@ pipeline {
                 [key: 'infrastructure_platform', value: '$.data.custom_fields.infrastructure_platform'],
                 [key: 'automation_level', value: '$.data.custom_fields.automation_level']
             ],
-            token: 'netbox-webhook',
-            regexpFilterExpression: '^(created|updated) (virtualmachine|device)$',
-            regexpFilterText: '$netbox_event $netbox_model'
+            tokenCredentialId: 'netbox-webhook-token',
+            regexpFilterExpression: '^(virtualmachine|device)$',
+            regexpFilterText: '$netbox_model'
         )
     }
     stages {
@@ -39,13 +39,12 @@ pipeline {
                     } else {
                         // Variables already extracted by GenericTrigger — no readJSON needed
                         env.PLATFORM = env.infrastructure_platform
-                        env.AUTOMATION_LEVEL = env.automation_level
                     }
                     
                     // Log routing decision
                     echo "========== ROUTING DECISION =========="
                     echo "Platform: ${env.PLATFORM}"
-                    echo "Automation Level: ${env.AUTOMATION_LEVEL}"
+                    echo "Automation Level: ${env.automation_level}"
                     echo "NetBox Object ID: ${env.netbox_object_id}"
                     echo "NetBox Object Name: ${env.netbox_object_name}"
                     echo "Event: ${env.netbox_event}"
@@ -69,40 +68,12 @@ pipeline {
         stage('Route to Platform Pipeline') {
             steps {
                 script {
-                    // Determine target job
-                    def targetJob = ''
-                    switch(env.PLATFORM) {
-                        case 'proxmox':
-                            targetJob = 'Proxmox-Provisioning'
-                            break
-                        case 'esxi':
-                            targetJob = 'ESXi-Provisioning'
-                            break
-                        case 'physical':
-                            targetJob = 'Physical-Device-Sync'
-                            break
-                    }
-                    
-                    // Validate target job exists
-                    def jobExists = false
-                    try {
-                        def job = Jenkins.instance.getItemByFullName(targetJob)
-                        jobExists = (job != null)
-                    } catch (Exception e) {
-                        echo "Warning: Unable to verify job existence: ${e.message}"
-                        jobExists = true  // Assume exists, build step will fail naturally if not
-                    }
-                    
-                    if (!jobExists) {
-                        error "❌ Target Jenkins Job '${targetJob}' does not exist. Please create it first."
-                    }
-                    echo "✓ Target Job '${targetJob}' exists"
-                    
                     // Route to platform-specific pipeline
-                    echo "→ Routing to ${targetJob}"
                     switch(env.PLATFORM) {
                         case 'proxmox':
+                            echo "→ Routing to Proxmox-Provisioning"
                             build job: 'Proxmox-Provisioning', parameters: [
+                                string(name: 'NETBOX_EVENT', value: env.netbox_event),
                                 string(name: 'NETBOX_VM_ID', value: env.netbox_object_id),
                                 string(name: 'NETBOX_VM_NAME', value: env.netbox_object_name),
                                 string(name: 'PLATFORM', value: 'proxmox'),
@@ -110,7 +81,9 @@ pipeline {
                             ], wait: false
                             break
                         case 'esxi':
+                            echo "→ Routing to ESXi-Provisioning"
                             build job: 'ESXi-Provisioning', parameters: [
+                                string(name: 'NETBOX_EVENT', value: env.netbox_event),
                                 string(name: 'NETBOX_VM_ID', value: env.netbox_object_id),
                                 string(name: 'NETBOX_VM_NAME', value: env.netbox_object_name),
                                 string(name: 'PLATFORM', value: 'esxi'),
@@ -118,13 +91,17 @@ pipeline {
                             ], wait: false
                             break
                         case 'physical':
+                            echo "→ Routing to Physical-Device-Sync"
                             build job: 'Physical-Device-Sync', parameters: [
+                                string(name: 'NETBOX_EVENT', value: env.netbox_event),
                                 string(name: 'NETBOX_DEVICE_ID', value: env.netbox_object_id),
                                 string(name: 'NETBOX_DEVICE_NAME', value: env.netbox_object_name),
                                 string(name: 'PLATFORM', value: 'physical'),
                                 string(name: 'AUTOMATION_LEVEL', value: env.automation_level)
                             ], wait: false
                             break
+                        default:
+                            error "Unhandled platform: ${env.PLATFORM}"
                     }
                     
                     // Performance measurement
@@ -148,6 +125,7 @@ pipeline {
         }
         success {
             echo "✓ Router Pipeline completed successfully"
+            echo "Event: ${env.netbox_event} ${env.netbox_model}"
             echo "Routed ${env.netbox_object_name} to ${env.PLATFORM} pipeline"
         }
     }
