@@ -1,0 +1,50 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config_dir = File.expand_path(__dir__)
+  host_project_dir = if File.basename(config_dir) == "vagrant"
+    File.expand_path("..", config_dir)
+  else
+    config_dir
+  end
+  project_name = File.basename(host_project_dir)
+  guest_project_dir = "/home/vagrant/#{project_name}"
+
+  # Box for Apple Silicon (M4): Ubuntu 24.04 ARM64
+  # Note: Requires 'vagrant-vmware-desktop' plugin
+  # Note: Bento box will automatically select arm64 architecture for M-series chips
+  config.vm.box = "bento/ubuntu-24.04"
+
+  # Forward host SSH agent to guest for git/ssh operations
+  config.ssh.forward_agent = true
+
+  # VMware Fusion Provider Configuration
+  config.vm.provider "vmware_desktop" do |v|
+    # Enable GUI for Desktop Environment
+    v.gui = true
+    v.allowlist_verified = true
+
+    # Resource Allocation (M4 16GB optimized)
+    v.cpus = 4
+    v.memory = 8192
+
+    # Graphics Performance (256MB VRAM)
+    v.vmx["svga.vramSize"] = "268435456"
+    
+    # Network Optimization
+    v.vmx["ethernet0.virtualDev"] = "vmxnet3"
+    
+    # Optional: Improve disk performance
+    # v.vmx["scsi0.virtualDev"] = "lsilogic"
+  end
+
+  # Sync host project directory to ~/PROJECT_NAME in guest
+  config.vm.synced_folder host_project_dir, guest_project_dir
+
+  # Provisioning: Run setup script
+  config.vm.provision "shell", path: "setup.sh", env: {
+    "PROJECT_DIR" => guest_project_dir,
+    "PROJECT_NAME" => project_name,
+  }
+end

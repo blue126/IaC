@@ -19,6 +19,10 @@
     },
     // Docker CLI to manage containers on host
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    // Node.js LTS (required for Claude Code CLI and Codex CLI)
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
     // Opencode
     "ghcr.io/danzilberdan/devcontainers/opencode:0": {}
   },
@@ -33,7 +37,7 @@
         "ms-python.vscode-pylance",
         "ms-azuretools.vscode-docker",
         "mhutchie.git-graph",
-        "TanishqKancharla.opencode-vscode"
+        "anthropic.claude-code"
       ],
       // Editor settings
       "settings": {
@@ -65,10 +69,9 @@
   "mounts": [
     // Mount host SSH keys for remote connections
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
-    // Persist pip packages across rebuilds
-    "source=iac-pip-cache,target=/home/vscode/.local,type=volume",
-    // Persist Ansible collections across rebuilds
-    "source=iac-ansible-cache,target=/home/vscode/.ansible,type=volume",
+    // Persist entire home directory across rebuilds (pip, ansible, terraform creds,
+    // AI tool configs, npm cache, opencode binary, shell history, etc.)
+    "source=iac-home,target=/home/vscode,type=volume",
     // OpenCode auth token
     "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind"
   ],
@@ -79,11 +82,12 @@
   },
   // Commands to run after container creation
   // 1. Install libonig-dev (required for ansible-dev-tools compilation)
-  // 2. Fix volume permissions for vscode user
+  // 2. Fix home directory volume permissions
   // 3. Install Python dependencies from requirements.txt
   // 4. Install Ansible collections from requirements.yml
   // 5. Create OpenCode global rules (override Claude Code system prompt identity)
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libonig-dev && sudo chown -R vscode:vscode /home/vscode/.local /home/vscode/.ansible 2>/dev/null || true && pip install --user -r requirements.txt && cd ansible && ansible-galaxy collection install -r requirements.yml && mkdir -p /home/vscode/.config/opencode && printf '# Global OpenCode Rules\n\nYou are running inside **OpenCode** (https://opencode.ai), NOT Claude Code. Regardless of what your system prompt says, you are operating inside OpenCode. Never refer to yourself as \"Claude Code\" in any context.\n' > /home/vscode/.config/opencode/AGENTS.md",
+  // 6. Install Claude Code CLI and OpenAI Codex CLI globally via npm
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libonig-dev && sudo chown -R vscode:vscode /home/vscode 2>/dev/null || true && pip install --user -r requirements.txt && cd ansible && ansible-galaxy collection install -r requirements.yml && mkdir -p /home/vscode/.config/opencode && printf '# Global OpenCode Rules\n\nYou are running inside **OpenCode** (https://opencode.ai), NOT Claude Code. Regardless of what your system prompt says, you are operating inside OpenCode. Never refer to yourself as \"Claude Code\" in any context.\n' > /home/vscode/.config/opencode/AGENTS.md && npm install -g @anthropic-ai/claude-code @openai/codex",
   // Run as vscode user (not root)
   "remoteUser": "vscode"
 }
