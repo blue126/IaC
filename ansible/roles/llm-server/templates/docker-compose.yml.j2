@@ -1,0 +1,19 @@
+services:
+  open-webui:
+    image: {{ llm_server_webui_image }}
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "{{ llm_server_webui_port }}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - OPENAI_API_BASE_URL=http://host.docker.internal:{{ llm_server_port }}/v1
+      - OPENAI_API_KEY=not-needed
+    volumes:
+      - {{ llm_server_webui_data_dir }}/data:/app/backend/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"

@@ -1,0 +1,28 @@
+---
+# LLM Server role - main task entry point
+
+- name: Create llm system user
+  ansible.builtin.user:
+    name: "{{ llm_server_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "/home/{{ llm_server_user }}"
+    create_home: true
+
+- name: Include NVIDIA driver and CUDA tasks
+  ansible.builtin.include_tasks: nvidia.yml
+
+- name: Include ik_llama.cpp compilation tasks
+  ansible.builtin.include_tasks: llama-cpp.yml
+
+- name: Include model download tasks
+  ansible.builtin.include_tasks: model.yml
+
+- name: Include performance tuning tasks
+  ansible.builtin.include_tasks: tuning.yml
+
+- name: Include llama-server systemd service tasks
+  ansible.builtin.include_tasks: service.yml
+
+- name: Include Open WebUI tasks
+  ansible.builtin.include_tasks: webui.yml

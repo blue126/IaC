@@ -1,0 +1,32 @@
+---
+# Compile ik_llama.cpp with CUDA support
+
+- name: Ensure install directory exists
+  ansible.builtin.file:
+    path: "{{ llm_server_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clone ik_llama.cpp repository
+  ansible.builtin.git:
+    repo: "{{ llm_server_engine_repo }}"
+    dest: "{{ llm_server_install_dir }}/ik_llama.cpp"
+    version: "{{ llm_server_engine_version | default(omit, true) }}"
+    force: false
+  register: llama_cpp_clone
+
+- name: Build ik_llama.cpp with CUDA support
+  ansible.builtin.shell: |
+    set -e
+    cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_CUDA=ON \
+        -DGGML_CUDA_F16=ON
+    cmake --build build --config Release -j $(nproc)
+  args:
+    chdir: "{{ llm_server_install_dir }}/ik_llama.cpp"
+    creates: "{{ llm_server_install_dir }}/ik_llama.cpp/build/bin/llama-server"
+  environment:
+    PATH: "/usr/local/cuda/bin:{{ ansible_env.PATH }}"

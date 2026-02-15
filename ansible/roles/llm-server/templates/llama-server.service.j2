@@ -1,0 +1,43 @@
+[Unit]
+Description=llama.cpp Server - MiniMax M2.5
+After=network.target
+# Uncomment if nvidia-persistenced is installed
+# After=network.target nvidia-persistenced.service
+
+[Service]
+Type=simple
+User={{ llm_server_user }}
+WorkingDirectory={{ llm_server_install_dir }}/ik_llama.cpp
+ExecStart=/usr/bin/numactl --interleave=all \
+    {{ llm_server_install_dir }}/ik_llama.cpp/build/bin/llama-server \
+    --model {{ llm_server_model_dir }}/{{ llm_server_model_filename }} \
+    -ngl {{ llm_server_gpu_layers }} \
+{% if llm_server_cpu_moe %}
+    --cpu-moe \
+{% endif %}
+    --split-mode {{ llm_server_split_mode }} \
+    --tensor-split {{ llm_server_tensor_split }} \
+    --fit on \
+    --jinja \
+    --flash-attn \
+    --ctx-size {{ llm_server_ctx_size }} \
+    --cache-type-k {{ llm_server_cache_type_k }} \
+    --cache-type-v {{ llm_server_cache_type_v }} \
+    --host {{ llm_server_host }} \
+    --port {{ llm_server_port }} \
+    --parallel {{ llm_server_parallel }} \
+    --reasoning-format auto \
+    --temp 1.0 \
+    --top-p 0.95 \
+    --top-k 40
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=300
+StartLimitBurst=3
+LimitNOFILE=65536
+# Optional: lock model and KV cache in memory to reduce latency jitter
+# Enable by uncommenting and adding --mlock --no-mmap to ExecStart
+# LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

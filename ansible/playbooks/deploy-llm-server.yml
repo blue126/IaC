@@ -1,0 +1,150 @@
+---
+# Playbook to deploy LLM Server with ik_llama.cpp and Open WebUI.
+# Provisioning is handled by Terraform (terraform/esxi/llm-server.tf).
+#
+# Prerequisites:
+#   - Ubuntu 24.04 VM with GPU passthrough (2x RTX 3090)
+#   - BIOS: VT-d and Above 4G Decoding enabled
+#   - ESXi: GPU PCI passthrough toggled and host rebooted
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-llm-server.yml
+#   ansible-playbook playbooks/deploy-llm-server.yml --tags verify
+
+- name: Deploy LLM Server
+  hosts: llm-server
+  become: true
+  pre_tasks:
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+  roles:
+    - common
+    - docker
+    - llm-server
+
+- name: Verify LLM Server Deployment
+  hosts: llm-server
+  become: true
+  tags: [verify]
+  tasks:
+    # GPU verification
+    - name: Check nvidia-smi
+      ansible.builtin.command: nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+      register: nvidia_smi_result
+      changed_when: false
+
+    - name: Count detected GPUs
+      ansible.builtin.shell: |
+        set -o pipefail
+        nvidia-smi --query-gpu=name --format=csv,noheader | wc -l
+      args:
+        executable: /bin/bash
+      register: gpu_count
+      changed_when: false
+
+    - name: Assert 2 GPUs detected
+      ansible.builtin.assert:
+        that:
+          - gpu_count.stdout | int == 2
+        fail_msg: "Expected 2 GPUs, found {{ gpu_count.stdout }}"
+        success_msg: "2 GPUs detected: {{ nvidia_smi_result.stdout }}"
+      when: not ansible_check_mode
+
+    # llama-server service
+    - name: Check llama-server service status
+      ansible.builtin.systemd:
+        name: llama-server
+      register: llama_server_status
+
+    - name: Assert llama-server is running
+      ansible.builtin.assert:
+        that:
+          - llama_server_status.status.ActiveState == "active"
+          - llama_server_status.status.SubState == "running"
+        fail_msg: "llama-server is not running"
+        success_msg: "llama-server is active and running"
+      when: not ansible_check_mode
+
+    # llama-server health check
+    - name: Wait for llama-server port
+      ansible.builtin.wait_for:
+        port: "{{ llm_server_port | default(8080) }}"
+        timeout: 120
+      when: not ansible_check_mode
+
+    - name: Health check - GET /health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ llm_server_port | default(8080) }}/health"
+        method: GET
+        status_code: [200]
+        timeout: 30
+      register: health_result
+      until: health_result.status == 200
+      retries: 20
+      delay: 15
+      when: not ansible_check_mode
+
+    # Inference smoke test
+    - name: Inference smoke test - POST /v1/chat/completions
+      ansible.builtin.uri:
+        url: "http://localhost:{{ llm_server_port | default(8080) }}/v1/chat/completions"
+        method: POST
+        body_format: json
+        body:
+          model: "minimax-m2.5"
+          messages:
+            - role: "user"
+              content: "Reply with exactly: Hello World"
+          max_tokens: 32
+        status_code: [200]
+        timeout: 120
+      register: inference_result
+      when: not ansible_check_mode
+
+    - name: Assert inference response is valid
+      ansible.builtin.assert:
+        that:
+          - inference_result.json.choices | length > 0
+          - inference_result.json.choices[0].message.content | length > 0
+        fail_msg: "Inference returned empty response"
+        success_msg: "Inference smoke test passed"
+      when: not ansible_check_mode
+
+    # Open WebUI
+    - name: Wait for Open WebUI port
+      ansible.builtin.wait_for:
+        port: "{{ llm_server_webui_port | default(3000) }}"
+        timeout: 60
+      when: not ansible_check_mode
+
+    - name: Check Open WebUI HTTP
+      ansible.builtin.uri:
+        url: "http://localhost:{{ llm_server_webui_port | default(3000) }}"
+        method: GET
+        status_code: [200, 301, 302]
+        timeout: 10
+      register: webui_http_result
+      when: not ansible_check_mode
+
+    # Deployment summary
+    - name: Get GPU details
+      ansible.builtin.command: nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv,noheader
+      register: gpu_details
+      changed_when: false
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "========================================="
+          - "LLM Server Deployment Summary"
+          - "========================================="
+          - "GPUs: {{ gpu_count.stdout | trim }} detected"
+          - "{{ gpu_details.stdout }}"
+          - "llama-server: {{ 'Running' if llama_server_status.status.ActiveState == 'active' else 'Not running' }}"
+          - "llama-server API: http://{{ ansible_host }}:{{ llm_server_port | default(8080) }}"
+          - "Health: {{ 'OK' if health_result is success else 'Not ready' }}"
+          - "Inference: {{ 'OK' if inference_result is success else 'Not tested' }}"
+          - "Open WebUI: http://{{ ansible_host }}:{{ llm_server_webui_port | default(3000) }}"
+          - "========================================="
+      when: not ansible_check_mode

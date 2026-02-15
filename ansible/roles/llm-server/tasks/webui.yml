@@ -1,0 +1,31 @@
+---
+# Open WebUI deployment via Docker Compose
+
+- name: Ensure Open WebUI data directory exists
+  ansible.builtin.file:
+    path: "{{ llm_server_webui_data_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy Open WebUI docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ llm_server_webui_data_dir }}/docker-compose.yml"
+    mode: "0644"
+  notify: Restart Open WebUI
+
+- name: Pull Open WebUI container image
+  ansible.builtin.command: docker compose pull
+  args:
+    chdir: "{{ llm_server_webui_data_dir }}"
+  register: webui_pull_result
+  changed_when: "'Pulling' in (webui_pull_result.stdout + webui_pull_result.stderr) or 'Downloaded' in (webui_pull_result.stdout + webui_pull_result.stderr)"
+
+- name: Launch Open WebUI
+  ansible.builtin.command: docker compose up -d
+  args:
+    chdir: "{{ llm_server_webui_data_dir }}"
+  register: webui_up_result
+  changed_when: "'Started' in (webui_up_result.stdout + webui_up_result.stderr) or 'Created' in (webui_up_result.stdout + webui_up_result.stderr)"

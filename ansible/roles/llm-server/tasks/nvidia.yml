@@ -1,0 +1,76 @@
+---
+# NVIDIA driver + CUDA Toolkit installation
+
+- name: Install build dependencies and tools
+  ansible.builtin.apt:
+    name:
+      - ubuntu-drivers-common
+      - build-essential
+      - cmake
+      - git
+      - wget
+      - curl
+      - numactl
+      - htop
+      - nvtop
+      - python3-pip
+    state: present
+    update_cache: true
+
+- name: Install NVIDIA driver (autoinstall)
+  ansible.builtin.command: ubuntu-drivers autoinstall
+  args:
+    creates: /usr/bin/nvidia-smi
+  register: nvidia_driver_autoinstall
+  notify: Reboot for NVIDIA driver
+  when: llm_server_nvidia_driver == ""
+
+- name: Install NVIDIA driver (pinned version)
+  ansible.builtin.apt:
+    name: "{{ llm_server_nvidia_driver }}"
+    state: present
+  register: nvidia_driver_pinned
+  notify: Reboot for NVIDIA driver
+  when: llm_server_nvidia_driver != ""
+
+- name: Flush handlers (reboot if driver was just installed)
+  ansible.builtin.meta: flush_handlers
+
+- name: Download NVIDIA CUDA APT signing key (armored)
+  ansible.builtin.get_url:
+    url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
+    dest: /etc/apt/keyrings/cuda-archive-keyring.asc
+    mode: "0644"
+
+- name: Add NVIDIA CUDA APT repository with signed-by
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/cuda-archive-keyring.asc] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
+    state: present
+    filename: cuda
+
+- name: Check if CUDA Toolkit is already installed
+  ansible.builtin.stat:
+    path: /usr/local/cuda/bin/nvcc
+  register: nvcc_installed
+
+- name: Install CUDA Toolkit 12.4
+  ansible.builtin.apt:
+    name: cuda-toolkit-12-4
+    state: present
+    update_cache: true
+  when: not nvcc_installed.stat.exists
+
+- name: Detect installed NVIDIA driver package name
+  ansible.builtin.shell: |
+    set -o pipefail
+    dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 ~ /^ii/ && $2 ~ /^nvidia-driver-[0-9]/ {print $2; exit}'
+  args:
+    executable: /bin/bash
+  register: nvidia_driver_pkg
+  changed_when: false
+
+- name: Hold NVIDIA driver package to prevent upgrades
+  ansible.builtin.dpkg_selections:
+    name: "{{ nvidia_driver_pkg.stdout }}"
+    selection: hold
+  when: nvidia_driver_pkg.stdout != ""

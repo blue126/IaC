@@ -115,3 +115,42 @@ variable "windows_system_disk_gb" {
   type        = number
   default     = 60
 }
+
+# ==========================================
+# LLM Server VM Configuration
+# ==========================================
+
+variable "llm_server_vm_name" {
+  description = "LLM Server VM name"
+  type        = string
+  default     = "llm-server"
+}
+
+variable "llm_server_ip_address" {
+  description = "LLM Server static IP address"
+  type        = string
+}
+
+variable "llm_server_num_cpus" {
+  description = "Number of vCPUs for LLM Server"
+  type        = number
+  default     = 48
+}
+
+variable "llm_server_memory_mb" {
+  description = "Memory in MB for LLM Server (also used as memory reservation for GPU passthrough)"
+  type        = number
+  default     = 286720 # 280 GB
+}
+
+variable "llm_server_system_disk_gb" {
+  description = "System disk size in GB for LLM Server"
+  type        = number
+  default     = 500
+}
+
+variable "llm_server_mmio_size_gb" {
+  description = "64-bit MMIO size in GB for GPU passthrough. Dual 3090: start with 64, increase to 128 if VM fails to boot"
+  type        = number
+  default     = 64
+}

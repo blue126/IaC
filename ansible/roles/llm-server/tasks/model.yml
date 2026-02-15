@@ -1,0 +1,60 @@
+---
+# Download GGUF model via huggingface-cli
+
+- name: Install huggingface_hub
+  ansible.builtin.pip:
+    name: huggingface_hub
+    state: present
+    executable: pip3
+    break_system_packages: true
+
+- name: Ensure model directory exists
+  ansible.builtin.file:
+    path: "{{ llm_server_model_dir }}"
+    state: directory
+    owner: "{{ llm_server_user }}"
+    group: "{{ llm_server_user }}"
+    mode: "0755"
+
+- name: Check if model first shard exists
+  ansible.builtin.stat:
+    path: "{{ llm_server_model_dir }}/{{ llm_server_model_filename }}"
+  register: model_first_shard
+
+- name: Download model from Hugging Face
+  ansible.builtin.command: >
+    huggingface-cli download {{ llm_server_model_repo }}
+    --local-dir {{ llm_server_model_dir }}
+    --include "{{ llm_server_model_pattern }}"
+  become: true
+  become_user: "{{ llm_server_user }}"
+  when: not model_first_shard.stat.exists
+  register: model_download
+  # Model download can take a long time (100+ GB)
+  async: 7200
+  poll: 30
+
+- name: Verify model first shard exists
+  ansible.builtin.stat:
+    path: "{{ llm_server_model_dir }}/{{ llm_server_model_filename }}"
+  register: model_verify
+
+- name: Assert model file is present
+  ansible.builtin.assert:
+    that:
+      - model_verify.stat.exists
+    fail_msg: "Model file not found: {{ llm_server_model_dir }}/{{ llm_server_model_filename }}"
+    success_msg: "Model file verified: {{ llm_server_model_filename }}"
+
+- name: Count model shard files
+  ansible.builtin.find:
+    paths: "{{ llm_server_model_dir }}"
+    patterns: "{{ llm_server_model_pattern }}"
+  register: model_shards
+
+- name: Assert all model shards are present
+  ansible.builtin.assert:
+    that:
+      - model_shards.matched == llm_server_model_shard_count
+    fail_msg: "Expected {{ llm_server_model_shard_count }} shards, found {{ model_shards.matched }}"
+    success_msg: "All {{ llm_server_model_shard_count }} model shards verified"

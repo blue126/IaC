@@ -1,0 +1,39 @@
+---
+# Default variables for LLM Server role
+
+# System user for running llama-server
+llm_server_user: llm
+
+# Engine
+llm_server_engine_repo: "https://github.com/ikawrakow/ik_llama.cpp"
+llm_server_engine_version: "" # Empty = latest HEAD; set to commit hash or tag to pin
+llm_server_install_dir: /opt/llm-server
+
+# NVIDIA driver
+# Empty = ubuntu-drivers autoinstall (recommended for initial setup)
+# Set to e.g. "nvidia-driver-550" to pin a specific version
+llm_server_nvidia_driver: ""
+
+# Model
+llm_server_model_repo: "unsloth/MiniMax-2.5-GGUF"
+llm_server_model_pattern: "*UD-Q5_K_M*"
+llm_server_model_dir: /data/models
+llm_server_model_filename: "MiniMax-2.5-UD-Q5_K_M-00001-of-00003.gguf"
+llm_server_model_shard_count: 3
+
+# Inference parameters
+llm_server_gpu_layers: 999
+llm_server_cpu_moe: true
+llm_server_split_mode: layer
+llm_server_tensor_split: "1,1"
+llm_server_ctx_size: 65536
+llm_server_cache_type_k: f16
+llm_server_cache_type_v: f16
+llm_server_parallel: 1
+llm_server_port: 8080
+llm_server_host: "0.0.0.0"
+
+# Open WebUI
+llm_server_webui_image: "ghcr.io/open-webui/open-webui:main"
+llm_server_webui_port: 3000
+llm_server_webui_data_dir: /opt/open-webui

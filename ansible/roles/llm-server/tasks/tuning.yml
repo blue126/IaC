@@ -1,0 +1,45 @@
+---
+# Performance tuning for LLM inference
+
+- name: Disable Transparent Huge Pages (runtime)
+  ansible.builtin.shell: |
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+  changed_when: false
+
+- name: Persist THP disable via tmpfiles.d
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/disable-thp.conf
+    content: |
+      w /sys/kernel/mm/transparent_hugepage/enabled - - - - never
+      w /sys/kernel/mm/transparent_hugepage/defrag - - - - never
+    mode: "0644"
+
+- name: Install cpupower for CPU governor control
+  ansible.builtin.apt:
+    name: linux-tools-common
+    state: present
+
+- name: Install kernel-specific linux-tools
+  ansible.builtin.apt:
+    name: "linux-tools-{{ ansible_kernel }}"
+    state: present
+  register: linux_tools_result
+  failed_when:
+    - linux_tools_result is failed
+    - "'unable to locate package' not in (linux_tools_result.msg | default('') | lower)"
+
+- name: Set CPU governor to performance
+  ansible.builtin.command: cpupower frequency-set -g performance
+  register: cpupower_result
+  changed_when: false
+  failed_when:
+    - cpupower_result.rc != 0
+    - "'not found' not in (cpupower_result.stderr | default('') | lower)"
+    - "'no cpufreq driver' not in (cpupower_result.stderr | default('') | lower)"
+
+- name: Persist CPU governor via cron at reboot
+  ansible.builtin.cron:
+    name: "Set CPU governor to performance"
+    special_time: reboot
+    job: "/usr/bin/cpupower frequency-set -g performance"
