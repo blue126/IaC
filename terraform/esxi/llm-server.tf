@@ -1,6 +1,9 @@
 # LLM Server VM Definition
 
-# Data sources are defined in main.tf
+data "vsphere_virtual_machine" "ubuntu_template" {
+  name          = var.vm_template
+  datacenter_id = data.vsphere_datacenter.dc.id
+}
 
 module "llm_server" {
   source = "../modules/esxi-vm"
@@ -12,6 +15,16 @@ module "llm_server" {
   network_id       = data.vsphere_network.network.id
   host_system_id   = data.vsphere_host.host.id
 
+  # Clone from template with guest customization
+  template_uuid = data.vsphere_virtual_machine.ubuntu_template.id
+  customize = {
+    hostname        = var.llm_server_vm_name
+    ipv4_address    = var.llm_server_ip_address
+    ipv4_netmask    = 24
+    ipv4_gateway    = "192.168.1.1"
+    dns_server_list = ["192.168.1.1"]
+  }
+
   # Hardware Resources
   num_cpus           = var.llm_server_num_cpus
   memory             = var.llm_server_memory_mb
@@ -20,7 +33,7 @@ module "llm_server" {
 
   # Firmware & Guest OS
   firmware = "efi"
-  guest_id = "ubuntu64Guest"
+  guest_id = data.vsphere_virtual_machine.ubuntu_template.guest_id
 
   # GPU Passthrough
   # Currently managed manually via ESXi Web UI (not by Terraform)

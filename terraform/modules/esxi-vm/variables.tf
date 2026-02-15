@@ -71,3 +71,22 @@ variable "extra_config" {
   type        = map(string)
   default     = {}
 }
+
+variable "template_uuid" {
+  description = "UUID of the VM template to clone from. Empty string creates a blank VM."
+  type        = string
+  default     = ""
+}
+
+variable "customize" {
+  description = "Guest customization spec for template clones. Set to null to skip customization."
+  type = object({
+    hostname        = string
+    domain          = optional(string, "local")
+    ipv4_address    = optional(string)
+    ipv4_netmask    = optional(number, 24)
+    ipv4_gateway    = optional(string)
+    dns_server_list = optional(list(string), [])
+  })
+  default = null
+}

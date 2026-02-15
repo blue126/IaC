@@ -19,6 +19,34 @@ resource "vsphere_virtual_machine" "vm" {
   firmware = var.firmware
   guest_id = var.guest_id
 
+  dynamic "clone" {
+    for_each = var.template_uuid != "" ? [1] : []
+    content {
+      template_uuid = var.template_uuid
+
+      dynamic "customize" {
+        for_each = var.customize != null ? [var.customize] : []
+        content {
+          linux_options {
+            host_name = customize.value.hostname
+            domain    = customize.value.domain
+          }
+
+          dynamic "network_interface" {
+            for_each = customize.value.ipv4_address != null ? [1] : []
+            content {
+              ipv4_address = customize.value.ipv4_address
+              ipv4_netmask = customize.value.ipv4_netmask
+            }
+          }
+
+          ipv4_gateway    = customize.value.ipv4_gateway
+          dns_server_list = customize.value.dns_server_list
+        }
+      }
+    }
+  }
+
   network_interface {
     network_id   = var.network_id
     adapter_type = var.network_adapter_type

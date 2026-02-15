@@ -134,7 +134,7 @@ variable "llm_server_ip_address" {
 variable "llm_server_num_cpus" {
   description = "Number of vCPUs for LLM Server"
   type        = number
-  default     = 48
+  default     = 36
 }
 
 variable "llm_server_memory_mb" {
@@ -146,7 +146,7 @@ variable "llm_server_memory_mb" {
 variable "llm_server_system_disk_gb" {
   description = "System disk size in GB for LLM Server"
   type        = number
-  default     = 500
+  default     = 300
 }
 
 variable "llm_server_mmio_size_gb" {
