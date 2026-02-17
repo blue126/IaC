@@ -1,0 +1,55 @@
+---
+# Compile benchmark report — console output + JSON file
+
+- name: Build report data
+  ansible.builtin.set_fact:
+    benchmark_report:
+      timestamp: "{{ ansible_facts.date_time.iso8601 }}"
+      host: "{{ inventory_hostname }}"
+      api_url: "{{ llm_benchmark_api_url }}"
+      short_prompt: "{{ benchmark_short }}"
+      long_prompt: "{{ benchmark_long }}"
+      resources: "{{ benchmark_resources }}"
+
+- name: Display benchmark report
+  ansible.builtin.debug:
+    msg:
+      - "============================================="
+      - "  LLM Benchmark Report"
+      - "============================================="
+      - "Host:       {{ benchmark_report.host }}"
+      - "Timestamp:  {{ benchmark_report.timestamp }}"
+      - "API:        {{ benchmark_report.api_url }}"
+      - "---------------------------------------------"
+      - "SHORT PROMPT (generation speed)"
+      - "  Prompt tokens:      {{ benchmark_short.prompt_tokens }}"
+      - "  Completion tokens:  {{ benchmark_short.completion_tokens }}"
+      - "  Prefill:            {{ benchmark_short.prompt_per_second }} tok/s"
+      - "  Generation:         {{ benchmark_short.predicted_per_second }} tok/s"
+      - "---------------------------------------------"
+      - "LONG PROMPT (prefill speed, ~{{ benchmark_long.prompt_tokens }} tokens)"
+      - "  Prompt tokens:      {{ benchmark_long.prompt_tokens }}"
+      - "  Completion tokens:  {{ benchmark_long.completion_tokens }}"
+      - "  Prefill:            {{ benchmark_long.prompt_per_second }} tok/s"
+      - "  Generation:         {{ benchmark_long.predicted_per_second }} tok/s"
+      - "---------------------------------------------"
+      - "RESOURCES"
+      - "  GPU:          {{ benchmark_resources.gpu }}"
+      - "  Process RSS:  {{ benchmark_resources.process_rss_gb }} GB"
+      - "============================================="
+
+- name: Ensure report directory exists
+  ansible.builtin.file:
+    path: "{{ llm_benchmark_report_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Write JSON report
+  ansible.builtin.copy:
+    content: "{{ benchmark_report | to_nice_json }}"
+    dest: "{{ llm_benchmark_report_dir }}/benchmark-{{ ansible_facts.date_time.iso8601_basic_short }}.json"
+    mode: "0644"
+
+- name: Show report file path
+  ansible.builtin.debug:
+    msg: "Report written to {{ llm_benchmark_report_dir }}/benchmark-{{ ansible_facts.date_time.iso8601_basic_short }}.json"

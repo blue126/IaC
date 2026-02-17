@@ -10,6 +10,7 @@
 # Usage:
 #   ansible-playbook playbooks/deploy-llm-server.yml
 #   ansible-playbook playbooks/deploy-llm-server.yml --tags verify
+#   ansible-playbook playbooks/deploy-llm-server.yml --tags benchmark
 
 - name: Deploy LLM Server
   hosts: llm-server
@@ -92,13 +93,13 @@
         method: POST
         body_format: json
         body:
-          model: "minimax-m2.5"
+          model: "{{ llm_server_model_alias }}"
           messages:
             - role: "user"
               content: "Reply with exactly: Hello World"
-          max_tokens: 32
+          max_tokens: 256
         status_code: [200]
-        timeout: 120
+        timeout: 300
       register: inference_result
       when: not ansible_check_mode
 
@@ -106,10 +107,70 @@
       ansible.builtin.assert:
         that:
           - inference_result.json.choices | length > 0
-          - inference_result.json.choices[0].message.content | length > 0
+          - >-
+            (inference_result.json.choices[0].message.content | default('') | length > 0)
+            or
+            (inference_result.json.choices[0].message.reasoning_content | default('') | length > 0)
         fail_msg: "Inference returned empty response"
-        success_msg: "Inference smoke test passed"
+        success_msg: >-
+          Inference smoke test passed
+          ({{ (inference_result.json.usage | default({})).total_tokens | default('N/A') }} tokens,
+          {{ (inference_result.json.timings | default({})).predicted_per_second | default('N/A') }} tok/s)
       when: not ansible_check_mode
+
+    # CPU-MoE verification via service config (more reliable than log parsing)
+    - name: Get llama-server ExecStart command
+      ansible.builtin.command: systemctl show llama-server --property=ExecStart
+      register: llama_exec_start
+      changed_when: false
+
+    - name: Assert MoE offload is in service config
+      ansible.builtin.assert:
+        that:
+          - "'--cpu-moe' in llama_exec_start.stdout or '--n-cpu-moe' in llama_exec_start.stdout or 'exps' in llama_exec_start.stdout"
+        fail_msg: "MoE offload flag not found in llama-server service config"
+        success_msg: "MoE offload enabled in service config"
+      when: not ansible_check_mode
+
+    # Startup log verification (filter by current PID to get only this instance)
+    - name: Fetch startup logs for current llama-server process
+      ansible.builtin.shell: |
+        set -o pipefail
+        journalctl -u llama-server _PID=$(systemctl show llama-server -p MainPID --value) --no-pager
+      args:
+        executable: /bin/bash
+      register: startup_log
+      changed_when: false
+
+    - name: Assert model loaded successfully
+      ansible.builtin.assert:
+        that:
+          - "'model loaded' in startup_log.stdout"
+        fail_msg: "Model load completion not found in startup logs"
+        success_msg: "Model loaded successfully"
+      when: not ansible_check_mode
+
+    - name: Show buffer allocation from startup logs
+      ansible.builtin.debug:
+        msg: "{{ startup_log.stdout_lines | select('search', 'buffer size') | list }}"
+      when: startup_log.stdout_lines | select('search', 'buffer size') | list | length > 0
+
+    # PCIe link verification (note: VM passthrough shows virtual PCIe topology)
+    - name: Check GPU PCIe link status via lspci
+      ansible.builtin.shell: |
+        set -o pipefail
+        for dev in $(lspci | grep -i nvidia | awk '{print $1}'); do
+          echo "=== GPU: $(lspci -s $dev | cut -d: -f3-) ==="
+          lspci -vv -s "$dev" 2>/dev/null | grep -E "LnkCap:|LnkSta:" | head -2
+        done
+      args:
+        executable: /bin/bash
+      register: pcie_link_status
+      changed_when: false
+
+    - name: Display PCIe link info
+      ansible.builtin.debug:
+        msg: "{{ pcie_link_status.stdout_lines }}"
 
     # Open WebUI
     - name: Wait for Open WebUI port
@@ -126,6 +187,42 @@
         timeout: 10
       register: webui_http_result
       when: not ansible_check_mode
+
+    # VRAM range validation
+    - name: Check GPU VRAM usage is in expected range
+      ansible.builtin.shell: |
+        set -o pipefail
+        nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits
+      args:
+        executable: /bin/bash
+      register: vram_used
+      changed_when: false
+
+    - name: Assert VRAM usage is reasonable (each GPU > 1GB, < 24GB)
+      ansible.builtin.assert:
+        that:
+          - item | int > 1000
+          - item | int < 24000
+        fail_msg: "GPU VRAM {{ item }} MiB out of expected range (1-24 GB)"
+        success_msg: "GPU VRAM {{ item }} MiB OK"
+      loop: "{{ vram_used.stdout_lines }}"
+      when: not ansible_check_mode
+
+    # NUMA memory distribution
+    - name: Check NUMA memory distribution
+      ansible.builtin.shell: |
+        set -o pipefail
+        numastat -p $(pgrep llama-server) 2>/dev/null | tail -5
+      args:
+        executable: /bin/bash
+      register: numa_info
+      changed_when: false
+      failed_when: false
+
+    - name: Display NUMA info
+      ansible.builtin.debug:
+        msg: "{{ numa_info.stdout_lines }}"
+      when: numa_info.stdout_lines | default([]) | length > 0
 
     # Deployment summary
     - name: Get GPU details
@@ -148,3 +245,12 @@
           - "Open WebUI: http://{{ ansible_host }}:{{ llm_server_webui_port | default(3000) }}"
           - "========================================="
       when: not ansible_check_mode
+
+- name: Benchmark LLM Server
+  hosts: llm-server
+  become: true
+  tags: [benchmark]
+  roles:
+    - role: llm-benchmark
+      vars:
+        llm_benchmark_api_url: "http://localhost:{{ llm_server_port | default(8080) }}"

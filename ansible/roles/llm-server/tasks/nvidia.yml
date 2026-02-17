@@ -4,6 +4,7 @@
 - name: Install build dependencies and tools
   ansible.builtin.apt:
     name:
+      - acl
       - ubuntu-drivers-common
       - build-essential
       - cmake
@@ -53,9 +54,9 @@
     path: /usr/local/cuda/bin/nvcc
   register: nvcc_installed
 
-- name: Install CUDA Toolkit 12.4
+- name: Install CUDA Toolkit
   ansible.builtin.apt:
-    name: cuda-toolkit-12-4
+    name: "{{ llm_server_cuda_toolkit_package }}"
     state: present
     update_cache: true
   when: not nvcc_installed.stat.exists

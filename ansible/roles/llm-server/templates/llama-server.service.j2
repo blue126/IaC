@@ -1,35 +1,43 @@
 [Unit]
-Description=llama.cpp Server - MiniMax M2.5
+Description=llama-server {{ llm_server_model_alias | default('ik_llama.cpp') }}
 After=network.target
 # Uncomment if nvidia-persistenced is installed
 # After=network.target nvidia-persistenced.service
 
+{% set selected_profile = llm_server_profiles[llm_server_profile] %}
 [Service]
 Type=simple
 User={{ llm_server_user }}
 WorkingDirectory={{ llm_server_install_dir }}/ik_llama.cpp
+EnvironmentFile={{ llm_server_environment_file }}
+ExecStartPre=/usr/bin/test -f ${LLAMA_MODEL}
 ExecStart=/usr/bin/numactl --interleave=all \
     {{ llm_server_install_dir }}/ik_llama.cpp/build/bin/llama-server \
-    --model {{ llm_server_model_dir }}/{{ llm_server_model_filename }} \
-    -ngl {{ llm_server_gpu_layers }} \
-{% if llm_server_cpu_moe %}
-    --cpu-moe \
-{% endif %}
-    --split-mode {{ llm_server_split_mode }} \
+    --model ${LLAMA_MODEL} \
+    --alias ${LLAMA_ALIAS} \
+    -ngl ${LLAMA_GPU_LAYERS} \
+{% for ot in llm_server_tensor_overrides | default([]) %}
+    -ot "{{ ot.pattern }}={{ ot.backend }}" \
+{% endfor %}
+    --split-mode ${LLAMA_SPLIT_MODE} \
     --tensor-split {{ llm_server_tensor_split }} \
-    --fit on \
     --jinja \
-    --flash-attn \
-    --ctx-size {{ llm_server_ctx_size }} \
+    --ctx-size ${LLAMA_CTX_SIZE} \
     --cache-type-k {{ llm_server_cache_type_k }} \
     --cache-type-v {{ llm_server_cache_type_v }} \
+{% if llm_server_threads | int > 0 %}
+    --threads {{ llm_server_threads }} \
+{% endif %}
+{% if llm_server_threads_batch | int > 0 %}
+    --threads-batch {{ llm_server_threads_batch }} \
+{% endif %}
     --host {{ llm_server_host }} \
     --port {{ llm_server_port }} \
     --parallel {{ llm_server_parallel }} \
-    --reasoning-format auto \
-    --temp 1.0 \
-    --top-p 0.95 \
-    --top-k 40
+    --reasoning-format {{ selected_profile.reasoning_format }} \
+    --temp {{ selected_profile.temperature }} \
+    --top-p {{ selected_profile.top_p }} \
+    --top-k {{ selected_profile.top_k }}
 Restart=on-failure
 RestartSec=30
 StartLimitIntervalSec=300

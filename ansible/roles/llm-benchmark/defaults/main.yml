@@ -1,0 +1,26 @@
+---
+# Default variables for LLM Benchmark role
+# Works with any OpenAI-compatible API endpoint.
+
+# API endpoint
+llm_benchmark_api_url: "http://localhost:8080"
+
+# Short prompt test (generation speed)
+llm_benchmark_short_prompt: "Write a short poem about the sea."
+llm_benchmark_short_max_tokens: 500
+llm_benchmark_short_temperature: 0.7
+
+# Long prompt test (prefill speed)
+llm_benchmark_long_prompt_repeat: "The quick brown fox jumps over the lazy dog. "
+llm_benchmark_long_prompt_repeats: 500  # ~4K tokens
+llm_benchmark_long_prompt_prefix: "Summarize the following text:\n"
+llm_benchmark_long_max_tokens: 100
+llm_benchmark_long_temperature: 0.7
+
+# Resource checks (set false to skip — e.g. testing a remote API)
+llm_benchmark_check_gpu: true
+llm_benchmark_check_numa: true
+llm_benchmark_process_name: llama-server
+
+# Report output
+llm_benchmark_report_dir: /tmp/llm-benchmark

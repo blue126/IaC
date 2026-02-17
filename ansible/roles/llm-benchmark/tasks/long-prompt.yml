@@ -1,0 +1,42 @@
+---
+# Long prompt benchmark — measures prefill (prompt processing) speed
+
+- name: Build long prompt string
+  ansible.builtin.set_fact:
+    _long_prompt_body: >-
+      {{ llm_benchmark_long_prompt_prefix }}{{ llm_benchmark_long_prompt_repeat * (llm_benchmark_long_prompt_repeats | int) }}
+
+- name: "Long prompt benchmark: POST /v1/chat/completions (~{{ llm_benchmark_long_prompt_repeats * 10 }} tokens)"
+  ansible.builtin.uri:
+    url: "{{ llm_benchmark_api_url }}/v1/chat/completions"
+    method: POST
+    body_format: json
+    body:
+      messages:
+        - role: "user"
+          content: "{{ _long_prompt_body }}"
+      max_tokens: "{{ llm_benchmark_long_max_tokens }}"
+      temperature: "{{ llm_benchmark_long_temperature }}"
+    status_code: [200]
+    timeout: 600
+  register: long_prompt_result
+
+- name: Extract long prompt metrics
+  ansible.builtin.set_fact:
+    benchmark_long:
+      prompt_repeats: "{{ llm_benchmark_long_prompt_repeats }}"
+      max_tokens: "{{ llm_benchmark_long_max_tokens }}"
+      prompt_tokens: "{{ long_prompt_result.json.usage.prompt_tokens | default('N/A') }}"
+      completion_tokens: "{{ long_prompt_result.json.usage.completion_tokens | default('N/A') }}"
+      total_tokens: "{{ long_prompt_result.json.usage.total_tokens | default('N/A') }}"
+      prompt_per_second: "{{ long_prompt_result.json.timings.prompt_per_second | default('N/A') }}"
+      predicted_per_second: "{{ long_prompt_result.json.timings.predicted_per_second | default('N/A') }}"
+
+- name: Display long prompt results
+  ansible.builtin.debug:
+    msg:
+      - "--- Long Prompt Benchmark ---"
+      - "Prompt tokens:     {{ benchmark_long.prompt_tokens }}"
+      - "Completion tokens:  {{ benchmark_long.completion_tokens }}"
+      - "Prefill speed:     {{ benchmark_long.prompt_per_second }} tok/s"
+      - "Generation speed:  {{ benchmark_long.predicted_per_second }} tok/s"

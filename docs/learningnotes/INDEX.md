@@ -2,9 +2,9 @@
 
 这个目录包含基础设施即代码 (IaC)、网络、应用部署等领域的学习笔记和故障排查记录。
 
-**最后更新**: 2026-01-31
-**文档数量**: 33 篇
-**覆盖范围**: Terraform, Ansible, Proxmox, Netbox, Tailscale, LXC, n8n, Immich, RustDesk 等
+**最后更新**: 2026-02-16
+**文档数量**: 34 篇
+**覆盖范围**: Terraform, Ansible, Proxmox, Netbox, Tailscale, LXC, n8n, Immich, RustDesk, LLM 等
 
 ---
 
@@ -19,6 +19,12 @@
 ---
 
 ## 按日期排序 (最新到最旧)
+
+### 2026-02-16
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-02-16 | [MiniMax M2.5 LLM Server 部署经验教训](./2026-02-16-llm-server-deployment-lessons.md) | LLM, Ansible, ESXi, GPU, Deployment, ik_llama.cpp | **Active** | 模型仓库变更、Ansible 模块兼容性、VM 环境特殊性、大文件下载幂等性 |
 
 ### 2026-01-31
 
@@ -229,6 +235,9 @@
 **ESXi 集成**
 - [ESXi 集成与 Ansible 虚拟环境实践笔记](./2025-12-21-esxi-integration-and-venv.md) - ESXi 与 Ansible
 
+**LLM 推理服务**
+- [MiniMax M2.5 LLM Server 部署经验教训](./2026-02-16-llm-server-deployment-lessons.md) - GPU Passthrough + CPU-MoE 部署
+
 ---
 
 ### 其他专题
@@ -354,6 +363,9 @@
 - ✓ 2025-12-04-zfs-pool-migration-and-expansion.md - ZFS 操作
 - ✓ 2025-12-11-elk-vs-lpg-comparison.md - 架构对比
 
+**LLM 推理服务**
+- ✓ 2026-02-16-llm-server-deployment-lessons.md - MiniMax M2.5 部署经验
+
 ---
 
 ## 元数据统计
@@ -362,10 +374,10 @@
 
 | 状态 | 数量 | 说明 |
 |------|------|------|
-| **Active** | 25 | 独立有效的学习记录 |
+| **Active** | 26 | 独立有效的学习记录 |
 | **Superseded** | 5 | 已被正式指南替代，保留供参考 |
 | **Archived** | 0 | 已过期，不再相关 |
-| **总计** | 30 | (不含 INDEX.md) |
+| **总计** | 31 | (不含 INDEX.md) |
 
 ### 按标签统计
 
@@ -385,12 +397,15 @@
 | DevOps | 8 |
 | Cloud-Init | 3 |
 | Storage | 2 |
+| GPU | 1 |
+| LLM | 1 |
 | Monitoring | 1 |
 
 ### 按年份分类
 
 | 年份 | 月份 | 数量 |
 |------|------|------|
+| 2026 | 02 | 1 |
 | 2026 | 01 | 7 |
 | 2025 | 12 | 11 |
 | 2025 | 11 | 12 |
@@ -443,6 +458,6 @@ Troubleshooting (快速查询、最佳实践)
 
 ---
 
-**生成日期**: 2026-01-31
+**生成日期**: 2026-02-16
 **维护者**: 基础设施团队
 **反馈**: 如有问题或建议，请在相应笔记中添加备注或创建新的讨论文档

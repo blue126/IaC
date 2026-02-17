@@ -1,0 +1,50 @@
+---
+# Resource snapshot — GPU VRAM, process RAM, NUMA distribution
+
+- name: Get GPU resource usage
+  ansible.builtin.command: nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader
+  register: gpu_info
+  changed_when: false
+  when: llm_benchmark_check_gpu | bool
+
+- name: Get process RSS memory (GB)
+  ansible.builtin.shell: |
+    set -o pipefail
+    pid=$(pgrep {{ llm_benchmark_process_name }})
+    if [ -n "$pid" ]; then
+      rss_kb=$(ps -o rss= -p "$pid")
+      echo "scale=2; $rss_kb / 1048576" | bc
+    else
+      echo "N/A"
+    fi
+  args:
+    executable: /bin/bash
+  register: process_rss
+  changed_when: false
+  failed_when: false
+
+- name: Get NUMA memory distribution
+  ansible.builtin.shell: |
+    set -o pipefail
+    numastat -p $(pgrep {{ llm_benchmark_process_name }}) 2>/dev/null | tail -5
+  args:
+    executable: /bin/bash
+  register: numa_info
+  changed_when: false
+  failed_when: false
+  when: llm_benchmark_check_numa | bool
+
+- name: Collect resource snapshot
+  ansible.builtin.set_fact:
+    benchmark_resources:
+      gpu: "{{ gpu_info.stdout_lines | default([]) }}"
+      process_rss_gb: "{{ process_rss.stdout | default('N/A') | trim }}"
+      numa: "{{ numa_info.stdout_lines | default([]) }}"
+
+- name: Display resource snapshot
+  ansible.builtin.debug:
+    msg:
+      - "--- Resource Snapshot ---"
+      - "GPU: {{ benchmark_resources.gpu }}"
+      - "Process RSS: {{ benchmark_resources.process_rss_gb }} GB"
+      - "NUMA: {{ benchmark_resources.numa }}"

@@ -1,0 +1,14 @@
+---
+# LLM Benchmark — main task orchestrator
+
+- name: Include short prompt benchmark
+  ansible.builtin.include_tasks: short-prompt.yml
+
+- name: Include long prompt benchmark
+  ansible.builtin.include_tasks: long-prompt.yml
+
+- name: Include resource snapshot
+  ansible.builtin.include_tasks: resources.yml
+
+- name: Include benchmark report
+  ansible.builtin.include_tasks: report.yml

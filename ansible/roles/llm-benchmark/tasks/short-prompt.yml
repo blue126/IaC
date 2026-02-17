@@ -1,0 +1,37 @@
+---
+# Short prompt benchmark — measures token generation speed
+
+- name: "Short prompt benchmark: POST /v1/chat/completions"
+  ansible.builtin.uri:
+    url: "{{ llm_benchmark_api_url }}/v1/chat/completions"
+    method: POST
+    body_format: json
+    body:
+      messages:
+        - role: "user"
+          content: "{{ llm_benchmark_short_prompt }}"
+      max_tokens: "{{ llm_benchmark_short_max_tokens }}"
+      temperature: "{{ llm_benchmark_short_temperature }}"
+    status_code: [200]
+    timeout: 600
+  register: short_prompt_result
+
+- name: Extract short prompt metrics
+  ansible.builtin.set_fact:
+    benchmark_short:
+      prompt: "{{ llm_benchmark_short_prompt }}"
+      max_tokens: "{{ llm_benchmark_short_max_tokens }}"
+      prompt_tokens: "{{ short_prompt_result.json.usage.prompt_tokens | default('N/A') }}"
+      completion_tokens: "{{ short_prompt_result.json.usage.completion_tokens | default('N/A') }}"
+      total_tokens: "{{ short_prompt_result.json.usage.total_tokens | default('N/A') }}"
+      prompt_per_second: "{{ short_prompt_result.json.timings.prompt_per_second | default('N/A') }}"
+      predicted_per_second: "{{ short_prompt_result.json.timings.predicted_per_second | default('N/A') }}"
+
+- name: Display short prompt results
+  ansible.builtin.debug:
+    msg:
+      - "--- Short Prompt Benchmark ---"
+      - "Prompt tokens:     {{ benchmark_short.prompt_tokens }}"
+      - "Completion tokens:  {{ benchmark_short.completion_tokens }}"
+      - "Prefill speed:     {{ benchmark_short.prompt_per_second }} tok/s"
+      - "Generation speed:  {{ benchmark_short.predicted_per_second }} tok/s"

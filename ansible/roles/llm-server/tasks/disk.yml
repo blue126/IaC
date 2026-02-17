@@ -1,0 +1,32 @@
+---
+# Expand root partition to fill the virtual disk
+# VMware template clones preserve the original partition table,
+# so the root filesystem may be much smaller than the virtual disk.
+
+- name: Ensure growpart is available
+  ansible.builtin.apt:
+    name: cloud-guest-utils
+    state: present
+
+- name: Get root filesystem device
+  ansible.builtin.command: findmnt -n -o SOURCE /
+  register: root_device
+  changed_when: false
+
+- name: Extract disk and partition number
+  ansible.builtin.set_fact:
+    # Handle both /dev/sdX2 and /dev/nvme0n1p2 style device names
+    root_disk: "{{ root_device.stdout | regex_replace('p?[0-9]+$', '') }}"
+    root_partition_num: "{{ root_device.stdout | regex_search('[0-9]+$') }}"
+
+- name: Grow partition to fill disk
+  ansible.builtin.command: "growpart {{ root_disk }} {{ root_partition_num }}"
+  register: growpart_result
+  changed_when: "'CHANGED' in growpart_result.stdout"
+  failed_when:
+    - growpart_result.rc != 0
+    - "'NOCHANGE' not in growpart_result.stdout"
+
+- name: Resize filesystem to fill partition
+  ansible.builtin.command: "resize2fs {{ root_device.stdout }}"
+  when: growpart_result is changed

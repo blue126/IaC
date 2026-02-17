@@ -17,6 +17,26 @@
 
 将两张 3090 直通给一台 Ubuntu VM，注意力层跑 GPU，MoE 专家层卸载到 CPU。这是目前在 48GB 总 VRAM 下运行 230B MoE 模型的最佳实践。
 
+### 推理引擎选型
+
+MiniMax M2.5 官方推荐 [SGLang](https://huggingface.co/MiniMaxAI/MiniMax-M2/blob/main/docs/sglang_deploy_guide.md) 和 [vLLM](https://huggingface.co/MiniMaxAI/MiniMax-M2.5/blob/main/docs/vllm_deploy_guide.md) 作为 serving 引擎。但这两者都要求模型完全驻留在 GPU VRAM 中：
+
+| 引擎 | 最低 GPU 配置 | 权重格式 | CPU offload MoE |
+|------|-------------|---------|----------------|
+| SGLang | 96GB × 4（384GB VRAM） | BF16（~460GB） | 不支持 |
+| vLLM | 96GB × 4（384GB VRAM） | BF16（~460GB） | 不支持 |
+| llama.cpp | 任意 GPU + 足够系统内存 | GGUF 量化（Q5 ~162GB） | **支持** |
+
+本方案硬件为 2× RTX 3090（48GB VRAM 总计）+ 280GB 系统内存。SGLang/vLLM 所需 VRAM 是可用量的 8 倍以上，无法使用。
+
+**llama.cpp（[ik_llama.cpp](https://github.com/ikawrakow/ik_llama.cpp) fork）是唯一可行方案**，原因：
+
+1. **GGUF 量化**：将 460GB BF16 权重压缩到 ~162GB（Q5_K_XL），可放入系统内存
+2. **CPU-MoE 混合推理**：注意力层 offload 到 GPU 加速，MoE expert 层留在 CPU，充分利用大内存
+3. **ik_llama.cpp 优势**：比标准 llama.cpp 有更好的量化内核和 MoE 调度优化
+
+> **如果未来升级到 4× A6000（48GB × 4 = 192GB VRAM）或更高配置**，建议切换到 SGLang/vLLM 以获得更好的吞吐量和 batch 处理能力。
+
 ---
 
 ## 第一部分：前置条件 & BIOS 设置
@@ -153,15 +173,15 @@ nvidia-smi
 
 > **关于 CUDA Toolkit**：llama.cpp 编译时需要 CUDA 头文件和 nvcc，因此仍建议安装完整 CUDA Toolkit。但如果只是运行预编译的 llama.cpp，驱动本身就够了。
 
-### 3.2 安装 CUDA Toolkit（推荐 12.4+）
+### 3.2 安装 CUDA Toolkit（推荐 12.8+）
 
 **重要：先装驱动，再装 Toolkit。** NVIDIA 官方 CUDA 安装器可能捆绑驱动依赖，安装过程中会尝试替换已安装的驱动版本。
 
-`cuda-toolkit-12-4` 来自 NVIDIA CUDA APT 仓库，干净的 Ubuntu 系统上默认不包含该仓库。若 `apt install` 提示找不到包，请先按 [NVIDIA 官方安装页](https://developer.nvidia.com/cuda-downloads)（选择 Linux → x86_64 → Ubuntu → deb (network)）添加 repo 和 GPG key，再安装 toolkit 子包。
+`cuda-toolkit-12-8` 来自 NVIDIA CUDA APT 仓库，干净的 Ubuntu 系统上默认不包含该仓库。若 `apt install` 提示找不到包，请先按 [NVIDIA 官方安装页](https://developer.nvidia.com/cuda-downloads)（选择 Linux → x86_64 → Ubuntu → deb (network)）添加 repo 和 GPG key，再安装 toolkit 子包。
 
 ```bash
 # 只安装 toolkit 子包，不装驱动
-sudo apt install -y cuda-toolkit-12-4
+sudo apt install -y cuda-toolkit-12-8
 
 # 锁住实际安装的驱动包，防止后续 apt upgrade 或 CUDA 依赖反向覆盖
 # 先查看实际安装的驱动包名（autoinstall 不一定装的是 550-server）
@@ -203,7 +223,15 @@ cmake -B build \
 cmake --build build --config Release -j $(nproc)
 ```
 
-> **关于版本锁定**：M2.5 是新模型，模板解析、推理格式等支持仍在快速迭代中。建议先用最新版跑通验证，确认稳定后再记录 commit hash 锁定版本。过早锁定反而可能卡在已知 bug 上。
+> **版本锁定（重要）**：ik_llama.cpp 对 MiniMax M2.5 的支持存在版本敏感性。经验证，**commit `f7923739`**（build 4081）可以正常工作。更新的版本（如 `528cadb0` GLM-5 support）会导致 MoE 推理产生完全不可用的垃圾输出（重复无意义 token）。建议 clone 后立即锁定版本：
+>
+> ```bash
+> git clone https://github.com/ikawrakow/ik_llama.cpp
+> cd ik_llama.cpp
+> git checkout f7923739  # 已验证可用版本
+> ```
+>
+> 升级前务必在测试环境验证推理输出质量。参考：[ubergarm/MiniMax-M2.5-GGUF#11](https://huggingface.co/ubergarm/MiniMax-M2.5-GGUF/discussions/11)
 
 ---
 
@@ -214,27 +242,30 @@ cmake --build build --config Release -j $(nproc)
 | 量化 | 大小约 | 质量 | 推荐度 | 说明 |
 |------|--------|------|--------|------|
 | Q6_K | ~170 GB | 极高 | ★★★★★ | 384GB 内存轻松装下，质量接近 FP16 |
-| Q5_K_M | ~145 GB | 很高 | ★★★★★ | 性价比最优选择 |
+| UD-Q5_K_XL | ~162 GB | 很高 | ★★★★★ | Unsloth 动态量化，关键层保留更高精度 |
+| Q5_K_M | ~145 GB | 很高 | ★★★★★ | 标准 Q5 量化，性价比优选 |
 | Q4_K_M | ~120 GB | 高 | ★★★★ | 省内存，质量仍然不错 |
 | IQ4_NL | ~110 GB | 较高 | ★★★★ | ik_llama.cpp 专属，同大小更好质量 |
 | Q3_K_L | ~100 GB | 中等 | ★★★ | 如需更多 context 可选 |
 
-**384GB 内存建议直接选 Q5_K_M 或 Q6_K**，不用委屈自己用低量化。
+**384GB 内存建议选 UD-Q5_K_XL 或 Q6_K**。UD (Unsloth Dynamic) 量化在关键层使用更高比特，边际层使用更低比特，同等模型大小下质量优于标准均匀量化。
+
+> **注意**：Unsloth 仓库 (`unsloth/MiniMax-M2.5-GGUF`) 不一定包含所有量化变体。下载前建议先在 HuggingFace 仓库页面确认可用的文件列表。
 
 ### 4.2 下载模型
 
 ```bash
-# 安装 huggingface-cli
+# 安装 hf
 pip3 install huggingface_hub
 
-# 推荐 Unsloth 的动态量化版本
-huggingface-cli download unsloth/MiniMax-2.5-GGUF \
-    --local-dir ./MiniMax-2.5-GGUF \
-    --include "*UD-Q5_K_M*"
+# 推荐 Unsloth 的动态量化版本（UD-Q5_K_XL，5 个分片，~162GB）
+hf download unsloth/MiniMax-M2.5-GGUF \
+    --local-dir /data/models \
+    --include "*UD-Q5_K_XL*"
 
 # 或 ubergarm 的 ik_llama.cpp 优化版本
-huggingface-cli download ubergarm/MiniMax-M2.5-GGUF \
-    --local-dir ./MiniMax-M2.5-GGUF \
+hf download ubergarm/MiniMax-M2.5-GGUF \
+    --local-dir /data/models \
     --include "*IQ5_K*"
 ```
 
@@ -245,17 +276,15 @@ huggingface-cli download ubergarm/MiniMax-M2.5-GGUF \
 ### 5.1 推荐启动命令（Server 模式）
 
 ```bash
-# NUMA 绑定 + 双 GPU + CPU-MoE 混合推理
+# 保守配置（跑通验证用）：全 CPU-MoE + KV cache FP16
 numactl --interleave=all \
 ./build/bin/llama-server \
-    --model ./MiniMax-2.5-GGUF/MiniMax-2.5-UD-Q5_K_M-00001-of-00003.gguf \
+    --model /data/models/UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf \
     -ngl 999 \
     --cpu-moe \
     --split-mode layer \
     --tensor-split 1,1 \
-    --fit on \
     --jinja \
-    --flash-attn \
     --ctx-size 65536 \
     --cache-type-k f16 \
     --cache-type-v f16 \
@@ -263,7 +292,34 @@ numactl --interleave=all \
     --port 8080 \
     --parallel 1 \
     --reasoning-format auto \
-    --temp 1.0 \
+    --temp 0.8 \
+    --top-p 0.95 \
+    --top-k 40
+```
+
+```bash
+# 调优后配置（推荐）：-ot 6+4 不对称 + graph 模式 + KV cache q8_0 + 线程优化
+# 相比保守配置：短 prompt 生成 +78%，长 prompt 生成 +71%
+numactl --interleave=all \
+./build/bin/llama-server \
+    --model /data/models/UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf \
+    -ngl 999 \
+    -ot "blk\.(5[1-6])\.ffn_(up|down|gate)_exps\.weight=CUDA0" \
+    -ot "blk\.(5[7-9]|60)\.ffn_(up|down|gate)_exps\.weight=CUDA1" \
+    -ot "\.ffn_(up|down|gate)_exps\.weight=CPU" \
+    --split-mode graph \
+    --tensor-split 1,1 \
+    --jinja \
+    --ctx-size 65536 \
+    --cache-type-k q8_0 \
+    --cache-type-v q8_0 \
+    --threads 20 \
+    --threads-batch 36 \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --parallel 1 \
+    --reasoning-format auto \
+    --temp 0.8 \
     --top-p 0.95 \
     --top-k 40
 ```
@@ -271,57 +327,74 @@ numactl --interleave=all \
 参数说明：
 
 - `-ngl 999`：所有非 MoE 层上 GPU
-- `--cpu-moe`：MoE 专家层全量卸载到 CPU（首选，跑通后可切换到 `--n-cpu-moe` 微调）
-- `--split-mode layer`：按层切分到多张 GPU，行为明确可复现。默认行为可能随 llama.cpp 版本变化，显式指定更稳妥
+- `--cpu-moe`（保守）/ `-ot`（调优后）：MoE 专家层的放置策略。`--cpu-moe` 将全部 expert 卸载到 CPU，简单可靠；`-ot` 可以精确控制每层 expert 放在哪个设备上（见 5.2 和 5.4）。**注意**：MiniMax M2.5 的 expert 层只在 blk.0~blk.61，blk.62 是输出层无 expert
+- `--split-mode graph`（ik_llama.cpp 特有）：启用张量并行，两张 GPU 同时计算。多轮 benchmark 证明 graph 模式在 short gen（日常交互）上有 6.6% 稳定优势（见 6.6 多轮稳定性分析）。如用标准 llama.cpp 请改为 `layer`
 - `--tensor-split 1,1`：两张 3090 规格相同，按 1:1 均分。如果两张卡 VRAM 可用量不同（如一张接了显示器），可调整比例如 `0.8,1`
-- `--fit on`：自动调整未显式设置的参数以适配 VRAM，避免显存溢出
-- `--flash-attn`：启用 Flash Attention 节省 VRAM
 - `--ctx-size 65536`：64K context，384GB 内存可以支撑。首次验证时可先用 16384 确认链路正常，再拉到此值
-- `--cache-type-k f16` / `--cache-type-v f16`：KV Cache 使用 FP16 精度，大 context 下保持精度对长距离召回很重要
+- `--cache-type-k q8_0` / `--cache-type-v q8_0`：KV Cache 使用 Q8 量化，VRAM 占用约为 FP16 的一半，质量损失极小。如对长距离召回精度有极高要求，可改回 `f16`
+- `--threads 20`：decode 线程数。默认使用全部物理核（本机 36），但实测 20 线程 generation 速度比默认高 16-18%——过多线程引入 NUMA 跨节点访问和同步开销。最优区间 20-24，优先选 20（调度开销更低）
+- `--threads-batch 36`：prefill/batch 处理线程数。对 generation 无影响，但影响 prefill 速度。tb=24 会使 prefill 下降 ~18%，tb=32/36 接近。推荐与物理核数一半持平（36）
 - `--parallel 1`：单并发槽位。llama-server 会为每个 slot 预分配独立的 KV Cache，在 64K context 下 parallel 2 意味着 KV Cache 占用直接翻倍，内存压力显著增加。单人使用建议从 1 开始（见 5.5 并发配置）
 - `--jinja`：启用 Jinja 模板支持（M2.5 的 think 标签需要）
-- `--model ... -00001-of-00003.gguf`：显式指向第一个分片文件，llama.cpp 自动加载后续分片
+- `--model ... -00001-of-00005.gguf`：显式指向第一个分片文件，llama.cpp 自动加载后续分片
+- `--reasoning-format auto`：自动处理 M2.5 的 `<think>` 推理标签，将思维链与最终回答分开
 - `numactl --interleave=all`：内存在两个 NUMA 节点间交错分配
 
-> **关于模型路径**：务必指向分片文件的第一个文件（如 `-00001-of-00003.gguf`），不要使用通配符 `*`。llama.cpp 会根据命名规则自动找到后续分片。通配符在 shell 展开后可能传入多个路径参数导致不可预期行为。
+> **关于模型路径**：务必指向分片文件的第一个文件（如 `-00001-of-00005.gguf`），不要使用通配符 `*`。llama.cpp 会根据命名规则自动找到后续分片。通配符在 shell 展开后可能传入多个路径参数导致不可预期行为。
 >
-> **关于多 GPU 切分**：多 GPU 的默认切分行为可能随 llama.cpp 版本变化。为了可复现性，建议始终显式指定 `--split-mode` 和 `--tensor-split`。`--fit on` 作为安全网，在参数组合导致 VRAM 不够时自动调整——但注意它可能会自动下调你未显式指定的配置项（例如 GPU/CPU 放置策略的默认值）。启动后务必检查 llama-server 的启动日志和 `nvidia-smi`，确认最终的层分配和 VRAM 占用符合预期。
+> **关于多 GPU 切分**：多 GPU 的默认切分行为可能随 llama.cpp 版本变化。为了可复现性，建议始终显式指定 `--split-mode` 和 `--tensor-split`。启动后务必检查 llama-server 的启动日志和 `nvidia-smi`，确认最终的层分配和 VRAM 占用符合预期。
+>
+> **关于 `--flash-attn` 和 `--fit on`**：ik_llama.cpp 已默认启用 Flash Attention，无需手动指定 `--flash-attn`。`--fit on` 在当前版本（2025 年初）不是有效参数，已从命令中移除。如未来版本重新引入，可视需要添加。
 
-### 5.2 MoE 卸载进阶调优：`--n-cpu-moe`
+### 5.2 MoE 卸载进阶调优
 
-`--cpu-moe` 是将所有专家层全量卸载到 CPU 的简单开关。跑通之后，可以尝试 `--n-cpu-moe N` 做更精细的控制——指定有多少层的专家放在 CPU，剩余的留在 GPU 上：
+`--cpu-moe` 是将所有专家层全量卸载到 CPU 的简单开关。跑通之后有两种方式做更精细的控制：
+
+#### 方式一：`--n-cpu-moe N`（简单但多 GPU 下不均匀）
+
+指定前 N 层的专家放在 CPU，剩余的留在 GPU：
 
 ```bash
-# 例：61 层中 50 层专家放 CPU，11 层留 GPU
-numactl --interleave=all \
-./build/bin/llama-server \
-    --model ./MiniMax-2.5-GGUF/MiniMax-2.5-UD-Q5_K_M-00001-of-00003.gguf \
-    -ngl 999 \
-    --n-cpu-moe 50 \
-    --jinja \
-    --flash-attn \
-    --ctx-size 65536 \
-    --host 0.0.0.0 \
-    --port 8080
+# 63 层中 57 层专家放 CPU，6 层留 GPU
+--n-cpu-moe 57
 ```
 
-调参策略：从 `--cpu-moe`（全部卸载）开始，观察 VRAM 余量（`nvidia-smi`）。如果双卡还有空间，逐步减小 `--n-cpu-moe` 值（即把更多专家层留在 GPU），每次减 5-10 层，直到 VRAM 接近上限。留在 GPU 上的专家层越多，生成速度越快。
+调参策略：从大值开始（如 58），逐步减小直到 VRAM 接近上限。留在 GPU 上的专家层越多，生成速度越快。
 
-> **多 GPU 注意事项**：`--n-cpu-moe` 的层序分配与多 GPU 的 tensor-split 可能交互导致两张卡显存占用不均衡。如果发现一张卡 VRAM 快满而另一张还有大量余量，优先通过调整 `--tensor-split` 比例或使用 `--fit on` 来平衡，而不是继续减小 `--n-cpu-moe`。
+> **多 GPU 已知问题**：`--n-cpu-moe` 在多 GPU 环境下不会均匀分配 expert 层（[ggml-org/llama.cpp#15136](https://github.com/ggml-org/llama.cpp/issues/15136)），会将 GPU expert 全部堆积到一张卡上，导致一卡满载另一卡闲置。**多 GPU 环境推荐使用 `-ot`（方式二）。**
+
+#### 方式二：`-ot`（Override Tensor，推荐多 GPU 使用）
+
+使用正则表达式精确控制每个张量的放置设备。可以多次指定，按顺序匹配（先匹配先生效）：
+
+```bash
+# 层 56-58 expert → CUDA0，层 59-61 expert → CUDA1，其余 expert → CPU
+# 注意：M2.5 的 expert 层只到 blk.61，blk.62 是输出层无 expert
+-ot "blk\.(5[6-8])\.ffn_(up|down|gate)_exps\.weight=CUDA0" \
+-ot "blk\.(59|6[01])\.ffn_(up|down|gate)_exps\.weight=CUDA1" \
+-ot "\.ffn_(up|down|gate)_exps\.weight=CPU"
+```
+
+优势：
+- 解决 `--n-cpu-moe` 的多 GPU 不均匀分配问题
+- 可以精确控制每一层 expert 放在哪张 GPU 上
+- 与 `--split-mode graph` 配合效果最好
+
+调参策略：先用上述模板跑通，然后逐步增加分配给 GPU 的层数（每次加 1 层），同时注意两卡 VRAM 均匀。每层 expert 约占 2.4 GB VRAM。
+
+> **重要**：MiniMax M2.5 共 63 层（blk.0 ~ blk.62），但 expert 张量（`ffn_*_exps`）只存在于 blk.0 ~ blk.61。blk.62 是输出层，不包含 expert。写正则时不要覆盖到 blk.62，否则实际生效的 GPU 层数会少于预期。
 
 ### 5.3 替代方案：纯 CLI 交互
 
 ```bash
 numactl --interleave=all \
 ./build/bin/llama-cli \
-    --model ./MiniMax-2.5-GGUF/MiniMax-2.5-UD-Q5_K_M-00001-of-00003.gguf \
+    --model /data/models/UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf \
     -ngl 999 \
     --cpu-moe \
     --split-mode layer \
     --tensor-split 1,1 \
-    --fit on \
     --jinja \
-    --flash-attn \
     --ctx-size 65536 \
     --cache-type-k f16 \
     --cache-type-v f16 \
@@ -343,7 +416,6 @@ numactl --interleave=all \
     --model ./model.gguf \
     -ngl 999 \
     -ot ".ffn_.*_exps.=CPU" \
-    --flash-attn \
     --jinja \
     --ctx-size 65536 \
     --host 0.0.0.0 \
@@ -371,14 +443,12 @@ llama-server 会为每个并发 slot 预分配独立的 KV Cache。这意味着 
 # 并发版：建议先用较小 context 验证内存占用
 numactl --interleave=all \
 ./build/bin/llama-server \
-    --model ./MiniMax-2.5-GGUF/MiniMax-2.5-UD-Q5_K_M-00001-of-00003.gguf \
+    --model /data/models/UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf \
     -ngl 999 \
     --cpu-moe \
     --split-mode layer \
     --tensor-split 1,1 \
-    --fit on \
     --jinja \
-    --flash-attn \
     --ctx-size 32768 \
     --cache-type-k f16 \
     --cache-type-v f16 \
@@ -387,7 +457,45 @@ numactl --interleave=all \
     --parallel 2
 ```
 
-> **并发 + 大 context 注意事项**：如果同时需要 parallel 2 和 64K+ context，请先用 `nvidia-smi` 和 `htop` 确认 VRAM 和系统内存是否扛得住双份 KV Cache。384GB 内存在 Q5_K_M + 64K + parallel 2 的组合下可能仍然够用，但余量会比较紧。如果内存吃紧，可以将 KV Cache 降级到 Q8（`--cache-type-k q8_0 --cache-type-v q8_0`）来腾出空间。
+> **并发 + 大 context 注意事项**：如果同时需要 parallel 2 和 64K+ context，请先用 `nvidia-smi` 和 `htop` 确认 VRAM 和系统内存是否扛得住双份 KV Cache。384GB 内存在 UD-Q5_K_XL + 64K + parallel 2 的组合下可能仍然够用，但余量会比较紧。如果内存吃紧，可以将 KV Cache 降级到 Q8（`--cache-type-k q8_0 --cache-type-v q8_0`）来腾出空间。
+
+### 5.6 M2.5 推理模式（Think Mode）
+
+MiniMax M2.5 支持"推理模式"（Think Mode），类似于 Claude 的 extended thinking。模型会在 `<think>...</think>` 标签内生成推理链（chain-of-thought），然后在标签外给出最终回答。
+
+**服务端配置**：`--reasoning-format auto` 参数（已包含在本文档所有启动命令中）让 llama-server 自动检测和处理 `<think>` 标签：
+
+- 推理链内容会被提取到 API 响应的 `reasoning_content` 字段
+- 最终回答保留在 `content` 字段
+- 客户端无需自行解析 `<think>` 标签
+
+**API 响应格式示例**：
+
+```json
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "最终回答内容",
+      "reasoning_content": "模型的推理过程（原 <think> 标签内的内容）"
+    }
+  }]
+}
+```
+
+**客户端适配注意**：
+
+| 客户端 | 支持情况 |
+|--------|---------|
+| Open WebUI | 原生支持 `reasoning_content` 字段，推理过程会以折叠面板显示 |
+| OpenAI Python SDK | `message.reasoning_content` 字段可能存在，客户端应防御性读取（取决于 SDK 版本和 chat template） |
+| 不支持的客户端 | 推理链可能直接包含在 `content` 中（带原始 `<think>` 标签），需手动解析或忽略 |
+
+**关于推理模式的行为**：
+
+- 模型自行决定是否启用推理链——简单问题可能直接回答，复杂问题会先思考再回答
+- 推理链的 `<think>` tokens 会消耗生成预算、KV Cache 和 context window 容量（与普通输出 token 相同），服务端只是将其提取到单独字段，并不节省资源
+- 如果不需要推理模式，可将 `--reasoning-format` 改为 `none`，但一般建议保持 `auto`
 
 ---
 
@@ -409,13 +517,13 @@ numactl --interleave=all \
 
 #### 内存预算
 
-以 VM 分配 280GB 内存、Q5_K_M 量化为例：
+以 VM 分配 280GB 内存、UD-Q5_K_XL 量化为例：
 
 | 用途 | 占用 |
 |------|------|
-| 模型权重 (Q5_K_M) | ~145 GB |
+| 模型权重 (UD-Q5_K_XL) | ~162 GB |
 | OS + llama.cpp + 运行时开销 | ~10 GB |
-| **可用于 KV Cache** | **~125 GB** |
+| **可用于 KV Cache** | **~108 GB** |
 
 M2.5 采用 MoE 架构，MoE 的影响主要体现在专家权重的存放位置与 CPU 内存带宽瓶颈上。KV Cache 占用则取决于注意力层的结构参数（n_layers、n_heads、head_dim、GQA/MQA 的 kv_heads 数量）与 context 大小，随 ctx-size 近似线性增长，与 MoE 的"230B 总参数 / 10B 激活"无直接关系。
 
@@ -503,6 +611,250 @@ htop                      # CPU 和内存（关注 llama-server 的 RSS）
 nvtop                     # GPU 详细监控
 ```
 
+### 6.4 部署验证测试
+
+部署完成后，按以下步骤验证系统功能正常：
+
+#### GPU 状态检查
+
+```bash
+# 确认两张 GPU 被正确识别
+nvidia-smi
+# 预期：两张 RTX 3090，各 24GB VRAM，驱动版本一致
+# 如果只看到一张或零张，检查 ESXi Passthrough 和 MMIO 配置
+
+# 检查 CUDA 工具链（可选，仅安装了 cuda-toolkit 时可用）
+nvcc --version
+```
+
+#### 服务健康检查
+
+```bash
+# 检查 systemd 服务状态
+sudo systemctl status llama-server
+
+# 等待模型加载完成（首次启动需要数分钟加载 ~162GB 模型）
+# 观察日志，直到出现 "server is listening" 字样
+journalctl -u llama-server -f
+
+# API 健康检查
+curl -s http://localhost:8080/health | python3 -m json.tool
+# 预期返回：{"status":"ok"}
+```
+
+#### 推理冒烟测试
+
+```bash
+# 基础推理测试：发送一个简单请求，确认模型能正常生成
+curl -s http://localhost:8080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "messages": [{"role": "user", "content": "Say hello in 3 languages."}],
+        "max_tokens": 200,
+        "temperature": 0.7
+    }' | python3 -m json.tool
+
+# 检查点：
+# 1. HTTP 200 响应
+# 2. choices[0].message.content 非空
+# 3. usage.total_tokens > 0
+# 4. 如果模型启用了 think mode，可能会有 reasoning_content 字段
+```
+
+#### 启动日志验证（CPU-MoE + 层分配）
+
+```bash
+# 检查 llama-server 启动日志，确认关键配置生效
+journalctl -u llama-server --no-pager | head -100
+
+# 应确认以下关键信息：
+# 1. CPU-MoE 已启用：日志中应出现 cpu-moe 相关的层分配信息
+# 2. 双 GPU 层分配：确认层被分配到两张 GPU（如 "GPU 0" / "GPU 1"）
+# 3. tensor-split 生效：分配比例与 --tensor-split 1,1 一致
+# 4. 模型加载完成：出现 "model loaded" 或类似字样
+
+# 在推理过程中观察双 GPU 利用率（发送一个请求后运行）
+watch -n 0.5 nvidia-smi
+# 预期：推理时两张卡的 GPU Utilization 都应有活动，而非只有一张在工作
+```
+
+#### 资源占用验证
+
+```bash
+# GPU VRAM 占用（注意力层 + KV Cache）
+nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+# 预期：每张卡 12-18 GB（取决于层分配和 context 使用情况）
+
+# 系统内存占用（模型权重 + KV Cache + 运行时）
+ps aux | grep llama-server | grep -v grep | awk '{print $6/1024/1024 " GB"}'
+# 或用 htop 查看 llama-server 进程的 RES 列
+
+# NUMA 内存分布（确认 interleave 策略生效）
+numastat -p $(pgrep llama-server)
+# 预期：两个节点的内存分配大致均匀
+```
+
+#### Open WebUI 验证
+
+```bash
+# 检查 Docker 容器状态
+docker ps | grep open-webui
+
+# HTTP 可达性（检查状态码和响应内容）
+curl -s -w "\nHTTP Status: %{http_code}\n" http://localhost:3000 | tail -1
+# 预期：HTTP Status: 200
+```
+
+### 6.5 性能基准测试方法
+
+在验证功能正常后，使用以下方法建立性能基线，便于后续调优和版本升级时对比。
+
+#### 测试工具
+
+| 工具 | 用途 | 安装 |
+|------|------|------|
+| `curl` + `time` | 手动单次请求计时 | 系统自带 |
+| llama-server `/health` | 服务健康状态（返回 `{"status":"ok"}` 或 503） | 内置 |
+| `nvidia-smi dmon` | GPU 利用率和显存实时监控 | 驱动自带 |
+| `numastat` | NUMA 内存分布 | `numactl` 包 |
+
+#### 关键指标
+
+| 指标 | 含义 | 获取方式 |
+|------|------|---------|
+| Prompt Processing (pp) | Prompt 处理速度 (tokens/s) | llama-server 日志 / API `timings` 字段 |
+| Token Generation (tg) | 生成速度 (tokens/s) | llama-server 日志 / API `timings` 字段 |
+| TTFT | 首 token 延迟 | `curl` 计时 / streaming 响应首字节时间 |
+| VRAM Peak | GPU 显存峰值 | `nvidia-smi` |
+| RSS | 系统内存占用 | `htop` / `ps` |
+
+#### 标准测试命令
+
+```bash
+# 短 prompt 生成速度测试（测 token generation 速度）
+time curl -s http://localhost:8080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "messages": [{"role": "user", "content": "Write a short poem about the sea."}],
+        "max_tokens": 500,
+        "temperature": 0.7
+    }' | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+t = r.get('timings', {})
+u = r.get('usage', {})
+pt = u.get('prompt_tokens', 'N/A')
+ct = u.get('completion_tokens', 'N/A')
+print(f'Prompt tokens: {pt}')
+print(f'Completion tokens: {ct}')
+pp = t.get('prompt_per_second')
+tg = t.get('predicted_per_second')
+print(f'Prompt processing: {pp:.1f} tok/s' if pp else 'Prompt processing: N/A')
+print(f'Generation: {tg:.1f} tok/s' if tg else 'Generation: N/A')
+"
+
+# 长 prompt 处理速度测试（测 prompt processing / prefill 速度）
+# 生成一个 ~4K token 的 prompt
+python3 -c "
+import json, urllib.request
+prompt = 'Summarize the following text:\n' + 'The quick brown fox jumps over the lazy dog. ' * 500
+data = json.dumps({
+    'messages': [{'role': 'user', 'content': prompt}],
+    'max_tokens': 100,
+    'temperature': 0.7
+}).encode()
+req = urllib.request.Request('http://localhost:8080/v1/chat/completions',
+    data=data, headers={'Content-Type': 'application/json'})
+r = json.loads(urllib.request.urlopen(req).read())
+t = r.get('timings', {})
+u = r.get('usage', {})
+print(f'Prompt tokens: {u.get(\"prompt_tokens\", \"N/A\")}')
+pp = t.get('prompt_per_second')
+tg = t.get('predicted_per_second')
+print(f'Prompt processing: {pp:.1f} tok/s' if pp else 'Prompt processing: N/A')
+print(f'Generation: {tg:.1f} tok/s' if tg else 'Generation: N/A')
+"
+```
+
+#### 测试记录模板
+
+建议使用以下格式记录每次基准测试结果，便于纵向对比：
+
+```
+日期: YYYY-MM-DD
+引擎版本: ik_llama.cpp commit <hash>
+量化: UD-Q5_K_XL
+启动参数: --ctx-size 65536 --parallel 1 --cache-type-k f16 --cache-type-v f16
+          --split-mode layer --tensor-split 1,1 --cpu-moe --reasoning-format auto
+GPU 配置: 2× RTX 3090
+---
+短 prompt 测试:
+  - Prompt tokens: __
+  - Completion tokens: __
+  - Generation: __ tok/s
+  - TTFT: __ s
+长 prompt 测试 (~4K tokens):
+  - Prompt tokens: __
+  - Completion tokens: __
+  - Prompt processing: __ tok/s
+  - Generation: __ tok/s
+资源占用:
+  - GPU0 VRAM: __ / 24 GB
+  - GPU1 VRAM: __ / 24 GB
+  - System RAM (RSS): __ GB
+  - NUMA balance: node0 __ GB / node1 __ GB
+```
+
+### 6.6 调优实测记录
+
+经过 17 轮系统性单变量调优（11 轮 expert 层放置 + 6 轮 CPU 线程），short gen 从基线 4.7 提升到 8.38 tok/s（+78%），long gen 从 4.7 提升到 8.02 tok/s（+71%）。
+
+**完整调优过程详见独立文档**：[minimax-m25-tuning-log.md](minimax-m25-tuning-log.md)
+
+#### 推荐生产配置
+
+```
+-ot 6+4 不对称分配 + split-mode graph + KV cache q8_0
+--threads 20 --threads-batch 36
+CUDA0: blk.51-56 (6层 expert) → ~20,794 MiB (余 3.8 GB)
+CUDA1: blk.57-60 (4层 expert) → ~17,412 MiB (余 7.2 GB)
+Short gen: ~8.38 tok/s | Long gen: ~8.02 tok/s | Long prefill: ~100 tok/s
+```
+
+> 7+3 分配 S_gen 略高（7.21 → 线程优化后同样 ~8.4），但 CUDA0 仅余 1.3 GB，不推荐作为日常默认。
+
+#### 调优总结
+
+**Expert 层放置**（第一～十一轮）：
+
+| 配置 | Short gen | Long gen | CUDA0 | CUDA1 | 备注 |
+|------|-----------|----------|-------|-------|------|
+| 基线 (cpu-moe, f16) | 4.7 | 4.7 | ~12 GB | ~12 GB | 全 expert CPU |
+| +q8_0 +moe=58 | 6.0 | 6.4 | 5,848 | 17,334 | 5 层 expert GPU |
+| +graph mode | 7.01 | 6.57 | 5,924 | 19,940 | 张量并行 |
+| +ot 6+4 graph | 7.10* | 6.79* | 20,794 | 17,412 | 不对称基线 |
+| +ot 7+3 graph | 7.21* | 6.79* | 23,246 | 14,498 | CUDA0余1.3GB |
+
+**CPU 线程优化**（第十二～十七轮）：
+
+| 配置 | Short gen | Long gen | L_pf | 备注 |
+|------|-----------|----------|------|------|
+| 无显式线程 | 7.21 | 6.79 | 99.1 | 默认全核 |
+| threads=16, tb=36 | 8.17 | 7.82 | — | +13% / +15% |
+| **threads=20, tb=36** | **8.38** | **8.02** | **100.2** | **+16% / +18%** |
+| threads=24, tb=36 | 8.40 | 8.02 | 100.1 | 与 t=20 持平 |
+| threads=28, tb=36 | 7.98 | 7.95 | 101.7 | S_gen 回落 |
+
+\* 多轮均值（排除首次冷启动）。
+
+#### 关键发现
+
+1. **CPU 线程调参是最大增益点**：threads=20 比默认 S_gen +16%、L_gen +18%，增幅超过此前 expert 层优化总和
+2. **Expert 集中分配**：主卡多 expert 减少跨卡通信，short gen 持续提升（3+3→7+3: 5.80→7.21）
+3. **Graph 模式**：short gen +6.6% 稳定优势（多轮均值验证）
+4. **threads-batch 影响 prefill 不影响 generation**：tb=24 prefill 低 18%，tb=32/36 接近
+5. **Benchmark 方法论**：单次波动 ±0.5 tok/s，需多轮均值；prefill 仅冷启动有效（KV cache 污染）
+
 ---
 
 ## 第七部分：前端 & API 集成
@@ -566,21 +918,22 @@ User=llm
 WorkingDirectory=/home/llm/ik_llama.cpp
 ExecStart=/usr/bin/numactl --interleave=all \
     /home/llm/ik_llama.cpp/build/bin/llama-server \
-    --model /data/models/MiniMax-2.5-UD-Q5_K_M-00001-of-00003.gguf \
+    --model /data/models/UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf \
     -ngl 999 \
     --cpu-moe \
     --split-mode layer \
     --tensor-split 1,1 \
-    --fit on \
     --jinja \
-    --flash-attn \
     --ctx-size 65536 \
     --cache-type-k f16 \
     --cache-type-v f16 \
     --host 0.0.0.0 \
     --port 8080 \
     --parallel 1 \
-    --reasoning-format auto
+    --reasoning-format auto \
+    --temp 1.0 \
+    --top-p 0.95 \
+    --top-k 40
 Restart=on-failure
 RestartSec=30
 StartLimitIntervalSec=300
@@ -707,7 +1060,7 @@ Proxmox VE 的 GPU Passthrough 基于 vfio-pci，配置透明度更高。裸机 
 | 反馈点 | 改动 | 理由 |
 |--------|------|------|
 | `apt-mark hold` 包名不匹配 | 改为先 `dpkg -l` 查实际驱动包名再 hold | `ubuntu-drivers autoinstall` 不一定装 `nvidia-driver-550-server`，硬编码包名会导致 hold 不生效 |
-| `cuda-toolkit-12-4` 需要 NVIDIA APT 源 | 补充"若找不到包，先按 NVIDIA 官方安装页添加 repo"的前置说明 | 干净 Ubuntu 系统默认不含 CUDA 仓库，照抄者会卡在 "Unable to locate package" |
+| `cuda-toolkit-12-8` 需要 NVIDIA APT 源 | 补充"若找不到包，先按 NVIDIA 官方安装页添加 repo"的前置说明 | 干净 Ubuntu 系统默认不含 CUDA 仓库，照抄者会卡在 "Unable to locate package" |
 | `numa.nodeAffinity = "0,1"` 容易误导 | 移除该参数，改为注释说明其不等于精细 pinning，NUMA 优化在 VM 内通过 numactl 实现 | "0,1" 只表示允许在两个节点运行，容易被误解为对齐 GPU 所在节点的 pinning |
 | `--fit on` 行为边界不明确 | 补充说明它可能自动下调未显式指定的配置项，需以启动日志和 nvidia-smi 确认最终落点 | 避免读者误以为"写了 64K 就一定 64K、层分配一定按预期" |
 | `pciPassthru.64bitMMIOSizeGB` | 加注释：若 VM 启动失败可从 64 上调到 128 | 双 3090 + 不同主板/BIOS 组合下 MMIO 需求可能超过 64GB |

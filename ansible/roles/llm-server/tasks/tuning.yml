@@ -33,13 +33,18 @@
   ansible.builtin.command: cpupower frequency-set -g performance
   register: cpupower_result
   changed_when: false
-  failed_when:
-    - cpupower_result.rc != 0
-    - "'not found' not in (cpupower_result.stderr | default('') | lower)"
-    - "'no cpufreq driver' not in (cpupower_result.stderr | default('') | lower)"
+  failed_when: false
+
+- name: Warn if CPU governor could not be set
+  ansible.builtin.debug:
+    msg: >-
+      CPU governor not changed (rc={{ cpupower_result.rc }}).
+      This is expected in VMs where frequency scaling is managed by the hypervisor.
+  when: cpupower_result.rc != 0
 
 - name: Persist CPU governor via cron at reboot
   ansible.builtin.cron:
     name: "Set CPU governor to performance"
     special_time: reboot
     job: "/usr/bin/cpupower frequency-set -g performance"
+  when: cpupower_result.rc == 0

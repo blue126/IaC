@@ -1,12 +1,29 @@
 ---
 # Systemd service for llama-server
 
+- name: Validate runtime profile
+  ansible.builtin.assert:
+    that:
+      - llm_server_profile in llm_server_profiles
+    fail_msg: >-
+      Invalid llm_server_profile='{{ llm_server_profile }}'.
+      Valid profiles: {{ llm_server_profiles.keys() | list | join(', ') }}.
+
 - name: Grant llm user access to model directory
   ansible.builtin.file:
     path: "{{ llm_server_model_dir }}"
     owner: "{{ llm_server_user }}"
     group: "{{ llm_server_user }}"
     recurse: true
+
+- name: Deploy llama-server environment file
+  ansible.builtin.template:
+    src: llama-server.env.j2
+    dest: "{{ llm_server_environment_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart llama-server
 
 - name: Deploy llama-server systemd unit
   ansible.builtin.template:

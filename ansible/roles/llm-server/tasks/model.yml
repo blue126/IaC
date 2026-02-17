@@ -23,11 +23,14 @@
 
 - name: Download model from Hugging Face
   ansible.builtin.command: >
-    huggingface-cli download {{ llm_server_model_repo }}
+    /usr/local/bin/hf download {{ llm_server_model_repo }}
     --local-dir {{ llm_server_model_dir }}
     --include "{{ llm_server_model_pattern }}"
   become: true
   become_user: "{{ llm_server_user }}"
+  environment:
+    PATH: "/usr/local/bin:/usr/bin:/bin"
+    HOME: "/home/{{ llm_server_user }}"
   when: not model_first_shard.stat.exists
   register: model_download
   # Model download can take a long time (100+ GB)
@@ -48,8 +51,8 @@
 
 - name: Count model shard files
   ansible.builtin.find:
-    paths: "{{ llm_server_model_dir }}"
-    patterns: "{{ llm_server_model_pattern }}"
+    paths: "{{ llm_server_model_dir }}/{{ llm_server_model_filename | dirname }}"
+    patterns: "*.gguf"
   register: model_shards
 
 - name: Assert all model shards are present
