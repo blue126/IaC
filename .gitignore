@@ -7,17 +7,27 @@
 *.tfvars
 !terraform.auto.tfvars
 secrets.auto.tfvars
+#Python Related
 venv/
 .venv/
 __pycache__/
 *.pyc
 .DS_Store
 .env
+#Ansible Related
 ansible/credentials/
 ansible/collections/
 .vault_pass
+#AI coding related
 .opencode/
 _bmad/
 _bmad-output/
-.vagrant/
+.mcp.json
+.claude/
+.playwright*.json
+.playwright-mcp/
+
+#########
+node_modules/
 tmp/
+.vagrant/

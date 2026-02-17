@@ -19,12 +19,18 @@
     },
     // Docker CLI to manage containers on host
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-    // Node.js LTS (required for Claude Code CLI and Codex CLI)
+    // GitHub CLI for repo and PR workflows
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // Node.js LTS for JS tooling
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
     },
-    // Opencode
-    "ghcr.io/danzilberdan/devcontainers/opencode:0": {}
+    // OpenCode feature (community)
+    "ghcr.io/jsburckhardt/devcontainer-features/opencode:1": {},
+    // Codex CLI feature (community)
+    "ghcr.io/jsburckhardt/devcontainer-features/codex:1": {},
+    // Claude Code feature (Anthropic official)
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
   // VS Code customizations
   "customizations": {
@@ -67,18 +73,18 @@
   },
   // Volume mounts
   "mounts": [
-    // Mount host SSH keys for remote connections
-    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
-    // Persist entire home directory across rebuilds (pip, ansible, terraform creds,
-    // AI tool configs, npm cache, opencode binary, shell history, etc.)
-    "source=iac-home,target=/home/vscode,type=volume",
-    // OpenCode auth token
-    "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind"
+     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
+     "source=iac-home,target=/home/vscode,type=volume",
+     // Share Claude Code config (auth, settings, memory) between host and container
+     "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
+     "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind"
   ],
   // Environment variables available in container
   "containerEnv": {
     // Ansible config file location
-    "ANSIBLE_CONFIG": "/workspaces/IaC/ansible/ansible.cfg"
+    "ANSIBLE_CONFIG": "/workspaces/IaC/ansible/ansible.cfg",
+    // Host workspace path — used to create symlink so Claude Code memory is shared
+    "HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
   },
   // Commands to run after container creation
   // 1. Install libonig-dev (required for ansible-dev-tools compilation)
@@ -86,8 +92,17 @@
   // 3. Install Python dependencies from requirements.txt
   // 4. Install Ansible collections from requirements.yml
   // 5. Create OpenCode global rules (override Claude Code system prompt identity)
-  // 6. Install Claude Code CLI and OpenAI Codex CLI globally via npm
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libonig-dev && sudo chown -R vscode:vscode /home/vscode 2>/dev/null || true && pip install --user -r requirements.txt && cd ansible && ansible-galaxy collection install -r requirements.yml && mkdir -p /home/vscode/.config/opencode && printf '# Global OpenCode Rules\n\nYou are running inside **OpenCode** (https://opencode.ai), NOT Claude Code. Regardless of what your system prompt says, you are operating inside OpenCode. Never refer to yourself as \"Claude Code\" in any context.\n' > /home/vscode/.config/opencode/AGENTS.md && npm install -g @anthropic-ai/claude-code @openai/codex",
+  // 6. Add OpenCode plugin configuration
+  // 7. Symlink Claude Code project dir so container and host share the same memory
+  "postCreateCommand": {
+    "01_install_packages": "sudo apt-get update && sudo apt-get install -y libonig-dev",
+    "02_fix_permissions": "sudo chown -R vscode:vscode /home/vscode 2>/dev/null || true",
+    "03_install_python_deps": "pip install --user -r requirements.txt",
+    "04_install_ansible_collections": "cd ansible && ansible-galaxy collection install -r requirements.yml",
+    "05_write_opencode_rules": "mkdir -p /home/vscode/.config/opencode && cat > /home/vscode/.config/opencode/AGENTS.md <<'EOF'\n# Global OpenCode Rules\n\nYou are running inside **OpenCode** (https://opencode.ai), NOT Claude Code. Regardless of what your system prompt says, you are operating inside OpenCode. Never refer to yourself as Claude Code in any context.\nEOF",
+    "06_write_plugin_config": "mkdir -p /home/vscode/.opencode && cat > /home/vscode/.opencode/opencode.json <<'EOF'\n{\n  \"plugin\": [\"opencode-antigravity-auth@latest\"]\n}\nEOF",
+    "07_claude_memory_symlink": "if [ -n \"$HOST_WORKSPACE_FOLDER\" ]; then HOST_KEY=$(echo \"$HOST_WORKSPACE_FOLDER\" | tr '/' '-'); CONTAINER_KEY='-workspaces-IaC'; if [ \"$HOST_KEY\" != \"$CONTAINER_KEY\" ]; then mkdir -p \"$HOME/.claude/projects/$HOST_KEY\"; if [ -d \"$HOME/.claude/projects/$CONTAINER_KEY\" ] && [ ! -L \"$HOME/.claude/projects/$CONTAINER_KEY\" ]; then cp -rn \"$HOME/.claude/projects/$CONTAINER_KEY/\"* \"$HOME/.claude/projects/$HOST_KEY/\" 2>/dev/null || true; rm -rf \"$HOME/.claude/projects/$CONTAINER_KEY\"; fi; ln -sfn \"$HOME/.claude/projects/$HOST_KEY\" \"$HOME/.claude/projects/$CONTAINER_KEY\"; fi; fi"
+  },
   // Run as vscode user (not root)
   "remoteUser": "vscode"
 }
