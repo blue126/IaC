@@ -28,6 +28,8 @@
   hosts: llm-server
   become: true
   tags: [verify]
+  vars:
+    _boot: "{{ llm_server_models[llm_server_boot_model] }}"
   tasks:
     # GPU verification
     - name: Check nvidia-smi
@@ -55,7 +57,7 @@
     # llama-server service
     - name: Check llama-server service status
       ansible.builtin.systemd:
-        name: llama-server
+        name: "llama-server@{{ llm_server_boot_model }}"
       register: llama_server_status
 
     - name: Assert llama-server is running
@@ -63,20 +65,20 @@
         that:
           - llama_server_status.status.ActiveState == "active"
           - llama_server_status.status.SubState == "running"
-        fail_msg: "llama-server is not running"
-        success_msg: "llama-server is active and running"
+        fail_msg: "llama-server@{{ llm_server_boot_model }} is not running"
+        success_msg: "llama-server@{{ llm_server_boot_model }} is active and running"
       when: not ansible_check_mode
 
     # llama-server health check
     - name: Wait for llama-server port
       ansible.builtin.wait_for:
-        port: "{{ llm_server_port | default(8080) }}"
+        port: "{{ llm_server_port }}"
         timeout: 120
       when: not ansible_check_mode
 
     - name: Health check - GET /health
       ansible.builtin.uri:
-        url: "http://localhost:{{ llm_server_port | default(8080) }}/health"
+        url: "http://localhost:{{ llm_server_port }}/health"
         method: GET
         status_code: [200]
         timeout: 30
@@ -89,11 +91,11 @@
     # Inference smoke test
     - name: Inference smoke test - POST /v1/chat/completions
       ansible.builtin.uri:
-        url: "http://localhost:{{ llm_server_port | default(8080) }}/v1/chat/completions"
+        url: "http://localhost:{{ llm_server_port }}/v1/chat/completions"
         method: POST
         body_format: json
         body:
-          model: "{{ llm_server_model_alias }}"
+          model: "{{ _boot.model_alias }}"
           messages:
             - role: "user"
               content: "Reply with exactly: Hello World"
@@ -118,25 +120,41 @@
           {{ (inference_result.json.timings | default({})).predicted_per_second | default('N/A') }} tok/s)
       when: not ansible_check_mode
 
-    # CPU-MoE verification via service config (more reliable than log parsing)
-    - name: Get llama-server ExecStart command
-      ansible.builtin.command: systemctl show llama-server --property=ExecStart
-      register: llama_exec_start
-      changed_when: false
+    # MoE verification via .ot file and process command line
+    - name: Check tensor override file exists
+      ansible.builtin.stat:
+        path: "{{ llm_server_install_dir }}/models/{{ llm_server_boot_model }}.ot"
+      register: ot_file
+      when: _boot.tensor_overrides | default([]) | length > 0
 
-    - name: Assert MoE offload is in service config
+    - name: Get llama-server process command line
+      ansible.builtin.shell: |
+        set -o pipefail
+        cat /proc/$(systemctl show "llama-server@{{ llm_server_boot_model }}" -p MainPID --value)/cmdline | tr '\0' ' '
+      args:
+        executable: /bin/bash
+      register: llama_cmdline
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - _boot.tensor_overrides | default([]) | length > 0
+
+    - name: Assert MoE offload is active
       ansible.builtin.assert:
         that:
-          - "'--cpu-moe' in llama_exec_start.stdout or '--n-cpu-moe' in llama_exec_start.stdout or 'exps' in llama_exec_start.stdout"
-        fail_msg: "MoE offload flag not found in llama-server service config"
-        success_msg: "MoE offload enabled in service config"
-      when: not ansible_check_mode
+          - ot_file.stat.exists
+          - "'exps' in llama_cmdline.stdout"
+        fail_msg: "MoE offload not active — .ot file missing or -ot flags not in process"
+        success_msg: "MoE offload enabled ({{ _boot.tensor_overrides | length }} rules)"
+      when:
+        - not ansible_check_mode
+        - _boot.tensor_overrides | default([]) | length > 0
 
-    # Startup log verification (filter by current PID to get only this instance)
+    # Startup log verification
     - name: Fetch startup logs for current llama-server process
       ansible.builtin.shell: |
         set -o pipefail
-        journalctl -u llama-server _PID=$(systemctl show llama-server -p MainPID --value) --no-pager
+        journalctl -u "llama-server@{{ llm_server_boot_model }}" _PID=$(systemctl show "llama-server@{{ llm_server_boot_model }}" -p MainPID --value) --no-pager
       args:
         executable: /bin/bash
       register: startup_log
@@ -175,13 +193,13 @@
     # Open WebUI
     - name: Wait for Open WebUI port
       ansible.builtin.wait_for:
-        port: "{{ llm_server_webui_port | default(3000) }}"
+        port: "{{ llm_server_webui_port }}"
         timeout: 60
       when: not ansible_check_mode
 
     - name: Check Open WebUI HTTP
       ansible.builtin.uri:
-        url: "http://localhost:{{ llm_server_webui_port | default(3000) }}"
+        url: "http://localhost:{{ llm_server_webui_port }}"
         method: GET
         status_code: [200, 301, 302]
         timeout: 10
@@ -238,11 +256,13 @@
           - "========================================="
           - "GPUs: {{ gpu_count.stdout | trim }} detected"
           - "{{ gpu_details.stdout }}"
-          - "llama-server: {{ 'Running' if llama_server_status.status.ActiveState == 'active' else 'Not running' }}"
-          - "llama-server API: http://{{ ansible_host }}:{{ llm_server_port | default(8080) }}"
+          - "Instance: llama-server@{{ llm_server_boot_model }}"
+          - "Status: {{ 'Running' if llama_server_status.status.ActiveState == 'active' else 'Not running' }}"
+          - "API: http://{{ ansible_host }}:{{ llm_server_port }}"
           - "Health: {{ 'OK' if health_result is success else 'Not ready' }}"
           - "Inference: {{ 'OK' if inference_result is success else 'Not tested' }}"
-          - "Open WebUI: http://{{ ansible_host }}:{{ llm_server_webui_port | default(3000) }}"
+          - "Open WebUI: http://{{ ansible_host }}:{{ llm_server_webui_port }}"
+          - "Models: {{ llm_server_models.keys() | list | join(', ') }}"
           - "========================================="
       when: not ansible_check_mode
 
@@ -253,4 +273,4 @@
   roles:
     - role: llm-benchmark
       vars:
-        llm_benchmark_api_url: "http://localhost:{{ llm_server_port | default(8080) }}"
+        llm_benchmark_api_url: "http://localhost:{{ llm_server_port }}"

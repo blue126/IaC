@@ -6,11 +6,22 @@
     reboot_timeout: 300
     msg: "Rebooting after NVIDIA driver installation"
 
-- name: Restart llama-server
+- name: Stop all llama-server instances
   ansible.builtin.systemd:
-    name: llama-server
-    state: restarted
+    name: "llama-server@{{ item.key }}"
+    state: stopped
+  loop: "{{ llm_server_models | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  failed_when: false
+  listen: Restart llama-server instance
+
+- name: Start boot llama-server instance
+  ansible.builtin.systemd:
+    name: "llama-server@{{ llm_server_boot_model }}"
+    state: started
     daemon_reload: true
+  listen: Restart llama-server instance
 
 - name: Restart Open WebUI
   ansible.builtin.command: docker compose up -d --force-recreate

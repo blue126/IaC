@@ -1,5 +1,6 @@
 ---
-# Download GGUF model via huggingface-cli
+# Download GGUF models via huggingface-cli
+# Loops over llm_server_models — only downloads models that have download_repo defined.
 
 - name: Install huggingface_hub
   ansible.builtin.pip:
@@ -16,48 +17,65 @@
     group: "{{ llm_server_user }}"
     mode: "0755"
 
-- name: Check if model first shard exists
+- name: Check if model files already exist
   ansible.builtin.stat:
-    path: "{{ llm_server_model_dir }}/{{ llm_server_model_filename }}"
-  register: model_first_shard
+    path: "{{ llm_server_model_dir }}/{{ item.value.model_filename }}"
+  loop: "{{ llm_server_models | dict2items | selectattr('value.download_repo', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: model_file_checks
 
-- name: Download model from Hugging Face
+- name: Download models from Hugging Face
   ansible.builtin.command: >
-    /usr/local/bin/hf download {{ llm_server_model_repo }}
-    --local-dir {{ llm_server_model_dir }}
-    --include "{{ llm_server_model_pattern }}"
+    /usr/local/bin/hf download {{ item.item.value.download_repo }}
+    --local-dir {{ llm_server_model_dir }}{% if item.item.value.download_dir | default('') %}/{{ item.item.value.download_dir }}{% endif %}
+    --include "{{ item.item.value.download_pattern }}"
   become: true
   become_user: "{{ llm_server_user }}"
   environment:
     PATH: "/usr/local/bin:/usr/bin:/bin"
     HOME: "/home/{{ llm_server_user }}"
-  when: not model_first_shard.stat.exists
-  register: model_download
+  loop: "{{ model_file_checks.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: not item.stat.exists
   # Model download can take a long time (100+ GB)
   async: 7200
   poll: 30
 
-- name: Verify model first shard exists
+- name: Verify model files exist
   ansible.builtin.stat:
-    path: "{{ llm_server_model_dir }}/{{ llm_server_model_filename }}"
+    path: "{{ llm_server_model_dir }}/{{ item.value.model_filename }}"
+  loop: "{{ llm_server_models | dict2items | selectattr('value.download_repo', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
   register: model_verify
 
-- name: Assert model file is present
+- name: Assert all model files are present
   ansible.builtin.assert:
     that:
-      - model_verify.stat.exists
-    fail_msg: "Model file not found: {{ llm_server_model_dir }}/{{ llm_server_model_filename }}"
-    success_msg: "Model file verified: {{ llm_server_model_filename }}"
+      - item.stat.exists
+    fail_msg: "Model file not found: {{ llm_server_model_dir }}/{{ item.item.value.model_filename }}"
+    success_msg: "Model verified: {{ item.item.key }} ({{ item.item.value.model_filename }})"
+  loop: "{{ model_verify.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
 
 - name: Count model shard files
   ansible.builtin.find:
-    paths: "{{ llm_server_model_dir }}/{{ llm_server_model_filename | dirname }}"
+    paths: "{{ llm_server_model_dir }}/{{ item.value.model_filename | dirname }}"
     patterns: "*.gguf"
+  loop: "{{ llm_server_models | dict2items | selectattr('value.shard_count', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
   register: model_shards
 
 - name: Assert all model shards are present
   ansible.builtin.assert:
     that:
-      - model_shards.matched == llm_server_model_shard_count
-    fail_msg: "Expected {{ llm_server_model_shard_count }} shards, found {{ model_shards.matched }}"
-    success_msg: "All {{ llm_server_model_shard_count }} model shards verified"
+      - item.matched == item.item.value.shard_count
+    fail_msg: "{{ item.item.key }}: expected {{ item.item.value.shard_count }} shards, found {{ item.matched }}"
+    success_msg: "{{ item.item.key }}: all {{ item.item.value.shard_count }} shards verified"
+  loop: "{{ model_shards.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"

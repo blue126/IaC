@@ -50,4 +50,4 @@
     creates: "{{ llm_server_install_dir }}/ik_llama.cpp/build/bin/llama-server"
   environment:
     PATH: "/usr/local/cuda/bin:{{ ansible_env.PATH }}"
-  notify: Restart llama-server
+  notify: Restart llama-server instance

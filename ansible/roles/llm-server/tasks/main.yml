@@ -1,6 +1,26 @@
 ---
 # LLM Server role - main task entry point
 
+- name: Validate multi-model configuration
+  ansible.builtin.assert:
+    that:
+      - llm_server_models | length > 0
+      - llm_server_boot_model | length > 0
+      - llm_server_boot_model in llm_server_models
+    fail_msg: >-
+      llm_server_boot_model ('{{ llm_server_boot_model }}') must be a key in llm_server_models.
+      Available: {{ llm_server_models.keys() | list }}
+
+- name: Validate required per-model fields
+  ansible.builtin.assert:
+    that:
+      - item.value.model_filename is defined and item.value.model_filename | length > 0
+      - item.value.model_alias is defined and item.value.model_alias | length > 0
+    fail_msg: "Model '{{ item.key }}' missing required field(s): model_filename, model_alias"
+  loop: "{{ llm_server_models | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
 - name: Expand root partition to fill virtual disk
   ansible.builtin.include_tasks: disk.yml
 

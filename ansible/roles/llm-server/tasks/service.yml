@@ -1,13 +1,5 @@
 ---
-# Systemd service for llama-server
-
-- name: Validate runtime profile
-  ansible.builtin.assert:
-    that:
-      - llm_server_profile in llm_server_profiles
-    fail_msg: >-
-      Invalid llm_server_profile='{{ llm_server_profile }}'.
-      Valid profiles: {{ llm_server_profiles.keys() | list | join(', ') }}.
+# Systemd service for llama-server (template unit + wrapper architecture)
 
 - name: Grant llm user access to model directory
   ansible.builtin.file:
@@ -16,25 +8,130 @@
     group: "{{ llm_server_user }}"
     recurse: true
 
-- name: Deploy llama-server environment file
+- name: Create llm-server bin directory
+  ansible.builtin.file:
+    path: "{{ llm_server_install_dir }}/bin"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create llm-server models config directory
+  ansible.builtin.file:
+    path: "{{ llm_server_install_dir }}/models"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# --- Migration: remove old single-service architecture ---
+
+- name: Check if old llama-server.service exists
+  ansible.builtin.stat:
+    path: /etc/systemd/system/llama-server.service
+  register: old_service
+
+- name: Stop and disable old llama-server service
+  ansible.builtin.systemd:
+    name: llama-server
+    state: stopped
+    enabled: false
+  when: old_service.stat.exists
+  failed_when: false
+
+- name: Remove old llama-server service file
+  ansible.builtin.file:
+    path: /etc/systemd/system/llama-server.service
+    state: absent
+  when: old_service.stat.exists
+
+- name: Remove old environment file
+  ansible.builtin.file:
+    path: /etc/default/llama-server
+    state: absent
+  when: old_service.stat.exists
+
+# --- Deploy new template unit architecture ---
+
+- name: Deploy launch-llama.sh wrapper script
+  ansible.builtin.copy:
+    src: launch-llama.sh
+    dest: "{{ llm_server_install_dir }}/bin/launch-llama.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart llama-server instance
+
+- name: Deploy switch-model.sh script
+  ansible.builtin.copy:
+    src: switch-model.sh
+    dest: "{{ llm_server_install_dir }}/bin/switch-model.sh"
+    owner: root
+    group: root
+    mode: "0755"
+
+# --- Deploy per-model config files ---
+
+- name: Deploy model environment files
   ansible.builtin.template:
-    src: llama-server.env.j2
-    dest: "{{ llm_server_environment_file }}"
+    src: model.env.j2
+    dest: "{{ llm_server_install_dir }}/models/{{ item.key }}.env"
     owner: root
     group: root
     mode: "0644"
-  notify: Restart llama-server
+  loop: "{{ llm_server_models | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    model: "{{ item.value }}"
+  notify: Restart llama-server instance
 
-- name: Deploy llama-server systemd unit
+- name: Deploy model tensor override files
   ansible.builtin.template:
-    src: llama-server.service.j2
-    dest: /etc/systemd/system/llama-server.service
+    src: model.ot.j2
+    dest: "{{ llm_server_install_dir }}/models/{{ item.key }}.ot"
+    owner: root
+    group: root
     mode: "0644"
-  notify: Restart llama-server
+  loop: "{{ llm_server_models | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    model: "{{ item.value }}"
+  when: item.value.tensor_overrides | default([]) | length > 0
+  notify: Restart llama-server instance
 
-- name: Enable and start llama-server
+- name: Remove tensor override files for models without overrides
+  ansible.builtin.file:
+    path: "{{ llm_server_install_dir }}/models/{{ item.key }}.ot"
+    state: absent
+  loop: "{{ llm_server_models | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: item.value.tensor_overrides | default([]) | length == 0
+
+# --- Deploy systemd template unit and enable boot model ---
+
+- name: Deploy llama-server systemd template unit
+  ansible.builtin.template:
+    src: llama-server@.service.j2
+    dest: /etc/systemd/system/llama-server@.service
+    mode: "0644"
+  notify: Restart llama-server instance
+
+- name: Disable non-boot llama-server instances
   ansible.builtin.systemd:
-    name: llama-server
+    name: "llama-server@{{ item.key }}"
+    enabled: false
+    state: stopped
+  loop: "{{ llm_server_models | dict2items | rejectattr('key', 'equalto', llm_server_boot_model) | list }}"
+  loop_control:
+    label: "{{ item.key }}"
+  failed_when: false
+
+- name: Enable and start boot model instance
+  ansible.builtin.systemd:
+    name: "llama-server@{{ llm_server_boot_model }}"
     enabled: true
     state: started
     daemon_reload: true

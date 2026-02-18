@@ -1,0 +1,16 @@
+[Unit]
+Description=llama-server %i
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User={{ llm_server_user }}
+ExecStart={{ llm_server_install_dir }}/bin/launch-llama.sh %i
+Restart=on-failure
+RestartSec=30
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

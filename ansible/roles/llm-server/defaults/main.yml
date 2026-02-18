@@ -17,54 +17,34 @@ llm_server_nvidia_driver: ""
 # CUDA Toolkit package name (check available versions: apt-cache search cuda-toolkit-12)
 llm_server_cuda_toolkit_package: "cuda-toolkit-12-8"
 
-# Model
-llm_server_model_repo: "unsloth/MiniMax-M2.5-GGUF"
-llm_server_model_pattern: "*UD-Q5_K_XL*"
+# Model storage
 llm_server_model_dir: /data/models
-llm_server_model_filename: "UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf"
-llm_server_model_shard_count: 5
-llm_server_model_alias: "MiniMax-M2.5"
 
-# Service environment file — model path and alias injected at runtime
-# switch-model.sh swaps this file to switch between models without changing the service unit
-llm_server_environment_file: /etc/default/llama-server
+# Boot model — which llama-server@{name} instance to enable on boot
+# Must match a key in llm_server_models
+llm_server_boot_model: ""
 
-# Inference parameters
+# Per-model serving configurations — override in host_vars
+# Each key = systemd instance name (llama-server@{key}.service)
+# Ansible deploys .env (and optionally .ot) files for ALL models listed here.
+# Required per model: model_filename, model_alias
+# Optional per model (falls back to defaults below): gpu_layers, split_mode,
+#   tensor_split, ctx_size, cache_type_k, cache_type_v, threads, threads_batch,
+#   reasoning_format, temp, top_p, top_k, tensor_overrides
+llm_server_models: {}
+
+# Inference parameter defaults (fallbacks for per-model config)
 llm_server_gpu_layers: 999
-# Expert layer placement (MoE offloading)
-# Use -ot (override-tensor) for fine-grained control over expert placement across GPUs.
-# Patterns are matched in order; first match wins.
-# Empty list = all experts follow default GPU placement (no offloading).
-llm_server_tensor_overrides:
-  - pattern: 'blk\.(51|52|53|54|55|56)\.ffn_(up|down|gate)_exps\.weight'
-    backend: CUDA0
-  - pattern: 'blk\.(57|58|59|60)\.ffn_(up|down|gate)_exps\.weight'
-    backend: CUDA1
-  - pattern: '\.ffn_(up|down|gate)_exps\.weight'
-    backend: CPU
 llm_server_split_mode: graph
 llm_server_tensor_split: "1,1"
-llm_server_ctx_size: 65536
+llm_server_ctx_size: 32768
 llm_server_cache_type_k: q8_0
 llm_server_cache_type_v: q8_0
-llm_server_threads: 20       # 0 = llama.cpp default (physical cores)
-llm_server_threads_batch: 36 # 0 = llama.cpp default (same as --threads)
+llm_server_threads: 0       # 0 = llama.cpp default (physical cores)
+llm_server_threads_batch: 0  # 0 = llama.cpp default (same as --threads)
 llm_server_parallel: 1
 llm_server_port: 8080
 llm_server_host: "0.0.0.0"
-# Runtime profile for the same model. Switch with -e llm_server_profile=fast|deep.
-llm_server_profile: deep
-llm_server_profiles:
-  deep:
-    reasoning_format: auto
-    temperature: 0.8
-    top_p: 0.95
-    top_k: 40
-  fast:
-    reasoning_format: none
-    temperature: 0.5
-    top_p: 0.9
-    top_k: 20
 
 # Open WebUI
 llm_server_webui_image: "ghcr.io/open-webui/open-webui:main"

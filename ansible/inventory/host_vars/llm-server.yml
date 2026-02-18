@@ -1,0 +1,62 @@
+---
+# LLM Server — llm-server host configuration
+
+# Model to enable on boot (must match a key in llm_server_models)
+llm_server_boot_model: qwen3-32b
+
+# Per-model serving configurations
+# Each key = systemd instance name (llama-server@{key}.service)
+# Ansible deploys .env (and optionally .ot) files for ALL models listed here.
+# Use switch-model.sh to switch between models at runtime.
+#
+# Download fields (optional — omit to skip auto-download):
+#   download_repo:    HuggingFace repo name
+#   download_pattern: --include pattern for hf download
+#   download_dir:     subdirectory within model_dir for --local-dir (empty = model_dir root)
+#   shard_count:      expected number of .gguf files (default: 1)
+llm_server_models:
+  m25:
+    model_filename: "UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf"
+    model_alias: "MiniMax-M2.5"
+    download_repo: "unsloth/MiniMax-M2.5-GGUF"
+    download_pattern: "*UD-Q5_K_XL*"
+    download_dir: ""
+    shard_count: 5
+    ctx_size: 65536
+    threads: 20
+    threads_batch: 36
+    reasoning_format: auto
+    temp: 0.8
+    top_p: 0.95
+    top_k: 40
+    tensor_overrides:
+      - pattern: 'blk\.(51|52|53|54|55|56)\.ffn_(up|down|gate)_exps\.weight'
+        backend: CUDA0
+      - pattern: 'blk\.(57|58|59|60)\.ffn_(up|down|gate)_exps\.weight'
+        backend: CUDA1
+      - pattern: '\.ffn_(up|down|gate)_exps\.weight'
+        backend: CPU
+
+  qwen3-32b:
+    model_filename: "qwen3-32b-abl/Qwen3-32B-Instruct-abliterated-Q4_K_M.gguf"
+    model_alias: "qwen3-32b"
+    download_repo: "huihui-ai/Qwen3-32B-Instruct-abliterated-GGUF"
+    download_pattern: "*Q4_K_M*"
+    download_dir: "qwen3-32b-abl"
+    threads: 20
+    threads_batch: 36
+    reasoning_format: auto
+    temp: 0.6
+    top_p: 0.95
+    top_k: 20
+
+  glm-4.7:
+    model_filename: "glm-4.7-flash-abl/GLM-4.7-Flash-abliterated-Q4_K_M.gguf"
+    model_alias: "glm-4.7-flash"
+    download_repo: "mradermacher/Huihui-GLM-4.7-Flash-abliterated-i1-GGUF"
+    download_pattern: "*Q4_K_M*"
+    download_dir: "glm-4.7-flash-abl"
+    threads: 20
+    threads_batch: 36
+    temp: 1.0
+    top_p: 0.95
