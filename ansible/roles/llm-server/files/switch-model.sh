@@ -1,6 +1,6 @@
 #!/bin/bash
 # Switch between llama-server model instances.
-# Usage: switch-model.sh <m25|qwen3-32b|glm-4.7>
+# Usage: switch-model.sh <m25|qwen3-vl-32b|glm-4.7>
 set -euo pipefail
 
 MODEL="${1:-}"

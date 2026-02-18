@@ -27,6 +27,7 @@ fi
 
 # Optional sampling parameters (only passed when set in .env)
 EXTRA_ARGS=()
+[[ -n "${LLAMA_MMPROJ:-}" ]] && EXTRA_ARGS+=(--mmproj "$LLAMA_MMPROJ")
 [[ -n "${LLAMA_REASONING_FORMAT:-}" ]] && EXTRA_ARGS+=(--reasoning-format "$LLAMA_REASONING_FORMAT")
 [[ -n "${LLAMA_TEMP:-}" ]] && EXTRA_ARGS+=(--temp "$LLAMA_TEMP")
 [[ -n "${LLAMA_TOP_P:-}" ]] && EXTRA_ARGS+=(--top-p "$LLAMA_TOP_P")

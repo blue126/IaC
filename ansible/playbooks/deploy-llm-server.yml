@@ -150,6 +150,29 @@
         - not ansible_check_mode
         - _boot.tensor_overrides | default([]) | length > 0
 
+    # VL (vision-language) verification via --mmproj in process command line
+    - name: Get llama-server process command line (VL check)
+      ansible.builtin.shell: |
+        set -o pipefail
+        cat /proc/$(systemctl show "llama-server@{{ llm_server_boot_model }}" -p MainPID --value)/cmdline | tr '\0' ' '
+      args:
+        executable: /bin/bash
+      register: llama_cmdline_vl
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - _boot.mmproj_filename is defined
+
+    - name: Assert VL mmproj is active
+      ansible.builtin.assert:
+        that:
+          - "'--mmproj' in llama_cmdline_vl.stdout"
+        fail_msg: "VL mmproj not active — --mmproj flag not found in process command line"
+        success_msg: "VL mmproj enabled ({{ _boot.mmproj_filename }})"
+      when:
+        - not ansible_check_mode
+        - _boot.mmproj_filename is defined
+
     # Startup log verification
     - name: Fetch startup logs for current llama-server process
       ansible.builtin.shell: |

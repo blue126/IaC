@@ -2,7 +2,7 @@
 # LLM Server — llm-server host configuration
 
 # Model to enable on boot (must match a key in llm_server_models)
-llm_server_boot_model: qwen3-32b
+llm_server_boot_model: qwen3-vl-32b
 
 # Per-model serving configurations
 # Each key = systemd instance name (llama-server@{key}.service)
@@ -11,9 +11,11 @@ llm_server_boot_model: qwen3-32b
 #
 # Download fields (optional — omit to skip auto-download):
 #   download_repo:    HuggingFace repo name
-#   download_pattern: --include pattern for hf download
+#   download_pattern: --include pattern(s) for hf download (string or list)
 #   download_dir:     subdirectory within model_dir for --local-dir (empty = model_dir root)
 #   shard_count:      expected number of .gguf files (default: 1)
+# VL model fields (optional):
+#   mmproj_filename:  path to vision encoder GGUF (relative to model_dir)
 llm_server_models:
   m25:
     model_filename: "UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf"
@@ -37,12 +39,15 @@ llm_server_models:
       - pattern: '\.ffn_(up|down|gate)_exps\.weight'
         backend: CPU
 
-  qwen3-32b:
-    model_filename: "qwen3-32b-abl/Qwen3-32B-Instruct-abliterated-Q4_K_M.gguf"
-    model_alias: "qwen3-32b"
-    download_repo: "huihui-ai/Qwen3-32B-Instruct-abliterated-GGUF"
-    download_pattern: "*Q4_K_M*"
-    download_dir: "qwen3-32b-abl"
+  qwen3-vl-32b:
+    model_filename: "qwen3-vl/Huihui-Qwen3-VL-32B-Thinking-abliterated.Q4_K_M.gguf"
+    model_alias: "qwen3-vl-32b"
+    mmproj_filename: "qwen3-vl/Huihui-Qwen3-VL-32B-Thinking-abliterated.mmproj-Q8_0.gguf"
+    download_repo: "mradermacher/Huihui-Qwen3-VL-32B-Thinking-abliterated-GGUF"
+    download_pattern:
+      - "*Q4_K_M*"
+      - "*mmproj-Q8_0*"
+    download_dir: "qwen3-vl"
     threads: 20
     threads_batch: 36
     reasoning_format: auto

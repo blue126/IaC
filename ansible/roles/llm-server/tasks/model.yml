@@ -25,11 +25,26 @@
     label: "{{ item.key }}"
   register: model_file_checks
 
+- name: Check if mmproj files already exist
+  ansible.builtin.stat:
+    path: "{{ llm_server_model_dir }}/{{ item.value.mmproj_filename }}"
+  loop: "{{ llm_server_models | dict2items | selectattr('value.download_repo', 'defined') | selectattr('value.mmproj_filename', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: mmproj_file_checks
+
+- name: Identify models with missing mmproj
+  ansible.builtin.set_fact:
+    _mmproj_missing: "{{ mmproj_file_checks.results | default([]) | rejectattr('stat.exists') | map(attribute='item.key') | list }}"
+
 - name: Download models from Hugging Face
-  ansible.builtin.command: >
-    /usr/local/bin/hf download {{ item.item.value.download_repo }}
-    --local-dir {{ llm_server_model_dir }}{% if item.item.value.download_dir | default('') %}/{{ item.item.value.download_dir }}{% endif %}
-    --include "{{ item.item.value.download_pattern }}"
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/local/bin/hf', 'download', item.item.value.download_repo,
+          '--local-dir', llm_server_model_dir ~ ('/' ~ item.item.value.download_dir if item.item.value.download_dir | default('') else ''),
+          '--include']
+         + (item.item.value.download_pattern if item.item.value.download_pattern is iterable and item.item.value.download_pattern is not string
+            else [item.item.value.download_pattern]) }}
   become: true
   become_user: "{{ llm_server_user }}"
   environment:
@@ -38,7 +53,7 @@
   loop: "{{ model_file_checks.results }}"
   loop_control:
     label: "{{ item.item.key }}"
-  when: not item.stat.exists
+  when: not item.stat.exists or item.item.key in _mmproj_missing
   # Model download can take a long time (100+ GB)
   async: 7200
   poll: 30
@@ -58,6 +73,25 @@
     fail_msg: "Model file not found: {{ llm_server_model_dir }}/{{ item.item.value.model_filename }}"
     success_msg: "Model verified: {{ item.item.key }} ({{ item.item.value.model_filename }})"
   loop: "{{ model_verify.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+
+- name: Verify mmproj files exist (VL models)
+  ansible.builtin.stat:
+    path: "{{ llm_server_model_dir }}/{{ item.value.mmproj_filename }}"
+  loop: "{{ llm_server_models | dict2items | selectattr('value.mmproj_filename', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: mmproj_verify
+
+- name: Assert mmproj files are present
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg
+    fail_msg: "mmproj not found or not a regular file: {{ llm_server_model_dir }}/{{ item.item.value.mmproj_filename }}"
+    success_msg: "mmproj verified: {{ item.item.key }} ({{ item.item.value.mmproj_filename }})"
+  loop: "{{ mmproj_verify.results }}"
   loop_control:
     label: "{{ item.item.key }}"
 
