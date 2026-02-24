@@ -32,6 +32,7 @@ EXTRA_ARGS=()
 [[ -n "${LLAMA_TEMP:-}" ]] && EXTRA_ARGS+=(--temp "$LLAMA_TEMP")
 [[ -n "${LLAMA_TOP_P:-}" ]] && EXTRA_ARGS+=(--top-p "$LLAMA_TOP_P")
 [[ -n "${LLAMA_TOP_K:-}" ]] && EXTRA_ARGS+=(--top-k "$LLAMA_TOP_K")
+[[ -n "${LLAMA_FLASH_ATTN:-}" ]] && EXTRA_ARGS+=(--flash-attn "$LLAMA_FLASH_ATTN")
 
 exec /usr/bin/numactl --interleave=all \
     /opt/llm-server/ik_llama.cpp/build/bin/llama-server \

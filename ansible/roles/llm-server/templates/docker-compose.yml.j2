@@ -12,8 +12,29 @@ services:
       - OPENAI_API_KEY=not-needed
     volumes:
       - {{ llm_server_webui_data_dir }}/data:/app/backend/data
+    depends_on:
+      searxng:
+        condition: service_healthy
     logging:
       driver: json-file
       options:
         max-size: "50m"
+        max-file: "3"
+
+  searxng:
+    image: {{ llm_server_searxng_image }}
+    container_name: searxng
+    restart: unless-stopped
+    volumes:
+      - {{ llm_server_webui_data_dir }}/searxng:/etc/searxng:rw
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
         max-file: "3"

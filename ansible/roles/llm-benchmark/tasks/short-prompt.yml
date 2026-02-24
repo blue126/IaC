@@ -13,7 +13,7 @@
       max_tokens: "{{ llm_benchmark_short_max_tokens }}"
       temperature: "{{ llm_benchmark_short_temperature }}"
     status_code: [200]
-    timeout: 600
+    timeout: 180
   register: short_prompt_result
 
 - name: Extract short prompt metrics

@@ -1,0 +1,13 @@
+# Managed by Ansible — SearXNG settings for Open WebUI integration
+# Docs: https://docs.searxng.org/admin/settings/settings.html
+
+use_default_settings: true
+
+server:
+  limiter: false
+  secret_key: "{{ (ansible_machine_id | default(ansible_hostname) + '-searxng') | hash('sha256') }}"
+
+search:
+  formats:
+    - html
+    - json

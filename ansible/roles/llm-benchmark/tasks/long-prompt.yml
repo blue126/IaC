@@ -18,7 +18,7 @@
       max_tokens: "{{ llm_benchmark_long_max_tokens }}"
       temperature: "{{ llm_benchmark_long_temperature }}"
     status_code: [200]
-    timeout: 600
+    timeout: 300
   register: long_prompt_result
 
 - name: Extract long prompt metrics

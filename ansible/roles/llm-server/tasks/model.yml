@@ -39,12 +39,10 @@
 
 - name: Download models from Hugging Face
   ansible.builtin.command:
-    argv: >-
-      {{ ['/usr/local/bin/hf', 'download', item.item.value.download_repo,
-          '--local-dir', llm_server_model_dir ~ ('/' ~ item.item.value.download_dir if item.item.value.download_dir | default('') else ''),
-          '--include']
-         + (item.item.value.download_pattern if item.item.value.download_pattern is iterable and item.item.value.download_pattern is not string
-            else [item.item.value.download_pattern]) }}
+    cmd: >-
+      /usr/local/bin/hf download {{ item.item.value.download_repo }}
+      --local-dir {{ llm_server_model_dir }}{{ '/' ~ item.item.value.download_dir if item.item.value.download_dir | default('') else '' }}
+      {% for p in (item.item.value.download_pattern if item.item.value.download_pattern is iterable and item.item.value.download_pattern is not string else [item.item.value.download_pattern]) %}--include '{{ p }}' {% endfor %}
   become: true
   become_user: "{{ llm_server_user }}"
   environment:

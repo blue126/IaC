@@ -50,3 +50,6 @@ llm_server_host: "0.0.0.0"
 llm_server_webui_image: "ghcr.io/open-webui/open-webui:main"
 llm_server_webui_port: 3000
 llm_server_webui_data_dir: /opt/open-webui
+
+# SearXNG (meta search engine for Open WebUI)
+llm_server_searxng_image: "searxng/searxng:latest"

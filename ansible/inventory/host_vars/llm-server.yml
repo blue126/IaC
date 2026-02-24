@@ -1,6 +1,11 @@
 ---
 # LLM Server — llm-server host configuration
 
+# Serving
+llm_server_port: 8080
+llm_server_install_dir: /opt/llm-server
+llm_server_webui_port: 3000
+
 # Model to enable on boot (must match a key in llm_server_models)
 llm_server_boot_model: qwen3-vl-32b
 
@@ -48,6 +53,10 @@ llm_server_models:
       - "*Q4_K_M*"
       - "*mmproj-Q8_0*"
     download_dir: "qwen3-vl"
+    ctx_size: 65536
+    cache_type_k: q8_0
+    cache_type_v: q8_0
+    parallel: 2
     threads: 20
     threads_batch: 36
     reasoning_format: auto
@@ -56,7 +65,7 @@ llm_server_models:
     top_k: 20
 
   glm-4.7:
-    model_filename: "glm-4.7-flash-abl/GLM-4.7-Flash-abliterated-Q4_K_M.gguf"
+    model_filename: "glm-4.7-flash-abl/Huihui-GLM-4.7-Flash-abliterated.i1-Q4_K_M.gguf"
     model_alias: "glm-4.7-flash"
     download_repo: "mradermacher/Huihui-GLM-4.7-Flash-abliterated-i1-GGUF"
     download_pattern: "*Q4_K_M*"

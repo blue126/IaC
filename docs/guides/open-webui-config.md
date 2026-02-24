@@ -312,10 +312,14 @@ if (
 
 | 引擎 | API Key | 说明 |
 |------|---------|------|
-| **DuckDuckGo** | 不需要 | 零配置，有速率限制 |
+| **SearXNG** | 不需要 | **推荐**。自建容器，聚合 Google/Bing 等多引擎，无限量，中文质量好 |
+| **DuckDuckGo** | 不需要 | 零配置，有速率限制，中文查询质量差 |
 | **Brave Search** | 需要（免费 2000次/月） | 质量好 |
-| **SearXNG** | 不需要 | 需自建容器，最私密 |
 | **Google PSE** | 需要（免费 100次/天） | 中文搜索质量好 |
+
+> **SearXNG 已集成到 Docker Compose**：Ansible 部署时自动启动 SearXNG 容器，
+> 与 Open WebUI 共享 Docker 网络，内部地址 `http://searxng:8080`。
+> 只需在 Admin Panel 切换搜索引擎即可使用（见 3.3）。
 
 ### 3.3 Admin 面板配置
 
@@ -326,11 +330,14 @@ if (
 | 设置项 | 推荐值 | 说明 |
 |--------|--------|------|
 | Web Search | 开启 | 全局开关 |
-| Web Search Engine | DDGS | DuckDuckGo，无需 API key |
-| DDGS Backend | Google | 通过 Google 后端搜索，质量更好 |
-| Search Result Count | 3 | 结果数量，越多越慢 |
-| Bypass Embedding and Retrieval | ✅ | **关键优化**：跳过向量化，直接传摘要给模型，省 ~30s |
-| Bypass Web Loader | ✅ | **关键优化**：不抓取完整网页，只用搜索引擎摘要，省 ~5s |
+| Web Search Engine | SearXNG | 自建元搜索引擎，聚合多引擎结果 |
+| SearXNG Query URL | `http://searxng:8080` | Docker 内部网络地址 |
+| Search Result Count | 5 | 结果数量（SearXNG 聚合多引擎，可适当增大） |
+| Bypass Embedding and Retrieval | ✅ | **关键优化**：跳过向量化，直接传摘要给模型 |
+| Bypass Web Loader | ✅ | **关键优化**：不抓取完整网页，只用搜索引擎摘要 |
+
+> **从 DuckDuckGo 迁移**：如果之前使用 DDGS，只需将 Engine 改为 SearXNG 并填入 Query URL。
+> SearXNG 默认启用 Google、Bing、DuckDuckGo、Wikipedia 等引擎，中文搜索质量显著优于单一 DDGS。
 
 也可以通过数据库配置（适用于无法访问 Admin 面板的情况）：
 
@@ -470,18 +477,29 @@ Open WebUI 的部分辅助任务可以交给独立的"Task Model"处理，不占
 
 ### 4.2 配置
 
-**第一步：添加 OpenAI 连接**
+**先看 Task Model 区域里有哪些设置（Admin → Settings → Interface → Tasks）**
 
-Admin Panel → Settings → Connections → OpenAI API 区域 → 点 **+** 号添加：
-- **URL**: `https://api.openai.com/v1`
-- **API Key**: 你的 OpenAI API key（[platform.openai.com/api-keys](https://platform.openai.com/api-keys)）
-- **Provider Type**: OpenAI
-- **API Type**: Chat Completions
-- **Model IDs**: 添加 `gpt-4o-mini`（**不要留空**，否则会拉取全部 OpenAI 模型到模型列表）
+- `Local Task Model`：当前聊天模型被识别为 `local` 时优先使用
+- `External Task Model`：当前聊天模型被识别为 `external` 时优先使用
+- `Title Generation`：自动生成会话标题
+- `Follow Up Generation`：自动生成追问建议
+- `Tags Generation`：自动生成标签
+- `Retrieval Query Generation`：RAG 检索查询生成
+- `Web Search Query Generation`：Web 搜索词生成（主要用于非 native FC 路径）
+- 上述任务都有对应 Prompt，可按需自定义
 
-**第二步：设置 Task Model**
+**Web UI 方式（推荐）**
 
-通过数据库设置（UI 中可能在 Admin → Settings → General 下）：
+1. 打开 `Admin → Settings → Connections`，在 OpenAI API 区域点 `+` 新增连接  
+   `URL=https://api.openai.com/v1`，`Provider Type=OpenAI`，`API Type=Chat Completions`，`Model IDs=gpt-4o-mini`（不要留空）
+2. 打开 `Admin → Settings → Interface → Tasks`
+3. 将 `External Task Model` 设为 `gpt-4o-mini`
+4. 保留你需要的任务开关（标题/标签/追问等）
+5. 保存后新建会话验证
+
+**数据库方式（兜底）**
+
+如果 UI 版本差异导致无法设置，可直接写入配置：
 
 ```bash
 docker exec open-webui python3 -c "
@@ -507,6 +525,14 @@ docker restart open-webui
 
 如果不再需要外部 Task Model（所有辅助任务回到本地模型）：
 
+Web UI 方式（推荐）：
+
+1. 打开 `Admin → Settings → Interface → Tasks`
+2. 将 `External Task Model` 改为 `None`（或清空）
+3. 保存后新建会话验证
+
+数据库方式（兜底）：
+
 ```bash
 docker exec open-webui python3 -c "
 import sqlite3, json
@@ -525,7 +551,7 @@ conn.close()
 docker restart open-webui
 ```
 
-然后在 Admin Panel → Settings → Connections 中删除 OpenAI API 连接（如果不再需要）。
+然后在 `Admin → Settings → Connections` 中删除 OpenAI API 连接（如果不再需要）。
 
 > **注意**：删除 Task Model 后，标题/标签生成会回到本地 M2.5，
 > 在 `--parallel 1` 下会占用唯一的 slot，用户请求需等待。
@@ -540,11 +566,77 @@ docker restart open-webui
 3. **500 错误风险**：本地模型处理含工具参数的标题生成请求时可能返回 500（详见 Section 8）
 4. **费用极低**：gpt-4o-mini 约 $0.50/月，远低于体验损失
 
+**但在以下条件满足时，本地 Task Model 也是可行的**：
+
+- `--parallel` 足够大，能覆盖前台请求 + 后台任务并发
+- 本地模型速度足够快（标题/标签等任务通常 1-3 秒内完成）
+- 压测下无明显排队，且稳定性（5xx/超时）可接受
+
+满足以上条件时，可以把 Task Model 切到本地模型，以减少外部 API 依赖。
+
 **维护要点**：
 
 - 确保 OpenAI Connection 的 **Model IDs** 包含 `gpt-4o-mini`，否则会出现 `404: Model not found`
 - 所有 M2.5 模型配置（Fast / Deep 等）统一设置 `function_calling = native`，
   避免不同 profile 走不同的搜索路径（RAG vs Native FC），导致行为不一致
+
+### 4.5 选路逻辑：什么时候用 Local Task Model，什么时候用 External Task Model
+
+Open WebUI 的 `local/external` 是**连接器语义**，不是物理位置语义（不是"模型在不在本机"）。
+
+- `Ollama API` 连接默认 `connection_type = local`
+- `OpenAI API` 连接默认 `connection_type = external`
+- 即使 llama-server 在本机，只要通过 OpenAI-compatible 接入，默认也按 `external` 处理
+
+Task 路由规则（源码：`open_webui/utils/task.py`）：
+
+1. 先以当前会话模型作为默认 task model
+2. 若默认模型 `connection_type == local`，优先尝试 `Task Model (Local)`
+3. 否则优先尝试 `Task Model (External)`
+4. 若配置的 task model 不存在于当前模型列表，回退到当前会话模型
+
+### 4.6 双 OpenAI Connection（本地 llama-server + OpenAI）时会选哪个？
+
+假设你有两个 OpenAI 连接：
+
+- `http://host.docker.internal:8080/v1`（本地 llama-server）
+- `https://api.openai.com/v1`（OpenAI）
+
+因为两者都在 OpenAI connector 下，默认都属于 `external` 分支，Task 会看 `Task Model (External)` 这个字段：
+
+- `Task Model (External) = gpt-4o-mini`：任务走 OpenAI
+- `Task Model (External) = MiniMax-M2.5`：任务走本地 llama-server
+- 留空：回退到当前会话模型
+
+> 建议给连接配置 `Prefix ID`（如 `local.`、`cloud.`）防止模型名冲突时误选。
+
+### 4.7 `404: Model not found` 快速排障
+
+按顺序检查，通常 2-3 分钟可定位：
+
+1. 验证后端真实模型 ID（以 `/v1/models` 返回为准）
+2. 检查 OpenAI Connection 的 `Model IDs` 是否包含该模型
+3. 检查 `Task Model (External)` 是否设置成了一个不存在的模型 ID
+4. 若刚改过连接或模型，刷新模型列表并新建会话重试
+
+后端校验命令：
+
+```bash
+curl -sS --max-time 10 http://127.0.0.1:8080/v1/models | python3 -m json.tool
+```
+
+查看 Open WebUI 当前 task model 配置：
+
+```bash
+docker exec open-webui python3 -c "
+import sqlite3, json
+conn = sqlite3.connect('/app/backend/data/webui.db')
+cur = conn.cursor()
+cfg = json.loads(cur.execute('SELECT data FROM config WHERE id=1').fetchone()[0])
+print(json.dumps(cfg.get('task', {}).get('model', {}), ensure_ascii=False, indent=2))
+conn.close()
+"
+```
 
 ---
 
@@ -578,7 +670,16 @@ llm_server_model_alias: "MiniMax-M2.5"
 {% endif %}
 ```
 
-设置后需更新 Open WebUI 中自定义模型的 `base_model_id`：
+设置后，Open WebUI 侧也要把模型引用切到新别名。
+
+Web UI 方式（推荐）：
+
+1. 打开 `Admin → Settings → Connections`，在 llama-server 连接上点刷新模型列表
+2. 打开 `Admin → Models`，分别编辑你的自定义模型（如 `M2.5 Fast` / `M2.5 Deep`）
+3. 将 `Base Model ID`（或 Base Model）从旧路径改为 `MiniMax-M2.5`
+4. 保存后新建会话验证
+
+若 UI 无法保存或历史数据较多，再用数据库方式批量更新：
 
 ```bash
 docker exec open-webui python3 -c "
@@ -711,19 +812,24 @@ Builtin Tools（仅保留必要工具，详见 Section 2.2 实测开销）:
 
 ```
 Web Search:
-  引擎 = DDGS (DuckDuckGo), Backend = Google
+  引擎 = SearXNG (自建元搜索引擎)
+  SearXNG Query URL = http://searxng:8080
   Bypass Embedding and Retrieval = 开启
   Bypass Web Loader = 开启
-  Search Result Count = 3
+  Search Result Count = 5
   Query Generation = 自定义模板（英文搜索词）
 
 Task Model (External) = gpt-4o-mini
+Task Model (Local) = Current Model
 
 Connections:
   OpenAI API #1: http://host.docker.internal:8080/v1 (本地 llama-server)
   OpenAI API #2: https://api.openai.com/v1 (Task Model, Model IDs = gpt-4o-mini)
   Ollama API: 关闭（未使用）
 ```
+
+> 说明：本地 llama-server 虽然部署在本机，但在 OpenAI connector 下默认属于 `external`。
+> 因此实际任务路由看 `Task Model (External)`，不是 `Task Model (Local)`。
 
 ### 用户设置（头像 → Settings）
 
@@ -781,6 +887,23 @@ conn = sqlite3.connect('/app/backend/data/webui.db')
 cur = conn.cursor()
 cur.execute('SELECT data FROM config WHERE id=1')
 print(json.dumps(json.loads(cur.fetchone()[0]), indent=2, ensure_ascii=False))
+conn.close()
+"
+```
+
+### Task Model 相关问题快速检查
+
+```bash
+# 1) 本地 llama-server 是否正常返回模型列表
+curl -sS --max-time 10 http://127.0.0.1:8080/v1/models | python3 -m json.tool
+
+# 2) Open WebUI 中 task model 当前配置
+docker exec open-webui python3 -c "
+import sqlite3, json
+conn = sqlite3.connect('/app/backend/data/webui.db')
+cfg = json.loads(conn.cursor().execute('SELECT data FROM config WHERE id=1').fetchone()[0])
+print('task.model.default =', cfg.get('task', {}).get('model', {}).get('default'))
+print('task.model.external =', cfg.get('task', {}).get('model', {}).get('external'))
 conn.close()
 "
 ```

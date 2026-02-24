@@ -70,6 +70,15 @@
     group: root
     mode: "0755"
 
+- name: Create global command symlinks
+  ansible.builtin.file:
+    src: "{{ llm_server_install_dir }}/bin/{{ item }}.sh"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop:
+    - switch-model
+    - launch-llama
+
 # --- Deploy per-model config files ---
 
 - name: Deploy model environment files

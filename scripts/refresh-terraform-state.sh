@@ -1,30 +1,32 @@
 #!/bin/bash
 set -e
 
-# Get the project root directory (parent of scripts/)
+# Refresh Terraform state from HCP Terraform for all workspaces.
+# Pulls remote state to local terraform.tfstate so Ansible dynamic
+# inventory plugins (cloud.terraform.terraform_provider) can read it.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Define paths relative to project root
-TERRAFORM_DIR="${PROJECT_ROOT}/terraform/proxmox"
+WORKSPACES=(esxi proxmox)
 STATE_FILE="terraform.tfstate"
 
-echo "Refreshing Terraform state from Cloud..."
-echo "Project root: $PROJECT_ROOT"
-echo "Terraform dir: $TERRAFORM_DIR"
-
-if [ ! -d "$TERRAFORM_DIR" ]; then
-    echo "Error: Directory $TERRAFORM_DIR does not exist."
-    exit 1
-fi
-
-cd "$TERRAFORM_DIR"
-
-if command -v terraform &> /dev/null; then
-    # Pull current state to local file for Ansible
-    terraform state pull > "$STATE_FILE"
-    echo "Successfully pulled state to $TERRAFORM_DIR/$STATE_FILE"
-else
+if ! command -v terraform &> /dev/null; then
     echo "Error: terraform command not found."
     exit 1
 fi
+
+echo "Project root: $PROJECT_ROOT"
+
+for ws in "${WORKSPACES[@]}"; do
+    dir="${PROJECT_ROOT}/terraform/${ws}"
+    if [ ! -d "$dir" ]; then
+        echo "⚠ Skipping ${ws}: directory not found"
+        continue
+    fi
+    echo "→ Pulling state for ${ws}..."
+    (cd "$dir" && terraform state pull > "$STATE_FILE")
+    echo "  ✓ ${dir}/${STATE_FILE}"
+done
+
+echo "Done."
