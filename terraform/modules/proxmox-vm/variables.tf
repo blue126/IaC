@@ -161,3 +161,9 @@ variable "tags" {
   type        = list(string)
   default     = []
 }
+
+variable "balloon_memory" {
+  description = "Balloon device minimum memory in MB. null = same as memory (monitoring only, no shrinking). 0 = disabled."
+  type        = number
+  default     = null
+}

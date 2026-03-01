@@ -62,6 +62,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   memory {
     dedicated = var.memory
+    floating  = var.balloon_memory != null ? var.balloon_memory : var.memory
   }
 
   scsi_hardware = "virtio-scsi-pci"
