@@ -2,6 +2,7 @@
 # Project-specific SSH authorized keys
 # These are deployed to all managed hosts by the common role
 common_authorized_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN+JoBz1i4/kUS3uX5y9h0CZzmx6UwUkSXNcaHqcPTok weierfu@Mac.willfan.me"
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINAHd38wHUE7E2V7fwn5XetNx+DZswjYEb0olvkBCd4y will@WillPC"
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJylcil893j333uvvXG0bNYpifXy7J0rI1sHyCXa6mfC will fan@WillPC"
   - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC0Nn62YvIZknVkIhRiLhVlsaEDOCZNV5SPABioYShTa/UKRpy19NUx9csv+Qiz2LDs6OB6aSUmY/SxffmI+PNgPM5iqv62qqOGwjqLpuuW6ItNLDAm+obL0nxT1+bb2xG9tTP54xL7e3rwK4/i4DF9VVEaXeZl3EiB2KUSjaslXBQ+3siiGQ+FIX2+/rQI7yqH2aVrBUXh559nkHb6EaZdqdmkoDeAObwswEesHi8A51Mfe3DErRKPHD2nmdpBkGUe+2AlI7OqX0/2CdbHv2y6jC/LOWz5wFDcmdMFG0uTcrbrdlwfnaerS1c54Exa4zLfcaoEhISJ+hH4G4SbfxzOO+MOF9Nox4Xrgoz0ctdWo3YiDSAiQuVzPNRIKpoD4Gv0xm/Q13Of4sUEPWQ7bx1v+BnpkkyQsKm3aWs+xJnY20gDGF/9+1rTS5Ey4vbye0zpi4WJvBGA+Y+U453RcAU0Azgs8FC4rmgYYzV7iZX0EPDxiexlXJTTcQQR0E9ijYkjM2nBDNj80FVRyAMt/dkwNITVe1jnTULN7X2kGeHK1Vy4nidG+AchsrCwj/0q9PkxIPsyukiF/n+IEAeTFrx+VoVhTPyFLHThfmdWneVyp3MTMhKPvqMsfiNq/vrA8O7257KIaR3uhjAlhfQU1DDYyAFDl2ChsqQ3W4F1EzrzUw== root@pve0"
