@@ -1,0 +1,6 @@
+---
+- name: Restart anki-desktop
+  community.docker.docker_compose_v2:
+    project_src: "{{ anki_desktop_data_dir }}"
+    state: present
+    recreate: always

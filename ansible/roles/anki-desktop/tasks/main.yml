@@ -1,0 +1,23 @@
+---
+- name: Install Docker
+  include_role:
+    name: docker
+
+- name: Create anki-desktop data directory
+  file:
+    path: "{{ anki_desktop_data_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ anki_desktop_data_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart anki-desktop
+
+- name: Start anki-desktop container
+  community.docker.docker_compose_v2:
+    project_src: "{{ anki_desktop_data_dir }}"
+    state: present
+    pull: missing

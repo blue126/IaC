@@ -1,0 +1,6 @@
+---
+anki_desktop_data_dir: /root/anki
+anki_desktop_container_name: anki-container
+anki_desktop_image: mlcivilengineer/anki-desktop-docker:main
+anki_desktop_web_port: 3000
+anki_connect_port: 8765

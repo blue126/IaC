@@ -1,0 +1,15 @@
+services:
+  anki:
+    image: {{ anki_desktop_image }}
+    container_name: {{ anki_desktop_container_name }}
+    ports:
+      - "{{ anki_desktop_web_port }}:3000"
+      - "{{ anki_connect_port }}:8765"
+    volumes:
+      - ./anki_data:/config
+    environment:
+      - PUID=0
+      - PGID=0
+      - QTWEBENGINE_DISABLE_SANDBOX=1
+    privileged: true
+    restart: always

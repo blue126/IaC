@@ -13,6 +13,13 @@
   roles:
     - anki
 
+- name: Deploy Anki Desktop
+  hosts: anki
+  gather_facts: true
+  become: true
+  roles:
+    - anki-desktop
+
 - name: Verify Anki Sync Server Deployment
   hosts: anki
   gather_facts: false
@@ -76,4 +83,65 @@
           - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
           - "Tailscale URL: http://anki.wyrm-wall.ts.net:{{ anki_port }}"
           - "HTTP Response: {{ http_test.status | default('N/A') }}"
+          - "========================================="
+
+- name: Verify Anki Desktop Deployment
+  hosts: anki
+  gather_facts: false
+  become: true
+  tags:
+    - verify
+  vars:
+    anki_desktop_container_name: "{{ hostvars[inventory_hostname].anki_desktop_container_name | default('anki-container') }}"
+    anki_desktop_web_port: "{{ hostvars[inventory_hostname].anki_desktop_web_port | default(3000) }}"
+    anki_connect_port: "{{ hostvars[inventory_hostname].anki_connect_port | default(8765) }}"
+  tasks:
+    - name: Check anki-desktop container status
+      community.docker.docker_container_info:
+        name: "{{ anki_desktop_container_name }}"
+      register: desktop_info
+
+    - name: Assert anki-desktop is running
+      assert:
+        that: desktop_info.container.State.Running
+        fail_msg: "❌ anki-desktop container is not running"
+        success_msg: "✅ anki-desktop container is running"
+
+    - name: Test AnkiConnect endpoint
+      uri:
+        url: "http://localhost:{{ anki_connect_port }}/"
+        timeout: 5
+        status_code: [200, 404]
+      register: ankiconnect_test
+      failed_when: false
+
+    - name: Assert AnkiConnect is reachable
+      assert:
+        that: ankiconnect_test.status in [200, 404]
+        fail_msg: "❌ AnkiConnect port {{ anki_connect_port }} is not reachable"
+        success_msg: "✅ AnkiConnect is reachable (HTTP {{ ankiconnect_test.status }})"
+
+    - name: Test Web UI endpoint
+      uri:
+        url: "http://localhost:{{ anki_desktop_web_port }}/"
+        timeout: 5
+        status_code: [200, 404]
+      register: webui_test
+      failed_when: false
+
+    - name: Assert Web UI is reachable
+      assert:
+        that: webui_test.status in [200, 404]
+        fail_msg: "❌ Web UI port {{ anki_desktop_web_port }} is not reachable"
+        success_msg: "✅ Web UI is reachable (HTTP {{ webui_test.status }})"
+
+    - name: Display Desktop deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Anki Desktop Deployment Successful"
+          - "========================================="
+          - "Container: {{ desktop_info.container.Name }}"
+          - "Web UI:      http://{{ ansible_host }}:{{ anki_desktop_web_port }}"
+          - "AnkiConnect: http://{{ ansible_host }}:{{ anki_connect_port }}"
           - "========================================="
