@@ -94,11 +94,13 @@
          else gitea_existing_internal_token.stdout | regex_replace('^INTERNAL_TOKEN\s*=\s*', '') }}
   no_log: true
 
+# Approach A: git user owns app.ini so Gitea can write auto-generated secrets
+# (JWT_SECRET etc.) at startup without permission errors
 - name: Deploy Gitea app.ini
   template:
     src: app.ini.j2
     dest: "{{ gitea_config_dir }}/app.ini"
-    owner: root
+    owner: "{{ gitea_user }}"
     group: "{{ gitea_group }}"
     mode: '0640'
   notify: Restart gitea
@@ -118,6 +120,10 @@
     enabled: yes
     state: started
     daemon_reload: yes
+
+# Flush handlers here so "Restart gitea" fires before wait_for checks the port
+- name: Flush handlers
+  meta: flush_handlers
 
 - name: Wait for Gitea to be ready
   wait_for:
