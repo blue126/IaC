@@ -1,0 +1,20 @@
+[Unit]
+Description=Gitea (Git with a cup of tea)
+After=network.target
+
+[Service]
+Type=simple
+User={{ gitea_user }}
+Group={{ gitea_group }}
+WorkingDirectory={{ gitea_work_dir }}
+ExecStart={{ gitea_binary_path }} web --config {{ gitea_config_dir }}/app.ini
+Restart=always
+RestartSec=5s
+Environment=USER={{ gitea_user }} HOME=/home/{{ gitea_user }} GITEA_WORK_DIR={{ gitea_work_dir }}
+
+; F10: Basic security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

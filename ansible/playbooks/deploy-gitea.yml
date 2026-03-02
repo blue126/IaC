@@ -1,0 +1,49 @@
+---
+- name: Deploy Gitea
+  hosts: jenkins
+  gather_facts: true
+  become: true
+  roles:
+    - common  # F5: consistent with all other deploy playbooks
+    - gitea
+
+# F11: Role defaults are not available in a separate play.
+#      Port values are hardcoded here (matching role defaults) to avoid
+#      undefined variable errors. Update if gitea_http_port/gitea_ssh_port
+#      are overridden in inventory.
+- name: Verify Gitea Deployment
+  hosts: jenkins
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Wait for Gitea web port
+      wait_for:
+        port: 3000
+        timeout: 30
+
+    - name: Check Gitea HTTP endpoint
+      uri:
+        url: "http://localhost:3000"
+        status_code: [200, 301, 302]
+
+    - name: Check Gitea service status
+      systemd:
+        name: gitea
+      register: gitea_svc
+
+    - name: Assert Gitea is running
+      assert:
+        that: gitea_svc.status.ActiveState == "active"
+        success_msg: "✅ Gitea is running"
+        fail_msg: "❌ Gitea service is not active"
+
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "======================================="
+          - "✅ Gitea Deployment Successful"
+          - "======================================="
+          - "Web UI: http://{{ ansible_host }}:3000"
+          - "SSH:    git@{{ ansible_host }}:2222"
+          - "======================================="

@@ -1,0 +1,36 @@
+; Managed by Ansible - do not edit manually
+
+; F8: RUN_USER and RUN_MODE belong in the unnamed global section
+;     (before any [section] header) — go-ini does NOT treat [DEFAULT] as global
+RUN_USER = {{ gitea_user }}
+RUN_MODE = prod
+
+[server]
+DOMAIN           = {{ gitea_domain }}
+HTTP_PORT        = {{ gitea_http_port }}
+; C6: Use gitea_root_url — override in host_vars for reverse proxy (e.g. https://gitea.willfan.me)
+ROOT_URL         = {{ gitea_root_url }}
+SSH_PORT         = {{ gitea_ssh_port }}
+SSH_LISTEN_PORT  = {{ gitea_ssh_port }}
+START_SSH_SERVER = true
+
+[database]
+DB_TYPE = {{ gitea_db_type }}
+PATH    = {{ gitea_work_dir }}/data/gitea.db
+
+[repository]
+ROOT = {{ gitea_work_dir }}/data/repositories
+
+[log]
+ROOT_PATH = {{ gitea_work_dir }}/log
+
+[security]
+; Skip web install wizard - admin created via CLI
+INSTALL_LOCK   = true
+; F6: Secrets generated on first run and preserved on re-runs
+;     to prevent session invalidation on each playbook execution
+SECRET_KEY     = {{ gitea_secret_key }}
+INTERNAL_TOKEN = {{ gitea_internal_token }}
+
+[service]
+DISABLE_REGISTRATION = true

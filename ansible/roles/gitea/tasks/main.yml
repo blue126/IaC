@@ -1,0 +1,155 @@
+---
+# F3: Create group first, before user module references it
+- name: Create git system group
+  group:
+    name: "{{ gitea_group }}"
+    system: yes
+
+- name: Create git system user
+  user:
+    name: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    system: yes
+    shell: /usr/sbin/nologin
+    home: /home/{{ gitea_user }}
+    create_home: yes
+
+- name: Create Gitea work directories
+  file:
+    path: "{{ gitea_work_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ gitea_user }}"
+    group: "{{ gitea_group }}"
+    mode: '0750'
+  loop:
+    - custom
+    - data
+    - log
+
+- name: Create Gitea config directory
+  file:
+    path: "{{ gitea_config_dir }}"
+    state: directory
+    owner: root
+    group: "{{ gitea_group }}"
+    mode: '0750'
+
+# F2: checksum also fixes F4 (version upgrade idempotency) —
+#     mismatched checksum forces re-download when version bumps
+- name: Download Gitea binary
+  get_url:
+    url: "https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-amd64"
+    dest: "{{ gitea_binary_path }}"
+    checksum: "sha256:https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-amd64.sha256"
+    mode: '0755'
+  notify: Restart gitea
+
+# F6: Read existing secrets from app.ini if it already exists,
+#     so subsequent playbook runs reuse the same values (idempotent)
+- name: Check if Gitea app.ini already exists
+  stat:
+    path: "{{ gitea_config_dir }}/app.ini"
+  register: gitea_appini_stat
+
+- name: Read existing SECRET_KEY from app.ini
+  command: "grep '^SECRET_KEY' {{ gitea_config_dir }}/app.ini"
+  register: gitea_existing_secret_key
+  changed_when: false
+  failed_when: false
+  when: gitea_appini_stat.stat.exists
+
+- name: Read existing INTERNAL_TOKEN from app.ini
+  command: "grep '^INTERNAL_TOKEN' {{ gitea_config_dir }}/app.ini"
+  register: gitea_existing_internal_token
+  changed_when: false
+  failed_when: false
+  when: gitea_appini_stat.stat.exists
+
+- name: Generate SECRET_KEY
+  command: "{{ gitea_binary_path }} generate secret SECRET_KEY"
+  register: gitea_generated_secret_key
+  changed_when: true
+  when: not gitea_appini_stat.stat.exists or (gitea_existing_secret_key.rc | default(1)) != 0
+
+- name: Generate INTERNAL_TOKEN
+  command: "{{ gitea_binary_path }} generate secret INTERNAL_TOKEN"
+  register: gitea_generated_internal_token
+  changed_when: true
+  when: not gitea_appini_stat.stat.exists or (gitea_existing_internal_token.rc | default(1)) != 0
+
+# C1: no_log prevents secrets from appearing in verbose Ansible output / callback logs
+- name: Set gitea_secret_key fact
+  set_fact:
+    gitea_secret_key: >-
+      {{ gitea_generated_secret_key.stdout
+         if (not gitea_appini_stat.stat.exists or (gitea_existing_secret_key.rc | default(1)) != 0)
+         else gitea_existing_secret_key.stdout | regex_replace('^SECRET_KEY\s*=\s*', '') }}
+  no_log: true
+
+- name: Set gitea_internal_token fact
+  set_fact:
+    gitea_internal_token: >-
+      {{ gitea_generated_internal_token.stdout
+         if (not gitea_appini_stat.stat.exists or (gitea_existing_internal_token.rc | default(1)) != 0)
+         else gitea_existing_internal_token.stdout | regex_replace('^INTERNAL_TOKEN\s*=\s*', '') }}
+  no_log: true
+
+- name: Deploy Gitea app.ini
+  template:
+    src: app.ini.j2
+    dest: "{{ gitea_config_dir }}/app.ini"
+    owner: root
+    group: "{{ gitea_group }}"
+    mode: '0640'
+  notify: Restart gitea
+
+- name: Deploy Gitea systemd service
+  template:
+    src: gitea.service.j2
+    dest: /etc/systemd/system/gitea.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart gitea
+
+- name: Enable and start Gitea service
+  systemd:
+    name: gitea
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Wait for Gitea to be ready
+  wait_for:
+    port: "{{ gitea_http_port }}"
+    timeout: 30
+
+# C4: Exact username match — awk extracts Username column (col 2, skip header),
+#     grep -qxF does full-line exact match, avoiding "admin" matching "myadmin"
+- name: Check if Gitea admin user exists
+  shell: >
+    {{ gitea_binary_path }} admin user list
+    --config {{ gitea_config_dir }}/app.ini
+    | awk 'NR>1 {print $2}'
+    | grep -qxF '{{ gitea_admin_user }}'
+  become_user: "{{ gitea_user }}"
+  register: gitea_admin_check
+  changed_when: false
+  failed_when: false
+  environment:
+    GITEA_WORK_DIR: "{{ gitea_work_dir }}"
+
+# F1: Password passed via --password flag but suppressed from all logs with no_log: true
+- name: Create Gitea admin user
+  command: >
+    {{ gitea_binary_path }} admin user create
+    --config {{ gitea_config_dir }}/app.ini
+    --username {{ gitea_admin_user }}
+    --password {{ gitea_admin_password }}
+    --email {{ gitea_admin_email }}
+    --admin
+  become_user: "{{ gitea_user }}"
+  when: gitea_admin_check.rc != 0
+  no_log: true
+  environment:
+    GITEA_WORK_DIR: "{{ gitea_work_dir }}"

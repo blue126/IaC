@@ -1,0 +1,32 @@
+---
+# Gitea binary version
+gitea_version: "1.23.7"
+
+# System user/group for running Gitea
+gitea_user: git
+gitea_group: git
+
+# Paths
+gitea_work_dir: /var/lib/gitea
+gitea_config_dir: /etc/gitea
+gitea_binary_path: /usr/local/bin/gitea
+
+# Network
+gitea_http_port: 3000
+# Use non-standard SSH port to avoid conflict with host SSH on port 22
+gitea_ssh_port: 2222
+gitea_domain: "{{ ansible_host }}"
+# F13: Set to https when behind Caddy reverse proxy
+gitea_protocol: http
+# C6: Override this in host_vars when behind a reverse proxy (e.g. https://gitea.willfan.me)
+#     Default constructs URL from protocol/domain/port for direct access
+gitea_root_url: "{{ gitea_protocol }}://{{ gitea_domain }}:{{ gitea_http_port }}/"
+
+# Database
+gitea_db_type: sqlite3
+
+# Admin account (created via CLI, bypasses web installer)
+gitea_admin_user: admin
+gitea_admin_email: admin@willfan.me
+# Admin password via vault indirect reference
+gitea_admin_password: "{{ vault_gitea_admin_password }}"
