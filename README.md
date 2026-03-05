@@ -1,11 +1,11 @@
 # Infrastructure as Code (IaC)
 
-This repository contains Infrastructure as Code for managing a Proxmox VE homelab using Terraform and Ansible.
+This repository manages a homelab infrastructure spanning Proxmox VE, ESXi, and Oracle Cloud (OCI), using Terraform for provisioning and Ansible for configuration management.
 
 ## Project Overview
-- **Terraform**: VM/LXC provisioning on Proxmox
-- **Ansible**: Application configuration management with automated deployment verification
-- **Netbox**: IPAM and DCIM source of truth
+- **Terraform**: Infrastructure provisioning (Proxmox VMs/LXCs, ESXi VMs, OCI instances, networking). State stored in HCP Terraform (org: `homelab-roseville`)
+- **Ansible**: Application configuration management via roles, secrets managed with Ansible Vault
+- **Platforms**: Proxmox VE (on-prem), ESXi (on-prem), OCI (Oracle Cloud Free Tier, ap-sydney-1)
 
 ### Architecture
 ```
@@ -13,7 +13,7 @@ Terraform (Provision) → Ansible (Configure) → Verify (Health Check)
 ```
 
 **Separation of Concerns**:
-- **Provisioning (Terraform)**: Creates VMs/LXCs (CPU, memory, disk, network)
+- **Provisioning (Terraform)**: Creates VMs/LXCs/cloud instances, networking, security groups
 - **Configuration (Ansible)**: Installs and configures services using roles
 - **Verification (Ansible)**: Automated health checks and deployment validation
 
@@ -71,26 +71,29 @@ cd ansible && ansible-galaxy collection install -r requirements.yml
 
 ### 2. Provision Infrastructure (Terraform)
 ```bash
-cd terraform/proxmox
+# Generate secrets.auto.tfvars from Ansible Vault
+scripts/get-secrets.sh
+
+cd terraform/proxmox   # or esxi / oci
 terraform init
+terraform plan
 terraform apply
 ```
 
-### 3. Deploy & Verify Services (Ansible)
+### 3. Deploy Services (Ansible)
 ```bash
+# Sync Terraform state to local (required for dynamic inventory)
+scripts/refresh-terraform-state.sh
+
 cd ansible/
+ansible-playbook playbooks/<service>.yml
 
-# Full deployment with verification
-ansible-playbook playbooks/deploy-netbox.yml
-ansible-playbook playbooks/deploy-samba.yml
-ansible-playbook playbooks/deploy-immich.yml
-ansible-playbook playbooks/deploy-anki.yml
-
-# Run verification only (health check)
-ansible-playbook playbooks/deploy-netbox.yml --tags verify
+# Run verification only
+ansible-playbook playbooks/<service>.yml --tags verify
 ```
 
-### 4. Manage Netbox Resources (Terraform)
+### 4. Netbox Integration (Roadmap)
+> Netbox as SSOT is a planned future direction. Currently managed via `terraform/netbox-integration/`.
 ```bash
 cd terraform/netbox-integration
 terraform init
