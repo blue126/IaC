@@ -1,7 +1,0 @@
----
-# Default variables for anki role
-anki_port: 8080
-anki_install_dir: /opt/anki-syncserver
-anki_venv_path: "{{ anki_install_dir }}/venv"
-# Sync users - format: "username:password" (vault indirect reference)
-anki_sync_users: "{{ vault_anki_sync_users }}"
