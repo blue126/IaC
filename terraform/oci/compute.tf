@@ -22,6 +22,7 @@ resource "oci_core_instance" "oracle_cloud_ubuntu2404" {
   create_vnic_details {
     assign_public_ip = true
     subnet_id        = "ocid1.subnet.oc1.ap-sydney-1.aaaaaaaal2432iozkhc324kjnrlxfmtoa5dz7v37m62xlkceb5lypbp3kbmq"
+    nsg_ids          = [oci_core_network_security_group.unified_proxy.id]
   }
 
   lifecycle {

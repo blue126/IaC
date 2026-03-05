@@ -1,0 +1,29 @@
+---
+# Base directories on host
+anki_api_base_dir: /opt/anki/api
+anki_api_dict_dir: /opt/anki/dict
+anki_api_collection_dir: /opt/anki/collection
+
+# GHCR credentials (set vault_ghcr_token in vault)
+anki_api_ghcr_username: blue126
+anki_api_ghcr_token: "{{ vault_ghcr_token }}"
+
+# ldoce5-api
+ldoce5_image: "ghcr.io/blue126/ldoce5-api:latest"
+ldoce5_port: 5050
+ldoce5_mdx_filename: ""   # Required: set in host_vars, e.g. LDOCE5.mdx
+ldoce5_mdd_filename: ""   # Optional: set in host_vars for audio support
+ldoce5_llm_api_key: ""
+ldoce5_llm_base_url: "https://integrate.api.nvidia.com/v1"
+ldoce5_llm_model: "nvidia/llama-3.1-nemotron-70b-instruct"
+
+# anki-writer
+anki_writer_image: "ghcr.io/blue126/anki-writer:latest"
+anki_writer_port: 5051
+anki_writer_sync_url: "http://host.docker.internal:{{ anki_sync_server_port | default(8080) }}/"
+anki_writer_sync_user: anki
+anki_writer_sync_password: "{{ vault_anki_writer_sync_password }}"
+anki_writer_ldoce5_api_url: "http://ldoce5-api:5050"
+anki_writer_deck_name: ODH
+anki_writer_note_type_name: ODH
+anki_collection_filename: collection.anki2

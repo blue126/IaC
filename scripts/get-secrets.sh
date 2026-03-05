@@ -58,6 +58,8 @@ ansible-playbook -i localhost, -e @"$VAULT_FILE" /dev/stdin << PLAYBOOK
           user_ocid        = "{{ vault_oci_user_ocid }}"
           fingerprint      = "{{ vault_oci_fingerprint }}"
           private_key_path = "{{ vault_oci_private_key_path }}"
+          region           = "ap-sydney-1"
+          ssh_public_key   = "~/.ssh/id_ed25519.pub"
 PLAYBOOK
 
 echo "Done! Secrets have been updated."

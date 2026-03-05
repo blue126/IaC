@@ -1,0 +1,6 @@
+---
+- name: Restart anki-api
+  community.docker.docker_compose_v2:
+    project_src: "{{ anki_api_base_dir }}"
+    state: present
+    recreate: always

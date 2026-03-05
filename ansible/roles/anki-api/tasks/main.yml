@@ -1,0 +1,53 @@
+---
+- name: Assert required variables are set
+  assert:
+    that:
+      - ldoce5_mdx_filename | length > 0
+    fail_msg: "ldoce5_mdx_filename must be set in host_vars (e.g. LDOCE5.mdx)"
+
+- name: Install Docker
+  include_role:
+    name: docker
+
+- name: Create anki-api directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ anki_api_base_dir }}"
+    - "{{ anki_api_dict_dir }}"
+    - "{{ anki_api_collection_dir }}"
+
+- name: Log in to GHCR
+  community.docker.docker_login:
+    registry_url: ghcr.io
+    username: "{{ anki_api_ghcr_username }}"
+    password: "{{ anki_api_ghcr_token }}"
+
+- name: Deploy ldoce5-api env file
+  template:
+    src: ldoce5-api.env.j2
+    dest: "{{ anki_api_base_dir }}/ldoce5-api.env"
+    mode: '0600'
+  notify: Restart anki-api
+
+- name: Deploy anki-writer env file
+  template:
+    src: anki-writer.env.j2
+    dest: "{{ anki_api_base_dir }}/anki-writer.env"
+    mode: '0600'
+  notify: Restart anki-api
+
+- name: Deploy docker-compose.yml
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ anki_api_base_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart anki-api
+
+- name: Start anki-api containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ anki_api_base_dir }}"
+    state: present
+    pull: always

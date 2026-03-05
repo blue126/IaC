@@ -1,5 +1,6 @@
 ---
 # LLM Server — llm-server host configuration
+ansible_host: 192.168.1.247
 
 # Serving
 llm_server_port: 8080

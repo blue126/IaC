@@ -1,0 +1,15 @@
+---
+# Order matters: systemd must be reloaded before restarting the service
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: Restart unified-proxy
+  systemd:
+    name: unified-proxy
+    state: restarted
+
+- name: Restart Caddy
+  systemd:
+    name: caddy
+    state: restarted

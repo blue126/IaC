@@ -1,0 +1,147 @@
+---
+# Playbook to deploy Anki Sync Server
+# Configuration is now handled by Ansible.
+#
+# Expected variable inputs (inventory/pve_lxc/anki.yml):
+#   - anki_sync_server_port (default: 8080)
+#   - anki_sync_users (list of "username:password" strings)
+
+- name: Deploy Anki Sync Server
+  hosts: anki
+  gather_facts: true
+  become: true
+  roles:
+    - anki-sync-server
+
+- name: Deploy Anki Desktop
+  hosts: anki
+  gather_facts: true
+  become: true
+  roles:
+    - anki-desktop
+
+- name: Verify Anki Sync Server Deployment
+  hosts: anki
+  gather_facts: false
+  become: true
+  tags:
+    - verify  # Allow running only verification with --tags verify
+  vars:
+    # Read anki_sync_server_port from inventory, default to 8080 if not defined
+    anki_sync_server_port: "{{ hostvars[inventory_hostname].anki_sync_server_port | default(8080) }}"
+  tasks:
+    # Wait up to 30 seconds for the service to start listening on the port
+    - name: Wait for service to be ready
+      wait_for:
+        port: "{{ anki_sync_server_port }}"      # Port number to check
+        host: 0.0.0.0                # Listen on all interfaces
+        delay: 2                     # Wait 2 seconds before first check
+        timeout: 30                  # Fail if not ready within 30 seconds
+      
+    # Query systemd for service status information
+    - name: Check service status
+      systemd:
+        name: anki-sync-server
+      register: service_status       # Store result in variable for later use
+      
+    # Verify service is in the correct state, fail if not
+    - name: Assert service is running
+      assert:
+        that:
+          # Both conditions must be true
+          - service_status.status.ActiveState == "active"    # Service is enabled
+          - service_status.status.SubState == "running"      # Process is actually running
+        fail_msg: "❌ Anki Sync Server is not running correctly"
+        success_msg: "✅ Anki Sync Server is active and running"
+    
+    # Try to connect to HTTP endpoint to verify it's responding
+    - name: Test HTTP endpoint accessibility
+      uri:
+        url: "http://localhost:{{ anki_sync_server_port }}/"
+        timeout: 5
+        status_code: [200, 404, 405]  # Accept these codes (Anki may return 404/405 for root path)
+      register: http_test
+      failed_when: false              # Don't fail task even if HTTP check fails
+    
+    # Print summary of deployment status
+    # Print summary of deployment status
+    - name: Get Tailscale IPv4
+      command: tailscale ip -4
+      register: tailscale_ipv4
+      changed_when: false
+      failed_when: false
+
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Anki Sync Server Deployment Successful"
+          - "========================================="
+          - "Service Status: {{ service_status.status.ActiveState }}"
+          - "Listening Port: {{ anki_sync_server_port }}"
+          - "Server URL: http://{{ ansible_host }}:{{ anki_sync_server_port }}"
+          - "Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}"
+          - "Tailscale URL: http://anki.wyrm-wall.ts.net:{{ anki_sync_server_port }}"
+          - "HTTP Response: {{ http_test.status | default('N/A') }}"
+          - "========================================="
+
+- name: Verify Anki Desktop Deployment
+  hosts: anki
+  gather_facts: false
+  become: true
+  tags:
+    - verify
+  vars:
+    anki_desktop_container_name: "{{ hostvars[inventory_hostname].anki_desktop_container_name | default('anki-container') }}"
+    anki_desktop_web_port: "{{ hostvars[inventory_hostname].anki_desktop_web_port | default(3000) }}"
+    anki_connect_port: "{{ hostvars[inventory_hostname].anki_connect_port | default(8765) }}"
+  tasks:
+    - name: Check anki-desktop container status
+      community.docker.docker_container_info:
+        name: "{{ anki_desktop_container_name }}"
+      register: desktop_info
+
+    - name: Assert anki-desktop is running
+      assert:
+        that: desktop_info.container.State.Running
+        fail_msg: "❌ anki-desktop container is not running"
+        success_msg: "✅ anki-desktop container is running"
+
+    - name: Test AnkiConnect endpoint
+      uri:
+        url: "http://localhost:{{ anki_connect_port }}/"
+        timeout: 5
+        status_code: [200, 404]
+      register: ankiconnect_test
+      failed_when: false
+
+    - name: Assert AnkiConnect is reachable
+      assert:
+        that: ankiconnect_test.status in [200, 404]
+        fail_msg: "❌ AnkiConnect port {{ anki_connect_port }} is not reachable"
+        success_msg: "✅ AnkiConnect is reachable (HTTP {{ ankiconnect_test.status }})"
+
+    - name: Test Web UI endpoint
+      uri:
+        url: "http://localhost:{{ anki_desktop_web_port }}/"
+        timeout: 5
+        status_code: [200, 404]
+      register: webui_test
+      failed_when: false
+
+    - name: Assert Web UI is reachable
+      assert:
+        that: webui_test.status in [200, 404]
+        fail_msg: "❌ Web UI port {{ anki_desktop_web_port }} is not reachable"
+        success_msg: "✅ Web UI is reachable (HTTP {{ webui_test.status }})"
+
+    - name: Display Desktop deployment summary
+      debug:
+        msg:
+          - "========================================="
+          - "✅ Anki Desktop Deployment Successful"
+          - "========================================="
+          - "Container: {{ desktop_info.container.Name }}"
+          - "Web UI:      http://{{ ansible_host }}:{{ anki_desktop_web_port }}"
+          - "AnkiConnect: http://{{ ansible_host }}:{{ anki_connect_port }}"
+          - "========================================="

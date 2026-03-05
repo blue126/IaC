@@ -1,0 +1,24 @@
+services:
+  ldoce5-api:
+    image: {{ ldoce5_image }}
+    container_name: ldoce5-api
+    env_file: {{ anki_api_base_dir }}/ldoce5-api.env
+    ports:
+      - "{{ ldoce5_port }}:5050"
+    volumes:
+      - {{ anki_api_dict_dir }}:/data/dict:ro
+    restart: unless-stopped
+
+  anki-writer:
+    image: {{ anki_writer_image }}
+    container_name: anki-writer
+    env_file: {{ anki_api_base_dir }}/anki-writer.env
+    ports:
+      - "{{ anki_writer_port }}:5051"
+    volumes:
+      - {{ anki_api_collection_dir }}:/data/anki
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - ldoce5-api
+    restart: unless-stopped

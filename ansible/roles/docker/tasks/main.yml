@@ -22,9 +22,13 @@
         dest: /etc/apt/keyrings/docker.asc
         mode: '0644'
 
+- name: Set Docker apt architecture
+  set_fact:
+    _docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] | default('amd64') }}"
+
 - name: Add Docker repository
   apt_repository:
-    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [arch={{ _docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
     filename: docker
 

@@ -1,0 +1,16 @@
+# Anki sync server
+anki_sync_server_port: 8080
+
+# ldoce5-api data files — set to the actual filenames present under /opt/anki/dict/
+ldoce5_mdx_filename: "Longman Dictionary Of Contemporary English 5th.mdx"   # TODO: replace with actual filename
+ldoce5_mdd_filename: "Longman Dictionary Of Contemporary English 5th.mdd"   # TODO: replace with actual filename, or remove if absent
+
+# anki-writer sync credentials
+anki_writer_sync_user: anki
+# anki_writer_sync_password comes from vault_anki_writer_sync_password
+
+# unified-proxy
+repo_url: "https://github.com/blue126/unified-proxy.git"
+repo_version: "main"
+proxy_domain: "proxy.willfan.me"   # TODO: set to your public domain, e.g. proxy.yourdomain.com
+# vault_proxy_api_key and vault_auth_json must be added to vault

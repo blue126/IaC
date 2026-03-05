@@ -1,0 +1,5 @@
+---
+esxi_hosts:
+  hosts:
+    esxi-01:
+      ansible_host: 192.168.1.251 # Placeholder, user to update if different

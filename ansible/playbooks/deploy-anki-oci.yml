@@ -1,0 +1,120 @@
+---
+# Playbook to deploy the full Anki stack on OCI:
+#   - anki-sync-server (pip + systemd)
+#   - ldoce5-api       (Docker, port 5050)
+#   - anki-writer      (Docker, port 5051)
+#
+# Required vault variables:
+#   vault_anki_sync_users          - list of "user:password" for sync server
+#   vault_ghcr_token               - GitHub PAT with packages:read scope
+#   vault_anki_writer_sync_password - password for anki-writer → sync server auth
+#
+# Required host_vars (oracle-cloud-ubuntu2404.yml):
+#   ldoce5_mdx_filename    - actual .mdx filename under anki_api_dict_dir
+#   ldoce5_mdd_filename    - actual .mdd filename (optional, for audio)
+#   anki_writer_sync_user  - sync server username used by anki-writer
+
+- name: Deploy Anki Sync Server
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: true
+  become: true
+  roles:
+    - anki-sync-server
+
+- name: Deploy Anki API services
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: true
+  become: true
+  roles:
+    - anki-api
+
+- name: Verify Anki Sync Server
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  become: true
+  tags: [verify]
+  vars:
+    anki_sync_server_port: "{{ hostvars[inventory_hostname].anki_sync_server_port | default(8080) }}"
+  tasks:
+    - name: Wait for sync server to be ready
+      wait_for:
+        port: "{{ anki_sync_server_port }}"
+        host: 0.0.0.0
+        delay: 2
+        timeout: 30
+
+    - name: Check sync server service status
+      systemd:
+        name: anki-sync-server
+      register: service_status
+
+    - name: Assert sync server is running
+      assert:
+        that:
+          - service_status.status.ActiveState == "active"
+          - service_status.status.SubState == "running"
+        fail_msg: "❌ Anki Sync Server is not running"
+        success_msg: "✅ Anki Sync Server is active"
+
+- name: Verify Anki API containers
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  become: true
+  tags: [verify]
+  vars:
+    ldoce5_port: "{{ hostvars[inventory_hostname].ldoce5_port | default(5050) }}"
+    anki_writer_port: "{{ hostvars[inventory_hostname].anki_writer_port | default(5051) }}"
+  tasks:
+    - name: Check ldoce5-api container
+      community.docker.docker_container_info:
+        name: ldoce5-api
+      register: ldoce5_info
+
+    - name: Assert ldoce5-api is running
+      assert:
+        that: ldoce5_info.container.State.Running
+        fail_msg: "❌ ldoce5-api container is not running"
+        success_msg: "✅ ldoce5-api is running"
+
+    - name: Check anki-writer container
+      community.docker.docker_container_info:
+        name: anki-writer
+      register: writer_info
+
+    - name: Assert anki-writer is running
+      assert:
+        that: writer_info.container.State.Running
+        fail_msg: "❌ anki-writer container is not running"
+        success_msg: "✅ anki-writer is running"
+
+    - name: Test ldoce5-api health endpoint
+      uri:
+        url: "http://localhost:{{ ldoce5_port }}/health"
+        timeout: 10
+        status_code: [200]
+      register: ldoce5_health
+      failed_when: false
+
+    - name: Test anki-writer health endpoint
+      uri:
+        url: "http://localhost:{{ anki_writer_port }}/health"
+        timeout: 10
+        status_code: [200]
+      register: writer_health
+      failed_when: false
+
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "============================================"
+          - "✅ Anki Stack Deployment on OCI Successful"
+          - "============================================"
+          - "Host:          {{ ansible_host }}"
+          - "Sync Server:   http://{{ ansible_host }}:{{ hostvars[inventory_hostname].anki_sync_server_port | default(8080) }}"
+          - "ldoce5-api:    http://{{ ansible_host }}:{{ ldoce5_port }}  (health: {{ ldoce5_health.status | default('N/A') }})"
+          - "anki-writer:   http://{{ ansible_host }}:{{ anki_writer_port }}  (health: {{ writer_health.status | default('N/A') }})"
+          - "============================================"
+          - "Data dirs:"
+          - "  dict:        {{ anki_api_dict_dir | default('/opt/anki/dict') }}"
+          - "  collection:  {{ anki_api_collection_dir | default('/opt/anki/collection') }}"
+          - "============================================"

@@ -1,0 +1,22 @@
+---
+# Deploy unified-proxy to OCI VM
+#
+# Required vault variables (add to ansible/inventory/group_vars/all/vault.yml):
+#   vault_proxy_api_key    - API key for proxy authentication (openssl rand -hex 32)
+#   vault_auth_json        - Full contents of ~/.unified-proxy/auth.json (OAuth tokens)
+#
+# Required host_vars (oracle-cloud-ubuntu2404.yml):
+#   repo_url               - Git repository URL for unified-proxy
+#   proxy_domain           - Public domain (DNS must point to OCI VM public IP)
+#
+# Usage:
+#   ansible-playbook playbooks/deploy-unified-proxy.yml --tags code   # code update only
+#   ansible-playbook playbooks/deploy-unified-proxy.yml --tags auth   # token refresh only
+#   ansible-playbook playbooks/deploy-unified-proxy.yml               # full deploy
+
+- name: Deploy unified-proxy
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: true
+  become: true
+  roles:
+    - unified-proxy
