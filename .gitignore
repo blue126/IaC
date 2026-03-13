@@ -24,6 +24,7 @@ _bmad/
 _bmad-output/
 .mcp.json
 .claude/
+.agents/
 .playwright*.json
 .playwright-mcp/
 
