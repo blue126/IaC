@@ -1,0 +1,73 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install system dependencies
+  apt:
+    name:
+      - curl
+      - git
+      - tmux
+      - ca-certificates
+      - unzip
+    state: present
+
+- name: Install Claude Code
+  shell: curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: /root/.claude/local/bin/claude
+
+- name: Ensure Claude Code is in PATH via profile
+  copy:
+    dest: /etc/profile.d/claude.sh
+    content: |
+      export PATH="$HOME/.claude/local/bin:$PATH"
+    mode: '0644'
+
+- name: Install Bun runtime
+  shell: curl -fsSL https://bun.sh/install | bash
+  args:
+    creates: /root/.bun/bin/bun
+  environment:
+    HOME: /root
+
+- name: Ensure Bun is in PATH via profile
+  copy:
+    dest: /etc/profile.d/bun.sh
+    content: |
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
+    mode: '0644'
+
+- name: Deploy claude-agent wrapper script
+  template:
+    src: claude-agent-run.sh.j2
+    dest: /usr/local/bin/claude-agent-run.sh
+    mode: '0755'
+  notify: Restart claude-agent
+
+- name: Deploy Telegram bot token environment file
+  copy:
+    dest: /etc/claude-agent.env
+    content: |
+      CLAUDE_TELEGRAM_BOT_TOKEN={{ claude_agent_telegram_bot_token }}
+    mode: '0600'
+    owner: root
+    group: root
+  no_log: true
+  notify: Restart claude-agent
+
+- name: Deploy systemd service
+  template:
+    src: claude-agent.service.j2
+    dest: /etc/systemd/system/claude-agent.service
+    mode: '0644'
+  notify: Restart claude-agent
+
+- name: Enable claude-agent service
+  systemd:
+    name: claude-agent
+    enabled: yes
+    daemon_reload: yes

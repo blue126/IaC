@@ -1,0 +1,101 @@
+---
+# Prerequisites (manual steps before running this playbook):
+#   1. Download Ubuntu 24.04 LXC template on Proxmox:
+#      pveam download local ubuntu-24.04-standard_24.04-2_amd64.tar.zst
+#   2. Run `terraform apply` in terraform/proxmox/ to create the LXC
+#   3. Run `scripts/refresh-terraform-state.sh` to sync inventory
+#   4. Add vault_claude_agent_telegram_bot_token to vault.yml
+#
+# Post-deployment (manual, interactive steps inside the LXC):
+#   1. SSH into the LXC: ssh root@192.168.1.108
+#   2. Start Claude Code interactively: claude
+#   3. Authenticate: /login (follow browser URL)
+#   4. Install plugin: /plugin install telegram@claude-plugins-official
+#   5. Configure bot: /telegram:configure <BOT_TOKEN>
+#   6. Send any message to your Telegram bot
+#   7. Pair: /telegram:access pair <6-digit-code>
+#   8. Lock down: /telegram:access policy allowlist
+#   9. Exit claude, then: systemctl restart claude-agent
+
+- name: Bootstrap SSH on Claude Agent LXC
+  hosts: pve0
+  become: true
+  tasks:
+    - name: Check if Claude Agent LXC (108) is running
+      command: pct status 108
+      register: lxc_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Install and enable SSH on Claude Agent LXC
+      shell: |
+        pct exec 108 -- bash -c "apt-get update && apt-get install -y openssh-server"
+        pct exec 108 -- bash -c "sed -i 's/^#PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config"
+        pct exec 108 -- systemctl enable ssh
+        pct exec 108 -- systemctl restart ssh
+      when: lxc_status.rc == 0 and 'running' in lxc_status.stdout
+      register: ssh_bootstrap
+      changed_when: "'Setting up openssh-server' in ssh_bootstrap.stdout"
+
+- name: Deploy Claude Code Telegram Agent
+  hosts: claude-agent
+  gather_facts: true
+  become: true
+  roles:
+    - claude-agent
+
+- name: Verify Claude Agent Deployment
+  hosts: claude-agent
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Check Claude Code binary exists
+      stat:
+        path: /root/.claude/local/bin/claude
+      register: claude_binary
+      tags: [verify]
+
+    - name: Check Bun binary exists
+      stat:
+        path: /root/.bun/bin/bun
+      register: bun_binary
+      tags: [verify]
+
+    - name: Assert binaries are installed
+      assert:
+        that:
+          - claude_binary.stat.exists
+          - bun_binary.stat.exists
+        success_msg: "Claude Code and Bun are installed"
+        fail_msg: "Missing binaries - check installation tasks"
+      tags: [verify]
+
+    - name: Check systemd service is enabled
+      systemd:
+        name: claude-agent
+      register: service_status
+      tags: [verify]
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          =========================================
+          Claude Code Telegram Agent
+          =========================================
+          Host: {{ ansible_host }}
+          Service enabled: {{ service_status.status.UnitFileState | default('unknown') }}
+          Service active: {{ service_status.status.ActiveState | default('unknown') }}
+          -----------------------------------------
+          MANUAL STEPS REQUIRED (interactive):
+            ssh root@{{ ansible_host }}
+            claude
+            /login
+            /plugin install telegram@claude-plugins-official
+            /telegram:configure <BOT_TOKEN>
+            # send msg to bot, then:
+            /telegram:access pair <code>
+            /telegram:access policy allowlist
+            # exit claude, then:
+            systemctl restart claude-agent
+          =========================================
+      tags: [verify]

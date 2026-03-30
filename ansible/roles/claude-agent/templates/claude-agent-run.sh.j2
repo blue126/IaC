@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Wrapper script for Claude Code Telegram Agent
+# Managed by Ansible - do not edit manually
+
+set -euo pipefail
+
+export HOME=/root
+export PATH="/root/.claude/local/bin:/root/.bun/bin:$PATH"
+export BUN_INSTALL="/root/.bun"
+
+SESSION_NAME="{{ claude_agent_tmux_session }}"
+CHANNEL_PLUGIN="plugin:{{ claude_agent_channel_plugin }}"
+CLAUDE_ARGS="--channels ${CHANNEL_PLUGIN}"
+{% if claude_agent_skip_permissions %}
+CLAUDE_ARGS="${CLAUDE_ARGS} --dangerously-skip-permissions"
+{% endif %}
+
+# Kill stale session if it exists
+tmux kill-session -t "${SESSION_NAME}" 2>/dev/null || true
+
+# Start claude in a new tmux session and wait for it
+# Using tmux wait-for so the script blocks while claude is alive
+tmux new-session -d -s "${SESSION_NAME}" "claude ${CLAUDE_ARGS}; tmux wait-for -S claude-done"
+tmux wait-for claude-done

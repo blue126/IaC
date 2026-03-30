@@ -1,0 +1,16 @@
+[Unit]
+Description=Claude Code Telegram Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ claude_agent_workdir }}
+EnvironmentFile=/etc/claude-agent.env
+ExecStart=/usr/local/bin/claude-agent-run.sh
+ExecStop=/usr/bin/tmux kill-session -t {{ claude_agent_tmux_session }} || true
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

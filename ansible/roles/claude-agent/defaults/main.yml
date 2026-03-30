@@ -1,0 +1,19 @@
+---
+# Claude Code Channels + Telegram Agent
+
+# Telegram bot token (from Ansible Vault)
+# Written to /etc/claude-agent.env for reference; actual plugin configuration
+# must be done interactively inside the claude REPL after first login.
+claude_agent_telegram_bot_token: "{{ vault_claude_agent_telegram_bot_token }}"
+
+# Claude Code channel plugin identifier
+claude_agent_channel_plugin: "telegram@claude-plugins-official"
+
+# Working directory for the Claude agent session
+claude_agent_workdir: /root
+
+# tmux session name
+claude_agent_tmux_session: claude-agent
+
+# Whether to skip permission prompts (use with caution in isolated environments only)
+claude_agent_skip_permissions: false
