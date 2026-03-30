@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-WORKSPACES=(esxi proxmox oci)
+ALL_WORKSPACES=(esxi proxmox oci)
 STATE_FILE="terraform.tfstate"
 
 if ! command -v terraform &> /dev/null; then
@@ -16,7 +16,15 @@ if ! command -v terraform &> /dev/null; then
     exit 1
 fi
 
+# Use specified workspaces or default to all
+if [ $# -gt 0 ]; then
+    WORKSPACES=("$@")
+else
+    WORKSPACES=("${ALL_WORKSPACES[@]}")
+fi
+
 echo "Project root: $PROJECT_ROOT"
+echo "Workspaces to refresh: ${WORKSPACES[*]}"
 
 for ws in "${WORKSPACES[@]}"; do
     dir="${PROJECT_ROOT}/terraform/${ws}"

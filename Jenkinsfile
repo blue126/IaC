@@ -298,7 +298,21 @@ pipeline {
                 }
             }
             steps {
-                sh './scripts/refresh-terraform-state.sh'
+                script {
+                    // Only refresh workspaces that were initialized
+                    def workspaces = []
+                    if (env.NEEDS_TF_PROXMOX == 'true' || env.ANSIBLE_PLAYBOOKS?.trim()) {
+                        workspaces.add('proxmox')
+                    }
+                    if (env.NEEDS_TF_ESXI == 'true') {
+                        workspaces.add('esxi')
+                    }
+                    if (workspaces) {
+                        sh "./scripts/refresh-terraform-state.sh ${workspaces.join(' ')}"
+                    } else {
+                        echo 'No workspaces to refresh.'
+                    }
+                }
             }
         }
 
