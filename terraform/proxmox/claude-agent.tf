@@ -3,7 +3,7 @@ module "claude_agent" {
 
   lxc_name       = "claude-agent"
   target_node    = "pve0"
-  vmid           = 108
+  vmid           = 109
   ostemplate     = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
   cores          = 2
   memory         = 2048
@@ -11,7 +11,7 @@ module "claude_agent" {
   rootfs_storage = "vmdata"
   rootfs_size    = "10G"
   network_bridge = "vmbr1"
-  ip_address     = "192.168.1.108/24"
+  ip_address     = "192.168.1.109/24"
   gateway        = "192.168.1.1"
   unprivileged   = true
   features       = ["nesting=1"]
@@ -28,6 +28,6 @@ resource "ansible_host" "claude_agent" {
   name   = "claude-agent"
   groups = ["pve_lxc"]
   variables = {
-    ansible_host = "192.168.1.108"
+    ansible_host = "192.168.1.109"
   }
 }
