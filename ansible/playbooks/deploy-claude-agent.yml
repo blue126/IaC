@@ -21,7 +21,7 @@
   hosts: pve0
   become: true
   tasks:
-    - name: Check if Claude Agent LXC (108) is running
+    - name: Check if Claude Agent LXC (109) is running
       command: pct status 109
       register: lxc_status
       changed_when: false
