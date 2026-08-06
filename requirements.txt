@@ -1,4 +1,9 @@
-ansible-core>=2.16
+# Upper bound is required, not cosmetic: ansible-core 2.21 removed the `required`
+# keyword from get_bin_path(), which breaks cloud.terraform's inventory plugins
+# (terraform_provider.py calls get_bin_path("terraform", required=True)).
+# That silently disabled the whole Terraform dynamic inventory on 2026-07-30.
+# Re-test the inventory before raising this ceiling.
+ansible-core>=2.16,<2.21
 ansible-lint
 ansible-dev-tools
 proxmoxer
