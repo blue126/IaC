@@ -39,6 +39,10 @@
 - **[README.md](./guides/README.md)** - Index for comprehensive guides.
 - **[terraform-proxmox-complete-guide.md](./guides/terraform-proxmox-complete-guide.md)** - Complete guide for Terraform automation with Proxmox.
 
+### incidents/
+
+- **[2026-08-05-backup-outage.md](./incidents/2026-08-05-backup-outage.md)** - Post-incident report: Proxmox backups silently failed for six months (no WOL, no alerting), plus an unrelated inventory breakage and an IP conflict found while investigating.
+
 ### improvement/
 
 - **[inventory-and-document-sync-via-cicd.md](./improvement/inventory-and-document-sync-via-cicd.md)** - Proposal for change-driven automated documentation synchronization.
@@ -98,7 +102,8 @@
 
 ### specs/
 
-- **[pbs-iscsi-veeam-spec.md](./specs/pbs-iscsi-veeam-spec.md)** - Implementation specifications for PBS iSCSI Target for Veeam.
+- **[backup-architecture-consolidation-spec.md](./specs/backup-architecture-consolidation-spec.md)** - Backup architecture consolidation onto M920Q (PVE + ZFS), with the decision record behind it. Supersedes the PBS iSCSI/Veeam documents.
+- **[pbs-iscsi-veeam-spec.md](./specs/pbs-iscsi-veeam-spec.md)** - Implementation specifications for PBS iSCSI Target for Veeam. **Superseded.**
 
 ### troubleshooting/
 

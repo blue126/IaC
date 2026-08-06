@@ -40,7 +40,13 @@ pbs_retention_weekly: 4
 pbs_retention_monthly: 6
 
 # VMs/LXCs to backup (list of VMIDs)
-# All current workloads on pve0
+# All current workloads on pve0.
+# Keep this list in sync when guests are added -- 107/109/110 were created after
+# the initial 100-106 set and went unbacked-up until 2026-08-05.
+# Deliberately excluded:
+#   108  veeam-worker (VM)  -- transient worker appliance deployed by Veeam's
+#                              Proxmox VE plug-in, not managed by this repo
+#  9000  ubuntu-24.04-template -- template, rebuilt from Terraform/Ansible
 pbs_backup_vmids:
   - 100  # anki (LXC)
   - 101  # immich (VM)
@@ -49,6 +55,9 @@ pbs_backup_vmids:
   - 104  # netbox (VM)
   - 105  # caddy (LXC)
   - 106  # n8n (LXC)
+  - 107  # jenkins (LXC)
+  - 109  # claude-agent (LXC)
+  - 110  # claude-desktop (VM)
 
 # Target Proxmox node for backup job
 pbs_backup_node: "pve0"

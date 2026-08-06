@@ -14,17 +14,23 @@ pbs_zfs_pool_name: "backup-pool"
 pbs_zfs_mount_point: "/mnt/backup-pool"
 
 # HDD Devices (via LSI 3008 HBA passthrough)
-# Override with host variables if device names differ
-# Production recommendation: use /dev/disk/by-id/ for stability
+# Anchored by WWN: kernel names (sdX) shift whenever disks are added or removed.
+# Two WD Red Plus 6TB SATA disks now share this HBA and took over sdb/sdc, which
+# pushed the pool members out to sdd/sde -- the old /dev/sdb,/dev/sdc defaults
+# pointed at the wrong disks.
+#   wwn-0x5000cca2610d9c1c  HITACHI HUH72808CLAR8000  8TB SAS  serial VJG7H10X
+#   wwn-0x5000cca261372330  HITACHI HUH72808CLAR8000  8TB SAS  serial VJGZA11X
 pbs_zfs_hdd_devices:
-  - /dev/sdb
-  - /dev/sdc
+  - /dev/disk/by-id/wwn-0x5000cca2610d9c1c
+  - /dev/disk/by-id/wwn-0x5000cca261372330
 
 # NVMe Devices for special vdev (Samsung SM963)
 # Requires ESXi .vmx resetMethod = "d3d0" to avoid FLR crash
+# Anchored by serial for the same reason: nvme0/nvme1 enumeration order is not
+# guaranteed (the live pool already has nvme1n1 ordered ahead of nvme0n1).
 pbs_zfs_nvme_devices:
-  - /dev/nvme0n1
-  - /dev/nvme1n1
+  - /dev/disk/by-id/nvme-SAMSUNG_MZVPW256HEGL-000H1_S34ENY0J112117
+  - /dev/disk/by-id/nvme-SAMSUNG_MZVPW256HEGL-000H1_S34ENY0J231801
 
 # ZFS Pool Mode
 # false = HDD mirror only

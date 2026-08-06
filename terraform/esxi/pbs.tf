@@ -25,10 +25,13 @@ module "pbs" {
 
   # PCIe Passthrough
   # Currently managed manually via ESXi Web UI (not by Terraform)
-  # to avoid VM recreation. Actual passthrough config on ESXi:
-  #   - LSI 3008 HBA: 0000:03:00.0 (enabled, provides /dev/sdb, /dev/sdc)
-  #   - Samsung SM963 NVMe x2: 0000:08:00.0, 0000:11:00.0 (enabled, ZFS special vdev)
+  # to avoid VM recreation. Actual passthrough config on ESXi (host PCI addresses,
+  # verified against vCenter -- the guest sees different addresses):
+  #   - LSI SAS3008 HBA: 0000:01:00.0 (enabled, carries all four mechanical disks:
+  #     2x HGST 8TB SAS in the pool, plus 2x WD 6TB SATA currently unused)
+  #   - Samsung SM963 NVMe x2: 0000:08:00.0, 0000:0b:00.0 (enabled, ZFS special vdev)
   #   - Intel Optane Memory: removed (incompatible, firmware has no namespace support)
+  # Pool members are pinned by WWN in the pbs Ansible role, not by sdX names.
   pci_device_ids = []
 
   # VMX extra config for Samsung NVMe FLR fix
