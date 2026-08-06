@@ -1,4 +1,0 @@
----
-esxi_vms:
-  hosts:
-    llm-server:
