@@ -533,10 +533,9 @@ zpool create -f -o ashift=12 \
 
 > **触发重新评估的条件**：若 PBS 迁入（D12），`tank` 无 special vdev、元数据全在 5400rpm 盘上，2 GiB ARC 将成为瓶颈，须重新分配。
 
-#### 主机基线（待完成）
+#### 主机存储监控（移出本规范）
 
-- `smartd`、`zed`（ZFS 事件告警）
-- **`zfs-scrub` 定时器**——实测当前**一个都没启用**（`systemctl list-timers zfs-scrub*` 返回 0 条）。池永远不会被主动校验，位腐烂无法被发现。Debian 的 `zfsutils-linux` 自带 `zfs-scrub-monthly@.timer`，启用即可
+`smartd`、ZED 与 ZFS scrub 不应只配置在 pve1；三个 PVE 节点均使用本地 ZFS，应采用统一策略。该工作已拆分至 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)，后续与 Prometheus/Grafana 监控体系一起实施。当前没有外部通知通道，在集中监控上线前只能提供本地 journald 记录。
 
 ### 6.1.1 PVE 存储层：为什么"池存在"不等于"PVE 能用"
 
@@ -689,8 +688,8 @@ fruit:time machine max size = 500G
 | 1 | ~~M920Q 拆除 256GB NVMe，装入 M.2-SATA 适配器；确认芯片型号~~ | ✅ **已完成**（ASM1064，见 5.2） |
 | 2 | ~~装 PVE，两块 WD 建 ZFS mirror，NVMe 建虚机存储池~~ | ✅ **已完成**（`tank` 5.45T + 既有 `mainpool`；ARC 已调至 2G；`xattr=sa` 已显式设置） |
 | 2a | ~~清理集群存储配置~~ | ✅ **已完成**（删除孤儿 `samsung256gpool`；补建 pve1 的 `mainpool/vmdata` 使 `vmdata` 在两节点均可用） |
-| 2b | **启用 `zfs-scrub` 定时器**（当前一个都没有，池不会被主动校验） | ✓ |
-| 2c | 配置 `smartd` 与 `zed` 告警 | ✓ |
+| 2b | ~~启用 `zfs-scrub` 定时器~~ | ↗ **移出本规范**，见 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md) |
+| 2c | ~~配置 `smartd` 与 ZED~~ | ↗ **移出本规范**，与 Prometheus/Grafana 统一实施 |
 | 3 | 部署 Fileserver LXC，移植 Samba + `vfs_fruit` 配置，Mac 切换并验证 Time Machine | ✓ |
 | 4 | V2V 迁移 Windows VM 到 `mainpool` 池；建 `tank/veeam-vol` zvol，Veeam 重建仓库（现有 184G **建议直接起新链**，不迁移历史） | ✓ |
 | 5 | Windows 物理机 Veeam Agent 目标改指 M920Q | ✓ |
@@ -732,7 +731,7 @@ fruit:time machine max size = 500G
 - 新 role：PVE 宿主基线。**注意手工已落地的部分需回填进 role**，以免 Ansible 与实机漂移：
   - `tank` 池创建（by-id 锚定、`ashift=12`、`compression=zstd`、`atime=off`、`xattr=sa`、`dnodesize=auto`、不设 special vdev 与 `special_small_blocks`）
   - `zfs_arc_max=2G`（`/etc/modprobe.d/zfs.conf` + `update-initramfs`）
-  - `smartd`、`zed`、**`zfs-scrub-monthly@tank.timer`**（当前未启用）
+- 独立监控工作：`smartd`、ZED、scrub timers、Prometheus/Grafana 与告警通道，见 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)
 - 新 role：Fileserver LXC（Samba + `vfs_fruit` + Time Machine + avahi）
 - **新增备份告警**：分层告警（作业结果 + 备份新鲜度 + dead-man + 通道自检），详见事故报告 7.3
 - **新增备份覆盖面校验**：详见事故报告 7.4——失败告警**抓不到**从未纳入作业的对象
@@ -850,8 +849,8 @@ fruit:time machine max size = 500G
 | `zfs_arc_max` | ✅ 2 GiB（`/etc/modprobe.d/zfs.conf` + initramfs） |
 | 孤儿存储 `samsung256gpool` | ✅ 已删除 |
 | `mainpool/vmdata` | ✅ 已补建，`vmdata` 两节点均 active |
-| `zfs-scrub` 定时器 | ❌ **未启用**——池目前不会被主动校验 |
-| `smartd` / `zed` | ❌ 未配置 |
+| `zfs-scrub` 定时器 | ⏸ 未启用；已移至独立监控规范 |
+| `smartd` / ZED | ⏸ 未配置；已移至独立监控规范 |
 
 **仓库变更（未提交）：**
 
@@ -868,7 +867,7 @@ fruit:time machine max size = 500G
 
 ### 12.3 下一步：阶段一第 3 步（Fileserver LXC）
 
-按 7.1 节，2b/2c 未做，可与第 3 步并行。第 3 步的完整规格见 **6.3 节**，要点：
+2b/2c 已移至独立的 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)，不再阻塞备份迁移。下一步为阶段一第 3 步，其完整规格见 **6.3 节**，要点：
 
 1. `zfs create -o quota=500G tank/timemachine`
 2. 从 `pveam` 部署 TurnKey Fileserver LXC，bind mount `mp0: /tank/timemachine,mp=/srv/timemachine`

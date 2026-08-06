@@ -103,6 +103,7 @@
 ### specs/
 
 - **[backup-architecture-consolidation-spec.md](./specs/backup-architecture-consolidation-spec.md)** - Backup architecture consolidation onto M920Q (PVE + ZFS), with the decision record behind it. Supersedes the PBS iSCSI/Veeam documents.
+- **[proxmox-storage-monitoring-spec.md](./specs/proxmox-storage-monitoring-spec.md)** - Cluster-wide SMART, ZFS scrub, Prometheus, Grafana, and storage alerting specification.
 - **[pbs-iscsi-veeam-spec.md](./specs/pbs-iscsi-veeam-spec.md)** - Implementation specifications for PBS iSCSI Target for Veeam. **Superseded.**
 
 ### troubleshooting/
