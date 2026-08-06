@@ -98,6 +98,35 @@ variable "features" {
   default     = []
 }
 
+variable "bind_mounts" {
+  description = "Host directories bind-mounted into the LXC container"
+  type = list(object({
+    volume = string
+    path   = string
+  }))
+  default = []
+
+  validation {
+    condition     = length(var.bind_mounts) <= 8
+    error_message = "A container supports at most eight bind mounts."
+  }
+
+  validation {
+    condition = alltrue([
+      for mount in var.bind_mounts :
+      startswith(mount.volume, "/") && startswith(mount.path, "/")
+    ])
+    error_message = "Bind mount volume and path must be absolute paths."
+  }
+
+  validation {
+    condition = length(distinct([
+      for mount in var.bind_mounts : mount.path
+    ])) == length(var.bind_mounts)
+    error_message = "Each container bind mount path must be unique."
+  }
+}
+
 variable "ostype" {
   description = "OS type (debian, ubuntu, centos, etc.)"
   type        = string

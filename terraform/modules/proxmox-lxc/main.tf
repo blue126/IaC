@@ -57,6 +57,18 @@ resource "proxmox_virtual_environment_container" "lxc" {
     size         = tonumber(regex("^(\\d+)", var.rootfs_size)[0])
   }
 
+  dynamic "mount_point" {
+    for_each = var.bind_mounts
+
+    content {
+      volume    = mount_point.value.volume
+      path      = mount_point.value.path
+      backup    = false
+      replicate = false
+      shared    = false
+    }
+  }
+
   features {
     nesting = contains(var.features, "nesting=1")
     fuse    = contains(var.features, "fuse=1")

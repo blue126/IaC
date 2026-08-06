@@ -8,3 +8,15 @@ provider "proxmox" {
     agent = true
   }
 }
+
+provider "proxmox" {
+  alias    = "root"
+  endpoint = var.pm_api_url
+  username = "root@pam"
+  password = var.proxmox_ssh_password
+  insecure = true
+
+  ssh {
+    agent = true
+  }
+}

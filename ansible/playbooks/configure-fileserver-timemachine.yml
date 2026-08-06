@@ -1,0 +1,195 @@
+---
+# One-time bootstrap only. Webmin owns Samba configuration after this playbook.
+# Do not include this playbook in site.yml or routine deployment automation.
+
+- name: Configure Fileserver for Time Machine
+  hosts: fileserver
+  become: true
+  vars:
+    timemachine_path: /srv/timemachine
+    timemachine_share_name: TimeMachine
+    timemachine_size_quota: 1T
+    timemachine_user: timemachine
+    timemachine_group: timemachine
+    timemachine_uid: 2000
+    timemachine_gid: 2000
+    timemachine_password: "{{ vault_timemachine_password }}"
+  tasks:
+    - name: Create Time Machine group
+      ansible.builtin.group:
+        name: "{{ timemachine_group }}"
+        gid: "{{ timemachine_gid }}"
+        system: false
+        state: present
+
+    - name: Create Time Machine user
+      ansible.builtin.user:
+        name: "{{ timemachine_user }}"
+        uid: "{{ timemachine_uid }}"
+        group: "{{ timemachine_group }}"
+        shell: /usr/sbin/nologin
+        create_home: false
+        system: false
+        state: present
+
+    - name: Check Time Machine mount path
+      ansible.builtin.stat:
+        path: "{{ timemachine_path }}"
+      register: timemachine_path_status
+
+    - name: Require Time Machine mount path
+      ansible.builtin.assert:
+        that:
+          - timemachine_path_status.stat.exists
+          - timemachine_path_status.stat.isdir
+        fail_msg: "{{ timemachine_path }} must exist before configuring Samba"
+
+    - name: Verify Time Machine bind mount
+      ansible.builtin.command:
+        cmd: "findmnt --mountpoint {{ timemachine_path }}"
+      changed_when: false
+
+    - name: Verify Time Machine user can write to storage
+      ansible.builtin.command:
+        cmd: "runuser -u {{ timemachine_user }} -- test -w {{ timemachine_path }}"
+      changed_when: false
+
+    - name: Set Samba password for Time Machine user
+      ansible.builtin.command:
+        cmd: "smbpasswd -a -s {{ timemachine_user }}"
+        stdin: "{{ timemachine_password }}\n{{ timemachine_password }}"
+      changed_when: true
+      no_log: true
+
+    - name: Configure global Samba options for macOS
+      community.general.ini_file:
+        path: /etc/samba/smb.conf
+        section: global
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+        no_extra_spaces: true
+        mode: "0644"
+      loop:
+        - { option: "vfs objects", value: "fruit streams_xattr" }
+        - { option: "fruit:metadata", value: "stream" }
+        - { option: "fruit:model", value: "MacSamba" }
+        - { option: "fruit:posix_rename", value: "yes" }
+        - { option: "fruit:veto_appledouble", value: "no" }
+        - { option: "fruit:nfs_aces", value: "no" }
+        - { option: "fruit:wipe_intentionally_left_blank_rfork", value: "yes" }
+        - { option: "fruit:delete_empty_adfiles", value: "yes" }
+        - { option: "socket options", value: "TCP_NODELAY IPTOS_LOWDELAY" }
+      notify: Restart Samba
+
+    - name: Configure Time Machine Samba share
+      community.general.ini_file:
+        path: /etc/samba/smb.conf
+        section: "{{ timemachine_share_name }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+        no_extra_spaces: true
+        mode: "0644"
+      loop:
+        - { option: "path", value: "{{ timemachine_path }}" }
+        - { option: "valid users", value: "{{ timemachine_user }}" }
+        - { option: "writable", value: "yes" }
+        - { option: "browseable", value: "yes" }
+        - { option: "fruit:time machine", value: "yes" }
+        - { option: "fruit:time machine max size", value: "{{ timemachine_size_quota }}" }
+      notify: Restart Samba
+
+    - name: Validate Samba configuration
+      ansible.builtin.command:
+        cmd: testparm -s
+      changed_when: false
+
+    - name: Deploy Time Machine Avahi service
+      ansible.builtin.copy:
+        dest: /etc/avahi/services/timemachine.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          <?xml version="1.0" standalone='no'?>
+          <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+          <service-group>
+            <name replace-wildcards="yes">%h Time Machine</name>
+            <service>
+              <type>_smb._tcp</type>
+              <port>445</port>
+            </service>
+            <service>
+              <type>_device-info._tcp</type>
+              <port>9</port>
+              <txt-record>model=TimeCapsule8,119</txt-record>
+            </service>
+            <service>
+              <type>_adisk._tcp</type>
+              <port>9</port>
+              <txt-record>dk0=adVN={{ timemachine_share_name }},adVF=0x82</txt-record>
+              <txt-record>sys=adVF=0x100</txt-record>
+            </service>
+          </service-group>
+      notify: Restart Avahi
+
+    - name: Enable and start Samba
+      ansible.builtin.systemd:
+        name: smbd
+        enabled: true
+        state: started
+
+    - name: Enable and start Avahi
+      ansible.builtin.systemd:
+        name: avahi-daemon
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart Samba
+      ansible.builtin.systemd:
+        name: smbd
+        state: restarted
+
+    - name: Restart Avahi
+      ansible.builtin.systemd:
+        name: avahi-daemon
+        state: restarted
+
+- name: Verify Fileserver Time Machine configuration
+  hosts: fileserver
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify Time Machine bind mount
+      ansible.builtin.command:
+        cmd: findmnt --mountpoint /srv/timemachine
+      changed_when: false
+
+    - name: Verify Time Machine storage is writable
+      ansible.builtin.command:
+        cmd: runuser -u timemachine -- test -w /srv/timemachine
+      changed_when: false
+
+    - name: Verify Samba configuration
+      ansible.builtin.command:
+        cmd: testparm -s
+      changed_when: false
+
+    - name: Verify Samba is active
+      ansible.builtin.systemd:
+        name: smbd
+        state: started
+      check_mode: true
+      changed_when: false
+
+    - name: Verify Avahi is active
+      ansible.builtin.systemd:
+        name: avahi-daemon
+        state: started
+      check_mode: true
+      changed_when: false
+
+    - name: Verify SMB port is listening
+      ansible.builtin.wait_for:
+        port: 445
+        timeout: 10

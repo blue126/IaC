@@ -1,13 +1,21 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.1
+> **版本**: 1.6
 > **日期**: 2026-08-06
-> **状态**: 草案（待审核）
+> **状态**: 实施中（阶段一）
 > **取代文档**: [pbs-iscsi-veeam-spec.md](./pbs-iscsi-veeam-spec.md)、[pbs-iscsi-veeam-guide.md](../deployment/pbs-iscsi-veeam-guide.md)、[veeam-backup-deployment-guide.md](../deployment/veeam-backup-deployment-guide.md)
 >
 > **v1.1 变更**：M920Q 内存确定为 16GB（不扩容）；NVMe 确定保留单块 1TB，**取消 special vdev 方案**；Windows/AD 虚机确定迁往 M920Q 且长期驻留；PBS **第一阶段暂留 ESXi**，视实测内存再定；修正 datastore 容量口径。
 >
-> **v1.2 变更（2026-08-06，pve1 实机落地）**：文件共享定案为 TurnKey Fileserver LXC（见 D14）；：`tank` 镜像池已创建（by-id 锚定）；`zfs_arc_max` 定为 **2 GiB**（非 4 GiB）；虚机存储池实为既有的 **`mainpool`**（非 `nvme`）；适配器芯片确认为 **ASM1064**；NVMe 为 DRAM-less，**暂缓 L2ARC**；新增 6.1.1 节说明 PVE 存储层与 `nodes` 限定；清理孤儿存储 `samsung256gpool`、补建 `mainpool/vmdata`；**推翻"T7910 无铜口"的判断**（实有 I217-LM 与 I210），WOL 方案重新可行。
+> **v1.2 变更（2026-08-06，pve1 实机落地）**：文件共享定案为 TurnKey Fileserver LXC（见 D14）；`tank` 镜像池已创建（by-id 锚定）；`zfs_arc_max` 定为 **2 GiB**（非 4 GiB）；虚机存储池实为既有的 **`mainpool`**（非 `nvme`）；适配器芯片确认为 **ASM1064**；NVMe 为 DRAM-less，**暂缓 L2ARC**；新增 6.1.1 节说明 PVE 存储层与 `nodes` 限定；清理孤儿存储 `samsung256gpool`、补建 `mainpool/vmdata`；**推翻"T7910 无铜口"的判断**（实有 I217-LM 与 I210），WOL 方案重新可行。
+>
+> **v1.3 变更（2026-08-06，Fileserver 实施）**：监控 2b/2c 拆分为独立规范；Fileserver 定为 VMID 111 / `192.168.1.111` / pve1 / `vmdata`；确认 TurnKey Fileserver 18.0 模板；LXC 使用非特权 UID 映射与 bind mount；Time Machine 数据迁移提前到阶段一；Samba/Avahi 仅由一次性 playbook 初始化，后续以 Webmin 为 SSOT。
+>
+> **v1.4 变更（2026-08-06，Time Machine 迁移）**：记录双盘持续写掉盘与电源适配器 A/B 诊断；更换适配器后通过约 85GB 断点续传；Time Machine 以 zstd 落盘 109G、quota 1T；Fileserver LXC 与一次性 Samba/Avahi 初始化完成，待 Mac 继承与恢复验证。
+>
+> **v1.5 变更（2026-08-06，Time Machine 切换）**：Mac 已切换至新 Fileserver 并开始向原 sparsebundle 写入；旧 PBS 的 Samba 与 Time Machine Avahi 广播已停用，源数据集保持只读；恢复演练延期但不阻塞阶段一第 4 步。
+>
+> **v1.6 变更（2026-08-06，旧服务退役）**：Mac 新目标备份完成并确认可恢复文件；删除 PBS 上的 Time Machine 数据集、迁移快照、Samba/Avahi 配置及账户；删除可重建旧服务的 playbook；阶段一第 3 步完成。
 
 ## 1. 背景与目标
 
@@ -100,7 +108,7 @@ backup-pool          7.50T   已用 313G (4%)   ONLINE   fragmentation 0%
 | `backup-pool/timemachine` | Mac Time Machine | 48.3G | 63.1G | **1.30x** |
 | `backup-pool/veeam-vol` | ZVol 2T sparse → iSCSI → ReFS | 184G | 185G | **1.00x** |
 
-**待迁移数据总量：约 130G**（datastore 81G + timemachine 48G；`veeam-vol` 不迁移）
+**2026-08-05 评估基线：约 130G**（datastore 81G + timemachine 48G；`veeam-vol` 不迁移）。事故恢复后 PBS datastore 已增长至约 373.7 GiB，因此 130G 不再是当前迁移总量。阶段一只迁移约 48.3G Time Machine；阶段二迁 PBS 前必须重新实测。
 
 > **两个容量口径务必分清，否则会严重低估规划需求：**
 >
@@ -131,7 +139,7 @@ backup-pool          7.50T   已用 313G (4%)   ONLINE   fragmentation 0%
 | **105** | **caddy** | LXC | 100G（实占 73G） | ✓ |
 | 106 | n8n | LXC | 8G | ✓ |
 | 107 | jenkins | LXC | 16G | ✓（2026-08-06 新增） |
-| 108 | **veeam-worker** | VM | 100G | ✗ 见 9.1 未决项 7 |
+| 108 | **veeam-worker** | VM | 100G | ✗ 见 9.1 未决项 5 |
 | 109 | claude-agent | LXC | 10G | ✓（2026-08-06 新增） |
 | 110 | claude-desktop | VM | 64G | ✓（2026-08-06 新增） |
 | 9000 | ubuntu-24.04-template | VM | 20G | ✗ 模板，可重建 |
@@ -212,7 +220,7 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 **另**：即便长度允许，SAS3008 要求约 200 LFM 强制风道，1L 被动散热机箱极可能过热。
 
-**替代方案**：待迁移数据仅约 130G，`zfs send` 经万兆约 12 分钟（瓶颈为 WD 镜像约 180MB/s 写入）。**搬数据不搬盘。**
+**替代方案**：搬数据不搬盘。阶段一 Time Machine 落盘量约 48.3G，`zfs send` 经万兆的瓶颈是 WD 镜像约 180MB/s 的写入速度；阶段二 PBS datastore 的迁移时间按执行前实测数据量重新估算。
 
 ### D7 — Windows 物理机使用 Veeam Agent，不接入 PBS
 
@@ -303,7 +311,7 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 **但这不改变架构结论。**即便 WOL 完全实现，原设计的唤醒频率是**每周六**，而备份作业是**每日 02:00**——一周仍有 6 天会失败。真正的缺陷是**备份计划与电源策略从未闭环**，而非缺少唤醒手段。因此「主备份目标必须常开」这一要求依然成立；WOL 只是在迁移完成前的过渡手段。
 
-### D14 — 文件共享用 TurnKey Fileserver LXC，而非 Debian LXC + 现有 Ansible
+### D14 — 文件共享用 TurnKey Fileserver LXC，后续由 Webmin 管理
 
 **选择**：TurnKey Fileserver LXC。
 
@@ -321,6 +329,8 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 **若用途仅限单一 Time Machine 共享，则应选 Debian LXC**：TurnKey 省不掉 Time Machine 配置这个真正困难的部分（它不含 `vfs_fruit` 与 Avahi 通告），只省掉了 `apt install`；而现有 playbook 里的配置已经跑通。此时 Webmin 是唯一收益，且在 Ansible 拥有 `smb.conf` 的前提下只能作查看器用。
 
 **因此本决策的成立完全依赖「将来会有多个共享需要手工管理」这一前提。**若该前提不再成立，应重新评估。
+
+**配置所有权**：Terraform 持续管理 LXC、网络、rootfs 和 bind mount；Time Machine 的 Samba/Avahi 配置由一次性 playbook 初始化。初始化完成后，Webmin 是 Samba 配置的唯一 SSOT，Ansible 不再持续覆盖 `smb.conf`。Time Machine 数据迁移同样是一次性操作，不纳入 role。
 
 ---
 
@@ -380,7 +390,7 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 **遗留限制（阶段一未解决）：**
 
-- **Proxmox 虚机的备份仍依赖 T7910 手动开机。**[D13](#d13--t7910-无法-wol暂无自动唤醒手段) 说明了为何无法用 WOL 自动化。这是阶段二要解决的问题。
+- **Proxmox 虚机的备份仍依赖 T7910 手动开机。**[D13](#d13--t7910-的-wol原判断已被推翻方案重新可行) 说明 WOL 只能作为过渡手段，不能解决每日备份与冷机策略不闭环的问题。这是阶段二要解决的问题。
 - 阶段一**没有第二份副本**。两级副本依赖 PBS 迁移完成后再建立。
 
 ---
@@ -451,7 +461,26 @@ sda : 00:17.0 / ata1                    ← 系统盘走 Intel PCH SATA
 | **UDMA_CRC_Error_Count** | **0** | **0** |
 | 温度 | 22°C | 22°C |
 
-> `UDMA_CRC_Error_Count = 0` 是验证 SATA 线材与供电质量的关键指标，此处为零说明适配器接线与外置供电均正常。
+> `UDMA_CRC_Error_Count = 0` 说明当时没有发现 SATA 数据链路 CRC 错误，但**不能证明供电正常**。持续写入故障实测表明，即使 CRC 始终为零，共同供电路径仍可能导致两盘同时掉线。
+
+### 5.2.3 双盘持续写故障与适配器更换（2026-08-06）
+
+首次迁移时，两盘在持续镜像写入中同一秒发生命令超时，ata7/ata8 随后同时掉线，`tank` 进入 `SUSPENDED`。两盘 SMART 均无介质、Pending 或 CRC 错误；ASM1064 的 PCIe 链路保持 8GT/s x1，AER 计数为零。
+
+隔离测试结果：
+
+| 测试项 | 结果 |
+|---|---|
+| KA2 单盘 + ata7/第一数据线/第一电源分支 | 正常，SMART PASSED |
+| KA9 使用同一套线缆与电源 | 正常，SMART PASSED |
+| KA9 + ata8/第二数据线 + 第一电源分支 | 正常 |
+| KA9 + ata8/第二数据线 + 第二电源分支 | 正常 |
+| 两盘 + 原 12V 6A 适配器，queue depth 1，LPM `max_performance` | 再次同时掉盘；普通 `WRITE DMA/EXT` 超时 |
+| 两盘 + 更换后的供电适配器，保持相同保守参数 | 完成约 85GB 断点续传及 UID metadata 重写，池保持 ONLINE |
+
+第二次故障已在 queue depth 1 和 `max_performance` 下复现，因此深 NCQ 队列与 SATA LPM 可排除为主因。更换供电适配器后同等持续写入成功，**旧适配器/共同供电路径是当前高置信根因**；由于排查中也重新插拔过接头，无法把故障进一步唯一归因到适配器内部还是接触问题。
+
+queue depth 1 与 `max_performance` 目前仅为运行时诊断设置，重启后会恢复默认。恢复正常队列深度前应继续观察新适配器稳定性。
 
 ### 5.2.2 NVMe 实况（影响 L2ARC 决策）
 
@@ -476,17 +505,17 @@ sda : 00:17.0 / ata1                    ← 系统盘走 Intel PCH SATA
 
 **关于 NVMe 无冗余**：单块 NVMe 承载 Windows/AD 虚机与 Fileserver LXC，盘损即虚机丢失。**缓解手段是把它们纳入 PBS 备份**——Windows 迁到 PVE 后即成为可被 PBS 原生备份的虚机，这正是迁移带来的附加收益。此风险**明确接受**，不额外投入硬件。
 
-**`tank` 池的数据集与配额**（可用 6TB，当前真实数据约 130G）：
+**`tank` 池的数据集与配额**（可用 6TB；阶段一先接收约 48.3G Time Machine）：
 
 | 数据集 | 类型 | 建议配额 |
 |---|---|---|
-| `tank/timemachine` | dataset（SMB） | `quota=500G`（沿用现有 playbook 设定） |
+| `tank/timemachine` | dataset（SMB） | `quota=1T`（源端 ZFS 与 Samba 实测值） |
 | `tank/veeam-vol` | **zvol** → ReFS | `volsize` 与 `refreservation` 待定 |
 | `tank/pbs-datastore` | dataset（阶段二才创建） | `quota` 待定 |
 
 **强制要求**：全部必须配置 quota / refreservation，任一不得无限增长——这正是原 spec 标注了风险却从未实施的那一条。**具体数值待第 9 节确认后填入。**
 
-**可选：持久化 L2ARC**。M920Q 的 ARC 只有 4GB，而 `tank` 没有 special vdev（元数据全在机械盘上）。可在 NVMe 上划 100–200GB 分区作 `tank` 的 L2ARC：ZFS 2.x 支持跨重启持久化，**且 L2ARC 丢失无害**（纯缓存），正适合单盘无冗余的场景。注意 L2ARC 的索引头会占用 ARC 内存，需在实测中观察。
+**延期评估：持久化 L2ARC**。M920Q 的 ARC 只有 2GB，而 `tank` 没有 special vdev（元数据全在机械盘上）。理论上可在 NVMe 上划分缓存分区，但该 NVMe 为 DRAM-less 且与虚机争用 HMB；现阶段不实施。待 PBS 迁入并实测 GC/verify 后再评估，且须计入 L2ARC 索引占用的 ARC 内存。
 
 ---
 
@@ -602,11 +631,21 @@ pvesm add zfspool tank --pool tank --content rootdir,images --nodes pve1
 
 ### 6.3 TurnKey Fileserver（LXC）— 已定案，见 D14
 
-从 PVE 模板目录部署（`pveam available | grep turnkey`，Debian 12 底座，含 Samba、WebDAV CGI、Webmin:12321、web shell:12320）。
+已从 pve1 的 appliance catalog 实测确认模板为 `debian-12-turnkey-fileserver_18.0-1_amd64.tar.gz`，当前尚未下载至 `local`。该模板基于 Debian 12，含 Samba、WebDAV CGI、Webmin:12321、web shell:12320。
 
-#### 必须手工移植的配置（TurnKey 不含）
+| 参数 | 值 |
+|---|---|
+| hostname / VMID | `fileserver` / `111` |
+| 节点 / IP | `pve1` / `192.168.1.111/24` |
+| rootfs | `vmdata`，8G |
+| CPU / 内存 / swap | 1 core / 512MB / 512MB |
+| 网络 | `vmbr1`，网关与 DNS `192.168.1.1` |
+| 权限模式 | unprivileged LXC |
+| 数据挂载 | `/tank/timemachine` → `/srv/timemachine` (`mp0`) |
 
-**TurnKey Fileserver 只有 Samba，没有任何 Time Machine / AFP 支持。**以下配置需从 [`deploy-pbs-timemachine.yml`](../../ansible/playbooks/deploy-pbs-timemachine.yml) 完整移植——这是 Time Machine over SMB 真正困难的部分，务必逐行照搬，缺任何一行 macOS 都可能不识别该共享：
+#### 一次性初始化配置（TurnKey 不含）
+
+**TurnKey Fileserver 只有 Samba，没有任何 Time Machine / AFP 支持。**以下配置由 [`configure-fileserver-timemachine.yml`](../../ansible/playbooks/configure-fileserver-timemachine.yml) 一次性写入，缺任何一项 macOS 都可能不识别该共享：
 
 ```ini
 [global]
@@ -626,14 +665,16 @@ valid users = timemachine
 writable = yes
 browseable = yes
 fruit:time machine = yes
-fruit:time machine max size = 500G
+fruit:time machine max size = 1T
 ```
 
 以及 Avahi 服务通告 `/etc/avahi/services/timemachine.service`（`_smb._tcp` + `_device-info._tcp` 带 `model=TimeCapsule8,119` + `_adisk._tcp` 带 `dk0=adVN=TimeMachine,adVF=0x82`），原文见上述 playbook。
 
 #### 存储挂载
 
-- 宿主机先建数据集：`zfs create -o quota=500G tank/timemachine`
+- 从 `backup-pool/timemachine` 以 ZFS snapshot + `zfs send/receive` 迁移至 `tank/timemachine`，不创建空白新库
+- 接收完成后保留源端实测的 `quota=1T`
+- 容器内 `timemachine` 固定 UID/GID 2000；默认非特权映射下，宿主所有权为 UID/GID 102000
 - 容器配置 bind mount：`mp0: /tank/timemachine,mp=/srv/timemachine`
 - **不需要注册 PVE 存储**——bind mount 不经 PVE 存储层（见 6.1.1）
 
@@ -644,9 +685,7 @@ fruit:time machine max size = 500G
 
 #### 与现有 Ansible 的关系
 
-现有 playbook 是内联任务的单体形式，与 [ansible-role-architecture.md](../designs/ansible-role-architecture.md) 的 role 约定不符（见 8.3）。**建议将 Samba/Avahi 配置抽成模板，由 Ansible 管理 TurnKey 容器内的 `/etc/samba/smb.conf`**，使 T7910 现有实例与 pve1 新实例共用同一份真相。
-
-> **Webmin 与 Ansible 的边界**：Webmin 编辑的是标准 `smb.conf`，不像 TrueNAS 那样把配置吃进私有数据库，因此不构成 SSOT 冲突。但若 Ansible 拥有该文件，Webmin 中的改动会在下次 playbook 运行时被覆盖。**需明确约定**：要么 Webmin 只作查看、变更走 Ansible；要么将来共享增多后把 `smb.conf` 移出 Ansible 管理、改由 Webmin 负责。二者不可同时为真相来源。
+[`configure-fileserver-timemachine.yml`](../../ansible/playbooks/configure-fileserver-timemachine.yml) 是明确的一次性引导 playbook，不加入 `site.yml` 或常规部署自动化。它创建固定 UID/GID 用户、验证 bind mount 权限、写入 `vfs_fruit`/共享参数及 Avahi 通告。执行并验收后，所有 Samba 用户与共享变更均通过 Webmin 完成；不得把该 playbook 当成持续配置反复运行。
 
 ### 6.4 Windows Server VM（AD DS + Veeam VBR CE）
 
@@ -673,7 +712,7 @@ fruit:time machine max size = 500G
 - 仅安装 `zfsutils-linux` + `sshd`
 - 接收 `zfs send -i`；**复制方向建议为副本端主动拉取**，使主端不持有指向副本端的凭据（见 D11）
 - 保留周期长于 M920Q
-- **注意**：T7910 无法 WOL（见 D13），同步需配合手动开机
+- **注意**：T7910 的 WOL 接线与 MAC 尚待确认（见 D13）；在自动唤醒闭环完成前，同步仍需配合手动开机
 
 ---
 
@@ -690,7 +729,7 @@ fruit:time machine max size = 500G
 | 2a | ~~清理集群存储配置~~ | ✅ **已完成**（删除孤儿 `samsung256gpool`；补建 pve1 的 `mainpool/vmdata` 使 `vmdata` 在两节点均可用） |
 | 2b | ~~启用 `zfs-scrub` 定时器~~ | ↗ **移出本规范**，见 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md) |
 | 2c | ~~配置 `smartd` 与 ZED~~ | ↗ **移出本规范**，与 Prometheus/Grafana 统一实施 |
-| 3 | 部署 Fileserver LXC，移植 Samba + `vfs_fruit` 配置，Mac 切换并验证 Time Machine | ✓ |
+| 3 | ~~快照并 `zfs send/receive` 迁移 Time Machine；重映射 UID/GID；部署 Fileserver LXC；运行一次性 Samba/Avahi 初始化；Mac 继承并验证现有备份历史~~ | ✅ **已完成**（新备份完成并确认可恢复文件；旧 PBS 数据与服务已删除） |
 | 4 | V2V 迁移 Windows VM 到 `mainpool` 池；建 `tank/veeam-vol` zvol，Veeam 重建仓库（现有 184G **建议直接起新链**，不迁移历史） | ✓ |
 | 5 | Windows 物理机 Veeam Agent 目标改指 M920Q | ✓ |
 | 6 | 把 Windows 虚机加入 PBS 备份作业 | ✓ |
@@ -703,11 +742,10 @@ fruit:time machine max size = 500G
 | # | 步骤 |
 |---|---|
 | 10 | M920Q 部署 PBS LXC + bind mount `tank/pbs-datastore` |
-| 11 | `zfs send` 迁移 datastore 与 timemachine（约 130G，万兆约 12 分钟） |
+| 11 | 重新实测数据量后，以 `zfs send` 迁移 PBS datastore |
 | 12 | 备份作业目标切到 M920Q，验证 |
 | 13 | T7910 销毁 `backup-pool`，起 Debian 虚机直通 SAS3008，建新池 |
-| 14 | 配置每周增量复制（副本端拉取），配合手动开机 |
-| 10 | 配置每周 `zfs send -i` 增量同步 | |
+| 14 | 配置每周 `zfs send -i` 增量复制（副本端拉取），配合自动或手动开机 |
 
 ---
 
@@ -732,7 +770,8 @@ fruit:time machine max size = 500G
   - `tank` 池创建（by-id 锚定、`ashift=12`、`compression=zstd`、`atime=off`、`xattr=sa`、`dnodesize=auto`、不设 special vdev 与 `special_small_blocks`）
   - `zfs_arc_max=2G`（`/etc/modprobe.d/zfs.conf` + `update-initramfs`）
 - 独立监控工作：`smartd`、ZED、scrub timers、Prometheus/Grafana 与告警通道，见 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)
-- 新 role：Fileserver LXC（Samba + `vfs_fruit` + Time Machine + avahi）
+- `terraform/proxmox/fileserver.tf`：Fileserver LXC、网络与 `tank/timemachine` bind mount
+- `ansible/playbooks/configure-fileserver-timemachine.yml`：仅用于首次 Samba/Avahi 初始化，之后由 Webmin 接管
 - **新增备份告警**：分层告警（作业结果 + 备份新鲜度 + dead-man + 通道自检），详见事故报告 7.3
 - **新增备份覆盖面校验**：详见事故报告 7.4——失败告警**抓不到**从未纳入作业的对象
 
@@ -744,7 +783,7 @@ fruit:time machine max size = 500G
 
 ### 8.3 重构
 
-- `ansible/playbooks/deploy-pbs-timemachine.yml`：当前为内联任务的单体 playbook，与 [ansible-role-architecture.md](../designs/ansible-role-architecture.md) 的 role 约定不一致，借此机会重构为 role 并在新机器上复用
+- `ansible/playbooks/deploy-pbs-timemachine.yml`：旧 PBS 服务退役后删除，防止误执行重建已迁走的数据集与共享
 - `ansible/roles/pbs/`：调整为面向新 PBS 实例
 
 ### 8.4 已完成（截至 2026-08-06）
@@ -765,10 +804,8 @@ fruit:time machine max size = 500G
 |---|---|---|
 | 1 | **vCenter（665G）是否纳入备份** | 决定 Veeam 仓库 zvol 尺寸与备份窗口。vCenter 仅为管理 ESXi 存在 |
 | 2 | 各数据集的 quota / refreservation 具体数值 | 见 5.3。**`tank` 已创建但尚未配置任何配额** |
-| 3 | Fileserver 用 TurnKey LXC 还是 Debian LXC + 现有 Ansible | 见 6.3 |
 | 4 | `special_small_blocks=128K` 是否为有意设计 | 见 2.3；**仅影响 T7910 的现有池**——新建的 `tank` 不设 special vdev，`special_small_blocks` 为 0 |
 | 5 | **VMID 108 `veeam-worker` 的来历与去留** | 该虚机不在本仓库任何 Terraform/Ansible 定义中，仓库内唯一痕迹是提交 `8d520e5` 的说明文字。形态疑似 Veeam Proxmox VE 插件自动部署的 worker。**需确认是否在用**，并决定是否纳管或清理 |
-| 6 | **`llm-server` 在两处重复定义** | 导致 esxi 动态 inventory 源整体解析失败，`pbs` 与 `windows-server` **当前不存在于 Ansible inventory 中**。已定位为 [`esxi_vms.yml`](../../ansible/inventory/esxi/esxi_vms.yml) 静态定义 + [`llm-server.tf:56`](../../terraform/esxi/llm-server.tf) 的 `ansible_host`，删其一即可 |
 | 7 | **T7910 的 WOL 可行性与 I217-LM 的 MAC 地址** | 先前"仅有光口"的判断已被推翻（PCI 清单含 I217-LM 与 I210）。接线后需记录 MAC 写入 Ansible 变量。设计见事故报告 7.2 |
 | 8 | **pve1 的 eno1 是否接线** | 当前 `NO-CARRIER`，但 `192.168.1.21` 已配置且 corosync **ring1 显示 connected**——因同网段可达，ring1 实际走的仍是万兆口。**双环名义存在、物理单点**。接线即可真正分离，无需改配置 |
 
@@ -778,6 +815,8 @@ fruit:time machine max size = 500G
 |---|---|
 | M.2 转 SATA 适配器芯片型号 | ✅ ASM1064，PCIe 3.0 x1，链路未降级，无错误（见 5.2） |
 | ZFS 池命名 | ✅ 备份池定名 `tank`；虚机存储池实为既有的 `mainpool`（非早期规划的 `nvme`） |
+| Fileserver 形态 | ✅ TurnKey Fileserver LXC；首次配置后由 Webmin 管理（见 D14） |
+| `llm-server` inventory 重复 | ✅ 删除静态空定义，保留 Terraform 动态 inventory；`pbs` 与 `windows-server` 已恢复 |
 
 ### 9.2 风险
 
@@ -785,9 +824,9 @@ fruit:time machine max size = 500G
 |---|---|
 | **1TB NVMe 单盘无冗余**，承载 Windows/AD 虚机与 Fileserver LXC | 将这些虚机纳入 PBS 备份；风险明确接受（见 D10） |
 | **两块 WD 共用外置电源适配器**，为共同故障点；ZFS 镜像可挡单盘故障，挡不住整机/供电故障 | 阶段二的二级副本；建议将磁盘固定妥当，避免震动与误碰 |
-| **阶段一没有第二份副本** | 尽快推进阶段二；在此之前保留 T7910 现有 `backup-pool` 不销毁 |
+| **阶段一没有第二份副本** | Time Machine 验收后已按用户确认删除 T7910 源副本；尽快推进阶段二复制目标 |
 | **`tank` 无 special vdev**，元数据全在 5400rpm 机械盘上，PBS 的 GC/verify 会慢 | 可选持久化 L2ARC；接受较慢的维护窗口 |
-| Time Machine 迁移基本等同重开历史（sparsebundle 跨服务器搬迁易出问题） | 新库验证通过后，旧 `backup-pool/timemachine` 保留只读一段时间再删 |
+| Time Machine sparsebundle 迁移后可能不被 Mac 自动识别为原备份目标 | 已使用 ZFS send/receive 保留数据与 xattr，完成客户端切换及文件恢复确认；目标迁移快照暂留 |
 | Veeam 备份 ESXi 的传输模式退化为 NBD | 万兆缓解；若不备 vCenter 则影响很小 |
 | PBS-in-LXC 非官方支持路径 | 可退回虚机方案，代价为恢复 zvol 分层（见 D8） |
 | **静态 IP 与 DHCP 地址池冲突** | 2026-08-05 曾因 192.168.1.249 被另一设备占用导致备份中断。须核查路由器 DHCP 池是否覆盖静态 IP 段 |
@@ -852,7 +891,7 @@ fruit:time machine max size = 500G
 | `zfs-scrub` 定时器 | ⏸ 未启用；已移至独立监控规范 |
 | `smartd` / ZED | ⏸ 未配置；已移至独立监控规范 |
 
-**仓库变更（未提交）：**
+**仓库基础修复（已提交）：**
 
 | 文件 | 变更 |
 |---|---|
@@ -863,16 +902,24 @@ fruit:time machine max size = 500G
 | `CLAUDE.md` | 新增「未经许可不得安装软件包」 |
 | `docs/specs/`、`docs/incidents/` | 本文档与事故报告 |
 
+**当前实施中（未提交）**：Fileserver LXC Terraform 定义、root@pam 专用 provider alias、公共 LXC 模块 bind mount 支持、一次性 Time Machine 初始化 playbook、加密的 `vault_timemachine_password`。
+
 **pve0 线上作业**：备份作业 VMID 已由 100–106 改为 100–107,109,110。
 
-### 12.3 下一步：阶段一第 3 步（Fileserver LXC）
+### 12.3 Time Machine 切换状态
 
-2b/2c 已移至独立的 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)，不再阻塞备份迁移。下一步为阶段一第 3 步，其完整规格见 **6.3 节**，要点：
+2b/2c 已移至独立的 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)，不再阻塞备份迁移。阶段一第 3 步的基础设施已完成：
 
-1. `zfs create -o quota=500G tank/timemachine`
-2. 从 `pveam` 部署 TurnKey Fileserver LXC，bind mount `mp0: /tank/timemachine,mp=/srv/timemachine`
-3. **完整移植 `vfs_fruit` 与 Avahi 配置**——TurnKey 不含，且这是唯一困难的部分，配置原文在 6.3 与 [`deploy-pbs-timemachine.yml`](../../ansible/playbooks/deploy-pbs-timemachine.yml)
-4. Mac 切换后验证，**旧的 `backup-pool/timemachine` 保留只读一段时间**（Time Machine 跨服务器迁移基本等同重开历史）
+- `tank/timemachine`：Mac 写入后落盘 110G，quota 1T，目标迁移快照保留
+- Fileserver：VMID 111 / `192.168.1.111` / unprivileged LXC
+- bind mount：宿主 `/tank/timemachine` → 容器 `/srv/timemachine`
+- UID/GID：容器 2000:2000 ↔ 宿主 102000:102000
+- Samba/Avahi：一次性初始化完成，后续由 Webmin 管理
+- 旧 PBS：`smbd`/`nmbd` 已停止并禁用；Time Machine 数据集、源迁移快照、Samba/Avahi 配置及账户已删除
+- 历史备份包：`魏二福的MacBook Air.sparsebundle`
+- Mac 客户端：已连接新目标并完成备份；确认可从迁移历史恢复文件
+
+阶段一第 3 步已完成，下一项实施工作为第 4 步 Windows/Veeam 迁移。
 
 ### 12.4 环境与访问方式
 
@@ -890,7 +937,7 @@ export SSH_ASKPASS_REQUIRE=force
 setsid ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no root@192.168.1.51
 ```
 
-**Ansible**：先 `cd /workspaces/IaC/ansible`。inventory 已恢复（15 台主机），但 **`pbs` 与 `windows-server` 仍缺失**——`llm-server` 在 [`esxi_vms.yml`](../../ansible/inventory/esxi/esxi_vms.yml) 与 [`llm-server.tf:56`](../../terraform/esxi/llm-server.tf) 重复定义，导致 esxi inventory 源解析失败。删其一即可（9.1 未决项 6）。
+**Ansible**：先 `cd /workspaces/IaC/ansible`。`llm-server` 的静态重复定义已删除，Terraform 动态 inventory 可正常解析 `llm-server`、`pbs` 与 `windows-server`。当前仍有 `jenkins` 同时作为 group 和 host 的非阻塞警告。
 
 ### 12.5 优先处理事项
 
@@ -911,4 +958,4 @@ setsid ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no root@
 
 1. **区分「已证实」与「推断」。**本次排查中曾数次基于单一样本给出过于肯定的结论，后被证伪（详见事故报告第 8 节经验教训 6–8）。事故报告已对每条结论标注证据强度，请沿用该习惯。
 2. **容量数字有三种口径**，不可混用：`zfs list` 落盘量、`pvesm list` 逻辑量、`pvesm status` 池占用。本次曾因此把「300 GiB 置备盘」误读为「322 GB 照片库」。
-3. **手工落地的变更必须回填进 Ansible role**（见 8.2），否则实机与代码漂移——这正是本次事故中多个问题的共同成因。
+3. **持续配置的手工变更必须回填进 IaC**（见 8.2），否则实机与代码漂移。明确由 Webmin 持有的 Samba 配置是例外，但其所有权边界必须记录，不能再由 Ansible 同时覆盖。

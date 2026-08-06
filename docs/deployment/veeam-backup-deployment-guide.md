@@ -252,20 +252,20 @@ Enable-NetFirewallRule -DisplayGroup "Windows Management Instrumentation (WMI)"
 
 ## 5. Mac 备份 (Time Machine)
 
-Mac 使用 PBS 上的 Samba 共享进行 Time Machine 备份:
+Mac 使用 Fileserver LXC 上的 Samba 共享进行 Time Machine 备份。基础设施由 Terraform 管理，首次 Samba/Avahi 配置使用一次性 playbook：
 
 ```bash
-# 部署 Time Machine 服务
-ansible-playbook playbooks/deploy-pbs-timemachine.yml
+# 仅在首次初始化或明确恢复配置时执行
+ansible-playbook playbooks/configure-fileserver-timemachine.yml
 ```
 
 **Mac 端配置:**
 
 1. 系统设置 → 通用 → Time Machine
 2. 添加备份磁盘
-3. 选择 `pbs TimeMachine.local` 或手动连接 `smb://192.168.1.249/TimeMachine`
+3. 选择 Fileserver 通告的 Time Machine 目标，或手动连接 `smb://192.168.1.111/TimeMachine`
 4. 用户名: `timemachine`
-5. 密码: `timemachine`
+5. 密码: 从加密的 `vault_timemachine_password` 获取
 
 ## 6. 故障排除
 
