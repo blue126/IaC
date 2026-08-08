@@ -1,8 +1,8 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.8
-> **日期**: 2026-08-07
-> **状态**: 实施中（阶段一）
+> **版本**: 1.9
+> **日期**: 2026-08-08
+> **状态**: 阶段一实施完成（步骤 1–8）；阶段二**阻塞于步骤 9** 的内存实测
 > **取代文档**: [pbs-iscsi-veeam-spec.md](../archive/pbs-iscsi-veeam-spec.md)、[pbs-iscsi-veeam-guide.md](../archive/pbs-iscsi-veeam-guide.md)、[veeam-backup-deployment-guide.md](../archive/veeam-backup-deployment-guide.md)
 >
 > **v1.1 变更**：M920Q 内存确定为 16GB（不扩容）；NVMe 确定保留单块 1TB，**取消 special vdev 方案**；Windows/AD 虚机确定迁往 M920Q 且长期驻留；PBS **第一阶段暂留 ESXi**，视实测内存再定；修正 datastore 容量口径。
@@ -18,6 +18,8 @@
 > **v1.6 变更（2026-08-06，旧服务退役）**：Mac 新目标备份完成并确认可恢复文件；删除 PBS 上的 Time Machine 数据集、迁移快照、Samba/Avahi 配置及账户；删除可重建旧服务的 playbook；阶段一第 3 步完成。
 >
 > **v1.7 变更（2026-08-06，Windows/Veeam 迁移）**：Windows Server 2022 迁移为 pve1 VMID 112；80G 系统盘位于 `vmdata`，原 2T ReFS/Veeam zvol 以 ZFS send/receive 迁移为 `tank/vm-112-disk-1`，保留既有 restore points；WAC 改用 8443，Veeam Web 保持 443；安装并验证 QEMU Guest Agent；Terraform 已接管 VM。按避免循环备份的决定，pve1 不加入 ESXi 上 PBS 的备份作业。ESXi 源 VM 与 PBS `backup-pool/veeam-vol` 已删除，旧 iSCSI 自动化已退役并归档。
+>
+> **v1.9 变更（2026-08-08，阶段一收尾）**：步骤 1–8 全部完成，架构迁移部分结束。**步骤 9（M920Q 内存实测）尚未执行**，阶段二据此判断（见 D12），因此阶段二暂不可评估。新增 4.4 节遗留项：**恢复能力只验证到文件级** —— Time Machine 确认过可取回单个文件，Veeam 确认过 restore points 完好，但两者都未做整机还原验证；v1.5 记录的"恢复演练延期"至今未补。同步更新 `docs/designs/homelab-iac-architecture.md` 的备份章节以匹配阶段一实际拓扑。
 >
 > **v1.8 变更（2026-08-07，pve2 退役）**：确认 pve2 无 VM/LXC、HA、复制或存储引用后，从 corosync、pmxcfs、Terraform inventory 和 NetBox 中删除；撤销其 SSH 公钥；`HomePVECluster` 现由 pve0/pve1 组成。用户决定不配置 QDevice，保留 pve0 3 票、pve1 1 票的非对称仲裁，并接受 pve1 单独存活时无 quorum 的限制。
 
@@ -395,6 +397,9 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 - **Proxmox 虚机的备份仍依赖 T7910 手动开机。**[D13](#d13--t7910-的-wol原判断已被推翻方案重新可行) 说明 WOL 只能作为过渡手段，不能解决每日备份与冷机策略不闭环的问题。这是阶段二要解决的问题。
 - 阶段一**没有第二份副本**。两级副本依赖 PBS 迁移完成后再建立。
+- **恢复能力只验证到文件级，未做整机还原。** 已验证：Time Machine 可从新 sparsebundle 取回单个文件（步骤 3）、Veeam 仓库与 restore points 完好（步骤 7）。**未验证**：用迁移后的 sparsebundle 走迁移助理级别的整机恢复；从迁移后的 restore point 实际还原一台 ESXi 虚机。v1.5 记录的"恢复演练延期"至今未补。
+
+  > 2026-08-05 事故的根因是"以为在备份、其实没有"（VMID 107/109/110 漏配）。备份**已存在**与备份**可还原**是两个独立命题，只验证了前者。
 
 ---
 
@@ -738,7 +743,7 @@ fruit:time machine max size = 1T
 | 6 | ~~把 Windows 虚机加入 PBS 备份作业~~ | ⛔ **取消**（避免 Veeam Server 循环备份到自身管理的 ESXi/PBS） |
 | 7 | ~~验证迁移后的仓库、作业与 restore points~~ | ✅ **已完成**（首轮新备份由用户后期手工执行） |
 | 8 | ~~拆除 T7910 上的遗留：停 iSCSI target、删 `backup-pool/veeam-vol`、删 ESXi 上的 `windows-server` 虚机~~ | ✅ **已完成**（释放约 184G） |
-| 9 | **记录 M920Q 的实际内存占用**，据此决定阶段二是否可行 | |
+| 9 | **记录 M920Q 的实际内存占用**，据此决定阶段二是否可行 | ⏳ **待执行** — 阶段二的唯一前置。采集：`free -h`、`arc_summary`、`qm list` / `pct list`。判据见 [D12](#d12--pbs-阶段一暂留-esxi迁移与否由实测内存决定)：需 3–4GB 余量 |
 
 ### 7.2 阶段二（条件满足才执行）
 
