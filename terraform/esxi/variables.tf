@@ -84,39 +84,6 @@ variable "pbs_nvme_pci_ids" {
 }
 
 # ==========================================
-# Windows Server VM Configuration
-# ==========================================
-
-variable "windows_vm_name" {
-  description = "Windows Server VM name"
-  type        = string
-  default     = "windows-server"
-}
-
-variable "windows_ip_address" {
-  description = "Windows Server static IP address"
-  type        = string
-}
-
-variable "windows_num_cpus" {
-  description = "Number of vCPUs for Windows Server"
-  type        = number
-  default     = 4
-}
-
-variable "windows_memory_mb" {
-  description = "Memory in MB for Windows Server"
-  type        = number
-  default     = 16384
-}
-
-variable "windows_system_disk_gb" {
-  description = "System disk size in GB for Windows Server"
-  type        = number
-  default     = 60
-}
-
-# ==========================================
 # LLM Server VM Configuration
 # ==========================================
 
@@ -131,6 +98,12 @@ variable "llm_server_ip_address" {
   type        = string
 }
 
+variable "llm_server_datastore" {
+  description = "Datastore containing the LLM Server VM"
+  type        = string
+  default     = "Intel800GSSD"
+}
+
 variable "llm_server_num_cpus" {
   description = "Number of vCPUs for LLM Server"
   type        = number
@@ -140,17 +113,17 @@ variable "llm_server_num_cpus" {
 variable "llm_server_memory_mb" {
   description = "Memory in MB for LLM Server (also used as memory reservation for GPU passthrough)"
   type        = number
-  default     = 286720 # 280 GB
+  default     = 348160 # 340 GB
 }
 
 variable "llm_server_system_disk_gb" {
   description = "System disk size in GB for LLM Server"
   type        = number
-  default     = 300
+  default     = 600
 }
 
 variable "llm_server_mmio_size_gb" {
   description = "64-bit MMIO size in GB for GPU passthrough. Dual 3090: start with 64, increase to 128 if VM fails to boot"
   type        = number
-  default     = 64
+  default     = 128
 }

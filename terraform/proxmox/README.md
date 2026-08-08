@@ -4,7 +4,7 @@ Terraform configurations for managing Proxmox VE cluster resources.
 
 ## Purpose
 
-- Provision VMs on Proxmox cluster (pve0, pve1, pve2)
+- Provision VMs on Proxmox cluster (pve0, pve1)
 - Manage storage, networking, and compute resources
 - Call reusable modules from `../modules/`
 

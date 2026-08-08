@@ -39,11 +39,13 @@ pbs_hba_pci_id = "0000:01:00.0"
 # ]
 
 # ==========================================
-# Windows Server Configuration (Veeam Host)
+# LLM Server Configuration
 # ==========================================
 
-windows_vm_name        = "windows-server"
-windows_ip_address     = "192.168.1.248"
-windows_num_cpus       = 4
-windows_memory_mb      = 16384
-windows_system_disk_gb = 60
+llm_server_vm_name        = "llm-server"
+llm_server_ip_address     = "192.168.1.247"
+llm_server_datastore      = "Intel800GSSD"
+llm_server_num_cpus       = 36
+llm_server_memory_mb      = 348160 # 340 GB
+llm_server_system_disk_gb = 600
+llm_server_mmio_size_gb   = 128

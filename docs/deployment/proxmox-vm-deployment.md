@@ -6,7 +6,7 @@ This document outlines the management of Proxmox Virtual Environment (PVE) resou
 ## Architecture
 
 ### Components
-- **Hypervisors**: Proxmox VE Nodes (pve0, pve1, pve2, pve3)
+- **Hypervisors**: Proxmox VE Nodes (pve0, pve1)
 - **Management Tool**: Terraform
 - **Provider**: `telmate/proxmox`
 - **Infrastructure Code**: `terraform/proxmox`
