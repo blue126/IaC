@@ -3,3 +3,8 @@
 rustdesk_relay_host: "rustdesk.willfan.me"
 rustdesk_data_dir: "/var/lib/rustdesk"
 rustdesk_image: "rustdesk/rustdesk-server:latest"
+
+# 强制所有会话走中继（禁用 P2P 直连）。
+# 默认关闭：客户端优先尝试 NAT 打洞，失败时 hbbs 会自动回落到 hbbr 中继，
+# 无需强制即可保证连通性。仅在需要对两端隐藏真实 IP 时才设为 true。
+rustdesk_always_use_relay: false

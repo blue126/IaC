@@ -11,8 +11,10 @@ services:
     depends_on:
       - hbbr
     restart: unless-stopped
+{% if rustdesk_always_use_relay %}
     environment:
       - ALWAYS_USE_RELAY=Y
+{% endif %}
 
   hbbr:
     container_name: hbbr
