@@ -154,7 +154,7 @@ module "netbox" {
 | 平台 | 用途 | 管理工具 | Terraform Provider |
 |------|------|----------|-------------------|
 | **Proxmox VE** | 主要虚拟化平台，运行大部分服务 | Web UI (8006), CLI | `bpg/proxmox` 0.70.0 |
-| **VMware ESXi** | PBS 备份服务器（专用） | vSphere Client | `vmware/vsphere` |
+| **VMware ESXi** | PBS 备份服务器 + llm-server 等实验室虚机（T7910，手动开机） | vSphere Client | `vmware/vsphere` |
 | **Oracle Cloud** | 公有云实例（未来扩展） | OCI Console | `oracle/oci` |
 
 ### 虚拟机类型
@@ -695,42 +695,87 @@ terraform/netbox-integration/
 
 ### Proxmox Backup Server 架构
 
-#### 备份拓扑
+> 备份架构正处于分阶段整合中，权威文档是
+> [备份架构整合规范](../specs/backup-architecture-consolidation-spec.md)（含关键决策记录）。
+> 本节只描述当前形态，细节与理由以该规范为准。
+
+#### 备份拓扑（阶段一，实施中）
+
+备份职责分散在两台宿主机上：**pve1 常开、承载文件与 ESXi 虚机备份**；**T7910 手动开机、承载 PBS**。
 
 ```
-Proxmox VE Cluster (pve0)
- ├── VM: netbox
- ├── VM: immich
- ├── VM: jenkins
- └── LXC: homepage
-         │
-         │ PBS Client (pvesm backup)
-         ▼
-    PBS Server (esxi-01 上的 VM)
-         │
-         ├── Datastore: vmbackup (ZFS)
-         │    ├── netbox-daily
-         │    ├── immich-weekly
-         │    └── ...
-         │
-         └── Retention Policy
-              ├── Daily: keep-last 7
-              ├── Weekly: keep-last 4
-              └── Monthly: keep-last 6
+┌──── M920Q / pve1（常开，PVE，10GbE）────────────────────────┐
+│  VM 112  Windows Server 2022                                │
+│   ├─ AD DS（长期驻留）                                       │
+│   └─ Veeam VBR CE → tank/vm-112-disk-1（2T zvol / ReFS）     │
+│  LXC 111 TurnKey Fileserver  192.168.1.111                  │
+│   └─ Samba + vfs_fruit → tank/timemachine                   │
+│  存储：mainpool 928G（虚机）/ tank 5.45T（备份数据，mirror）  │
+└─────────────────────────────────────────────────────────────┘
+      ▲ SMB              ▲ SMB (Agent)      ▲ vSphere API (NBD)
+   MacBook           Windows 物理机       ESXi 虚机
+
+┌──── T7910（手动开机，ESXi 8.0.3）───────────────────────────┐
+│  PBS 虚机 192.168.1.249:8007（直通 SAS3008 + 2×NVMe）        │
+│   └─ backup-pool 7.5T → datastore「backup-storage」          │
+│        ▲                                                     │
+└────────┼─────────────────────────────────────────────────────┘
+         │ PBS Client（每日 02:00，snapshot + zstd）
+   pve0 上的 VM/LXC：100-107、109、110
 ```
+
+**pve1 不加入 PBS 备份作业** —— 它是 ESXi 虚机备份的落点，若再被 T7910 的 PBS 备份会形成循环备份。
+
+#### 备份职责划分
+
+| 备份对象 | 机制 | 落点 | 频率 |
+|---|---|---|---|
+| pve0 的 VM/LXC | PBS 原生 | T7910 `backup-storage` | 每日 02:00，但**受限于手动开机** |
+| Mac | Time Machine over SMB | pve1 `tank/timemachine` | 每小时 |
+| Windows 物理机 | Veeam Agent 免费版 → SMB | pve1 | 按 Agent 计划 |
+| ESXi 虚机 | Veeam VBR CE（NBD） | pve1 zvol / ReFS | 每周 |
+| Linux 主机 | `proxmox-backup-client` | T7910 `backup-storage` | 受限于手动开机 |
+
+保留策略：daily 7 / weekly 4 / monthly 6。
+
+`pbs_backup_vmids` 需在新增 guest 时手工同步 —— VMID 107/109/110 曾因漏加而长期未备份，直到 2026-08-05 事故才暴露。有两个 VMID 是**故意排除**的：`108` veeam-worker（Veeam 的 PVE 插件临时部署，不由本仓库管理）、`9000` 模板（可从 Terraform/Ansible 重建）。
+
+#### 遗留限制与下一阶段
+
+- **pve0 的备份仍依赖 T7910 手动开机**，每日计划实际无法闭环。WOL 只是过渡手段。
+- **阶段一没有第二份副本**，3-2-1 依赖 PBS 迁移后建立。
+- 阶段二：若 pve1 实测尚有 3–4GB 内存余量，PBS 迁到 pve1（LXC + bind mount），T7910 的 PBS 降级为 sync 目标。**迁移前必须重新实测容量** —— 事故恢复后 datastore 已从 81G 增至约 373.7 GiB，原 130G 基线作废。
 
 #### PBS 集成方式
 
+`pbs-client` role 拆成三步：`pbs-token.yml` 建 API token、`storage.yml` 挂存储后端、`backup-jobs.yml` 配作业。认证走 **API token**（`backup@pbs!automation`），不用密码。
+
 ```yaml
-# ansible/roles/pbs-client/tasks/main.yml
-- name: Add PBS storage to Proxmox
-  shell: >
-    pvesm add pbs {{ pbs_storage_id }}
-    --server {{ pbs_server }}
-    --datastore {{ pbs_datastore }}
-    --username {{ pbs_username }}
-    --password {{ pbs_password }}
+# ansible/roles/pbs-client/tasks/storage.yml
+- name: Check if PBS storage backend already exists
+  ansible.builtin.command:
+    cmd: pvesm status --storage {{ pbs_storage_name }}
+  register: pbs_storage_check
+  failed_when: false
+  changed_when: false
+
+- name: Add PBS storage backend to Proxmox
+  ansible.builtin.command:
+    cmd: >-
+      pvesm add pbs {{ pbs_storage_name }}
+      --server {{ pbs_host }} --port {{ pbs_port }}
+      --datastore {{ pbs_datastore }}
+      --username {{ pbs_backup_user }}!{{ pbs_api_token_name }}
+      --password {{ pbs_api_token_value }}
+      --fingerprint {{ pbs_fingerprint }}
+      --content backup
+  when: pbs_storage_check.rc != 0
+  no_log: true
 ```
+
+只需在集群中**一个**节点上执行 —— `/etc/pve/storage.cfg` 由 pmxcfs 自动同步。
+
+> PBS 存储参数（server / port / datastore / password）创建后**不可修改**，要改必须先 `pvesm remove` 再重跑。
 
 ## 密码管理架构
 
@@ -855,7 +900,7 @@ ss -tlnp | grep <port>                # 端口监听
 | **IaC 编排** | Terraform | 1.14+ | 基础设施即代码 |
 | **配置管理** | Ansible | 2.16+ | 自动化配置 |
 | **虚拟化** | Proxmox VE | 8.x | 主要虚拟化平台 |
-| **虚拟化** | VMware ESXi | 8.x | 备份服务器专用 |
+| **虚拟化** | VMware ESXi | 8.0.3 | 备份服务器 + 实验室虚机 |
 | **容器化** | Docker + Compose | 27.x | 应用容器化 |
 | **VPN** | Tailscale | latest | 安全远程访问 |
 | **反向代理** | Caddy | 2.x | HTTPS + 自动 SSL |
