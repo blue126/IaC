@@ -732,20 +732,6 @@ Proxmox VE Cluster (pve0)
     --password {{ pbs_password }}
 ```
 
-#### iSCSI 集成（Veeam Backup）
-
-```
-Windows VM (windows-server)
-         │
-         │ iSCSI Initiator
-         ▼
-    PBS iSCSI Target (LUN)
-         │
-         │ Veeam Backup & Replication
-         ▼
-    Backup Files → PBS Datastore
-```
-
 ## 密码管理架构
 
 详见 [Ansible Vault 架构设计文档](ansible-vault-architecture.md)。
