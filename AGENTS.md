@@ -105,3 +105,13 @@ When working on specific areas, read the relevant design doc for detailed patter
 7. **Admit uncertainty** rather than fabricate — investigate first
 8. **Ask for info incrementally** — don't request everything at once
 9. **Learning notes**: Place in `docs/learningnotes/`, follow `YYYY-MM-DD-topic.md` naming, Chinese markdown, define key concepts, include Q&A summaries
+
+## OpenCode Container Environment
+
+- This project uses OpenCode, not Claude Code.
+- When OpenCode Server runs in a container, it must listen on an address reachable from the host and publish its port to macOS. Do not expose an unauthenticated server to untrusted networks.
+- A successful Desktop GUI connection does not prove that the project path is valid. Desktop may send a macOS path such as `/Users/...`, while the container workspace is under `/workspaces/...`.
+- If a message appears but the model does not reply, inspect both the session record and OpenCode service logs. `FileSystem.realPath ... ENOENT` usually means the client supplied a project path that does not exist in the container.
+- Prefer consistent host and container workspace path mappings. If that is not possible, use a host-path-to-container-path symlink as a compatibility measure.
+- Persist required symlinks in the Dev Container initialization configuration because container rebuilds may remove them.
+- For remote or container environments, prefer the OpenCode Web GUI when the Desktop native project selector cannot resolve container paths reliably.
