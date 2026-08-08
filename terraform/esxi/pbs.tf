@@ -18,6 +18,8 @@ module "pbs" {
   memory_reservation = var.pbs_memory_mb # Required for PCIe passthrough
   system_disk_size   = var.pbs_system_disk_gb
 
+  memory_reservation_locked_to_max = true
+
   # Firmware & Guest OS
   firmware             = "efi"
   guest_id             = "debian11_64Guest" # PBS is based on Debian 11/12

@@ -5,13 +5,18 @@ data "vsphere_virtual_machine" "ubuntu_template" {
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
+data "vsphere_datastore" "llm_server" {
+  name          = var.llm_server_datastore
+  datacenter_id = data.vsphere_datacenter.dc.id
+}
+
 module "llm_server" {
   source = "../modules/esxi-vm"
 
   # Basic Configuration
   vm_name          = var.llm_server_vm_name
   resource_pool_id = data.vsphere_host.host.resource_pool_id
-  datastore_id     = data.vsphere_datastore.datastore.id
+  datastore_id     = data.vsphere_datastore.llm_server.id
   network_id       = data.vsphere_network.network.id
   host_system_id   = data.vsphere_host.host.id
 
@@ -28,8 +33,11 @@ module "llm_server" {
   # Hardware Resources
   num_cpus           = var.llm_server_num_cpus
   memory             = var.llm_server_memory_mb
+  memory_limit       = var.llm_server_memory_mb
   memory_reservation = var.llm_server_memory_mb # Required for GPU Passthrough
   system_disk_size   = var.llm_server_system_disk_gb
+
+  memory_reservation_locked_to_max = true
 
   # Firmware & Guest OS
   firmware = "efi"

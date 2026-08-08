@@ -24,9 +24,21 @@ variable "memory" {
   default = 4096
 }
 
+variable "memory_limit" {
+  description = "Upper memory limit in MB; -1 means unlimited"
+  type        = number
+  default     = -1
+}
+
 variable "memory_reservation" {
   type    = number
   default = 0
+}
+
+variable "memory_reservation_locked_to_max" {
+  description = "Lock the VM memory reservation to its configured maximum"
+  type        = bool
+  default     = false
 }
 
 variable "system_disk_size" {

@@ -13,8 +13,9 @@ resource "vsphere_virtual_machine" "vm" {
 
   num_cpus                         = var.num_cpus
   memory                           = var.memory
+  memory_limit                     = var.memory_limit
   memory_reservation               = var.memory_reservation
-  memory_reservation_locked_to_max = length(var.pci_device_ids) > 0 ? true : false
+  memory_reservation_locked_to_max = var.memory_reservation_locked_to_max
 
   firmware = var.firmware
   guest_id = var.guest_id
@@ -81,4 +82,3 @@ resource "vsphere_virtual_machine" "vm" {
     ignore_changes = [pci_device_id, extra_config]
   }
 }
-
