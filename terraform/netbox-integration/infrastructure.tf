@@ -7,10 +7,10 @@ resource "netbox_manufacturer" "generic" {
 }
 
 resource "netbox_device_type" "server" {
-  model            = "Server"
-  slug             = "server"
-  manufacturer_id  = netbox_manufacturer.generic.id
-  u_height         = 1
+  model           = "Server"
+  slug            = "server"
+  manufacturer_id = netbox_manufacturer.generic.id
+  u_height        = 1
 }
 
 # 2. Device Role
@@ -106,42 +106,5 @@ resource "netbox_ip_address" "pve1_ip" {
   ip_address   = "192.168.1.21/24"
   status       = "active"
   interface_id = netbox_device_interface.pve1_vmbr0.id
-  object_type  = "dcim.interface"
-}
-
-resource "netbox_device" "pve2" {
-  name           = "pve2"
-  device_type_id = netbox_device_type.server.id
-  role_id        = netbox_device_role.server.id
-  site_id        = netbox_site.homelab.id
-  cluster_id     = netbox_cluster.homelab.id
-  status         = "active"
-}
-
-resource "netbox_device_interface" "pve2_vmbr0" {
-  name      = "vmbr0"
-  device_id = netbox_device.pve2.id
-  type      = "virtual"
-}
-
-resource "netbox_device_interface" "pve2_vmbr1" {
-  name        = "vmbr1"
-  device_id   = netbox_device.pve2.id
-  type        = "virtual"
-  description = "Primary VM bridge"
-}
-
-resource "netbox_ip_address" "pve2_vmbr1_ip" {
-  ip_address   = "192.168.1.52/24"
-  status       = "active"
-  interface_id = netbox_device_interface.pve2_vmbr1.id
-  object_type  = "dcim.interface"
-  description  = "Bridge vmbr1 management IP"
-}
-
-resource "netbox_ip_address" "pve2_ip" {
-  ip_address   = "192.168.1.22/24"
-  status       = "active"
-  interface_id = netbox_device_interface.pve2_vmbr0.id
   object_type  = "dcim.interface"
 }

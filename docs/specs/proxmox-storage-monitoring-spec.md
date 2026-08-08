@@ -7,7 +7,7 @@
 
 ## 1. 背景
 
-`HomePVECluster` 的 pve0、pve1、pve2 均使用本地 ZFS。原备份架构整合规范只要求在 pve1 为 `tank` 启用 scrub，并配置 `smartd` 与 ZED；这种单节点处理会让其他节点继续缺少同等保护，也会在未来引入 Prometheus/Grafana 时形成两套监控配置。
+`HomePVECluster` 的 pve0、pve1 均使用本地 ZFS。原备份架构整合规范只要求在 pve1 为 `tank` 启用 scrub，并配置 `smartd` 与 ZED；这种单节点处理会让其他节点继续缺少同等保护，也会在未来引入 Prometheus/Grafana 时形成两套监控配置。
 
 因此，磁盘健康、ZFS 事件、定期 scrub 和集中告警应作为一项独立的集群级监控工作统一设计和实施，不再作为备份迁移的前置步骤。
 

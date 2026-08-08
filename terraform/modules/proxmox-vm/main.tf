@@ -135,6 +135,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
       # hidden drift. Safe to ignore — clone source is irrelevant after
       # the VM exists.
       clone,
+
+      # Cloud-init SSH keys are create-time credentials. Changing this list
+      # forces VM replacement; Ansible manages keys after provisioning.
+      initialization[0].user_account[0].keys,
     ]
   }
 }

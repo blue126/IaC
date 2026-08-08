@@ -23,16 +23,3 @@ resource "ansible_host" "pve1" {
     proxmox_api_user = "root@pam"
   }
 }
-
-resource "ansible_host" "pve2" {
-  name   = "pve2"
-  groups = ["proxmox_cluster"]
-  variables = {
-    ansible_host     = "192.168.1.52"
-    ansible_user     = "root"
-    ansible_ssh_pass = var.proxmox_ssh_password
-    proxmox_api_host = "{{ ansible_host }}"
-    proxmox_api_port = 8006
-    proxmox_api_user = "root@pam"
-  }
-}

@@ -69,7 +69,7 @@
 | **Type** | Selection |
 | **Required** | ❌ No (条件必填) |
 | **Default** | - |
-| **Choices** | `pve0`, `pve1`, `pve2` |
+| **Choices** | `pve0`, `pve1` |
 | **Object Types** | Virtual Machine |
 | **Group** | Proxmox Configuration |
 | **Weight** | 200 |
@@ -304,7 +304,7 @@ curl -H "Authorization: Token ${NETBOX_API_TOKEN}" \
 
 **原因**: 虚拟机的 `infrastructure_platform=proxmox` 但 `proxmox_node` 未填写
 
-**解决方法**: 编辑虚拟机，设置 `proxmox_node` 为 `pve0`/`pve1`/`pve2` 之一
+**解决方法**: 编辑虚拟机，设置 `proxmox_node` 为 `pve0`/`pve1` 之一
 
 ---
 

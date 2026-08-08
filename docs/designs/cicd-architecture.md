@@ -113,7 +113,6 @@ flowchart LR
     subgraph Proxmox["Proxmox Cluster"]
         pve0[pve0]
         pve1[pve1]
-        pve2[pve2]
     end
 
     Repo -- "Webhook (Push Event)" --> Tunnel
@@ -517,7 +516,7 @@ Generated Inventory
    ├── pve_lxc
    ├── pve_vms
    ├── jenkins
-   └── pve0, pve1, pve2
+   └── pve0, pve1
 ```
 
 ### Inventory 文件结构
@@ -882,7 +881,7 @@ func TestProxmoxVM(t *testing.T) {
 **目标**: 支持部署到多个 Proxmox 集群
 
 **场景**:
-- 主集群 (pve0, pve1, pve2)
+- 主集群 (pve0, pve1)
 - 备份集群 (远程站点)
 - 测试集群
 

@@ -35,7 +35,7 @@
 | `groups.yml` | **仅**定义组层级关系 | 定义 `proxmox_cluster` > `pve_lxc` 的关系 |
 | `group_vars/<组名>.yml` | **仅**定义该组所有主机的共享变量 | `lxc_gateway: 192.168.1.1` |
 | `host_vars/<主机名>.yml` | **仅**定义该主机特有的变量 | `ansible_host: 192.168.1.50` |
-| `<组名>/hosts.yml` | **仅**列出该组的成员 | 列出 `pve0`, `pve1`, `pve2` |
+| `<组名>/hosts.yml` | **仅**列出该组的成员 | 列出 `pve0`, `pve1` |
 
 **关键**: 避免在一个文件中混合多种职责。
 
@@ -54,7 +54,6 @@ inventory/
 ├── host_vars/                    # 主机变量（新增）
 │   ├── pve0.yml
 │   ├── pve1.yml
-│   └── pve2.yml
 ├── proxmox_cluster/              # 组定义
 │   └── hosts.yml
 ├── pve_lxc/                      # LXC 容器组
