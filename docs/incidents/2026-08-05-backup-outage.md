@@ -76,7 +76,7 @@
 
 PBS 运行在 T7910 上，而 T7910 被定位为「冷备份服务器」，平时关机。备份作业**每日 02:00** 执行，打向一台通常关机的机器。
 
-**这里的根因不应简化为「WOL 未实现」。**即便 WOL 完全实现，也不能解决问题——因为 [pbs-iscsi-veeam-guide.md](../deployment/pbs-iscsi-veeam-guide.md) 第 4 节设计的唤醒频率是**每周六 00:00**：
+**这里的根因不应简化为「WOL 未实现」。**即便 WOL 完全实现，也不能解决问题——因为 [pbs-iscsi-veeam-guide.md](../archive/pbs-iscsi-veeam-guide.md) 第 4 节设计的唤醒频率是**每周六 00:00**：
 
 > **每周六 00:00**: `pve0` (Cron) 发送 WOL 唤醒 T7910
 

@@ -16,10 +16,14 @@
 - **[immich-deployment.md](./deployment/immich-deployment.md)** - Immich deployment guide covering Terraform, Ansible, and Docker.
 - **[netbox-deployment.md](./deployment/netbox-deployment.md)** - Netbox deployment architecture, infrastructure provisioning, and application setup.
 - **[pbs-esxi-deployment.md](./deployment/pbs-esxi-deployment.md)** - Proxmox Backup Server on ESXi deployment with ZFS/PCIe passthrough.
-- **[pbs-iscsi-veeam-guide.md](./deployment/pbs-iscsi-veeam-guide.md)** - Hybrid backup architecture guide for PBS and Veeam using iSCSI.
 - **[proxmox-vm-deployment.md](./deployment/proxmox-vm-deployment.md)** - Guide for managing Proxmox VMs using Terraform.
 - **[README.md](./deployment/README.md)** - Index and overview of deployment guides.
-- **[veeam-backup-deployment-guide.md](./deployment/veeam-backup-deployment-guide.md)** - Veeam Backup & Replication deployment and configuration guide.
+
+### archive/
+
+- **[pbs-iscsi-veeam-guide.md](./archive/pbs-iscsi-veeam-guide.md)** - Archived PBS iSCSI/Veeam architecture guide.
+- **[pbs-iscsi-veeam-spec.md](./archive/pbs-iscsi-veeam-spec.md)** - Archived PBS iSCSI/Veeam implementation specification.
+- **[veeam-backup-deployment-guide.md](./archive/veeam-backup-deployment-guide.md)** - Archived Veeam deployment guide for the retired architecture.
 
 ### designs/
 
@@ -104,7 +108,6 @@
 
 - **[backup-architecture-consolidation-spec.md](./specs/backup-architecture-consolidation-spec.md)** - Backup architecture consolidation onto M920Q (PVE + ZFS), with the decision record behind it. Supersedes the PBS iSCSI/Veeam documents.
 - **[proxmox-storage-monitoring-spec.md](./specs/proxmox-storage-monitoring-spec.md)** - Cluster-wide SMART, ZFS scrub, Prometheus, Grafana, and storage alerting specification.
-- **[pbs-iscsi-veeam-spec.md](./specs/pbs-iscsi-veeam-spec.md)** - Implementation specifications for PBS iSCSI Target for Veeam. **Superseded.**
 
 ### troubleshooting/
 

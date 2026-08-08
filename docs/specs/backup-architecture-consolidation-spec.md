@@ -1,9 +1,9 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.6
-> **日期**: 2026-08-06
+> **版本**: 1.8
+> **日期**: 2026-08-07
 > **状态**: 实施中（阶段一）
-> **取代文档**: [pbs-iscsi-veeam-spec.md](./pbs-iscsi-veeam-spec.md)、[pbs-iscsi-veeam-guide.md](../deployment/pbs-iscsi-veeam-guide.md)、[veeam-backup-deployment-guide.md](../deployment/veeam-backup-deployment-guide.md)
+> **取代文档**: [pbs-iscsi-veeam-spec.md](../archive/pbs-iscsi-veeam-spec.md)、[pbs-iscsi-veeam-guide.md](../archive/pbs-iscsi-veeam-guide.md)、[veeam-backup-deployment-guide.md](../archive/veeam-backup-deployment-guide.md)
 >
 > **v1.1 变更**：M920Q 内存确定为 16GB（不扩容）；NVMe 确定保留单块 1TB，**取消 special vdev 方案**；Windows/AD 虚机确定迁往 M920Q 且长期驻留；PBS **第一阶段暂留 ESXi**，视实测内存再定；修正 datastore 容量口径。
 >
@@ -16,6 +16,10 @@
 > **v1.5 变更（2026-08-06，Time Machine 切换）**：Mac 已切换至新 Fileserver 并开始向原 sparsebundle 写入；旧 PBS 的 Samba 与 Time Machine Avahi 广播已停用，源数据集保持只读；恢复演练延期但不阻塞阶段一第 4 步。
 >
 > **v1.6 变更（2026-08-06，旧服务退役）**：Mac 新目标备份完成并确认可恢复文件；删除 PBS 上的 Time Machine 数据集、迁移快照、Samba/Avahi 配置及账户；删除可重建旧服务的 playbook；阶段一第 3 步完成。
+>
+> **v1.7 变更（2026-08-06，Windows/Veeam 迁移）**：Windows Server 2022 迁移为 pve1 VMID 112；80G 系统盘位于 `vmdata`，原 2T ReFS/Veeam zvol 以 ZFS send/receive 迁移为 `tank/vm-112-disk-1`，保留既有 restore points；WAC 改用 8443，Veeam Web 保持 443；安装并验证 QEMU Guest Agent；Terraform 已接管 VM。按避免循环备份的决定，pve1 不加入 ESXi 上 PBS 的备份作业。ESXi 源 VM 与 PBS `backup-pool/veeam-vol` 已删除，旧 iSCSI 自动化已退役并归档。
+>
+> **v1.8 变更（2026-08-07，pve2 退役）**：确认 pve2 无 VM/LXC、HA、复制或存储引用后，从 corosync、pmxcfs、Terraform inventory 和 NetBox 中删除；撤销其 SSH 公钥；`HomePVECluster` 现由 pve0/pve1 组成。用户决定不配置 QDevice，保留 pve0 3 票、pve1 1 票的非对称仲裁，并接受 pve1 单独存活时无 quorum 的限制。
 
 ## 1. 背景与目标
 
@@ -266,7 +270,7 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 **补偿措施**：因失去 special vdev，`tank` 的元数据将全部落在 5400rpm 机械盘上，PBS 的 GC/verify 会变慢。可在 NVMe 上划 100–200GB 作**持久化 L2ARC**（ZFS 2.x 支持跨重启保留，且缓存丢失无害）来部分补偿。
 
-### D11 — pve1 保留在集群内
+### D11 — pve1 保留在集群内，pve2 退役
 
 **选择**：M920Q（即 pve1）继续作为 `HomePVECluster` 成员。
 
@@ -276,13 +280,12 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 |---|---|---|---|---|
 | pve0 | 1 | **3** | 192.168.1.50 | 192.168.1.20 |
 | pve1 | 2 | 1 | 192.168.1.51 | 192.168.1.21 |
-| pve2 | 3 | 1 | 192.168.1.52 | 192.168.1.22 |
 
-总票 5，pve0 独占 3 票即可满足法定人数。这是写入 `corosync.conf` 的持久设计，非临时 `pvecm expected`。
+总票 4，法定票数 3；pve0 独占 3 票即可满足法定人数。这是写入 `corosync.conf` 的持久设计，非临时 `pvecm expected`。用户决定不配置 QDevice，并接受 pve1 单独存活时没有 quorum 的限制。
 
 **权衡**：集群成员互信（共享 corosync 密钥、节点间 root SSH、共享 `/etc/pve`），pve0 被攻陷则 pve1 易被波及，而备份正是用于对抗此类场景。
 
-**但退出集群收益有限**：备份本身就需要网络路径与凭据，无论是否同集群，都存在一条从生产端通往备份端的授权通路。退出仅去掉 root 互信，却要付出失去统一管理与失去 pve1 那一票的代价（法定人数由 4/5 退回 3/5）。
+**但退出集群收益有限**：备份本身就需要网络路径与凭据，无论是否同集群，都存在一条从生产端通往备份端的授权通路。退出仅去掉 root 互信，却要付出失去统一管理的代价。
 
 **真正的隔离由二级副本提供**：T7910 大部分时间断电，是事实上的气隙副本。
 
@@ -577,7 +580,7 @@ zpool create -f -o ashift=12 \
 
 **`nodes:` 限定为何是硬性要求**
 
-`/etc/pve/storage.cfg` 由 pmxcfs 同步到**集群所有节点**。若登记 `tank` 时不加 `nodes pve1`，pve0 与 pve2 也会尝试激活一个它们本地并不存在的池，从而持续报错、状态恒为 `inactive`。
+`/etc/pve/storage.cfg` 由 pmxcfs 同步到**集群所有节点**。若登记 `tank` 时不加 `nodes pve1`，pve0 也会尝试激活一个本地并不存在的池，从而持续报错、状态恒为 `inactive`。
 
 这不是假设——被清理掉的 `samsung256gpool`（对应已拆除的 256GB NVMe）正是这种残留：
 
@@ -730,11 +733,11 @@ fruit:time machine max size = 1T
 | 2b | ~~启用 `zfs-scrub` 定时器~~ | ↗ **移出本规范**，见 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md) |
 | 2c | ~~配置 `smartd` 与 ZED~~ | ↗ **移出本规范**，与 Prometheus/Grafana 统一实施 |
 | 3 | ~~快照并 `zfs send/receive` 迁移 Time Machine；重映射 UID/GID；部署 Fileserver LXC；运行一次性 Samba/Avahi 初始化；Mac 继承并验证现有备份历史~~ | ✅ **已完成**（新备份完成并确认可恢复文件；旧 PBS 数据与服务已删除） |
-| 4 | V2V 迁移 Windows VM 到 `mainpool` 池；建 `tank/veeam-vol` zvol，Veeam 重建仓库（现有 184G **建议直接起新链**，不迁移历史） | ✓ |
-| 5 | Windows 物理机 Veeam Agent 目标改指 M920Q | ✓ |
-| 6 | 把 Windows 虚机加入 PBS 备份作业 | ✓ |
-| 7 | **验证：完整跑一轮各类备份并实测恢复** | ← **安全线** |
-| 8 | 拆除 T7910 上的遗留：停 iSCSI target、删 `backup-pool/veeam-vol`（释放 184G）、删 ESXi 上的 `windows-server` 虚机 | ✗ |
+| 4 | ~~V2V 迁移 Windows VM；迁移 2T ReFS/Veeam zvol并保留历史~~ | ✅ **已完成**（VMID 112；系统盘 `vmdata`；数据盘 `tank/vm-112-disk-1`） |
+| 5 | ~~Windows 物理机 Veeam Agent 目标改指 M920Q~~ | ✅ **已完成**（Veeam repository 为 `E:\Backup`） |
+| 6 | ~~把 Windows 虚机加入 PBS 备份作业~~ | ⛔ **取消**（避免 Veeam Server 循环备份到自身管理的 ESXi/PBS） |
+| 7 | ~~验证迁移后的仓库、作业与 restore points~~ | ✅ **已完成**（首轮新备份由用户后期手工执行） |
+| 8 | ~~拆除 T7910 上的遗留：停 iSCSI target、删 `backup-pool/veeam-vol`、删 ESXi 上的 `windows-server` 虚机~~ | ✅ **已完成**（释放约 184G） |
 | 9 | **记录 M920Q 的实际内存占用**，据此决定阶段二是否可行 | |
 
 ### 7.2 阶段二（条件满足才执行）
@@ -919,13 +922,13 @@ fruit:time machine max size = 1T
 - 历史备份包：`魏二福的MacBook Air.sparsebundle`
 - Mac 客户端：已连接新目标并完成备份；确认可从迁移历史恢复文件
 
-阶段一第 3 步已完成，下一项实施工作为第 4 步 Windows/Veeam 迁移。
+阶段一的 Time Machine 与 Windows/Veeam 迁移、源端退役均已完成；Veeam 首轮新备份由用户后期手工执行。
 
 ### 12.4 环境与访问方式
 
 | 主机 | 地址 | 认证 |
 |---|---|---|
-| pve0 / pve1 / pve2 | `.50` / `.51` / `.52` | **root + 密码**（`vault_proxmox_password`），非密钥。定义见 [`pve-cluster.tf`](../../terraform/proxmox/pve-cluster.tf) |
+| pve0 / pve1 | `.50` / `.51` | **root + 密码**（`vault_proxmox_password`），非密钥。定义见 [`pve-cluster.tf`](../../terraform/proxmox/pve-cluster.tf) |
 | PBS | `192.168.1.249` | SSH 密钥（`~/.ssh/id_ed25519`） |
 | vCenter | `192.168.1.250` | `terraform/esxi/terraform.tfvars`（该文件 gitignored） |
 
