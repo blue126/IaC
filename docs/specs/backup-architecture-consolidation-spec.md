@@ -427,9 +427,15 @@ backup-pool
 - **pve1 的 riser 是 x8，最多拆出 2×x4**，即 2 块 NVMe —— 恰好够镜像，**没有冗余余量**。旧 PBS 那张 4 盘位转接卡在 pve1 上只能用一半。
 - **`zpool add special` 不可逆。** 含 special vdev 的池不支持 device removal，这是**单向决定**。
 
-**零硬件改动的替代方案**：在 `mainpool` 上划分区做**持久化 L2ARC**。D10 的"补偿措施"已提出过，§5.2.2 当时因"ARC 仅 2GB，L2ARC 索引还要占 ARC"而暂缓 —— **该理由已随内存扩容至 32GB、ARC 提升至 8GiB 而弱化**。L2ARC 的关键优势是**损坏无害**（仅缓存），没有 special vdev 的单向风险。
+> ⚠️ **归因尚未验证。** 62.45 MiB/s 只能确定**网络不是瓶颈**；把它归给"元数据随机 I/O + 无 special vdev"是合理假设，但迁移时**未采集** `zpool iostat -v 1` / `iostat -x 1` / CPU 与 worker 利用率。同样能解释该速率的还有：**PBS sync 的 `worker-threads` 默认为 1**（单线程串行）、源端机械盘的读取寻道、TLS 与 chunk 校验的 CPU 开销、目标端 zvol 的同步写行为。
+>
+> **因此本提案建立在未经证实的归因上。** 决定动硬件之前，应先用实测定位真正的瓶颈 —— 否则可能花钱换来一个解决错了问题的方案。
 
-**建议评估顺序**：先试 L2ARC（可逆、零成本），实测收益不足再考虑 special vdev。
+**关于 L2ARC 的更正**：早先版本（含 D10 的"补偿措施"）建议"先试可逆的 L2ARC 再考虑 special vdev"。**该建议不成立** —— L2ARC 是**读缓存**，对 sync 期间的 chunk 创建、目录元数据更新与数据写入没有帮助，冷数据全量拉取更谈不上命中。它无法作为 special vdev 的可逆替代试验。
+
+**可逆的验证手段**应为：采集 pool 实际 I/O 指标、提高 sync 并发（`worker-threads`）、或临时把一组数据同步到 SSD 上的 datastore 做对照。L2ARC 仍可能改善 **verify / restore 等读密集操作**，但那是另一个问题。
+
+**建议评估顺序**：先实测定位瓶颈 → 确认确为元数据写入受限 → 再考虑 special vdev（记住它必须镜像且不可移除）。
 
 ---
 

@@ -10,7 +10,7 @@
 
 ## 2. 核心概念定义
 
-- **V2V（Virtual-to-Virtual）迁移**：把虚机从一个 hypervisor 搬到另一个。搬的是**虚拟磁盘**——宿主机上的物理盘、直通设备一律搬不走。
+- **V2V（Virtual-to-Virtual）迁移**：把虚机从一个 hypervisor 搬到另一个。完整导入会搬虚拟磁盘并映射部分虚机配置，但**不会移动硬件，也不会把 PCI 直通后端的磁盘内容转成虚拟磁盘**。
 - **PVE ESXi 导入**：PVE 8.2+ 内置能力。配置 `esxi` 类型存储指向 ESXi 主机后，`qm create --scsi0 <storage>:0,import-from=<volid>` 即可直接拉取并转换 vmdk。源虚机需关机。
 - **PBS chunk**：PBS 的内容寻址存储单元，平均约 3.35 MiB，散列存放于 `.chunks/` 下 **65536 个子目录**。这个结构决定了 PBS 的 I/O 特征是**元数据密集的随机读写**，而非顺序吞吐。
 - **PBS sync job**：datastore 之间的原生同步机制，逐 chunk 拉取并校验。相比 `rsync` 的优势是无需在源端安装额外软件，且理解 PBS 的数据结构。
@@ -31,9 +31,9 @@
 
 ## 4. 踩过的坑
 
-### 4.1 MAC 冲突 —— 两台同 MAC 的虚机不能共存
+### 4.1 MAC 冲突 —— 同一二层域内两台同 MAC 的主机无法可靠共存
 
-V2V 会**保留源虚机的 MAC**。新旧两台 PBS 同时开机（传输数据必须如此）时，交换机的 MAC 表在两个端口间反复翻转，二层直接乱掉。
+本次的完整 ESXi 导入**保留了源虚机的 MAC**（导入元数据里带 `net0` 的 MAC，我又在 `qm create` 里照抄了它）。这不是所有 V2V 方式的必然行为 —— **每次都要检查 `qm config` 确认**，不能假设保留或重新生成。新旧两台 PBS 同时开机（传输数据必须如此）时，交换机的 MAC 表在两个端口间反复翻转，二层直接乱掉。
 
 症状很有迷惑性：**新 PBS 能 ping 通网关、pve0、pve1，唯独够不到旧 PBS**（ARP 显示 `FAILED`）。因为一台主机无法与"和自己同 MAC"的主机通信。同时容器侧对两台的 TCP 探测呈现**间歇性成功**。
 
@@ -54,7 +54,7 @@ Driver=virtio_net
 Name=nic0
 ```
 
-> **教训**：V2V 后应尽早装 `qemu-guest-agent`。它走 virtio-serial**不依赖网络**，是网络配置出问题时唯一的远程观测手段。
+> **教训**：V2V 后应尽早装 `qemu-guest-agent`。它走 virtio-serial **不依赖客户机网络**，是网络出问题时重要的带外通道之一 —— 但**不是唯一的**：PVE 的 noVNC 控制台、串口控制台、救援 ISO 同样不依赖客户机网络，而且不需要预先安装任何东西。
 
 ### 4.3 改 datastore 配置路径 ≠ 创建 datastore
 
@@ -64,14 +64,21 @@ Name=nic0
 TASK ERROR: unable to open chunk store at "/mnt/datastore/.chunks" - No such file or directory
 ```
 
-PBS datastore 需要 `.chunks/` 下 65536 个子目录的完整结构，**只有 `proxmox-backup-manager datastore create` 会创建它**。
+PBS datastore 需要 `.chunks/` 下 65536 个子目录的完整结构。**只改 `datastore.cfg` 不会初始化它** —— 必须走 PBS 支持的 datastore 创建操作（CLI `proxmox-backup-manager datastore create`、Web UI 的 Add Datastore、或对应 API，三者等效）。手工建目录理论上可行，但容易漏掉 owner、mode、`.lock` 等约束，不应作为方法。
 
-### 4.4 重建 datastore 会连带删除 ACL 和 sync job
+⚠️ **V2V 之后 `datastore.cfg` 里已经有同名 datastore**，直接 `create` 会因重名失败。必须先 `remove`（**务必不带 `--destroy-data`**）再 `create`。
+
+### 4.4 重建 datastore 会连带删除关联配置
 
 为初始化结构而 `datastore remove` + `create` 之后：
 
-- **ACL 全部丢失** → pve0 报 `Cannot find datastore 'backup-storage', check permissions and existence!`（措辞误导，实际是权限问题不是"不存在"）
-- **sync job 一并被删** → 需重建
+- **ACL 全部丢失** → pve0 报 `Cannot find datastore 'backup-storage', check permissions and existence!`
+- **sync job 一并被删**
+- **`datastore.cfg` 里的其他属性也回到默认** —— 本次 `gc-schedule daily` 就需要在 `create` 时重新指定
+
+`datastore remove` 有 `--keep-job-configs`（默认 `false`）这个选项，正说明**关联作业是需要显式处理的对象**。
+
+> **教训**：删除前应清点 `datastore.cfg`、`acl.cfg`、`sync.cfg`、`prune.cfg`、`verification.cfg`，创建后逐项对照恢复 —— 而不是像本次这样只恢复了两条 ACL 和一个 sync job。prune / verify 作业本次恰好没有配置，否则会静默丢失。
 
 **迁移前备份的 `/etc/proxmox-backup/` 在此刻救了场** —— `acl.cfg` 里完整记录着原始两条：
 
@@ -90,16 +97,32 @@ acl:1:/datastore/backup-storage:backup@pbs!automation:DatastoreAdmin
 Error: backup owner check failed (backup@pbs!automation != root@pam)
 ```
 
-sync job 是用 `root@pam` 拉取的，所以**全部 10 个备份组的 owner 都成了 `root@pam`**；而 pve0 用 `backup@pbs!automation` 备份。PBS 不允许跨所有者追加。
+全部 10 个备份组的 owner 都成了 `root@pam`，而 pve0 用 `backup@pbs!automation` 备份。PBS 不允许跨所有者追加。
 
-修复需 `proxmox-backup-client change-owner`，且该命令**必须提供指纹与密码**，否则报 `certificate validation failed`：
+**owner 的来源要分清**（早先版本这里写错了）：
+
+| | 决定什么 |
+|---|---|
+| **sync job 的 `--owner`** | 目标端新建备份组的 owner。**未设置时默认 `root@pam`** ← 本次问题的真正来源 |
+| remote 的 auth-id | 只决定在**源端**能读到哪些组，与目标 owner 无关 |
+
+**所以正确做法是建 sync job 时直接指定 owner，根本不会有这个问题**：
+
+```bash
+proxmox-backup-manager sync-job create migrate-old \
+  --store backup-storage --remote old-pbs --remote-store backup-storage \
+  --owner 'backup@pbs!automation'     # ← 关键，省掉事后批量 change-owner
+```
+
+事后补救才需要 `proxmox-backup-client change-owner`。该命令需要**有效认证 + TLS 信任**，本次因证书不被系统 CA 信任而必须显式提供指纹：
 
 ```bash
 export PBS_FINGERPRINT="$(proxmox-backup-manager cert info | grep -i 'Fingerprint (sha256)' | sed 's/.*: //')"
-export PBS_PASSWORD='...'
 export PBS_REPOSITORY='root@pam@localhost:backup-storage'
-proxmox-backup-client change-owner "ct/103" 'backup@pbs!automation'
+proxmox-backup-client change-owner "ct/103" 'backup@pbs!automation'   # 交互输入密码
 ```
+
+> 密码优先用交互输入或 `PBS_PASSWORD_FILE` / `PBS_PASSWORD_FD`，**不要用 `PBS_PASSWORD` 环境变量** —— 会残留在 shell 历史与进程环境里。证书受系统 CA 信任时则无需指纹。
 
 ## 5. 性能实测：瓶颈不在网络
 
@@ -109,39 +132,67 @@ proxmox-backup-client change-owner "ct/103" 'backup@pbs!automation'
 | `tank`（2× WD 6TB mirror）顺序写 | ~180 MB/s |
 | **PBS sync 实际达成** | **62.45 MiB/s** |
 
-连机械盘顺序能力的 **40%** 都没跑到。原因是 PBS 的 I/O 特征：113,895 个 chunk 要分散写入 65536 个目录，**寻道开销主导**；而 `tank` **没有 special vdev**，元数据与数据争抢同一组磁头。
+**可以确定的**：网络不是瓶颈 —— 62 MiB/s 距离万兆的 1160 MB/s 差了近 20 倍，且连机械盘顺序能力的 40% 都没到。
 
-判据：若瓶颈是网络，速率会接近 1 GB/s；若是顺序带宽，会稳定在 180 MB/s。实测 62 MiB/s **且全程平稳**，正是随机 I/O 受寻道限制的特征。
+**未经证实的**：把它归因于"元数据随机 I/O + 无 special vdev"是**合理假设，但本次没有测量验证**。同样能解释 62 MiB/s 的还有：
 
-> 由此引出规范 **D17**（待评估）：万兆对该负载严重过剩，可换 2.5G 腾出 PCIe 槽位加 special vdev。但 special vdev **必须镜像且不可移除**，是单向决定；建议先试可逆的 L2ARC。
+- **PBS sync 的 `worker-threads` 默认为 1** —— 单线程串行拉取本身就可能是限制
+- 源端也是机械盘，**读取侧**同样有寻道开销
+- TLS 加解密、chunk 校验的 CPU 开销
+- 目标端 zvol 的同步写行为
 
-## 6. 排查方法上的教训
+> **教训**：迁移时没有采集 `zpool iostat -v 1`、`iostat -x 1`、CPU 与 worker 利用率，所以只能排除网络，无法定位真凶。**下次应在传输期间抓这些数据** —— 否则事后只能推测。
 
-本次和同日的 [ESXi 链路抖动笔记](./2026-08-11-esxi-link-flapping-dampening.md) 一样，多次在**不完整信息上下判断**：
+**这也影响了后续决策的可靠性**：规范 **D17**（换 2.5G 网卡腾槽位加 special vdev）的动机来自这个未经验证的归因。在实测确认瓶颈之前，D17 属于**基于假设的提案**。
 
-| 错误 | 教训 |
-|---|---|
-| `pgrep -f "qm create 113"` 匹配到**自己的命令行**，误报任务仍在运行（实际早已 `TASK OK`） | 用 `pgrep` 匹配含自身参数的字符串时必须排除自己，或改查任务日志 |
-| 用 `zfs list` 的 `REFER` 判断导入进度，得出"卡住"的结论 | 进度应看权威来源——`/var/log/pve/tasks/` 下的任务日志有精确百分比 |
-| 轮询脚本因工作目录被重置而全部空转，一度以为任务无进展 | 脚本失败与任务无进展是两件事，输出为空时先验证工具本身 |
+> ⚠️ **一个已被指出的错误**：早先版本建议"先试可逆的 L2ARC 再考虑 special vdev"。**这个建议是错的** —— L2ARC 是**读缓存**，对 sync 期间的 chunk 创建、目录元数据更新、数据写入毫无帮助，冷数据全量拉取更没有命中机会。要可逆地验证写入侧瓶颈，应该测 pool 的实际 I/O、提高 sync 并发、或临时同步一组数据到 SSD 做对照。
 
-## 7. 下次迁移的正确顺序
+## 6. 下次迁移的正确顺序
 
-1. **备份 PBS 自身配置**（`/etc/proxmox-backup/` 打包并拉到异地）—— 唯一不可逆的风险点
-2. 目标端建 zvol，设 `refreservation`，**关闭 ZFS 压缩**（PBS 已压缩，实测 compressratio 仅 1.01x）
-3. V2V 导入系统盘；**同时改 MAC**（避免与源冲突）—— 但改 MAC 前先确认客户机的接口命名不依赖 MAC
-4. 装 `qemu-guest-agent`
-5. 目标盘格式化（XFS）、挂载、写 `fstab`
-6. **`datastore create`**（不要只改配置路径）
-7. 配 remote + sync job，拉取数据
-8. **恢复 ACL**（对照第 1 步的备份）
-9. **改备份组 owner** 为客户端实际使用的 auth-id
-10. 全量 verify
-11. 源端关机 → 目标端改回原 IP
-12. 跑一次真实备份，确认能**增量复用**历史快照
-13. 源端保留两周再销毁
+> 早先版本的步骤表遗漏了**临时 IP** 与**切点屏障**两处，照抄会踩坑。以下为修订版。
 
-## 8. Q&A 摘要
+**准备**
+
+1. **备份 PBS 自身配置** —— `/etc/proxmox-backup/` 打包并拉到异地。这是**第一个必须建立的回滚保障**（但它救不了 datastore 数据，见下方风险清单）
+2. 清点源端配置：`datastore.cfg`、`acl.cfg`、`sync.cfg`、`prune.cfg`、`verification.cfg`
+3. 目标端建 zvol，设 `refreservation`。本环境实测 compressratio 仅 1.01x（PBS 已自行压缩）故关闭 ZFS 压缩 —— **这是本地调优结论，不是通用步骤**
+
+**导入（源端保持关机）**
+
+4. V2V 导入系统盘。⚠️ **系统盘带着源端的静态 IP**，光改 MAC 不解决 IP 冲突
+5. **目标端首次启动前先断开虚拟网卡**（`qm set <id> --net0 ...,link_down=1`），或确保源端仍关机
+6. 经 **PVE 控制台**（noVNC）进入目标：装 `qemu-guest-agent`、配**临时 IP**、把接口命名改成不依赖 MAC
+7. 关机 → 改 MAC → 启动 → 确认目标端网络正常
+
+**数据传输**
+
+8. 目标盘格式化、挂载、写 `fstab`（按 UUID）
+9. `datastore remove`（**不带 `--destroy-data`**）→ `datastore create`，**并重新指定 `--gc-schedule` 等属性**
+10. **恢复 ACL**（对照第 1 步备份）—— 必须在 sync 之前，否则第 11 步指定 owner 会失败
+11. 建 remote + sync job，**`--owner` 直接设为最终客户端的 auth-id**（省掉事后批量 `change-owner`）
+12. 启动源端 → 首轮全量 sync
+    - 建议同时采集 `zpool iostat -v 1` / `iostat -x 1` / CPU 与 worker 利用率，以便定位瓶颈
+    - `--remove-vanished` 保持关闭，避免迁移期间传播误删
+
+**切换**
+
+13. **建立切点屏障**：暂停 PVE 侧备份作业与源端的 prune/GC → 等在途任务结束 → **再跑一次增量 sync** → 比对两端的组数、快照数与最新时间
+14. 全量 verify
+15. 源端关机 → 目标端改回原 IP
+16. 跑一次真实备份，确认日志里有 `Downloading previous manifest` 与 `reused X%`
+
+**源端销毁的门槛（不是时间）**
+
+17. 以下**全部满足**才可销毁源端，两周只是最短观察期：
+    - 完成**一台代表性 VM/CT 的实际恢复并启动验证**
+    - 完成一次计划内备份 + 一次后续增量
+    - 迁移后 datastore 全量 verify 通过
+    - 两端组/快照清单一致
+    - 期间源端应**禁用 autostart 并断开虚拟网卡**，防止误启动造成 IP 冲突
+
+> ⚠️ **不可逆操作清单**（不止配置备份那一处）：格式化错误的块设备、`datastore remove --destroy-data true`、提前销毁源端、误加**单盘** special vdev、在唯一副本上误运行 prune/GC。每一处动手前都应确认目标并有停止条件。
+
+## 7. Q&A 摘要
 
 **Q：V2V 之后 PBS 服务起来了，是不是就迁移完了？**
 A：不是。datastore 数据在物理盘上，不随虚机迁移。此时 PBS 服务在跑但 datastore 不可用。
@@ -153,12 +204,12 @@ A：两个证据。一是全量 `verify`（校验每个 chunk 的哈希）；二
 A：瓶颈是元数据密集的随机 I/O，不是带宽。113,895 个 chunk 散列写入 65536 个目录，机械盘寻道主导，且 `tank` 无 special vdev。
 
 **Q：`Cannot find datastore ... check permissions and existence` 是什么意思？**
-A：措辞有误导性。datastore 通常存在，问题在**权限**——检查 ACL 是否覆盖了该客户端使用的 auth-id。
+A：这条消息**同时覆盖两类原因** —— datastore 名称/状态不可用，以及 auth-id 缺少权限。本次是后者（ACL 丢失），但排查时两者都要查，不能直接跳到权限。
 
 **Q：迁移后旧 PBS 能马上删吗？**
 A：不能。它是唯一的回滚路径，尤其在已决定不做两级副本（D15）的前提下——删掉后新 PBS 的 datastore 就是全世界唯一一份。建议关机保留两周。
 
-## 9. 遗留项
+## 8. 遗留项
 
 - **恢复能力仍只验证到文件级。** verify 通过、增量复用正常，但**从未实际还原过一台虚机**。规范 v1.9 记录的这条遗留项依然开着，且现在多了一层含义：迁移后的数据从未被真正用于恢复。
-- 旧 PBS（ESXi Vmid 47）已关机待命，数据完好，建议保留两周。
+- 旧 PBS（ESXi Vmid 47）已关机待命，数据完好。**销毁门槛见第 6 节第 17 步 —— 时间不是条件**；在整机恢复验证完成前不应销毁。
