@@ -1,8 +1,10 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.9
-> **日期**: 2026-08-08
+> **版本**: 1.10
+> **日期**: 2026-08-11
 > **状态**: 阶段一实施完成（步骤 1–8）；阶段二**阻塞于步骤 9** 的内存实测
+>
+> **v1.10 变更（2026-08-11，pve1 硬件变更与系统重装）**：pve1 的 2.5" SATA 系统盘换为 **256GB NVMe**（SAMSUNG MZVLB256HAHQ-000L7），且本次重装采用 **ext4 + LVM-thin 而非 ZFS 根**，故 pve1 **不再有 `rpool`**；集群 `local-zfs` 已限定 `--nodes pve0`。万兆网卡 **ConnectX-3 损坏，更换为 ConnectX-4 Lx 双口**（`mlx5_core`），实测单流 9.30 Gbits/sec、并行 9.42 Gbits/sec，Linux bridge 即可跑满，无需 OVS。内存**扩容至 32GB**，[D12](#d12--pbs-阶段一暂留-esxi迁移与否由实测内存决定) 的"16GB 不扩容"前提消失。系统盘更换过程验证了 5.3 节"系统盘无冗余、重装即可"的设计假设：`mainpool` 与 `tank` 数据零丢失，guest 配置由 pmxcfs 在 pve0 侧完整保留。`tank` 的两块 WD 6TB 物理连接方式不变（M.2-SATA 适配器 ASM1064）。
 > **取代文档**: [pbs-iscsi-veeam-spec.md](../archive/pbs-iscsi-veeam-spec.md)、[pbs-iscsi-veeam-guide.md](../archive/pbs-iscsi-veeam-guide.md)、[veeam-backup-deployment-guide.md](../archive/veeam-backup-deployment-guide.md)
 >
 > **v1.1 变更**：M920Q 内存确定为 16GB（不扩容）；NVMe 确定保留单块 1TB，**取消 special vdev 方案**；Windows/AD 虚机确定迁往 M920Q 且长期驻留；PBS **第一阶段暂留 ESXi**，视实测内存再定；修正 datastore 容量口径。
@@ -301,6 +303,10 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 **代价**：阶段一 **Proxmox 虚机的备份仍受制于 T7910 手动开机**，这是本次事故的直接成因之一，阶段一并不解决。
 
+> **2026-08-11 更新 —— 本决定的前提已消失。** M920Q 已扩容至 **32GB**，"内存固定 16GB 不扩容"不再成立，PBS 所需的 3–4GB 无需再从 ARC 或 Windows 虚机挤占。
+>
+> 但**步骤 9（实测内存占用）仍应执行**：判据从"是否挤得出 3–4GB"变为"扩容后的真实余量与 ARC 调优空间"。同时 [D8](#d8--pbs-以-lxc--bind-mount-部署而非虚机) 的 LXC 部署方式、以及**迁移前重新实测 datastore 容量**（事故后已由 81G 增至约 373.7 GiB，原 130G 基线作废）两项要求不变。
+
 ### D13 — T7910 的 WOL：原判断已被推翻，方案重新可行
 
 **已证实**：原设计文档中「每周六 00:00 由 pve0 cron 发 WOL 唤醒 T7910」**从未实现**（pve0 上无 crontab、无 systemd timer、无任何 WOL 工具）。
@@ -408,14 +414,15 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 | 部件 | 规格 | 备注 |
 |---|---|---|
 | 机型 | Lenovo ThinkCentre M920Q Tiny (1L)，集群节点 **pve1** | |
-| 内存 | **16GB（固定，不扩容）** | 见 5.1 预算 |
-| M.2 2280 槽 ① | **1TB NVMe** — 虚机/容器存储（+ 可选 L2ARC 分区） | 见 D10 |
-| M.2 2280 槽 ② | M.2 转 SATA 适配器 → 2× WD 6TB | 原 256GB NVMe 拆除让位；芯片型号需确认，见 5.2 |
-| PCIe riser | 万兆网卡 | **限长 110mm**（LSI SAS3008 长 167.65mm，装不下，见 D6） |
-| 2.5" SATA 位 | **PVE 系统盘（仅 OS，不参与任何存储池）** | |
+| 内存 | **32GB**（2026-08-11 扩容，原 16GB） | 见 5.1 预算；解除 D12 的内存约束 |
+| M.2 2280 槽 ① | **1TB NVMe**（MSI M450 1TB）— 虚机/容器存储 `mainpool` | 见 D10 |
+| M.2 2280 槽 ② | M.2 转 SATA 适配器（ASM1064）→ 2× WD 6TB | 原 256GB NVMe 拆除让位，见 5.2 |
+| PCIe riser | **Mellanox ConnectX-4 Lx 双口**（`15b3:1015`，`mlx5_core`） | 原 ConnectX-3 于 2026-08-10 损坏后更换，见 5.4 |
+| 2.5" SATA 位 | **已弃用**（原 PVE 系统盘所在） | 2026-08-10 起系统盘改为 NVMe |
+| **PVE 系统盘** | **256GB NVMe**（SAMSUNG MZVLB256HAHQ-000L7），**ext4 + LVM-thin，非 ZFS** | 无 `rpool`；见 5.3 |
 | 磁盘供电 | 外置一拖 N 适配器 | 见 9.2 风险 |
 
-### 5.1 内存预算（16GB）
+### 5.1 内存预算（扩容后 32GB）
 
 **阶段一**（PBS 留在 T7910）：
 
@@ -507,7 +514,7 @@ queue depth 1 与 `max_performance` 目前仅为运行时诊断设置，重启�
 
 | 载体 | 用途 | 冗余 |
 |---|---|---|
-| 2.5" SATA | PVE 系统盘，仅 OS | 无（重装即可，配置在 Ansible 里） |
+| 256GB NVMe（`ext4` + LVM-thin） | PVE 系统盘，仅 OS | 无（重装即可，配置在 Ansible 里） |
 | 1TB NVMe（`mainpool` 池，已存在） | 虚机/容器磁盘 + 可选 L2ARC 分区 | **无**——见下方说明 |
 | 2× WD 6TB（`tank` 池） | 全部备份数据 | ZFS mirror |
 
@@ -524,6 +531,42 @@ queue depth 1 与 `max_performance` 目前仅为运行时诊断设置，重启�
 **强制要求**：全部必须配置 quota / refreservation，任一不得无限增长——这正是原 spec 标注了风险却从未实施的那一条。**具体数值待第 9 节确认后填入。**
 
 **延期评估：持久化 L2ARC**。M920Q 的 ARC 只有 2GB，而 `tank` 没有 special vdev（元数据全在机械盘上）。理论上可在 NVMe 上划分缓存分区，但该 NVMe 为 DRAM-less 且与虚机争用 HMB；现阶段不实施。待 PBS 迁入并实测 GC/verify 后再评估，且须计入 L2ARC 索引占用的 ARC 内存。
+
+### 5.4 网卡与桥接（2026-08-10 更换）
+
+原 **ConnectX-3**（`15b3:1003`，`mlx4`）于 2026-08-10 损坏，BIOS 已无法识别，更换为 **ConnectX-4 Lx 双口**（`15b3:1015`，`mlx5_core`，接口 `enp1s0f0np0` / `enp1s0f1np1`）。
+
+换卡是被动的，但换到的型号更适合长期使用：`mlx4` 已随 ConnectX-3 进入 EOL 维护模式，`mlx5` 仍在主线活跃开发；CX-4 Lx 功耗更低（对 1L 机箱与外置电源砖有实际意义）；且多出一个口，以后可做 LACP 或链路冗余。
+
+**实测吞吐**（pve1 ↔ pve0，MTU 1500）：
+
+| 方向 | 带宽 | 重传 |
+|---|---|---|
+| pve1 → pve0 单流 | 9.30 Gbits/sec | 0 |
+| pve1 → pve0 并行 4 流 | 9.42 Gbits/sec | 0 |
+| pve0 → pve1 反向 | 8.93 Gbits/sec | 96 |
+
+MTU 1500 下 10GbE 的 TCP 理论上限约 9.4 Gbits/sec，**已达线速**。
+
+> **"只有 OVS 才能跑满万兆"的说法不成立。** pve1 用的是 **Linux bridge**、pve0 是 OVS，流量两种桥都经过，双向均接近线速。Proxmox 官方论坛的结论一致：OVS 的性能优势仅来自 DPDK，而 PVE 未实现 DPDK 支持；OVS 反而 CPU 占用更高。pve1 保持 Linux bridge，不引入 `openvswitch-switch` 依赖。
+>
+> 真实瓶颈在磁盘：`tank` 是两块机械盘的 mirror，顺序约 180MB/s ≈ 1.6 Gbits/sec，网络余量约四倍。因此**不启用 jumbo frame**——收益有限且要求全路径一致。
+
+**桥接布局**（两节点结构一致，仅桥实现不同）：
+
+| 桥 | 接口 | 地址 | 用途 |
+|---|---|---|---|
+| `vmbr1` | 万兆光口 | pve0 `.50` / pve1 `.51`（含 gateway） | **业务流量**（全部 guest 挂此桥） |
+| `vmbr0` | 千兆电口 | pve0 `.20` / pve1 `.21`，`metric 200` | **管理 + 集群**（设计意图），当前**未接线** |
+
+同网段双接口靠 `post-up` 手工设定 metric 区分优先级，出向流量恒走 `vmbr1`。
+
+> **接电口前必须先关弱主机模型。** 两节点当前均为 `arp_ignore=0` / `arp_announce=0`，电口一旦 up，两个口会同时应答同一 IP 的 ARP（ARP flux），回程路径变成竞态，可能落到千兆口上。前置步骤：
+> ```
+> net.ipv4.conf.all.arp_ignore = 1
+> net.ipv4.conf.all.arp_announce = 2
+> ```
+> 之后再把 corosync 的 ring0 切到电口、ring1 留给光口，使集群流量真正与业务流量分离（当前 ring0 在光口上，与设计意图相反）。
 
 ---
 
