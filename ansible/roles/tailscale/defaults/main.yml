@@ -3,6 +3,12 @@
 # Note: tailscale_auth_key is defined in inventory/group_vars/tailscale.yml (vault indirect reference)
 tailscale_dns_server: "192.168.1.1"
 
+# Search domain written alongside the resolver when the takeover is off. Kept
+# separate from the tailnet's own suffix on purpose: PVE derives a node's
+# certificate CN from the first entry here, so letting wyrm-wall.ts.net lead
+# produced certs named pve0.wyrm-wall.ts.net.
+tailscale_dns_search: "willfan.me"
+
 # Whether Tailscale may take over /etc/resolv.conf (MagicDNS + split DNS).
 # True suits roaming clients that resolve peers by <host>.<tailnet>.ts.net.
 # Set false on always-on infrastructure: the takeover points the resolver at

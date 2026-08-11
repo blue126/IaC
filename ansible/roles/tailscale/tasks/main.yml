@@ -76,6 +76,32 @@
   # e.g. when the key has expired.
   no_log: true
 
+# Must run after `tailscale up`, because that is what clears the file.
+#
+# With --accept-dns=false, tailscaled hands /etc/resolv.conf back by restoring
+# whatever it saved before it took DNS over. On pve0 that pre-takeover copy was
+# long gone, so on 2026-08-11 the hand-back wrote a file containing a `search`
+# line and no nameserver at all. The host ran without DNS for twelve hours --
+# long enough to break apt, certificate renewal and, as it happened, the very
+# notification rework that was meant to stop outages going unnoticed.
+#
+# pve1 escaped only by accident: it was reinstalled the day before, so Tailscale
+# came up with the takeover already off and never had DNS to give back.
+#
+# The LXC branch above has always declared a resolver. Hypervisors never did.
+- name: Ensure a resolver survives Tailscale handing DNS back (hosts, not LXC)
+  copy:
+    dest: /etc/resolv.conf
+    content: |
+      search {{ tailscale_dns_search }}
+      nameserver {{ tailscale_dns_server }}
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - ansible_facts.virtualization_type != 'lxc'
+    - not (tailscale_accept_dns | bool)
+
 - name: Get Tailscale IPv4
   command: tailscale ip -4
   register: tailscale_ip

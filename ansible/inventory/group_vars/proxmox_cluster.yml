@@ -15,4 +15,11 @@
 # after MagicDNS previously broke Ansible SSH (docs/troubleshooting/
 # network-connectivity.md), and the only .ts.net strings left in the repo are
 # debug messages. Roaming clients keep the default of true.
+#
+# Turning the takeover off is not enough on its own: tailscaled hands
+# /etc/resolv.conf back by restoring its pre-takeover copy, and on a host where
+# that copy is gone the restore yields a file with no nameserver at all. That
+# cost pve0 twelve hours of DNS on 2026-08-11. The tailscale role therefore
+# writes an explicit resolver afterwards -- see its "Ensure a resolver survives
+# Tailscale handing DNS back" task.
 tailscale_accept_dns: false
