@@ -2,8 +2,8 @@
 
 这个目录包含基础设施即代码 (IaC)、网络、应用部署等领域的学习笔记和故障排查记录。
 
-**最后更新**: 2026-02-16
-**文档数量**: 34 篇
+**最后更新**: 2026-08-11
+**文档数量**: 35 篇
 **覆盖范围**: Terraform, Ansible, Proxmox, Netbox, Tailscale, LXC, n8n, Immich, RustDesk, LLM 等
 
 ---
@@ -24,6 +24,7 @@
 
 | 日期 | 标题 | 标签 | 状态 | 摘要 |
 |------|------|------|------|------|
+| 2026-08-11 | [ESXi 链路抖动抑制导致的"插回原端口也不恢复"故障](./2026-08-11-esxi-link-flapping-dampening.md) | ESXi, Networking, Troubleshooting, NTP, vSwitch | **Active** | 抖动抑制主动停用网卡且不自动恢复；NTP 未启用导致日志时间偏差 11 小时；排查中多个基于不完整信息的错误判断 |
 | 2026-02-16 | [MiniMax M2.5 LLM Server 部署经验教训](./2026-02-16-llm-server-deployment-lessons.md) | LLM, Ansible, ESXi, GPU, Deployment, ik_llama.cpp | **Active** | 模型仓库变更、Ansible 模块兼容性、VM 环境特殊性、大文件下载幂等性 |
 
 ### 2026-01-31
