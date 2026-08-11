@@ -3,7 +3,7 @@
 这个目录包含基础设施即代码 (IaC)、网络、应用部署等领域的学习笔记和故障排查记录。
 
 **最后更新**: 2026-08-11
-**文档数量**: 35 篇
+**文档数量**: 36 篇
 **覆盖范围**: Terraform, Ansible, Proxmox, Netbox, Tailscale, LXC, n8n, Immich, RustDesk, LLM 等
 
 ---
@@ -24,6 +24,7 @@
 
 | 日期 | 标题 | 标签 | 状态 | 摘要 |
 |------|------|------|------|------|
+| 2026-08-11 | [PBS 从 ESXi V2V 迁移到 PVE 的经验教训](./2026-08-11-pbs-v2v-migration-lessons.md) | PBS, ESXi, PVE, V2V, ZFS, Migration | **Active** | V2V 搬不走 datastore；MAC 冲突与接口命名连锁；重建 datastore 丢 ACL；备份组 owner 不匹配；62 MiB/s 的瓶颈在元数据随机 I/O 而非网络 |
 | 2026-08-11 | [ESXi 链路抖动抑制导致的"插回原端口也不恢复"故障](./2026-08-11-esxi-link-flapping-dampening.md) | ESXi, Networking, Troubleshooting, NTP, vSwitch | **Active** | 抖动抑制主动停用网卡且不自动恢复；NTP 未启用导致日志时间偏差 11 小时；排查中多个基于不完整信息的错误判断 |
 
 ### 2026-02-16

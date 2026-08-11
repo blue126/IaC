@@ -276,6 +276,8 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 **补偿措施**：因失去 special vdev，`tank` 的元数据将全部落在 5400rpm 机械盘上，PBS 的 GC/verify 会变慢。可在 NVMe 上划 100–200GB 作**持久化 L2ARC**（ZFS 2.x 支持跨重启保留，且缓存丢失无害）来部分补偿。
 
+> **2026-08-11 更新 —— 本决定的约束条件可被绕开，见 [D17](#d17--待评估以-25g-网卡换出-pcie-槽位为-tank-加-special-vdev)。** D10 成立的前提是"M920Q 只有两个 M.2 槽，其一必须让位给 SATA 适配器"，因此无法凑出两块盘做镜像。但 **PCIe riser 上还有一条 x8 链路**（当前被万兆网卡占用），配合支持 bifurcation 的 M.2 转接卡可拆出 2×x4，从而获得组建 **镜像 special vdev** 所需的两块 NVMe。D10 关于"单盘 special vdev 不可接受"的核心论点依然成立且必须坚持。
+
 ### D11 — pve1 保留在集群内，pve2 退役
 
 **选择**：M920Q（即 pve1）继续作为 `HomePVECluster` 成员。
@@ -382,6 +384,52 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 **相较原架构的改善**：§1.2 抱怨的"ZFS 住在客机里、宿主看不到自己的数据盘"在此方案下**消失**——物理盘由宿主机的 `tank` 管理，PBS 只获得一块虚拟磁盘，SMART 与池健康在宿主侧即可查看。
 
 **强制要求**：该 zvol 必须设 `refreservation`，防止与 `tank/timemachine` 互相挤爆（§5.3 既有要求）。
+
+### D17 — 待评估：以 2.5G 网卡换出 PCIe 槽位，为 `tank` 加 special vdev
+
+**状态**：**待评估**，非既定方案。触发点是迁移实测数据。
+
+**观察到的问题**：PBS datastore 迁移实测 **平均 62.45 MiB/s**（373.185 GiB / 113895 chunks）。远低于 `tank` 约 180 MB/s 的顺序写能力，也远低于万兆链路的 1160 MB/s。瓶颈是 **元数据密集的随机 I/O** —— 每个 chunk 约 3.35 MiB，需分散写入 65536 个目录，而 `tank` **没有 special vdev**，元数据全部落在 5400rpm 机械盘上，与数据争抢磁头。
+
+**提案**（用户提出）：
+
+1. 万兆 ConnectX-4 Lx 换成 **2.5G 网卡**，腾出 PCIe riser 的 x8 槽位
+2. 槽位改插**支持 bifurcation 的 M.2 转接卡**（x8 → 2×x4）
+3. 两块 NVMe 组 **镜像 special vdev** 加入 `tank`
+
+**万兆确实过剩**（实测支撑）：
+
+| 负载 | 实测/理论速率 |
+|---|---|
+| PBS sync | 62 MiB/s ≈ **0.5 Gbit/s** |
+| `tank` 顺序写上限 | 180 MB/s ≈ **1.44 Gbit/s** |
+| 2.5GbE | 312 MB/s ≈ 2.5 Gbit/s |
+| 万兆实测 | 9.3 Gbit/s |
+
+`tank` 相关的全部负载连千兆都跑不满，2.5G 有充分余量。**唯一可能受影响的是 `mainpool` 之间的虚机迁移**（NVMe→NVMe 可跑满万兆），需按迁移频率权衡。
+
+**可行性已由旧 PBS 验证**：T7910 上的 `backup-pool` 正是此方案 ——
+
+```
+backup-pool
+  mirror-0        sdb + sdc          2× HGST 8TB
+  special
+    mirror-1      nvme0n1 + nvme1n1  2× Samsung SM963（镜像）
+```
+
+两块 NVMe 位于 `03:01.0` / `03:02.0`，**同总线不同 device 号，即 bifurcation 拆分的结果**。
+
+> 早前记录称"T7910 的 BIOS 不支持 bifurcation，故两块 NVMe 各用独立 adapter 卡"（见 §2.1 表注与 `docs/deployment/pbs-esxi-deployment.md`），**该记录有误**，已由上述 PCI 拓扑推翻。
+
+**必须坚持的约束**：
+
+- **special vdev 必须镜像。** 它存的是元数据而非缓存，单盘损坏 = 整池不可导入。D10 的这一论点不因槽位增加而改变。
+- **pve1 的 riser 是 x8，最多拆出 2×x4**，即 2 块 NVMe —— 恰好够镜像，**没有冗余余量**。旧 PBS 那张 4 盘位转接卡在 pve1 上只能用一半。
+- **`zpool add special` 不可逆。** 含 special vdev 的池不支持 device removal，这是**单向决定**。
+
+**零硬件改动的替代方案**：在 `mainpool` 上划分区做**持久化 L2ARC**。D10 的"补偿措施"已提出过，§5.2.2 当时因"ARC 仅 2GB，L2ARC 索引还要占 ARC"而暂缓 —— **该理由已随内存扩容至 32GB、ARC 提升至 8GiB 而弱化**。L2ARC 的关键优势是**损坏无害**（仅缓存），没有 special vdev 的单向风险。
+
+**建议评估顺序**：先试 L2ARC（可逆、零成本），实测收益不足再考虑 special vdev。
 
 ---
 

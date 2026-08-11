@@ -55,7 +55,7 @@
 
 **存储特性**：
 - **ZFS Mirror Pool**: 2 × 8TB HDD（通过 LSI 3008 HBA 直通）
-- **ZFS Special vdev**: 可选升级（当前未启用，需要 PCIe bifurcation 支持）
+- **ZFS Special vdev**: **已启用** —— 2× Samsung SM963 NVMe 组镜像（`special mirror-1`），经 bifurcation 拆分接入
 - **性能优化**: 针对 PBS 工作负载的 ZFS 参数调优
 - **数据保护**: Mirror 冗余 + ZFS 校验和
 
@@ -176,7 +176,7 @@ Verification (Automated)
 | **Network** | VMXNET3 (1Gbps) | 备份数据传输 | 可升级到 10Gbps |
 | **HBA Card** | LSI 3008 IT Mode | HDD 直通，JBOD 模式 | IT 固件必须，非 IR 模式 |
 | **Data Disks** | 2 × 8TB HDD (SATA) | 主数据存储 | 通过 HBA 连接 |
-| **Cache Disks** | 2 × 256GB NVMe | 元数据 + 小文件加速 | ❌ 暂不可用 - 需要 bifurcation 支持 |
+| **Cache Disks** | 2 × 256GB NVMe (Samsung SM963) | 元数据 + 小文件加速 | ✅ **已启用** —— `special mirror-1`，见下方更正 |
 
 **关键配置要求**：
 - ✅ BIOS/UEFI 启用 VT-d/IOMMU
@@ -200,7 +200,22 @@ backup-pool (总容量: ~7.3TB 可用)
     • 网络瓶颈: 1Gbps = 125 MB/s（实际限制）
 ```
 
-**未来可选升级（需解决 bifurcation 问题）**：
+> ⚠️ **更正（2026-08-11）**：本文档多处称 special vdev "需要 bifurcation 支持"而"暂不可用"，**该记录有误**。实际 `backup-pool` 早已启用 special vdev：
+>
+> ```
+> backup-pool
+>   mirror-0        sdb + sdc          2× HGST 8TB
+>   special
+>     mirror-1      nvme0n1 + nvme1n1  2× Samsung SM963（镜像）
+> ```
+>
+> 两块 NVMe 位于 `03:01.0` / `03:02.0` —— **同一总线、不同 device 号，正是 bifurcation 拆分的结果**，说明该转接卡与主板均支持 bifurcation。
+>
+> 另注意 `special_small_blocks = recordsize = 128K`，意味着几乎所有 ≤128K 的块都优先落 NVMe，已超出"仅元数据"的范畴（special vdev 实占 48.5G / 20.4%）。若只想缓存元数据，通常设 32K/64K。
+>
+> 该方案的可行性已被引用为 pve1 加装 special vdev 的先例，见备份架构整合规范 D17。
+
+**以下为原文记录的"未来可选升级"，其前提（bifurcation 不可用）已不成立**：
 ```
 backup-pool (升级配置: ~8TB 数据 + ~220GB 元数据)
 │
