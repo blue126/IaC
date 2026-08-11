@@ -2,3 +2,12 @@
 # Tailscale configuration
 # Note: tailscale_auth_key is defined in inventory/group_vars/tailscale.yml (vault indirect reference)
 tailscale_dns_server: "192.168.1.1"
+
+# Whether Tailscale may take over /etc/resolv.conf (MagicDNS + split DNS).
+# True suits roaming clients that resolve peers by <host>.<tailnet>.ts.net.
+# Set false on always-on infrastructure: the takeover points the resolver at
+# 100.100.100.100, which only tailscaled itself answers, so DNS dies with the
+# daemon. It also feeds that address to LXC guests that don't set their own
+# nameserver, and it puts the tailnet domain first in `search`, which PVE uses
+# to build the certificate CN. See group_vars/proxmox_cluster.yml.
+tailscale_accept_dns: true

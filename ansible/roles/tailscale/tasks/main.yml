@@ -65,10 +65,16 @@
   register: tun_device
 
 - name: Bring up Tailscale
-  command: tailscale up --authkey={{ tailscale_auth_key }} --ssh --reset --accept-risk=lose-ssh
+  command: >-
+    tailscale up --authkey={{ tailscale_auth_key }} --ssh --reset
+    --accept-risk=lose-ssh
+    --accept-dns={{ tailscale_accept_dns | bool | lower }}
   when: tun_device.stat.exists
   register: tailscale_up
   changed_when: "'Success' in tailscale_up.stdout"
+  # Without this the auth key is echoed in full whenever the task fails,
+  # e.g. when the key has expired.
+  no_log: true
 
 - name: Get Tailscale IPv4
   command: tailscale ip -4

@@ -1,2 +1,18 @@
 ---
-
+# Keep Tailscale out of /etc/resolv.conf on the hypervisors.
+#
+# With the takeover on, resolv.conf points at 100.100.100.100 (answered only by
+# the local tailscaled) and lists the tailnet domain first in `search`. Three
+# consequences, all of which have bitten this repo:
+#
+#   1. tailscaled going down takes host DNS with it, on machines that run 24x7.
+#   2. LXC guests without an explicit nameserver inherit 100.100.100.100 from
+#      the host and lose DNS entirely, since they don't run tailscaled.
+#   3. PVE builds its certificate CN as <nodename>.<first search domain>, so
+#      certs came out as pve0.wyrm-wall.ts.net instead of pve0.willfan.me.
+#
+# Nothing here resolves peers by <host>.ts.net -- the inventory uses LAN IPs
+# after MagicDNS previously broke Ansible SSH (docs/troubleshooting/
+# network-connectivity.md), and the only .ts.net strings left in the repo are
+# debug messages. Roaming clients keep the default of true.
+tailscale_accept_dns: false
