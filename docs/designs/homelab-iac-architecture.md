@@ -1,6 +1,6 @@
 # Homelab IaC 系统架构文档
 
-**Last Updated**: 2026-02-05  
+**Last Updated**: 2026-08-12
 **Status**: ✅ Active  
 **Owner**: Homelab IaC Project
 
@@ -161,18 +161,24 @@ module "netbox" {
 
 ```
 Proxmox VE Cluster
-├── QEMU VMs (Ubuntu 22.04/24.04)
+├── QEMU VMs (Ubuntu 22.04/24.04 + Windows Server)
+│   ├── immich (VMID 101)        # 照片管理
+│   ├── rustdesk (VMID 102)      # 远程桌面
 │   ├── netbox (VMID 104)        # IPAM/DCIM
-│   ├── immich (VMID 105)        # 照片管理
-│   ├── jenkins (VMID 106)       # CI/CD
-│   ├── n8n (VMID 107)           # 工作流自动化
-│   └── rustdesk (VMID 108)      # 远程桌面
+│   └── windows-server (VMID 112) # AD DS + Veeam VBR
 │
 └── LXC Containers (Debian 12)
+    ├── anki (VMID 100)          # Anki 同步服务器
     ├── homepage (VMID 103)      # Dashboard
-    ├── anki (VMID 109)          # Anki 同步服务器
-    └── caddy (VMID 110)         # 反向代理
+    ├── caddy (VMID 105)         # 反向代理
+    ├── n8n (VMID 106)           # 工作流自动化
+    ├── jenkins (VMID 107)       # CI/CD
+    └── fileserver (VMID 111)    # 文件与 Time Machine 存储
 ```
+
+> **退役状态（2026-08-12）**：pve0 的 LXC 109 `claude-agent` 已通过
+> Terraform 定向 saved plan 销毁，手工 VM 110 `claude-desktop` 已在优雅关机后
+> 通过 Proxmox 原生命令销毁。两者已从活动备份作业移除，对应 PBS 恢复点也已删除。
 
 ### 存储架构
 
@@ -721,8 +727,11 @@ terraform/netbox-integration/
 │        ▲                                                     │
 └────────┼─────────────────────────────────────────────────────┘
          │ PBS Client（每日 02:00，snapshot + zstd）
-   pve0 上的 VM/LXC：100-107、109、110
+   pve0 上的活动备份目标（退役完成后的期望集合）：100–107
 ```
+
+> 109/110 已于 2026-08-12 完成仓库与生产退役。Proxmox 活动作业只包含
+> 100–107，PBS 中 `ct/109`、`vm/110` 的全部恢复点已删除。
 
 **pve1 不加入 PBS 备份作业** —— 它是 ESXi 虚机备份的落点，若再被 T7910 的 PBS 备份会形成循环备份。
 
@@ -738,7 +747,7 @@ terraform/netbox-integration/
 
 保留策略：daily 7 / weekly 4 / monthly 6。
 
-`pbs_backup_vmids` 需在新增 guest 时手工同步 —— VMID 107/109/110 曾因漏加而长期未备份，直到 2026-08-05 事故才暴露。有两个 VMID 是**故意排除**的：`108` veeam-worker（Veeam 的 PVE 插件临时部署，不由本仓库管理）、`9000` 模板（可从 Terraform/Ansible 重建）。
+`pbs_backup_vmids` 需在新增 guest 时手工同步 —— VMID 107/109/110 曾因漏加而长期未备份，直到 2026-08-05 事故才暴露；这是必须保留的历史事实。109/110 于 2026-08-12 获准连同 PBS 恢复点永久退役，当前活动集合的期望值因此收缩为 100–107。有两个 VMID 是**故意排除**的：`108` veeam-worker（Veeam 的 PVE 插件临时部署，不由本仓库管理）、`9000` 模板（可从 Terraform/Ansible 重建）。
 
 #### 遗留限制与下一阶段
 

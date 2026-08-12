@@ -1,8 +1,10 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.11
-> **日期**: 2026-08-11
-> **状态**: 阶段一完成（步骤 1–9）；**阶段二方案已定、前置条件已满足**，待 T7910 恢复网络后采集数据即可执行
+> **版本**: 1.12
+> **日期**: 2026-08-12
+> **状态**: 阶段一完成（步骤 1–9）；**阶段二方案已定、前置条件已满足**；109/110 永久退役及其仓库、备份清理已完成
+>
+> **v1.12 变更（2026-08-12，109/110 退役）**：pve0 LXC 109 `claude-agent` 与手工 VM 110 `claude-desktop` 已永久退役，两者全部 PBS 恢复点已删除。仓库与生产活动备份集合已收缩为 VMID 100–107。109 由仅含 container 与 `ansible_host` 两个 delete action 的 Terraform saved plan 销毁；110 保持非 Terraform ownership，经 guest OS 优雅关机后由 Proxmox 原生命令精确销毁。
 >
 > **v1.11 变更（2026-08-11，阶段二定案）**：步骤 9 实测完成（32GB 扩容后**可用 17 GiB**，远超 D12 要求），阶段二前置条件达成。新增两条决策：**[D15](#d15--不建立两级副本接受单副本风险2026-08-11) 取消两级副本**，将 §4.4 里"没有第二份副本"从遗留项转为**永久性设计选择**并明确记录接受的风险；**[D16](#d16--pbs-datastore-以-zvol-形式承载) 确定 PBS 以虚机 V2V 迁入、datastore 落 zvol**，取代 D8 的 LXC + bind mount 方案。§7.2 步骤表按新方案重写，原步骤 13–14（副本端）取消。
 >
@@ -153,6 +155,8 @@ backup-pool          7.50T   已用 313G (4%)   ONLINE   fragmentation 0%
 | 109 | claude-agent | LXC | 10G | ✓（2026-08-06 新增） |
 | 110 | claude-desktop | VM | 64G | ✓（2026-08-06 新增） |
 | 9000 | ubuntu-24.04-template | VM | 20G | ✗ 模板，可重建 |
+
+> 上表是 2026-08-05/06 事故恢复后的历史实测基线，保留 109/110 是为了维持事故证据链。2026-08-12 已永久退役这两个 guest 及其全部 PBS 恢复点，仓库与生产活动备份集合已收缩至 100–107。
 
 在册对象逻辑总量约 **580G**。以 immich 这类以照片为主、增量极小的负载配 7日/4周/6月 保留估算，PBS 去重后落盘量预计在 **700G–1TB** 量级。M920Q 的 6TB 有充足余量。
 
@@ -952,6 +956,15 @@ fruit:time machine max size = 1T
 - `requirements.txt`：`ansible-core` 加上界 `<2.21` 并注明原因（2.21 移除 `get_bin_path()` 的 `required` 参数，导致 `cloud.terraform` 动态 inventory 失效）
 - `CLAUDE.md`：新增 Environment 段——未经许可不得安装任何软件包
 
+### 8.5 109/110 退役（2026-08-12，已完成）
+
+- 仓库活动配置已删除 `terraform/proxmox/claude-agent.tf`、Claude Agent Ansible playbook/role/host vars。
+- Terraform saved plan 仅包含 LXC 109 与其 `ansible_host` 两个 delete action；109 优雅关机后由该计划销毁，state 与 pve0 均已确认不存在。
+- 非 Terraform 管理的 VM 110 在审计磁盘、HA 与复制关系后优雅关机，并通过不带 purge/unreferenced flags 的 `qm destroy 110` 销毁；配置与磁盘均已确认不存在。
+- `pbs_backup_vmids` 与生产作业已由 `100–107,109,110` 收缩为 `100–107`，schedule、storage、mode 与 prune 参数保持不变。
+- PBS 中仅限 `ct/109`、`vm/110` 的四份快照已删除；109/110 查询为空，现役 107 的恢复点仍可列出。
+- 历史事故记录与本规范中的 2026-08-05/06 基线保持原样，不因退役而重写。
+
 ---
 
 ## 9. 风险与未决项
@@ -1062,7 +1075,7 @@ fruit:time machine max size = 1T
 
 **当前实施中（未提交）**：Fileserver LXC Terraform 定义、root@pam 专用 provider alias、公共 LXC 模块 bind mount 支持、一次性 Time Machine 初始化 playbook、加密的 `vault_timemachine_password`。
 
-**pve0 线上作业**：备份作业 VMID 已由 100–106 改为 100–107,109,110。
+**pve0 线上作业（历史状态与当前状态）**：2026-08-06 备份作业曾由 100–106 改为 100–107,109,110。2026-08-12 仓库与生产作业均已收缩为 100–107；109/110 guest 及其对应 PBS 恢复点均已删除并核验。
 
 ### 12.3 Time Machine 切换状态
 

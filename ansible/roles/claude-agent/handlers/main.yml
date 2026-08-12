@@ -1,5 +1,0 @@
----
-- name: Restart claude-agent
-  systemd:
-    name: claude-agent
-    state: restarted

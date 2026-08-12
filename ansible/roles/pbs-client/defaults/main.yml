@@ -41,8 +41,9 @@ pbs_retention_monthly: 6
 
 # VMs/LXCs to backup (list of VMIDs)
 # All current workloads on pve0.
-# Keep this list in sync when guests are added -- 107/109/110 were created after
-# the initial 100-106 set and went unbacked-up until 2026-08-05.
+# Keep this list in sync when guests are added. VMIDs 107/109/110 were created
+# after the initial 100-106 set and went unbacked-up until 2026-08-05. Retired
+# VMIDs 109/110 were removed from this repository's active set in 2026-08.
 # Deliberately excluded:
 #   108  veeam-worker (VM)  -- transient worker appliance deployed by Veeam's
 #                              Proxmox VE plug-in, not managed by this repo
@@ -56,8 +57,6 @@ pbs_backup_vmids:
   - 105  # caddy (LXC)
   - 106  # n8n (LXC)
   - 107  # jenkins (LXC)
-  - 109  # claude-agent (LXC)
-  - 110  # claude-desktop (VM)
 
 # Target Proxmox node for backup job
 pbs_backup_node: "pve0"
