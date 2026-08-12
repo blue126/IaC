@@ -181,7 +181,7 @@ role defaults (优先级 2)          → 可覆盖的默认值
 **homepage**
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `homepage_version` | `"main"` | Git 分支/标签 |
+| `homepage_version` | `"v1.13.2"` | 固定的 Git release tag，仅在计划升级时修改 |
 | `homepage_install_dir` | `/opt/homepage` | 安装目录 |
 | `homepage_user` / `homepage_group` | `root` | 运行用户 |
 | `homepage_port` | `3000` | 监听端口 |
@@ -192,7 +192,7 @@ role defaults (优先级 2)          → 可覆盖的默认值
 | `immich_api_key` | `""` | Immich API Key |
 | `tailscale_api_key` | `""` | Tailscale API Key |
 | `tailscale_device_id` | `""` | Tailscale Device ID |
-| `nodejs_version` | `"18"` | Node.js 主版本 |
+| `nodejs_version` | `"22"` | Node.js LTS 主版本 |
 
 **immich**
 | 变量 | 默认值 | 说明 |

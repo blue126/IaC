@@ -105,6 +105,8 @@ When working on specific areas, read the relevant design doc for detailed patter
 7. **Admit uncertainty** rather than fabricate — investigate first
 8. **Ask for info incrementally** — don't request everything at once
 9. **Learning notes**: Place in `docs/learningnotes/`, follow `YYYY-MM-DD-topic.md` naming, Chinese markdown, define key concepts, include Q&A summaries
+10. **Subagents allowed**: Agents may delegate independent, clearly scoped tasks to subagents, including when an applicable skill workflow requires an independent review. The primary agent remains responsible for integrating findings and verifying the final result
+11. **Minimize deployment scope**: For configuration-only changes, run local validation first, then deploy only the relevant tags (for example `--tags config`) and run the corresponding verification tags. Use a full deployment only when the requested change requires application, dependency, or infrastructure lifecycle tasks; inspect the playbook's task scope before doing so
 
 ## OpenCode Container Environment
 
