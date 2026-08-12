@@ -62,3 +62,40 @@
           Tailscale IP: {{ tailscale_ipv4.stdout | default('Not installed') }}
           =========================================
       tags: [summary]
+
+- name: Verify Caddy Deployment
+  hosts: caddy
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Wait for WebDAV port
+      ansible.builtin.wait_for:
+        host: localhost
+        port: "{{ caddy_webdav_port | default(8080) }}"
+        timeout: 60
+
+    - name: Check WebDAV authentication challenge
+      ansible.builtin.uri:
+        url: "http://localhost:{{ caddy_webdav_port | default(8080) }}/"
+        method: GET
+        status_code: 401
+        timeout: 5
+        use_netrc: false
+      register: caddy_webdav_auth_check
+
+    - name: Assert WebDAV requests require Basic authentication
+      ansible.builtin.assert:
+        that:
+          - caddy_webdav_auth_check.www_authenticate is defined
+          - (caddy_webdav_auth_check.www_authenticate | default('')) is match('(?i)^Basic(?:\\s|$)')
+        success_msg: "WebDAV returned the expected Basic authentication challenge"
+        fail_msg: "WebDAV did not return the expected WWW-Authenticate: Basic challenge"
+
+    - name: Explain expected authentication challenge
+      ansible.builtin.debug:
+        msg: >-
+          Expected negative authentication test passed: the unauthenticated WebDAV
+          request returned HTTP 401 with a Basic challenge. This confirms that the
+          protected endpoint rejects unauthenticated access; it is not a successful
+          authenticated WebDAV request.

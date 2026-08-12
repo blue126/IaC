@@ -10,6 +10,7 @@
   hosts: n8n
   gather_facts: false
   become: true
+  tags: [verify]
   tasks:
     - name: Wait for n8n to start
       wait_for:
