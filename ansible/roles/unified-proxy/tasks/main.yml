@@ -204,15 +204,72 @@
 
 # ── 8. Caddy configuration ─────────────────────────────────────────────
 
-- name: Deploy Caddyfile
-  template:
-    src: Caddyfile.j2
-    dest: /etc/caddy/Caddyfile
-    mode: "0644"
-  notify: Restart Caddy
+- name: Configure Caddy
+  tags: [caddy-config]
+  block:
+    - name: Create temporary Caddyfile candidate
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .Caddyfile
+      register: caddyfile_candidate
+      check_mode: false
 
-- name: Enable and start Caddy
-  systemd:
-    name: caddy
-    enabled: true
-    state: started
+    - name: Render Caddyfile candidate
+      ansible.builtin.template:
+        src: Caddyfile.j2
+        dest: "{{ caddyfile_candidate.path }}"
+        owner: caddy
+        group: caddy
+        mode: "0644"
+      check_mode: false
+
+    - name: Validate Caddyfile candidate
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/caddy
+          - validate
+          - --config
+          - "{{ caddyfile_candidate.path }}"
+          - --adapter
+          - caddyfile
+      become_user: caddy
+      changed_when: false
+      check_mode: false
+
+    - name: Deploy validated Caddyfile
+      ansible.builtin.copy:
+        src: "{{ caddyfile_candidate.path }}"
+        dest: /etc/caddy/Caddyfile
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload Caddy
+
+    - name: Validate deployed Caddyfile
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/caddy
+          - validate
+          - --config
+          - /etc/caddy/Caddyfile
+          - --adapter
+          - caddyfile
+      become_user: caddy
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Enable and start Caddy
+      ansible.builtin.systemd:
+        name: caddy
+        enabled: true
+        state: started
+  always:
+    - name: Remove temporary Caddyfile candidate
+      ansible.builtin.file:
+        path: "{{ caddyfile_candidate.path }}"
+        state: absent
+      when:
+        - caddyfile_candidate is defined
+        - caddyfile_candidate.path is defined
+      check_mode: false

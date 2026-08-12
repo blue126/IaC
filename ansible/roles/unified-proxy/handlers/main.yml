@@ -9,7 +9,7 @@
     name: unified-proxy
     state: restarted
 
-- name: Restart Caddy
-  systemd:
+- name: Reload Caddy
+  ansible.builtin.systemd:
     name: caddy
-    state: restarted
+    state: reloaded
