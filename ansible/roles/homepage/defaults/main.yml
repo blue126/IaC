@@ -1,6 +1,7 @@
 ---
 # Default variables for Homepage role
-homepage_version: "main"  # Git branch or tag
+# Pin releases explicitly; update this value only during a planned upgrade.
+homepage_version: "v1.13.2"
 homepage_install_dir: /opt/homepage
 homepage_user: root
 homepage_group: root
@@ -15,5 +16,5 @@ immich_api_key: ""
 tailscale_api_key: ""
 tailscale_device_id: ""
 
-# Node.js version (Debian 12 default is sufficient)
-nodejs_version: "18"
+# Node.js LTS version required by the pinned Homepage release
+nodejs_version: "22"

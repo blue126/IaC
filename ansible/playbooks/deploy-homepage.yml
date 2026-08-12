@@ -5,16 +5,20 @@
   roles:
     - tailscale
     - homepage
-  
-  post_tasks:
+
+- name: Verify Homepage
+  hosts: homepage
+  gather_facts: false
+  tags: [verify]
+  tasks:
     - name: Verify Homepage is running
       ansible.builtin.uri:
         url: "http://{{ ansible_host }}:{{ homepage_port }}"
         status_code: 200
-      register: homepage_status
-    
+
     - name: Get Tailscale IPv4
-      command: tailscale ip -4
+      ansible.builtin.command:
+        cmd: tailscale ip -4
       register: tailscale_ipv4
       changed_when: false
       failed_when: false

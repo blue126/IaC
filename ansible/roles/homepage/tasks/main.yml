@@ -16,71 +16,59 @@
     url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
     state: present
 
-- name: Add NodeSource repository
-  ansible.builtin.apt_repository:
-    repo: "deb [arch=amd64] https://deb.nodesource.com/node_{{ nodejs_version }}.x nodistro main"
-    state: present
-    filename: nodesource
+- name: Configure NodeSource repository
+  ansible.builtin.copy:
+    content: "deb [arch=amd64] https://deb.nodesource.com/node_{{ nodejs_version }}.x nodistro main\n"
+    dest: /etc/apt/sources.list.d/nodesource.list
+    owner: root
+    group: root
+    mode: '0644'
 
 - name: Install Node.js
   ansible.builtin.apt:
     name: nodejs
-    state: present
+    state: latest
     update_cache: yes
+
+- name: Check installed Node.js version
+  ansible.builtin.command:
+    cmd: node --version
+  register: installed_nodejs_version
+  changed_when: false
+
+- name: Verify installed Node.js major version
+  ansible.builtin.assert:
+    that:
+      - (installed_nodejs_version.stdout | regex_replace('^v', '')).split('.')[0] | int == nodejs_version | int
+    fail_msg: >-
+      Expected Node.js {{ nodejs_version }}.x, but found
+      {{ installed_nodejs_version.stdout }}.
 
 - name: Install pnpm globally
   ansible.builtin.command:
     cmd: npm install -g pnpm
   changed_when: false
 
-- name: Check if Homepage repository exists
-  ansible.builtin.stat:
-    path: "{{ homepage_install_dir }}/.git"
-  register: git_repo
+- name: Deploy pinned Homepage source
+  ansible.builtin.git:
+    repo: https://github.com/gethomepage/homepage.git
+    dest: "{{ homepage_install_dir }}"
+    version: "{{ homepage_version }}"
+    update: true
+    force: true
 
-- name: Clone Homepage repository
-  ansible.builtin.shell:
-    cmd: git clone https://github.com/gethomepage/homepage.git {{ homepage_install_dir }}
-  when: not git_repo.stat.exists
-  notify: 
-    - Install Homepage dependencies
-    - Build Homepage
-    - Restart Homepage
-
-- name: Update Homepage repository
-  ansible.builtin.shell:
-    cmd: cd {{ homepage_install_dir }} && git fetch origin && git checkout {{ homepage_version }} && git pull
-  when: git_repo.stat.exists
-  register: git_pull
-  changed_when: "'Already up to date' not in git_pull.stdout"
-  notify: 
-    - Install Homepage dependencies
-    - Build Homepage
-    - Restart Homepage
-
-# Dependencies and Build are now triggered by handlers only when code changes
-# But we need to ensure they run at least once if not installed
-- name: Check if node_modules exists
-  ansible.builtin.stat:
-    path: "{{ homepage_install_dir }}/node_modules"
-  register: node_modules
-
-- name: Initial Install Homepage dependencies
+- name: Install Homepage dependencies
   ansible.builtin.command:
     cmd: pnpm install
     chdir: "{{ homepage_install_dir }}"
-  when: not node_modules.stat.exists
+  environment:
+    CI: "true"
 
-- name: Check if build exists
-  ansible.builtin.stat:
-    path: "{{ homepage_install_dir }}/.next"
-  register: next_build
-
-- name: Initial Build Homepage
+- name: Build Homepage
   ansible.builtin.command:
     cmd: pnpm build
     chdir: "{{ homepage_install_dir }}"
-  when: not next_build.stat.exists
+  notify: Restart Homepage
 
 # Import configuration tasks
 - name: Import configuration tasks
@@ -94,6 +82,9 @@
   notify: 
     - Reload systemd
     - Restart Homepage
+
+- name: Apply Homepage changes before verification
+  ansible.builtin.meta: flush_handlers
 
 - name: Enable and start Homepage service
   ansible.builtin.systemd:
