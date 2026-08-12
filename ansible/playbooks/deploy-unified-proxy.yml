@@ -12,6 +12,8 @@
 # Usage:
 #   ansible-playbook playbooks/deploy-unified-proxy.yml --tags code   # code update only
 #   ansible-playbook playbooks/deploy-unified-proxy.yml --tags auth   # token refresh only
+#   ansible-playbook playbooks/deploy-unified-proxy.yml --tags env    # environment update only
+#   ansible-playbook playbooks/deploy-unified-proxy.yml --tags verify # health check only
 #   ansible-playbook playbooks/deploy-unified-proxy.yml               # full deploy
 
 - name: Deploy unified-proxy
@@ -20,3 +22,27 @@
   become: true
   roles:
     - unified-proxy
+
+- name: Verify unified-proxy
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  tags: [verify, code, auth, env]
+  tasks:
+    - name: Wait for unified-proxy to be ready
+      ansible.builtin.wait_for:
+        host: "127.0.0.1"
+        port: "{{ proxy_port }}"
+        timeout: 15
+
+    - name: Health check
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ proxy_port }}/health"
+        method: GET
+        status_code: 200
+        return_content: true
+      register: health
+      changed_when: false
+
+    - name: Print health check result
+      ansible.builtin.debug:
+        msg: "{{ health.json }}"
