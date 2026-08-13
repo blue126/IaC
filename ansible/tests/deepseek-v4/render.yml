@@ -1,0 +1,157 @@
+---
+- name: Render fresh Open WebUI fixture
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - fixtures/resolved.yml
+  vars:
+    deepseek_v4_install_dir: /tmp/deepseek-v4/fresh
+    deepseek_v4_config_owner: vscode
+    deepseek_v4_config_group: vscode
+    deepseek_v4_model_dir: /tmp/deepseek-v4/model
+    deepseek_v4_cache_dir: /tmp/deepseek-v4/fresh/cache
+    deepseek_v4_evidence_dir: /tmp/deepseek-v4/fresh/evidence
+    deepseek_v4_webui_data_dir: /tmp/deepseek-v4/fresh/webui-data
+  pre_tasks:
+    - name: Reset fresh fixture directory
+      ansible.builtin.file:
+        path: /tmp/deepseek-v4/fresh
+        state: absent
+  roles:
+    - deepseek-v4
+  post_tasks:
+    - name: Check fresh seed file
+      ansible.builtin.stat:
+        path: /tmp/deepseek-v4/fresh/open-webui-seed.env
+      register: fresh_seed
+    - name: Assert fresh branch contains one-time seed
+      ansible.builtin.assert:
+        that:
+          - fresh_seed.stat.exists
+          - fresh_seed.stat.mode == '0600'
+    - name: Read fresh Compose fixture
+      ansible.builtin.slurp:
+        src: /tmp/deepseek-v4/fresh/docker-compose.yml
+      register: fresh_compose
+    - name: Assert fresh Compose consumes the one-time seed
+      ansible.builtin.assert:
+        that:
+          - "'env_file:' in (fresh_compose.content | b64decode)"
+
+- name: Render existing Open WebUI fixture
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - fixtures/resolved.yml
+  vars:
+    deepseek_v4_install_dir: /tmp/deepseek-v4/existing
+    deepseek_v4_config_owner: vscode
+    deepseek_v4_config_group: vscode
+    deepseek_v4_model_dir: /tmp/deepseek-v4/model
+    deepseek_v4_cache_dir: /tmp/deepseek-v4/existing/cache
+    deepseek_v4_evidence_dir: /tmp/deepseek-v4/existing/evidence
+    deepseek_v4_webui_data_dir: /tmp/deepseek-v4/existing/webui-data
+  pre_tasks:
+    - name: Reset existing fixture directory
+      ansible.builtin.file:
+        path: /tmp/deepseek-v4/existing
+        state: absent
+    - name: Create existing WebUI data directory
+      ansible.builtin.file:
+        path: /tmp/deepseek-v4/existing/webui-data
+        state: directory
+        mode: "0750"
+    - name: Create initialized WebUI database fixture
+      ansible.builtin.copy:
+        content: fixture-database
+        dest: /tmp/deepseek-v4/existing/webui-data/webui.db
+        mode: "0600"
+  roles:
+    - deepseek-v4
+  post_tasks:
+    - name: Check existing-state artifacts
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /tmp/deepseek-v4/existing/open-webui-seed.env
+        - /tmp/deepseek-v4/existing/open-webui-plan.json
+      register: existing_artifacts
+    - name: Assert existing branch only records backup and verification
+      ansible.builtin.assert:
+        that:
+          - not existing_artifacts.results[0].stat.exists
+          - existing_artifacts.results[1].stat.exists
+    - name: Read existing Compose fixture
+      ansible.builtin.slurp:
+        src: /tmp/deepseek-v4/existing/docker-compose.yml
+      register: existing_compose
+    - name: Assert existing Compose does not own the connection
+      ansible.builtin.assert:
+        that:
+          - "'env_file:' not in (existing_compose.content | b64decode)"
+          - >-
+            'OPENAI_API_BASE_URL' not in
+            (existing_compose.content | b64decode)
+
+- name: Prove default unresolved role performs no writes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deepseek_v4_install_dir: /tmp/deepseek-v4/default-no-write
+  pre_tasks:
+    - name: Reset default no-write fixture directory
+      ansible.builtin.file:
+        path: /tmp/deepseek-v4/default-no-write
+        state: absent
+  roles:
+    - deepseek-v4
+  post_tasks:
+    - name: Inspect default no-write fixture directory
+      ansible.builtin.stat:
+        path: /tmp/deepseek-v4/default-no-write
+      register: deepseek_v4_default_directory
+    - name: Assert default role wrote no configuration
+      ansible.builtin.assert:
+        that:
+          - not deepseek_v4_default_directory.stat.exists
+
+- name: Prove preflight gate does not require artifact pins
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deepseek_v4_gate: preflight
+    deepseek_v4_requested_action: preflight
+  tasks:
+    - name: Validate unresolved preflight gate
+      ansible.builtin.include_role:
+        name: deepseek-v4
+        tasks_from: validate
+
+- name: Prove unresolved sensitive gate fails before change
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deepseek_v4_gate: artifact
+    deepseek_v4_requested_action: artifact
+  tasks:
+    - name: Invoke unresolved validation
+      block:
+        - name: Include DeepSeek validation
+          ansible.builtin.include_role:
+            name: deepseek-v4
+            tasks_from: validate
+        - name: Mark unexpected validation success
+          ansible.builtin.set_fact:
+            unresolved_gate_failed: false
+      rescue:
+        - name: Mark expected validation failure
+          ansible.builtin.set_fact:
+            unresolved_gate_failed: true
+    - name: Assert unresolved gate was rejected
+      ansible.builtin.assert:
+        that: unresolved_gate_failed | bool

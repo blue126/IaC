@@ -1,77 +1,25 @@
 ---
-# LLM Server — llm-server host configuration
+# LLM appliance host configuration
 ansible_host: 192.168.1.247
 
-# Serving
-llm_server_port: 8080
-llm_server_install_dir: /opt/llm-server
-llm_server_webui_port: 3000
+# DeepSeek V4 controlled release. Phase 0 deliberately leaves live pins unresolved.
+deepseek_v4_model_repository: deepseek-ai/DeepSeek-V4-Flash-0731
+deepseek_v4_model_revision: unresolved
+deepseek_v4_model_file_manifest: []
+deepseek_v4_runtime_image_repository: unresolved
+deepseek_v4_runtime_image_digest: unresolved
+deepseek_v4_runtime_commit: unresolved
+deepseek_v4_runtime_entrypoint: unresolved
+deepseek_v4_runtime_arguments: []
+deepseek_v4_reasoning_parser: unresolved
+deepseek_v4_tool_parser: unresolved
+deepseek_v4_webui_image_repository: unresolved
+deepseek_v4_webui_image_digest: unresolved
+deepseek_v4_release_created_at: unresolved
+deepseek_v4_webui_seed_api_key: "{{ vault_deepseek_v4_webui_seed_api_key }}"
 
-# Model to enable on boot (must match a key in llm_server_models)
-llm_server_boot_model: qwen3-vl-32b
-
-# Per-model serving configurations
-# Each key = systemd instance name (llama-server@{key}.service)
-# Ansible deploys .env (and optionally .ot) files for ALL models listed here.
-# Use switch-model.sh to switch between models at runtime.
-#
-# Download fields (optional — omit to skip auto-download):
-#   download_repo:    HuggingFace repo name
-#   download_pattern: --include pattern(s) for hf download (string or list)
-#   download_dir:     subdirectory within model_dir for --local-dir (empty = model_dir root)
-#   shard_count:      expected number of .gguf files (default: 1)
-# VL model fields (optional):
-#   mmproj_filename:  path to vision encoder GGUF (relative to model_dir)
-llm_server_models:
-  m25:
-    model_filename: "UD-Q5_K_XL/MiniMax-M2.5-UD-Q5_K_XL-00001-of-00005.gguf"
-    model_alias: "MiniMax-M2.5"
-    download_repo: "unsloth/MiniMax-M2.5-GGUF"
-    download_pattern: "*UD-Q5_K_XL*"
-    download_dir: ""
-    shard_count: 5
-    ctx_size: 65536
-    threads: 20
-    threads_batch: 36
-    reasoning_format: auto
-    temp: 0.8
-    top_p: 0.95
-    top_k: 40
-    tensor_overrides:
-      - pattern: 'blk\.(51|52|53|54|55|56)\.ffn_(up|down|gate)_exps\.weight'
-        backend: CUDA0
-      - pattern: 'blk\.(57|58|59|60)\.ffn_(up|down|gate)_exps\.weight'
-        backend: CUDA1
-      - pattern: '\.ffn_(up|down|gate)_exps\.weight'
-        backend: CPU
-
-  qwen3-vl-32b:
-    model_filename: "qwen3-vl/Huihui-Qwen3-VL-32B-Thinking-abliterated.Q4_K_M.gguf"
-    model_alias: "qwen3-vl-32b"
-    mmproj_filename: "qwen3-vl/Huihui-Qwen3-VL-32B-Thinking-abliterated.mmproj-Q8_0.gguf"
-    download_repo: "mradermacher/Huihui-Qwen3-VL-32B-Thinking-abliterated-GGUF"
-    download_pattern:
-      - "*Q4_K_M*"
-      - "*mmproj-Q8_0*"
-    download_dir: "qwen3-vl"
-    ctx_size: 65536
-    cache_type_k: q8_0
-    cache_type_v: q8_0
-    parallel: 2
-    threads: 20
-    threads_batch: 36
-    reasoning_format: auto
-    temp: 0.6
-    top_p: 0.95
-    top_k: 20
-
-  glm-4.7:
-    model_filename: "glm-4.7-flash-abl/Huihui-GLM-4.7-Flash-abliterated.i1-Q4_K_M.gguf"
-    model_alias: "glm-4.7-flash"
-    download_repo: "mradermacher/Huihui-GLM-4.7-Flash-abliterated-i1-GGUF"
-    download_pattern: "*Q4_K_M*"
-    download_dir: "glm-4.7-flash-abl"
-    threads: 20
-    threads_batch: 36
-    temp: 1.0
-    top_p: 0.95
+# These are the only legacy units the approved lifecycle gate may stop and disable.
+deepseek_v4_legacy_units:
+  - llama-server@m25.service
+  - llama-server@qwen3-vl-32b.service
+  - llama-server@glm-4.7.service

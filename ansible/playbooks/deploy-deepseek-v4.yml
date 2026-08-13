@@ -1,0 +1,62 @@
+---
+- name: Prepare DeepSeek V4 configuration
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  roles:
+    - role: deepseek-v4
+  post_tasks:
+    - name: Reject an actionless deployment invocation
+      ansible.builtin.fail:
+        msg: >-
+          Validation completed, but no deployment action was requested.
+          Select one narrow approved tag and provide its matching gate.
+      when:
+        - deepseek_v4_requested_action == 'none'
+        - ansible_run_tags == ['all']
+
+- name: Verify DeepSeek V4 deployment
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  tags: [never, verify]
+  vars:
+    deepseek_v4_requested_action: verify
+  tasks:
+    - name: Validate the approved verification gate
+      ansible.builtin.include_role:
+        name: deepseek-v4
+        tasks_from: validate
+
+    - name: Run DeepSeek V4 verification
+      ansible.builtin.include_role:
+        name: deepseek-v4
+        tasks_from: verify
+
+- name: Benchmark DeepSeek V4 deployment
+  hosts: llm-server
+  become: true
+  gather_facts: true
+  tags: [never, benchmark]
+  pre_tasks:
+    - name: Validate the approved benchmark gate
+      ansible.builtin.include_role:
+        name: deepseek-v4
+        tasks_from: validate
+      vars:
+        deepseek_v4_requested_action: benchmark
+  roles:
+    - role: llm-benchmark
+      vars:
+        llm_benchmark_api_url: "http://127.0.0.1:{{ deepseek_v4_api_port }}"
+        llm_benchmark_model: "{{ deepseek_v4_model_identity }}"
+        llm_benchmark_process_name: deepseek-v4
+        llm_benchmark_short_temperature: 0
+        llm_benchmark_long_temperature: 0
+        llm_benchmark_short_max_tokens: 256
+        llm_benchmark_long_max_tokens: 256
+  tasks:
+    - name: Run the fixed DeepSeek V4 1K and 8K corpus
+      ansible.builtin.include_role:
+        name: deepseek-v4
+        tasks_from: benchmark

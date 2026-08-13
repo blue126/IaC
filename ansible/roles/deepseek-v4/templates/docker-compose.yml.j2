@@ -1,0 +1,72 @@
+services:
+  inference:
+    image: "{{ deepseek_v4_runtime_image_repository }}@{{ deepseek_v4_runtime_image_digest }}"
+    container_name: deepseek-v4-inference
+    restart: unless-stopped
+    privileged: false
+    user: "{{ deepseek_v4_runtime_uid }}:{{ deepseek_v4_runtime_gid }}"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_NICE
+    security_opt:
+      - no-new-privileges:true
+    ipc: host
+    ports:
+      - "{{ deepseek_v4_api_bind_address }}:{{ deepseek_v4_api_port }}:8000"
+    environment:
+      CUDA_VISIBLE_DEVICES: "{{ deepseek_v4_gpu_ordinal }}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids:
+                - "{{ deepseek_v4_gpu_ordinal }}"
+              capabilities:
+                - gpu
+    entrypoint:
+      - "{{ deepseek_v4_runtime_entrypoint }}"
+    command: {{ deepseek_v4_runtime_arguments | to_json }}
+    volumes:
+      - "{{ deepseek_v4_model_dir }}:/models:ro"
+      - "{{ deepseek_v4_cache_dir }}:/var/cache/deepseek:rw"
+    tmpfs:
+      - >-
+        /tmp:rw,noexec,nosuid,nodev,mode=1770,
+        uid={{ deepseek_v4_runtime_uid }},gid={{ deepseek_v4_runtime_gid }}
+    networks:
+      - deepseek-private
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  open-webui:
+    image: "{{ deepseek_v4_webui_image_repository }}@{{ deepseek_v4_webui_image_digest }}"
+    container_name: deepseek-v4-open-webui
+    restart: unless-stopped
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "{{ deepseek_v4_webui_bind_address }}:{{ deepseek_v4_webui_port }}:8080"
+{% if not (deepseek_v4_webui_database_initialized | default(true) | bool) %}
+    env_file:
+      - "{{ deepseek_v4_install_dir }}/open-webui-seed.env"
+{% endif %}
+    volumes:
+      - "{{ deepseek_v4_webui_data_dir }}:/app/backend/data:rw"
+    networks:
+      - deepseek-private
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  deepseek-private:
+    internal: true

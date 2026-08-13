@@ -1,0 +1,31 @@
+---
+- name: Validate DeepSeek V4 configuration
+  ansible.builtin.include_tasks: validate.yml
+  tags: [always]
+
+- name: Prepare Open WebUI bootstrap state
+  ansible.builtin.include_tasks: webui.yml
+  tags: [config]
+  when: >-
+    'open-webui' in deepseek_v4_compose_services
+    and (deepseek_v4_requested_action == 'render'
+         or 'config' in ansible_run_tags)
+
+- name: Render DeepSeek V4 configuration
+  ansible.builtin.include_tasks: config.yml
+  tags: [config]
+  when: >-
+    deepseek_v4_requested_action == 'render'
+    or 'config' in ansible_run_tags
+
+- name: Collect approved read-only preflight evidence
+  ansible.builtin.include_tasks: preflight.yml
+  tags: [never, preflight]
+
+- name: Validate approved artifacts
+  ansible.builtin.include_tasks: artifact.yml
+  tags: [never, artifact]
+
+- name: Apply approved lifecycle transition
+  ansible.builtin.include_tasks: lifecycle.yml
+  tags: [never, lifecycle]

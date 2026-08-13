@@ -6,26 +6,82 @@
     url: "{{ llm_benchmark_api_url }}/v1/chat/completions"
     method: POST
     body_format: json
-    body:
-      messages:
-        - role: "user"
-          content: "{{ llm_benchmark_short_prompt }}"
-      max_tokens: "{{ llm_benchmark_short_max_tokens }}"
-      temperature: "{{ llm_benchmark_short_temperature }}"
+    body: >-
+      {{ {'messages': [{'role': 'user', 'content': llm_benchmark_short_prompt}],
+          'max_tokens': llm_benchmark_short_max_tokens,
+          'temperature': llm_benchmark_short_temperature,
+          'seed': llm_benchmark_seed}
+         | combine({'model': llm_benchmark_model}
+                   if llm_benchmark_model | length > 0 else {}) }}
     status_code: [200]
     timeout: 180
-  register: short_prompt_result
+  register: short_prompt_results
+  loop: "{{ range(0, llm_benchmark_repeat_samples | int) | list }}"
+  loop_control:
+    label: "sample {{ item + 1 }}"
+
+- name: Initialize short prompt samples
+  ansible.builtin.set_fact:
+    _short_samples: []
+
+- name: Collect short prompt samples
+  ansible.builtin.set_fact:
+    _short_samples: >-
+      {{ _short_samples + [{
+        'prompt_tokens': item.json.usage.prompt_tokens | default('N/A'),
+        'completion_tokens': item.json.usage.completion_tokens | default('N/A'),
+        'total_tokens': item.json.usage.total_tokens | default('N/A'),
+        'prompt_per_second':
+          (item.json.timings | default({})).prompt_per_second
+          | default('N/A', true),
+        'decode_tokens_per_second':
+          (item.json.timings | default({})).predicted_per_second
+          | default(0, true),
+        'ttft_seconds':
+          (item.json.timings | default({})).ttft_seconds
+          | default('N/A', true),
+        'e2e_seconds': item.elapsed | default('N/A')
+      }] }}
+  loop: "{{ short_prompt_results.results }}"
+  loop_control:
+    label: "sample {{ ansible_loop.index }}"
+    extended: true
+
+- name: Sort short prompt decode rates
+  ansible.builtin.set_fact:
+    _short_decode_rates: >-
+      {{ _short_samples
+         | map(attribute='decode_tokens_per_second')
+         | map('float') | sort | list }}
+
+- name: Calculate short prompt median decode rate
+  ansible.builtin.set_fact:
+    _short_median_decode_rate: >-
+      {% set count = _short_decode_rates | length %}
+      {% set middle = count // 2 %}
+      {{ _short_decode_rates[middle]
+         if count % 2 == 1
+         else ((_short_decode_rates[middle - 1]
+                + _short_decode_rates[middle]) / 2) }}
 
 - name: Extract short prompt metrics
   ansible.builtin.set_fact:
     benchmark_short:
       prompt: "{{ llm_benchmark_short_prompt }}"
       max_tokens: "{{ llm_benchmark_short_max_tokens }}"
-      prompt_tokens: "{{ short_prompt_result.json.usage.prompt_tokens | default('N/A') }}"
-      completion_tokens: "{{ short_prompt_result.json.usage.completion_tokens | default('N/A') }}"
-      total_tokens: "{{ short_prompt_result.json.usage.total_tokens | default('N/A') }}"
-      prompt_per_second: "{{ short_prompt_result.json.timings.prompt_per_second | default('N/A') }}"
-      predicted_per_second: "{{ short_prompt_result.json.timings.predicted_per_second | default('N/A') }}"
+      seed: "{{ llm_benchmark_seed }}"
+      samples: "{{ _short_samples }}"
+      prompt_tokens: "{{ _short_samples[0].prompt_tokens }}"
+      completion_tokens: "{{ _short_samples[0].completion_tokens }}"
+      total_tokens: "{{ _short_samples[0].total_tokens }}"
+      prompt_per_second: "{{ _short_samples[0].prompt_per_second }}"
+      predicted_per_second: >-
+        {{ _short_median_decode_rate }}
+      verdict: >-
+        {{ 'pass'
+           if (_short_median_decode_rate | float)
+           >= (llm_benchmark_decode_threshold | float)
+           else 'fail' }}
 
 - name: Display short prompt results
   ansible.builtin.debug:

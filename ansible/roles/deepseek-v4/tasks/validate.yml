@@ -1,0 +1,133 @@
+---
+- name: Validate conservative TP1 baseline
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_tensor_parallelism | int == 1
+      - deepseek_v4_context_length | int == 16384
+      - deepseek_v4_max_running_requests | int == 1
+      - not (deepseek_v4_mtp_enabled | bool)
+      - deepseek_v4_api_bind_address == '127.0.0.1'
+    fail_msg: >-
+      The Phase 0 baseline must remain TP1, 16K, concurrency 1, MTP off
+      and loopback-only.
+
+- name: Build unresolved release field list
+  ansible.builtin.set_fact:
+    deepseek_v4_unresolved_fields: >-
+      {%- set missing = [] -%}
+      {%- for field in deepseek_v4_required_release_fields -%}
+      {%- set value = lookup('vars', field, default='unresolved')
+                       | string | trim -%}
+      {%- if value in ['', 'unresolved', 'main', 'latest'] -%}
+      {%- set _ = missing.append(field) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ missing }}
+
+- name: Build requested gated action list
+  ansible.builtin.set_fact:
+    deepseek_v4_gated_actions: >-
+      {{ (deepseek_v4_gated_action_names | intersect(ansible_run_tags))
+         + ([deepseek_v4_requested_action]
+            if deepseek_v4_requested_action in deepseek_v4_gated_action_names
+            else [])
+         | unique }}
+  vars:
+    deepseek_v4_gated_action_names:
+      - config
+      - preflight
+      - artifact
+      - lifecycle
+      - verify
+      - benchmark
+
+- name: Reject floating image references
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_runtime_image_digest == 'unresolved'
+        or deepseek_v4_runtime_image_digest is match('^sha256:[0-9a-f]{64}$')
+      - "':' not in deepseek_v4_runtime_image_repository"
+      - "'@' not in deepseek_v4_runtime_image_repository"
+      - >-
+        deepseek_v4_webui_image_digest == 'unresolved'
+        or deepseek_v4_webui_image_digest is match('^sha256:[0-9a-f]{64}$')
+      - "':' not in deepseek_v4_webui_image_repository"
+      - "'@' not in deepseek_v4_webui_image_repository"
+    fail_msg: >-
+      Runtime images must use a repository plus an immutable SHA-256 digest,
+      never a tag.
+
+- name: Validate resolved runtime arguments
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_runtime_arguments | length > 0
+      - >-
+        deepseek_v4_reasoning_parser in
+        (deepseek_v4_runtime_arguments | join(' '))
+      - >-
+        deepseek_v4_tool_parser in
+        (deepseek_v4_runtime_arguments | join(' '))
+    fail_msg: >-
+      A gated release must provide audited runtime arguments containing
+      both parser identities.
+  when: deepseek_v4_unresolved_fields | length == 0
+
+- name: Validate exact legacy retirement whitelist
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_legacy_units
+        | difference(deepseek_v4_allowed_legacy_units)
+        | length == 0
+      - >-
+        deepseek_v4_legacy_units | unique | length
+        == deepseek_v4_legacy_units | length
+    fail_msg: >-
+      Legacy lifecycle targets must be unique members of the exact
+      approved whitelist.
+
+- name: Validate controlled Compose services
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_compose_services
+        | difference(['inference', 'open-webui']) | length == 0
+      - "'inference' in deepseek_v4_compose_services"
+      - >-
+        'open-webui' not in deepseek_v4_compose_services
+        or deepseek_v4_webui_cutover_approved | bool
+    fail_msg: >-
+      Compose may always start inference; Open WebUI additionally requires
+      explicit cutover approval.
+
+- name: Require a matching approval gate for sensitive paths
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_gate == item
+    fail_msg: >-
+      Gate '{{ item }}' requires deepseek_v4_gate={{ item }}.
+  loop: "{{ deepseek_v4_gated_actions }}"
+
+- name: Require resolved immutable fields after preflight
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_unresolved_fields | length == 0
+    fail_msg: >-
+      Gate '{{ item }}' requires resolved immutable fields.
+      Unresolved fields: {{ deepseek_v4_unresolved_fields | join(', ') }}
+  loop: >-
+    {{ deepseek_v4_gated_actions
+       | reject('equalto', 'preflight') | list }}
+
+- name: Require a complete model file manifest after artifact preparation
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_model_file_manifest | length > 0
+    fail_msg: >-
+      Artifact and later gates require a non-empty file manifest with size
+      and SHA-256 evidence.
+  when: >-
+    deepseek_v4_gated_actions
+    | intersect(['artifact', 'lifecycle', 'verify', 'benchmark'])
+    | length > 0

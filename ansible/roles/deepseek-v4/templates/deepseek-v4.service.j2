@@ -1,0 +1,16 @@
+[Unit]
+Description=DeepSeek V4 isolated Compose orchestration
+After=docker.service
+Requires=docker.service
+Conflicts={{ deepseek_v4_legacy_units | join(' ') }}
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ deepseek_v4_install_dir }}
+ExecStart=/usr/bin/docker compose --project-name {{ deepseek_v4_compose_project }} up -d --no-build --pull never {{ deepseek_v4_compose_services | join(' ') }}
+ExecStop=/usr/bin/docker compose --project-name {{ deepseek_v4_compose_project }} down
+TimeoutStartSec={{ deepseek_v4_readiness_timeout }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,195 @@
+---
+- name: List active legacy inference units
+  ansible.builtin.shell: |
+    set -o pipefail
+    systemctl list-units --type=service --state=active 'llama-server@*' \
+      --no-legend --plain | awk '{print $1}'
+  args:
+    executable: /bin/bash
+  register: deepseek_v4_active_legacy_units
+  changed_when: false
+
+- name: Reject active legacy units outside the approved whitelist
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_active_legacy_units.stdout_lines
+        | difference(deepseek_v4_allowed_legacy_units)
+        | length == 0
+    fail_msg: >-
+      An active legacy unit is outside the approved retirement whitelist;
+      no service was changed.
+
+- name: Require all active legacy units in the retirement target set
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_active_legacy_units.stdout_lines
+        | difference(deepseek_v4_legacy_units)
+        | length == 0
+    fail_msg: >-
+      An active approved legacy unit was omitted from this lifecycle request;
+      no service was changed.
+
+- name: Inspect Open WebUI database before cutover
+  ansible.builtin.stat:
+    path: "{{ deepseek_v4_webui_database_path }}"
+  register: deepseek_v4_cutover_database
+  when: "'open-webui' in deepseek_v4_compose_services"
+
+- name: Inspect the legacy Open WebUI container
+  community.docker.docker_container_info:
+    name: "{{ deepseek_v4_webui_legacy_container }}"
+  register: deepseek_v4_legacy_webui
+  when: "'open-webui' in deepseek_v4_compose_services"
+
+- name: Protect the Open WebUI database during cutover
+  when: "'open-webui' in deepseek_v4_compose_services"
+  block:
+    - name: Stop the legacy Open WebUI writer before backup
+      community.docker.docker_container:
+        name: "{{ deepseek_v4_webui_legacy_container }}"
+        state: stopped
+      when: deepseek_v4_legacy_webui.exists
+
+    - name: Create Open WebUI backup directory before cutover
+      ansible.builtin.file:
+        path: "{{ deepseek_v4_webui_backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+      when:
+        - deepseek_v4_cutover_database.stat.exists
+        - deepseek_v4_cutover_database.stat.size | int > 0
+
+    - name: Back up Open WebUI database before cutover
+      ansible.builtin.command: >-
+        python3 {{ deepseek_v4_harness_dir }}/sqlite-backup.py
+        --source {{ deepseek_v4_webui_database_path }}
+        --target {{ deepseek_v4_webui_backup_path }}
+      register: deepseek_v4_webui_backup
+      changed_when: "'backup created:' in deepseek_v4_webui_backup.stdout"
+      when:
+        - deepseek_v4_cutover_database.stat.exists
+        - deepseek_v4_cutover_database.stat.size | int > 0
+
+  rescue:
+    - name: Restore the legacy Open WebUI writer after cutover failure
+      community.docker.docker_container:
+        name: "{{ deepseek_v4_webui_legacy_container }}"
+        state: started
+      when: deepseek_v4_legacy_webui.exists
+
+    - name: Stop the unsafe lifecycle transition
+      ansible.builtin.fail:
+        msg: >-
+          Open WebUI backup or retirement failed; the legacy writer was
+          restored and no inference lifecycle transition was attempted.
+
+- name: Stop and disable exact approved legacy units
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ deepseek_v4_legacy_units }}"
+
+- name: Inspect the legacy model switch command
+  ansible.builtin.stat:
+    path: "{{ deepseek_v4_legacy_switch_path }}"
+  register: deepseek_v4_legacy_switch
+
+- name: Disable the legacy model switch command without deleting it
+  ansible.builtin.file:
+    path: "{{ deepseek_v4_legacy_switch_path }}"
+    state: file
+    owner: root
+    group: root
+    mode: "0000"
+  when: deepseek_v4_legacy_switch.stat.exists
+
+- name: Install DeepSeek V4 orchestration unit
+  ansible.builtin.copy:
+    src: "{{ deepseek_v4_install_dir }}/deepseek-v4.service"
+    remote_src: true
+    dest: /etc/systemd/system/deepseek-v4.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Start the isolated DeepSeek V4 project with UI rollback
+  block:
+    - name: Start the isolated DeepSeek V4 project
+      ansible.builtin.systemd:
+        name: deepseek-v4.service
+        state: started
+        enabled: false
+        daemon_reload: true
+
+    - name: Wait for fresh Open WebUI database initialization
+      ansible.builtin.wait_for:
+        path: "{{ deepseek_v4_webui_database_path }}"
+        state: present
+        timeout: 180
+      when:
+        - "'open-webui' in deepseek_v4_compose_services"
+        - not (deepseek_v4_cutover_database.stat.exists | default(false))
+
+    - name: Wait for controlled Open WebUI readiness
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ deepseek_v4_webui_port }}"
+        timeout: 180
+      when: "'open-webui' in deepseek_v4_compose_services"
+
+    - name: Inspect initialized Open WebUI database after cutover
+      ansible.builtin.stat:
+        path: "{{ deepseek_v4_webui_database_path }}"
+      register: deepseek_v4_initialized_webui_database
+      when: "'open-webui' in deepseek_v4_compose_services"
+
+    - name: Require initialized Open WebUI database before seed cleanup
+      ansible.builtin.assert:
+        that:
+          - deepseek_v4_initialized_webui_database.stat.exists
+          - deepseek_v4_initialized_webui_database.stat.size | int > 0
+        fail_msg: >-
+          Open WebUI did not initialize its persistent database; the one-time
+          connection seed was retained for diagnosis.
+      when: "'open-webui' in deepseek_v4_compose_services"
+
+    - name: Remove consumed one-time Open WebUI connection seed
+      ansible.builtin.file:
+        path: "{{ deepseek_v4_install_dir }}/open-webui-seed.env"
+        state: absent
+      no_log: true
+      when: "'open-webui' in deepseek_v4_compose_services"
+
+    - name: Retire the stopped legacy Open WebUI container
+      community.docker.docker_container:
+        name: "{{ deepseek_v4_webui_legacy_container }}"
+        state: absent
+        keep_volumes: true
+      when:
+        - "'open-webui' in deepseek_v4_compose_services"
+        - deepseek_v4_legacy_webui.exists
+  rescue:
+    - name: Stop the failed DeepSeek V4 project
+      ansible.builtin.systemd:
+        name: deepseek-v4.service
+        state: stopped
+      failed_when: false
+
+    - name: Restore the legacy Open WebUI after startup failure
+      community.docker.docker_container:
+        name: "{{ deepseek_v4_webui_legacy_container }}"
+        state: started
+      when:
+        - "'open-webui' in deepseek_v4_compose_services"
+        - deepseek_v4_legacy_webui.exists
+
+    - name: Stop the failed lifecycle transition safely
+      ansible.builtin.fail:
+        msg: >-
+          DeepSeek startup or Open WebUI initialization failed. DeepSeek was
+          stopped and the legacy WebUI writer was restored when available.

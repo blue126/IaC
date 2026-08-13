@@ -4,6 +4,10 @@
 
 # API endpoint
 llm_benchmark_api_url: "http://localhost:8080"
+llm_benchmark_model: ""
+llm_benchmark_seed: 42
+llm_benchmark_repeat_samples: 3
+llm_benchmark_decode_threshold: 8.0
 
 # Short prompt test (generation speed)
 llm_benchmark_short_prompt: "Write a short poem about the sea."
@@ -11,11 +15,17 @@ llm_benchmark_short_max_tokens: 500
 llm_benchmark_short_temperature: 0.7
 
 # Long prompt test (prefill speed)
-llm_benchmark_long_prompt_repeat: "The quick brown fox jumps over the lazy dog. "
+llm_benchmark_long_prompt_repeat: "The quick brown fox jumps over the lazy dog."
 llm_benchmark_long_prompt_repeats: 500  # ~4K tokens
 llm_benchmark_long_prompt_prefix: "Summarize the following text:\n"
 llm_benchmark_long_max_tokens: 100
 llm_benchmark_long_temperature: 0.7
+
+# Controlled DeepSeek corpus sizes retain existing caller defaults.
+llm_benchmark_corpus_prompt_tokens:
+  - 1024
+  - 8192
+llm_benchmark_corpus_max_tokens: 256
 
 # Resource checks (set false to skip — e.g. testing a remote API)
 llm_benchmark_check_gpu: true

@@ -1,0 +1,59 @@
+---
+- name: Ensure the DeepSeek V4 configuration directory exists
+  ansible.builtin.file:
+    path: "{{ deepseek_v4_install_dir }}"
+    state: directory
+    owner: "{{ deepseek_v4_config_owner }}"
+    group: "{{ deepseek_v4_config_group }}"
+    mode: "0750"
+
+- name: Inspect the Open WebUI database
+  ansible.builtin.stat:
+    path: "{{ deepseek_v4_webui_database_path }}"
+  register: deepseek_v4_webui_database
+
+- name: Derive Open WebUI initialization state
+  ansible.builtin.set_fact:
+    deepseek_v4_webui_database_initialized: >-
+      {{ deepseek_v4_webui_database.stat.exists
+         and (deepseek_v4_webui_database.stat.size | default(0) | int > 0) }}
+
+- name: Validate fresh Open WebUI seed inputs
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_webui_seed_api_key not in ['', 'unresolved']
+      - deepseek_v4_unresolved_fields | length == 0
+    fail_msg: >-
+      Fresh Open WebUI bootstrap requires a complete release and seed key.
+  when: not (deepseek_v4_webui_database_initialized | bool)
+
+- name: Render one-time Open WebUI connection seed
+  ansible.builtin.template:
+    src: open-webui-seed.env.j2
+    dest: "{{ deepseek_v4_install_dir }}/open-webui-seed.env"
+    owner: "{{ deepseek_v4_config_owner }}"
+    group: "{{ deepseek_v4_config_group }}"
+    mode: "0600"
+  when: not (deepseek_v4_webui_database_initialized | bool)
+  no_log: true
+
+- name: Inspect seed ownership after database initialization
+  ansible.builtin.stat:
+    path: "{{ deepseek_v4_install_dir }}/open-webui-seed.env"
+  register: deepseek_v4_existing_seed
+  when: deepseek_v4_webui_database_initialized | bool
+
+- name: Record existing Open WebUI backup and verification plan
+  ansible.builtin.copy:
+    content: >-
+      {{ {'schema_version': 1, 'mode': 'backup-and-verify-only',
+          'database_path': deepseek_v4_webui_data_dir,
+          'backup_path': deepseek_v4_webui_backup_dir,
+          'stale_seed_present':
+            deepseek_v4_existing_seed.stat.exists | default(false),
+          'connection_owner': 'open-webui-database'} | to_nice_json }}
+    dest: "{{ deepseek_v4_install_dir }}/open-webui-plan.json"
+    owner: "{{ deepseek_v4_config_owner }}"
+    group: "{{ deepseek_v4_config_group }}"
+    mode: "0640"
+  when: deepseek_v4_webui_database_initialized | bool

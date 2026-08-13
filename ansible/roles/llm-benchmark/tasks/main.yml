@@ -1,6 +1,12 @@
 ---
 # LLM Benchmark — main task orchestrator
 
+- name: Validate benchmark sampling controls
+  ansible.builtin.assert:
+    that:
+      - llm_benchmark_repeat_samples | int > 0
+    fail_msg: "llm_benchmark_repeat_samples must be greater than zero."
+
 - name: Include short prompt benchmark
   ansible.builtin.include_tasks: short-prompt.yml
 

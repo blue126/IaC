@@ -1,0 +1,62 @@
+---
+schema_version: 1
+identity:
+  release_id: "{{ deepseek_v4_release_id }}"
+  created_at: "{{ deepseek_v4_release_created_at }}"
+  purpose: tp1-baseline
+  source_revision: "{{ deepseek_v4_source_revision }}"
+  fixture_revision: "{{ deepseek_v4_fixture_revision }}"
+model:
+  repository: "{{ deepseek_v4_model_repository }}"
+  revision: "{{ deepseek_v4_model_revision }}"
+  format: safetensors
+  local_path: "{{ deepseek_v4_model_dir }}"
+  file_manifest: {{ deepseek_v4_model_file_manifest | to_json }}
+  mount_mode: ro
+runtime:
+  engine: KTransformers/SGLang-KT
+  image_repository: "{{ deepseek_v4_runtime_image_repository }}"
+  image_digest: "{{ deepseek_v4_runtime_image_digest }}"
+  runtime_commit: "{{ deepseek_v4_runtime_commit }}"
+  entrypoint: "{{ deepseek_v4_runtime_entrypoint }}"
+  arguments: {{ deepseek_v4_runtime_arguments | to_json }}
+  reasoning_parser: "{{ deepseek_v4_reasoning_parser }}"
+  tool_parser: "{{ deepseek_v4_tool_parser }}"
+  privileged: false
+  runtime_user: "{{ deepseek_v4_runtime_uid }}:{{ deepseek_v4_runtime_gid }}"
+  capabilities:
+    drop: [ALL]
+    add: [SYS_NICE]
+  writable_paths:
+    - "{{ deepseek_v4_cache_dir }}"
+    - /tmp
+  api_bind: "{{ deepseek_v4_api_bind_address }}:{{ deepseek_v4_api_port }}"
+  open_webui_image: >-
+    {{ deepseek_v4_webui_image_repository }}@{{ deepseek_v4_webui_image_digest }}
+  open_webui_authority: >-
+    {{ 'database'
+       if deepseek_v4_webui_database_initialized | default(true)
+       else 'one-time-seed' }}
+  secret_reference: vault_deepseek_v4_webui_seed_api_key
+  secret_file: "{{ deepseek_v4_install_dir }}/open-webui-seed.env"
+  logging:
+    driver: json-file
+    max_size: 50m
+    max_files: 3
+serving:
+  tensor_parallelism: {{ deepseek_v4_tensor_parallelism }}
+  gpu_ordinal: "{{ deepseek_v4_gpu_ordinal }}"
+  context_length: {{ deepseek_v4_context_length }}
+  max_running_requests: {{ deepseek_v4_max_running_requests }}
+  mtp_enabled: {{ deepseek_v4_mtp_enabled | bool | lower }}
+  cache_precision: "{{ deepseek_v4_cache_precision }}"
+evidence:
+  preflight: "{{ deepseek_v4_local_evidence_dir }}/preflight.json"
+  artifact_integrity: "{{ deepseek_v4_evidence_dir }}/artifact-integrity.json"
+  correctness: "{{ deepseek_v4_evidence_dir }}/contract.json"
+  api_contract: "{{ deepseek_v4_evidence_dir }}/contract.json"
+  benchmark: "{{ deepseek_v4_evidence_dir }}/benchmark.json"
+  reliability: unresolved
+  security: unresolved
+  recovery: unresolved
+  promotion_verdict: unresolved

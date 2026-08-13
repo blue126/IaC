@@ -4,33 +4,91 @@
 - name: Build long prompt string
   ansible.builtin.set_fact:
     _long_prompt_body: >-
-      {{ llm_benchmark_long_prompt_prefix }}{{ llm_benchmark_long_prompt_repeat * (llm_benchmark_long_prompt_repeats | int) }}
+      {{ llm_benchmark_long_prompt_prefix }}
+      {{- (llm_benchmark_long_prompt_repeat ~ ' ')
+          * (llm_benchmark_long_prompt_repeats | int) }}
 
-- name: "Long prompt benchmark: POST /v1/chat/completions (~{{ llm_benchmark_long_prompt_repeats * 10 }} tokens)"
+- name: Run long prompt benchmark
   ansible.builtin.uri:
     url: "{{ llm_benchmark_api_url }}/v1/chat/completions"
     method: POST
     body_format: json
-    body:
-      messages:
-        - role: "user"
-          content: "{{ _long_prompt_body }}"
-      max_tokens: "{{ llm_benchmark_long_max_tokens }}"
-      temperature: "{{ llm_benchmark_long_temperature }}"
+    body: >-
+      {{ {'messages': [{'role': 'user', 'content': _long_prompt_body}],
+          'max_tokens': llm_benchmark_long_max_tokens,
+          'temperature': llm_benchmark_long_temperature,
+          'seed': llm_benchmark_seed}
+         | combine({'model': llm_benchmark_model}
+                   if llm_benchmark_model | length > 0 else {}) }}
     status_code: [200]
     timeout: 300
-  register: long_prompt_result
+  register: long_prompt_results
+  loop: "{{ range(0, llm_benchmark_repeat_samples | int) | list }}"
+  loop_control:
+    label: "sample {{ item + 1 }}"
+
+- name: Initialize long prompt samples
+  ansible.builtin.set_fact:
+    _long_samples: []
+
+- name: Collect long prompt samples
+  ansible.builtin.set_fact:
+    _long_samples: >-
+      {{ _long_samples + [{
+        'prompt_tokens': item.json.usage.prompt_tokens | default('N/A'),
+        'completion_tokens': item.json.usage.completion_tokens | default('N/A'),
+        'total_tokens': item.json.usage.total_tokens | default('N/A'),
+        'prompt_per_second':
+          (item.json.timings | default({})).prompt_per_second
+          | default('N/A', true),
+        'decode_tokens_per_second':
+          (item.json.timings | default({})).predicted_per_second
+          | default(0, true),
+        'ttft_seconds':
+          (item.json.timings | default({})).ttft_seconds
+          | default('N/A', true),
+        'e2e_seconds': item.elapsed | default('N/A')
+      }] }}
+  loop: "{{ long_prompt_results.results }}"
+  loop_control:
+    label: "sample {{ ansible_loop.index }}"
+    extended: true
+
+- name: Sort long prompt decode rates
+  ansible.builtin.set_fact:
+    _long_decode_rates: >-
+      {{ _long_samples
+         | map(attribute='decode_tokens_per_second')
+         | map('float') | sort | list }}
+
+- name: Calculate long prompt median decode rate
+  ansible.builtin.set_fact:
+    _long_median_decode_rate: >-
+      {% set count = _long_decode_rates | length %}
+      {% set middle = count // 2 %}
+      {{ _long_decode_rates[middle]
+         if count % 2 == 1
+         else ((_long_decode_rates[middle - 1]
+                + _long_decode_rates[middle]) / 2) }}
 
 - name: Extract long prompt metrics
   ansible.builtin.set_fact:
     benchmark_long:
       prompt_repeats: "{{ llm_benchmark_long_prompt_repeats }}"
       max_tokens: "{{ llm_benchmark_long_max_tokens }}"
-      prompt_tokens: "{{ long_prompt_result.json.usage.prompt_tokens | default('N/A') }}"
-      completion_tokens: "{{ long_prompt_result.json.usage.completion_tokens | default('N/A') }}"
-      total_tokens: "{{ long_prompt_result.json.usage.total_tokens | default('N/A') }}"
-      prompt_per_second: "{{ long_prompt_result.json.timings.prompt_per_second | default('N/A') }}"
-      predicted_per_second: "{{ long_prompt_result.json.timings.predicted_per_second | default('N/A') }}"
+      seed: "{{ llm_benchmark_seed }}"
+      samples: "{{ _long_samples }}"
+      prompt_tokens: "{{ _long_samples[0].prompt_tokens }}"
+      completion_tokens: "{{ _long_samples[0].completion_tokens }}"
+      total_tokens: "{{ _long_samples[0].total_tokens }}"
+      prompt_per_second: "{{ _long_samples[0].prompt_per_second }}"
+      predicted_per_second: >-
+        {{ _long_median_decode_rate }}
+      verdict: >-
+        {{ 'pass'
+           if (_long_median_decode_rate | float)
+           >= (llm_benchmark_decode_threshold | float)
+           else 'fail' }}
 
 - name: Display long prompt results
   ansible.builtin.debug:

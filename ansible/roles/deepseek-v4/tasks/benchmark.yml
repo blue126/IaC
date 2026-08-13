@@ -1,0 +1,15 @@
+---
+- name: Run the DeepSeek V4 benchmark harness
+  ansible.builtin.command: >-
+    python3 {{ deepseek_v4_harness_dir }}/benchmark-runner.py
+    --base-url
+    http://{{ deepseek_v4_api_bind_address }}:{{ deepseek_v4_api_port }}
+    --model {{ deepseek_v4_model_identity }}
+    --output {{ deepseek_v4_evidence_dir }}/benchmark.json
+  changed_when: false
+
+- name: Validate benchmark evidence schema
+  ansible.builtin.command: >-
+    python3 {{ deepseek_v4_harness_dir }}/evidence-validator.py
+    {{ deepseek_v4_evidence_dir }}/benchmark.json
+  changed_when: false

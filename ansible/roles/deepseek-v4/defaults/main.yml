@@ -1,0 +1,74 @@
+---
+deepseek_v4_install_dir: /opt/deepseek-v4
+deepseek_v4_harness_dir: "{{ deepseek_v4_install_dir }}/harness"
+deepseek_v4_config_owner: root
+deepseek_v4_config_group: root
+deepseek_v4_model_dir: /data/models/deepseek-v4-flash
+deepseek_v4_cache_dir: /var/cache/deepseek-v4
+deepseek_v4_runtime_uid: 1000
+deepseek_v4_runtime_gid: 1000
+deepseek_v4_evidence_dir: /var/lib/deepseek-v4/evidence
+deepseek_v4_local_evidence_root: /tmp/deepseek-v4-evidence
+deepseek_v4_local_evidence_dir: >-
+  {{ deepseek_v4_local_evidence_root }}/{{ inventory_hostname }}
+deepseek_v4_webui_data_dir: /opt/open-webui/data
+deepseek_v4_webui_database_path: "{{ deepseek_v4_webui_data_dir }}/webui.db"
+deepseek_v4_webui_backup_dir: /var/backups/open-webui
+deepseek_v4_webui_backup_path: >-
+  {{ deepseek_v4_webui_backup_dir }}/{{ deepseek_v4_release_id }}-webui.db
+deepseek_v4_webui_bind_address: 0.0.0.0
+deepseek_v4_webui_port: 3000
+deepseek_v4_webui_image_repository: unresolved
+deepseek_v4_webui_image_digest: unresolved
+deepseek_v4_api_bind_address: 127.0.0.1
+deepseek_v4_api_port: 18080
+deepseek_v4_model_identity: deepseek-v4-flash
+deepseek_v4_compose_project: deepseek-v4
+deepseek_v4_compose_services:
+  - inference
+deepseek_v4_webui_cutover_approved: false
+deepseek_v4_webui_legacy_container: open-webui
+deepseek_v4_model_repository: deepseek-ai/DeepSeek-V4-Flash-0731
+deepseek_v4_model_revision: unresolved
+deepseek_v4_model_file_manifest: []
+deepseek_v4_runtime_image_repository: unresolved
+deepseek_v4_runtime_image_digest: unresolved
+deepseek_v4_runtime_commit: unresolved
+deepseek_v4_runtime_entrypoint: unresolved
+deepseek_v4_runtime_arguments: []
+deepseek_v4_reasoning_parser: unresolved
+deepseek_v4_tool_parser: unresolved
+deepseek_v4_tensor_parallelism: 1
+deepseek_v4_gpu_ordinal: "0"
+deepseek_v4_context_length: 16384
+deepseek_v4_max_running_requests: 1
+deepseek_v4_mtp_enabled: false
+deepseek_v4_cache_precision: unresolved
+deepseek_v4_readiness_timeout: 1200
+deepseek_v4_webui_seed_api_key: unresolved
+deepseek_v4_release_id: unresolved
+deepseek_v4_release_created_at: unresolved
+deepseek_v4_source_revision: unresolved
+deepseek_v4_fixture_revision: v1
+deepseek_v4_gate: none
+deepseek_v4_requested_action: none
+deepseek_v4_legacy_units: []
+deepseek_v4_legacy_switch_path: /opt/llm-server/switch-model.sh
+deepseek_v4_allowed_legacy_units:
+  - llama-server@m25.service
+  - llama-server@qwen3-vl-32b.service
+  - llama-server@glm-4.7.service
+deepseek_v4_required_release_fields:
+  - deepseek_v4_model_revision
+  - deepseek_v4_runtime_image_repository
+  - deepseek_v4_runtime_image_digest
+  - deepseek_v4_runtime_commit
+  - deepseek_v4_runtime_entrypoint
+  - deepseek_v4_webui_image_repository
+  - deepseek_v4_webui_image_digest
+  - deepseek_v4_reasoning_parser
+  - deepseek_v4_tool_parser
+  - deepseek_v4_cache_precision
+  - deepseek_v4_release_id
+  - deepseek_v4_release_created_at
+  - deepseek_v4_source_revision

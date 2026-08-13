@@ -7,9 +7,18 @@
       timestamp: "{{ ansible_facts.date_time.iso8601 }}"
       host: "{{ inventory_hostname }}"
       api_url: "{{ llm_benchmark_api_url }}"
+      model: "{{ llm_benchmark_model }}"
+      seed: "{{ llm_benchmark_seed }}"
+      repeat_samples: "{{ llm_benchmark_repeat_samples }}"
+      decode_threshold: "{{ llm_benchmark_decode_threshold }}"
       short_prompt: "{{ benchmark_short }}"
       long_prompt: "{{ benchmark_long }}"
       resources: "{{ benchmark_resources }}"
+      verdict: >-
+        {{ 'pass'
+           if benchmark_short.verdict == 'pass'
+           and benchmark_long.verdict == 'pass'
+           else 'fail' }}
 
 - name: Display benchmark report
   ansible.builtin.debug:
@@ -27,7 +36,9 @@
       - "  Prefill:            {{ benchmark_short.prompt_per_second }} tok/s"
       - "  Generation:         {{ benchmark_short.predicted_per_second }} tok/s"
       - "---------------------------------------------"
-      - "LONG PROMPT (prefill speed, ~{{ benchmark_long.prompt_tokens }} tokens)"
+      - >-
+        LONG PROMPT
+        (prefill speed, ~{{ benchmark_long.prompt_tokens }} tokens)
       - "  Prompt tokens:      {{ benchmark_long.prompt_tokens }}"
       - "  Completion tokens:  {{ benchmark_long.completion_tokens }}"
       - "  Prefill:            {{ benchmark_long.prompt_per_second }} tok/s"
@@ -44,12 +55,18 @@
     state: directory
     mode: "0755"
 
+- name: Build benchmark report file path
+  ansible.builtin.set_fact:
+    _llm_benchmark_report_file: >-
+      {{ llm_benchmark_report_dir ~ '/benchmark-'
+         ~ ansible_facts.date_time.iso8601_basic_short ~ '.json' }}
+
 - name: Write JSON report
   ansible.builtin.copy:
     content: "{{ benchmark_report | to_nice_json }}"
-    dest: "{{ llm_benchmark_report_dir }}/benchmark-{{ ansible_facts.date_time.iso8601_basic_short }}.json"
+    dest: "{{ _llm_benchmark_report_file }}"
     mode: "0644"
 
 - name: Show report file path
   ansible.builtin.debug:
-    msg: "Report written to {{ llm_benchmark_report_dir }}/benchmark-{{ ansible_facts.date_time.iso8601_basic_short }}.json"
+    msg: "Report written to {{ _llm_benchmark_report_file }}"
