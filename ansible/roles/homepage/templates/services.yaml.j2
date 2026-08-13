@@ -14,29 +14,29 @@
 
     - Oracle Cloud:
         icon: oracle.png
-        href: ssh://ubuntu@152.67.113.23
+        href: ssh://ubuntu@159.13.46.201
         description: OCI Compute Instance
         ping: 100.114.121.121
 
     - Netbox:
         icon: netbox.png
-        href: http://192.168.1.104:8000
+        href: https://netbox.willfan.me
         description: Infrastructure Source of Truth
         ping: 192.168.1.104
         proxmoxNode: pve0
         proxmoxVMID: 104
         proxmoxType: qemu
 
-- Applications:
-    - Homepage:
-        icon: homepage.png
-        href: http://192.168.1.103:3000
-        description: Dashboard
-        ping: 192.168.1.103
-        proxmoxNode: pve0
-        proxmoxVMID: 103
-        proxmoxType: lxc
+    - Proxmox Backup Server:
+        icon: proxmox.png
+        href: https://192.168.1.249:8007
+        description: Backup and Recovery
+        ping: 192.168.1.249
+        proxmoxNode: pve1
+        proxmoxVMID: 113
+        proxmoxType: qemu
 
+- Applications:
     - Immich:
         icon: immich.png
         href: http://192.168.1.101:2283
@@ -60,6 +60,43 @@
         proxmoxVMID: 105
         proxmoxType: lxc
 
+    - n8n:
+        icon: n8n.png
+        href: https://n8n.willfan.me
+        description: Workflow Automation
+        ping: 192.168.1.106
+        proxmoxNode: pve0
+        proxmoxVMID: 106
+        proxmoxType: lxc
+
+    - Anki Desktop:
+        icon: anki.png
+        href: http://192.168.1.100:3000
+        description: Flashcard Desktop Web UI
+        ping: 192.168.1.100
+        proxmoxNode: pve0
+        proxmoxVMID: 100
+        proxmoxType: lxc
+
+- Operations:
+    - Jenkins:
+        icon: jenkins.png
+        href: http://192.168.1.107:8080
+        description: Continuous Integration
+        ping: 192.168.1.107
+        proxmoxNode: pve0
+        proxmoxVMID: 107
+        proxmoxType: lxc
+
+    - Gitea:
+        icon: gitea.png
+        href: http://192.168.1.107:3000
+        description: Git Repository Hosting
+        ping: 192.168.1.107
+        proxmoxNode: pve0
+        proxmoxVMID: 107
+        proxmoxType: lxc
+
     - Fileserver:
         icon: mdi-nas
         href: https://192.168.1.111:12321
@@ -67,15 +104,6 @@
         ping: 192.168.1.111
         proxmoxNode: pve1
         proxmoxVMID: 111
-        proxmoxType: lxc
-
-    - Anki Sync Server:
-        icon: etesync.png
-        href: http://192.168.1.100:8080
-        description: Flashcard Sync
-        ping: 192.168.1.100
-        proxmoxNode: pve0
-        proxmoxVMID: 100
         proxmoxType: lxc
 
     - AdGuard Home:
@@ -89,8 +117,34 @@
     - Tailscale:
         icon: tailscale.png
         href: https://login.tailscale.com/admin/machines
-        description: VPN Network
-        widget:
-          type: tailscale
-          deviceid: {{ tailscale_device_id }}
-          key: {{ tailscale_api_key }}
+        description: Local Tailscale + OCI Reachability
+        siteMonitor: http://100.100.100.100/metrics
+        ping: 100.114.121.121
+
+- Service Health:
+    - RustDesk Server:
+        icon: rustdesk.png
+        description: Remote Desktop Relay
+        ping: 192.168.1.102
+        proxmoxNode: pve0
+        proxmoxVMID: 102
+        proxmoxType: qemu
+
+    - unified-proxy:
+        icon: mdi-api
+        description: Unified Proxy API
+        siteMonitor: https://proxy.willfan.me/health
+
+    - Anki Sync Server:
+        icon: etesync.png
+        description: Flashcard Sync Host
+        # The sync protocol root legitimately returns 404/405; monitor host reachability instead.
+        ping: 192.168.1.100
+        proxmoxNode: pve0
+        proxmoxVMID: 100
+        proxmoxType: lxc
+
+    - LLM API:
+        icon: mdi-api
+        description: Local Inference API
+        siteMonitor: http://192.168.1.247:8080/health
