@@ -12,7 +12,7 @@
 
 - name: Verify DeepSeek V4 health readiness
   ansible.builtin.uri:
-    url: "{{ deepseek_v4_api_url }}/health"
+    url: "{{ deepseek_v4_api_url }}/health_generate"
     status_code: 200
     return_content: true
   register: deepseek_v4_health_response

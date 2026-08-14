@@ -1,15 +1,39 @@
 ---
-- name: Validate conservative TP1 baseline
+- name: Resolve the requested DeepSeek V4 performance profile
+  ansible.builtin.set_fact:
+    deepseek_v4_active_profile: >-
+      {{ deepseek_v4_profiles[deepseek_v4_profile] | default({}) }}
+
+- name: Validate the requested DeepSeek V4 performance profile
   ansible.builtin.assert:
     that:
-      - deepseek_v4_tensor_parallelism | int == 1
+      - deepseek_v4_profile in ['tp1', 'tp2']
+      - deepseek_v4_active_profile | length ==
+        (2 if deepseek_v4_profile == 'tp1' else 3)
+      - deepseek_v4_active_profile.tensor_parallelism | int ==
+        (1 if deepseek_v4_profile == 'tp1' else 2)
+      - deepseek_v4_active_profile.gpu_ordinals ==
+        (['0'] if deepseek_v4_profile == 'tp1' else ['0', '1'])
+      - >-
+        (deepseek_v4_active_profile.nccl_p2p_disable | default(false) | bool)
+        == (deepseek_v4_profile == 'tp2')
       - deepseek_v4_context_length | int == 16384
       - deepseek_v4_max_running_requests | int == 1
-      - not (deepseek_v4_mtp_enabled | bool)
+      - deepseek_v4_mtp_enabled is boolean
       - deepseek_v4_api_bind_address == '127.0.0.1'
+      - deepseek_v4_webui_host_gateway_address == '172.17.0.1'
+      - deepseek_v4_runtime_container_port | int == 30000
     fail_msg: >-
-      The Phase 0 baseline must remain TP1, 16K, concurrency 1, MTP off
-      and loopback-only.
+      Only the approved tp1 (GPU 0, TP1) and tp2 (GPUs 0/1, TP2) profiles
+      may be used; serving invariants and restricted host bindings remain fixed.
+
+- name: Set the resolved DeepSeek V4 serving profile
+  ansible.builtin.set_fact:
+    deepseek_v4_tensor_parallelism: >-
+      {{ deepseek_v4_active_profile.tensor_parallelism | int }}
+    deepseek_v4_gpu_ordinals: "{{ deepseek_v4_active_profile.gpu_ordinals }}"
+    deepseek_v4_nccl_p2p_disable: >-
+      {{ deepseek_v4_active_profile.nccl_p2p_disable | default(false) | bool }}
 
 - name: Build unresolved release field list
   ansible.builtin.set_fact:
@@ -38,6 +62,7 @@
       - preflight
       - artifact
       - lifecycle
+      - activate
       - verify
       - benchmark
 
@@ -123,11 +148,13 @@
 - name: Require a complete model file manifest after artifact preparation
   ansible.builtin.assert:
     that:
-      - deepseek_v4_model_file_manifest | length > 0
+      - >-
+        deepseek_v4_model_file_manifest | length > 0
+        or deepseek_v4_model_manifest_dynamic | bool
     fail_msg: >-
       Artifact and later gates require a non-empty file manifest with size
       and SHA-256 evidence.
   when: >-
     deepseek_v4_gated_actions
-    | intersect(['artifact', 'lifecycle', 'verify', 'benchmark'])
+    | intersect(['artifact', 'lifecycle', 'activate', 'verify', 'benchmark'])
     | length > 0

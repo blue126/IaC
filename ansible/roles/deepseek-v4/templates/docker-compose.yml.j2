@@ -3,8 +3,10 @@ services:
     image: "{{ deepseek_v4_runtime_image_repository }}@{{ deepseek_v4_runtime_image_digest }}"
     container_name: deepseek-v4-inference
     restart: unless-stopped
+    # Reap worker processes so a failed runtime child cannot leave Docker with
+    # an unmanageable zombie PID during a controlled TP2 recreation.
+    init: true
     privileged: false
-    user: "{{ deepseek_v4_runtime_uid }}:{{ deepseek_v4_runtime_gid }}"
     read_only: true
     cap_drop:
       - ALL
@@ -14,28 +16,48 @@ services:
       - no-new-privileges:true
     ipc: host
     ports:
-      - "{{ deepseek_v4_api_bind_address }}:{{ deepseek_v4_api_port }}:8000"
+      - >-
+        {{ deepseek_v4_api_bind_address }}:
+        {{- deepseek_v4_api_port }}:
+        {{- deepseek_v4_runtime_container_port }}
+      - >-
+        {{ deepseek_v4_webui_host_gateway_address }}:
+        {{- deepseek_v4_api_port }}:
+        {{- deepseek_v4_runtime_container_port }}
     environment:
-      CUDA_VISIBLE_DEVICES: "{{ deepseek_v4_gpu_ordinal }}"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids:
-                - "{{ deepseek_v4_gpu_ordinal }}"
-              capabilities:
-                - gpu
+      CUDA_VISIBLE_DEVICES: "{{ deepseek_v4_gpu_ordinals | join(',') }}"
+      NCCL_P2P_DISABLE: "{{ 1 if deepseek_v4_nccl_p2p_disable | bool else 0 }}"
+      MODEL_PATH: /model
+      HOST: 0.0.0.0
+      PORT: "{{ deepseek_v4_runtime_container_port }}"
+      TP: "{{ deepseek_v4_tensor_parallelism }}"
+      CONTEXT_LENGTH: "{{ deepseek_v4_context_length }}"
+      MAX_RUNNING_REQUESTS: "{{ deepseek_v4_max_running_requests }}"
+      ENABLE_MTP: "{{ 1 if deepseek_v4_mtp_enabled | bool else 0 }}"
+      KT_CPUINFER_THREADS: "{{ deepseek_v4_cpu_infer_threads }}"
+      KT_THREADPOOL_COUNT: "{{ deepseek_v4_threadpool_count }}"
+      KT_GPU_EXPERTS: "{{ deepseek_v4_gpu_experts }}"
+      KT_GPU_PREFILL_TOKEN_THRESHOLD: >-
+        {{ deepseek_v4_gpu_prefill_token_threshold }}
+      CHUNKED_PREFILL_SIZE: "{{ deepseek_v4_chunked_prefill_size }}"
+      MAX_PREFILL_TOKENS: "{{ deepseek_v4_chunked_prefill_size }}"
+      MEM_FRACTION: "{{ deepseek_v4_memory_fraction }}"
+      TRITON_CACHE_DIR: /root/.cache/triton
+      TILELANG_CACHE_DIR: /root/.cache/tilelang
+      TILELANG_TMP_DIR: /root/.cache/tilelang/tmp
+      TMPDIR: /root/.cache/tmp
+    devices:
+{% for gpu_ordinal in deepseek_v4_gpu_ordinals %}
+      - "nvidia.com/gpu={{ gpu_ordinal }}"
+{% endfor %}
     entrypoint:
       - "{{ deepseek_v4_runtime_entrypoint }}"
     command: {{ deepseek_v4_runtime_arguments | to_json }}
     volumes:
-      - "{{ deepseek_v4_model_dir }}:/models:ro"
-      - "{{ deepseek_v4_cache_dir }}:/var/cache/deepseek:rw"
+      - "{{ deepseek_v4_model_dir }}:/model:ro"
+      - "{{ deepseek_v4_cache_dir }}:/root/.cache:rw"
     tmpfs:
-      - >-
-        /tmp:rw,noexec,nosuid,nodev,mode=1770,
-        uid={{ deepseek_v4_runtime_uid }},gid={{ deepseek_v4_runtime_gid }}
+      - /tmp:rw,noexec,nosuid,nodev,mode=1770
     networks:
       - deepseek-private
     logging:
@@ -69,4 +91,8 @@ services:
 
 networks:
   deepseek-private:
-    internal: true
+    # Published API bindings remain loopback and Docker-host-gateway only.
+    # The bridge itself must not be internal: Docker otherwise omits the
+    # container's port mapping, leaving both permitted API consumers unable
+    # to reach the inference service.
+    internal: false

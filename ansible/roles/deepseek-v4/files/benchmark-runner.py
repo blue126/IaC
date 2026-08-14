@@ -9,33 +9,40 @@ import urllib.request
 from pathlib import Path
 
 
-def request(base_url, model, prompt, seed, max_tokens):
-    body = json.dumps({
+def request(base_url, model, prompt, seed, max_tokens, stream=True):
+    body = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "seed": seed,
         "temperature": 0,
         "max_tokens": max_tokens,
-        "stream": True,
-        "stream_options": {"include_usage": True},
-    }).encode()
+        "stream": stream,
+    }
+    if stream:
+        body["stream_options"] = {"include_usage": True}
+    body = json.dumps(body).encode()
     started = time.monotonic()
     req = urllib.request.Request(f"{base_url}/v1/chat/completions", data=body,
                                  headers={"Content-Type": "application/json"})
     usage = {}
     ttft = None
     with urllib.request.urlopen(req, timeout=1800) as response:
-        for encoded_line in response:
-            line = encoded_line.decode().strip()
-            if not line.startswith("data: ") or line == "data: [DONE]":
-                continue
-            chunk = json.loads(line[6:])
-            usage = chunk.get("usage") or usage
-            choices = chunk.get("choices") or []
-            if choices and ttft is None:
-                delta = choices[0].get("delta") or {}
-                if delta.get("content") or delta.get("reasoning_content"):
-                    ttft = time.monotonic() - started
+        if stream:
+            for encoded_line in response:
+                line = encoded_line.decode().strip()
+                if not line.startswith("data: ") or line == "data: [DONE]":
+                    continue
+                chunk = json.loads(line[6:])
+                usage = chunk.get("usage") or usage
+                choices = chunk.get("choices") or []
+                if choices and ttft is None:
+                    delta = choices[0].get("delta") or {}
+                    if delta.get("content") or delta.get("reasoning_content"):
+                        ttft = time.monotonic() - started
+        else:
+            chunk = json.loads(response.read().decode())
+            usage = chunk.get("usage") or {}
+            ttft = time.monotonic() - started
     elapsed = time.monotonic() - started
     prompt_tokens = usage.get("prompt_tokens")
     completion = usage.get("completion_tokens")
@@ -61,7 +68,7 @@ def calibrated_prompt(case, base_url, model, seed, max_tokens):
     repeats = max(1, target // len(words))
     for _ in range(4):
         prompt = " ".join(words * repeats)
-        observed = request(base_url, model, prompt, seed, 1)["prompt_tokens"]
+        observed = request(base_url, model, prompt, seed, 1, stream=False)["prompt_tokens"]
         if abs(observed - target) <= tolerance:
             return prompt, tolerance
         repeats = max(1, round(repeats * target / observed))
@@ -75,15 +82,22 @@ def main():
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--case", choices=("1k", "8k"))
+    parser.add_argument("--repeat-samples", type=int)
     args = parser.parse_args()
     corpus = json.loads(Path(__file__).with_name("benchmark-corpus-v1.json").read_text(encoding="utf-8"))
     repeat_samples = corpus.get("repeat_samples")
+    if args.repeat_samples is not None:
+        repeat_samples = args.repeat_samples
     if not isinstance(repeat_samples, int) or repeat_samples <= 0:
         parser.error("repeat_samples must be a positive integer")
-    if not corpus.get("cases"):
+    cases = corpus.get("cases")
+    if args.case:
+        cases = [case for case in cases if case["id"] == args.case]
+    if not cases:
         parser.error("benchmark corpus must contain at least one case")
     results = []
-    for case in corpus["cases"]:
+    for case in cases:
         prompt, tolerance = calibrated_prompt(
             case,
             args.base_url.rstrip("/"),

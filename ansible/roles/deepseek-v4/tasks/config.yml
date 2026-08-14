@@ -30,6 +30,8 @@
     - benchmark-corpus-v1.json
     - evidence-schema-v1.json
     - evidence-validator.py
+    - model-manifest-fetch.py
+    - activate-after-download.sh
     - sqlite-backup.py
 
 - name: Create DeepSeek V4 evidence directory
@@ -44,8 +46,16 @@
   ansible.builtin.file:
     path: "{{ deepseek_v4_cache_dir }}"
     state: directory
-    owner: "{{ deepseek_v4_runtime_uid }}"
-    group: "{{ deepseek_v4_runtime_gid }}"
+    owner: "{{ deepseek_v4_config_owner }}"
+    group: "{{ deepseek_v4_config_group }}"
+    mode: "0750"
+
+- name: Create executable DeepSeek V4 compilation cache directory
+  ansible.builtin.file:
+    path: "{{ deepseek_v4_cache_dir }}/tmp"
+    state: directory
+    owner: "{{ deepseek_v4_config_owner }}"
+    group: "{{ deepseek_v4_config_group }}"
     mode: "0750"
 
 - name: Render DeepSeek V4 Compose definition

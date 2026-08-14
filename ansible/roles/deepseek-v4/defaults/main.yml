@@ -3,10 +3,8 @@ deepseek_v4_install_dir: /opt/deepseek-v4
 deepseek_v4_harness_dir: "{{ deepseek_v4_install_dir }}/harness"
 deepseek_v4_config_owner: root
 deepseek_v4_config_group: root
-deepseek_v4_model_dir: /data/models/deepseek-v4-flash
+deepseek_v4_model_dir: /data/models/DeepSeek-V4-Flash-0731
 deepseek_v4_cache_dir: /var/cache/deepseek-v4
-deepseek_v4_runtime_uid: 1000
-deepseek_v4_runtime_gid: 1000
 deepseek_v4_evidence_dir: /var/lib/deepseek-v4/evidence
 deepseek_v4_local_evidence_root: /tmp/deepseek-v4-evidence
 deepseek_v4_local_evidence_dir: >-
@@ -21,7 +19,9 @@ deepseek_v4_webui_port: 3000
 deepseek_v4_webui_image_repository: unresolved
 deepseek_v4_webui_image_digest: unresolved
 deepseek_v4_api_bind_address: 127.0.0.1
-deepseek_v4_api_port: 18080
+deepseek_v4_api_port: 8080
+deepseek_v4_webui_host_gateway_address: 172.17.0.1
+deepseek_v4_runtime_container_port: 30000
 deepseek_v4_model_identity: deepseek-v4-flash
 deepseek_v4_compose_project: deepseek-v4
 deepseek_v4_compose_services:
@@ -31,6 +31,7 @@ deepseek_v4_webui_legacy_container: open-webui
 deepseek_v4_model_repository: deepseek-ai/DeepSeek-V4-Flash-0731
 deepseek_v4_model_revision: unresolved
 deepseek_v4_model_file_manifest: []
+deepseek_v4_model_manifest_dynamic: true
 deepseek_v4_runtime_image_repository: unresolved
 deepseek_v4_runtime_image_digest: unresolved
 deepseek_v4_runtime_commit: unresolved
@@ -38,11 +39,28 @@ deepseek_v4_runtime_entrypoint: unresolved
 deepseek_v4_runtime_arguments: []
 deepseek_v4_reasoning_parser: unresolved
 deepseek_v4_tool_parser: unresolved
-deepseek_v4_tensor_parallelism: 1
-deepseek_v4_gpu_ordinal: "0"
+# The profile is deliberately restrictive: profile data, rather than callers,
+# owns the GPU exposure and tensor-parallelism pairing.
+deepseek_v4_profile: tp1
+deepseek_v4_profiles:
+  tp1:
+    tensor_parallelism: 1
+    gpu_ordinals: ["0"]
+  tp2:
+    tensor_parallelism: 2
+    gpu_ordinals: ["0", "1"]
+    # This host reports P2P access unsupported between the two passed-through
+    # GPUs. Keep the TP experiment on NCCL's shared-memory fallback.
+    nccl_p2p_disable: true
 deepseek_v4_context_length: 16384
 deepseek_v4_max_running_requests: 1
 deepseek_v4_mtp_enabled: false
+deepseek_v4_cpu_infer_threads: 16
+deepseek_v4_threadpool_count: 2
+deepseek_v4_gpu_experts: 0
+deepseek_v4_gpu_prefill_token_threshold: 2048
+deepseek_v4_chunked_prefill_size: 4096
+deepseek_v4_memory_fraction: "0.90"
 deepseek_v4_cache_precision: unresolved
 deepseek_v4_readiness_timeout: 1200
 deepseek_v4_webui_seed_api_key: unresolved

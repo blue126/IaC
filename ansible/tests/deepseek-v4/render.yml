@@ -155,3 +155,68 @@
     - name: Assert unresolved gate was rejected
       ansible.builtin.assert:
         that: unresolved_gate_failed | bool
+
+- name: Render and validate the approved TP2 profile
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - fixtures/resolved.yml
+  vars:
+    deepseek_v4_profile: tp2
+    deepseek_v4_install_dir: /tmp/deepseek-v4/tp2
+    deepseek_v4_config_owner: vscode
+    deepseek_v4_config_group: vscode
+    deepseek_v4_model_dir: /tmp/deepseek-v4/model
+    deepseek_v4_cache_dir: /tmp/deepseek-v4/tp2/cache
+    deepseek_v4_evidence_dir: /tmp/deepseek-v4/tp2/evidence
+  pre_tasks:
+    - name: Reset TP2 fixture directory
+      ansible.builtin.file:
+        path: /tmp/deepseek-v4/tp2
+        state: absent
+  roles:
+    - deepseek-v4
+  post_tasks:
+    - name: Validate normalized TP2 Compose syntax
+      ansible.builtin.command: >-
+        docker compose -f /tmp/deepseek-v4/tp2/docker-compose.yml config --quiet
+      changed_when: false
+    - name: Read TP2 Compose fixture
+      ansible.builtin.slurp:
+        src: /tmp/deepseek-v4/tp2/docker-compose.yml
+      register: tp2_compose
+    - name: Assert TP2 Compose has only approved GPU and TP settings
+      ansible.builtin.assert:
+        that:
+          - "(tp2_compose.content | b64decode).count('nvidia.com/gpu=') == 2"
+          - "'nvidia.com/gpu=0' in (tp2_compose.content | b64decode)"
+          - "'nvidia.com/gpu=1' in (tp2_compose.content | b64decode)"
+          - "'CUDA_VISIBLE_DEVICES: \"0,1\"' in (tp2_compose.content | b64decode)"
+          - "'TP: \"2\"' in (tp2_compose.content | b64decode)"
+          - "':/model:ro' in (tp2_compose.content | b64decode)"
+          - "'127.0.0.1:' in (tp2_compose.content | b64decode)"
+
+- name: Prove an unknown performance profile fails before change
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deepseek_v4_profile: tp3
+  tasks:
+    - name: Invoke invalid profile validation
+      block:
+        - name: Include DeepSeek validation
+          ansible.builtin.include_role:
+            name: deepseek-v4
+            tasks_from: validate
+        - name: Mark unexpected invalid profile success
+          ansible.builtin.set_fact:
+            invalid_profile_failed: false
+      rescue:
+        - name: Mark expected invalid profile failure
+          ansible.builtin.set_fact:
+            invalid_profile_failed: true
+    - name: Assert invalid profile was rejected
+      ansible.builtin.assert:
+        that: invalid_profile_failed | bool

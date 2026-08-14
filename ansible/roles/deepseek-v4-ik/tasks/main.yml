@@ -1,0 +1,25 @@
+---
+- name: Validate isolated candidate controls
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_api_port | int != 8080
+      - deepseek_v4_ik_context_length | int == 16384
+      - deepseek_v4_ik_cpu_threads | int == 32
+      - deepseek_v4_ik_commit | length == 40
+      - deepseek_v4_ik_model_sha256 | length == 64
+    fail_msg: Candidate must keep an isolated port and the approved conservative baseline.
+
+- name: Include artifact preparation tasks
+  ansible.builtin.import_tasks: prepare.yml
+  when: deepseek_v4_ik_prepare | bool
+  tags: [prepare]
+
+- name: Include candidate execution tasks
+  ansible.builtin.import_tasks: candidate.yml
+  when: deepseek_v4_ik_run_candidate | bool
+  tags: [candidate, verify, benchmark]
+
+- name: Include production cutover tasks
+  ansible.builtin.import_tasks: production.yml
+  when: deepseek_v4_ik_production | bool
+  tags: [production]

@@ -3,7 +3,7 @@ schema_version: 1
 identity:
   release_id: "{{ deepseek_v4_release_id }}"
   created_at: "{{ deepseek_v4_release_created_at }}"
-  purpose: tp1-baseline
+  purpose: "{{ deepseek_v4_profile }}-profile"
   source_revision: "{{ deepseek_v4_source_revision }}"
   fixture_revision: "{{ deepseek_v4_fixture_revision }}"
 model:
@@ -23,7 +23,7 @@ runtime:
   reasoning_parser: "{{ deepseek_v4_reasoning_parser }}"
   tool_parser: "{{ deepseek_v4_tool_parser }}"
   privileged: false
-  runtime_user: "{{ deepseek_v4_runtime_uid }}:{{ deepseek_v4_runtime_gid }}"
+  runtime_user: image-default-root
   capabilities:
     drop: [ALL]
     add: [SYS_NICE]
@@ -31,6 +31,9 @@ runtime:
     - "{{ deepseek_v4_cache_dir }}"
     - /tmp
   api_bind: "{{ deepseek_v4_api_bind_address }}:{{ deepseek_v4_api_port }}"
+  webui_host_gateway_bind: >-
+    {{ deepseek_v4_webui_host_gateway_address }}:{{ deepseek_v4_api_port }}
+  container_port: {{ deepseek_v4_runtime_container_port }}
   open_webui_image: >-
     {{ deepseek_v4_webui_image_repository }}@{{ deepseek_v4_webui_image_digest }}
   open_webui_authority: >-
@@ -44,8 +47,9 @@ runtime:
     max_size: 50m
     max_files: 3
 serving:
+  profile: "{{ deepseek_v4_profile }}"
   tensor_parallelism: {{ deepseek_v4_tensor_parallelism }}
-  gpu_ordinal: "{{ deepseek_v4_gpu_ordinal }}"
+  gpu_ordinals: {{ deepseek_v4_gpu_ordinals | to_json }}
   context_length: {{ deepseek_v4_context_length }}
   max_running_requests: {{ deepseek_v4_max_running_requests }}
   mtp_enabled: {{ deepseek_v4_mtp_enabled | bool | lower }}

@@ -117,9 +117,9 @@ variable "llm_server_memory_mb" {
 }
 
 variable "llm_server_system_disk_gb" {
-  description = "System disk size in GB for LLM Server"
+  description = "System disk size in GB for LLM Server, including isolated DeepSeek model-candidate capacity"
   type        = number
-  default     = 600
+  default     = 900
 }
 
 variable "llm_server_mmio_size_gb" {

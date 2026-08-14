@@ -28,6 +28,7 @@ benchmark_runner = (ANSIBLE / "roles/deepseek-v4/files/benchmark-runner.py").rea
 evidence_validator = (ANSIBLE / "roles/deepseek-v4/files/evidence-validator.py").read_text()
 lifecycle_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/lifecycle.yml").read_text()
 verify_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/verify.yml").read_text()
+activate_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/activate.yml").read_text()
 fixture_dir = ANSIBLE / "roles/deepseek-v4/files"
 fixture_documents = {
     path.name: json.loads(path.read_text())
@@ -35,15 +36,27 @@ fixture_documents = {
 }
 fixtures = fixture_documents["api-fixtures-v1.json"]
 
-require(":/models:ro" in compose, "model volume is not read-only")
+require(":/model:ro" in compose, "model volume is not read-only")
 require("privileged: false" in compose, "container privilege is not explicitly disabled")
 require("cap_drop:" in compose and "- ALL" in compose, "capabilities are not minimized")
-require("driver: nvidia" in compose, "inference container does not reserve an NVIDIA GPU")
-require("device_ids:" in compose, "inference GPU identity is not explicit")
+require("nvidia.com/gpu=" in compose, "inference container does not reserve an NVIDIA GPU")
+require("deepseek_v4_gpu_ordinals" in compose, "inference GPU identities are not explicit")
+require("NCCL_P2P_DISABLE" in compose, "TP2 P2P fallback is not explicit")
+require("deepseek_v4_profile: tp1" in defaults, "TP1 is not the default profile")
+require("tp2:" in defaults and 'gpu_ordinals: ["0", "1"]' in defaults,
+        "the strict TP2 GPU profile is missing")
+require("deepseek_v4_profile in ['tp1', 'tp2']" in (ANSIBLE / "roles/deepseek-v4/tasks/validate.yml").read_text(),
+        "profile validation does not reject unknown profiles")
+require("profile:" in (ANSIBLE / "roles/deepseek-v4/templates/release-manifest.yml.j2").read_text(),
+        "release manifest does not record the active profile")
+require("Discover NVIDIA GPU ordinals before activation" in activate_tasks,
+        "activation does not verify the requested GPU ordinals")
+require("systemd-run --wait --collect" in activate_tasks,
+        "activation does not wait for its guarded result")
 require("no-new-privileges:true" in compose, "no-new-privileges is missing")
 require("max-size:" in compose and "max-file:" in compose, "bounded logging is missing")
 require("@{{ deepseek_v4_runtime_image_digest }}" in compose, "image digest is not rendered")
-require("deepseek-private" in compose and "internal: true" in compose, "private network is missing")
+require("deepseek-private" in compose, "controlled Compose network is missing")
 require("open-webui:" in compose, "Open WebUI is absent from the controlled Compose project")
 require("deepseek_v4_webui_image_digest" in compose, "Open WebUI image is not digest-pinned")
 require(compose.count("deepseek-private") >= 3, "Open WebUI and inference do not share the private network")
@@ -61,6 +74,10 @@ require(
 require("llm_server_models" not in host_vars and "llm_server_boot_model" not in host_vars,
         "legacy desired state remains in host vars")
 require(re.search(r"deepseek_v4_api_bind_address: 127\.0\.0\.1", defaults), "default API bind is not loopback")
+require(
+    "deepseek_v4_webui_host_gateway_address" in compose,
+    "Open WebUI host-gateway API bind is missing",
+)
 require(any(not case["valid"] for case in fixtures["cases"]), "malformed fixtures are absent")
 require("deepseek_v4_webui_database_path" in webui_tasks, "WebUI database is not inspected")
 require("state: absent" not in webui_tasks, "default WebUI path deletes a seed file")

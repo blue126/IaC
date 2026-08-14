@@ -1,0 +1,67 @@
+---
+- name: Stop the active KTransformers owner for exclusive candidate access
+  ansible.builtin.systemd:
+    name: "{{ deepseek_v4_ik_main_unit }}"
+    state: stopped
+
+- name: Run candidate verification with guaranteed primary restoration
+  block:
+    - name: Start the isolated dual-GPU candidate
+      community.docker.docker_compose_v2:
+        project_src: "{{ deepseek_v4_ik_install_dir }}"
+        state: present
+
+    - name: Wait for candidate API readiness
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ deepseek_v4_ik_api_port }}/health"
+        status_code: 200
+      register: deepseek_v4_ik_health
+      retries: 90
+      delay: 10
+      until: deepseek_v4_ik_health.status == 200
+
+    - name: Run API contract suite against the candidate
+      ansible.builtin.command: >-
+        python3 /opt/deepseek-v4/harness/contract-runner.py
+        --base-url http://127.0.0.1:{{ deepseek_v4_ik_api_port }}
+        --model {{ deepseek_v4_ik_model_name }}
+        --output {{ deepseek_v4_ik_evidence_dir }}/contract.json
+      register: deepseek_v4_ik_contract
+      changed_when: false
+      failed_when: false
+
+    - name: Run repeated candidate benchmark
+      ansible.builtin.command: >-
+        python3 /opt/deepseek-v4/harness/benchmark-runner.py
+        --base-url http://127.0.0.1:{{ deepseek_v4_ik_api_port }}
+        --model {{ deepseek_v4_ik_model_name }}
+        --output {{ deepseek_v4_ik_evidence_dir }}/benchmark.json
+      register: deepseek_v4_ik_benchmark
+      changed_when: false
+      failed_when: false
+
+    - name: Save candidate result evidence
+      ansible.builtin.copy:
+        content: >-
+          {{ {'contract_rc': deepseek_v4_ik_contract.rc,
+              'benchmark_rc': deepseek_v4_ik_benchmark.rc,
+              'contract': deepseek_v4_ik_contract.stdout | from_json,
+              'benchmark': deepseek_v4_ik_benchmark.stdout | from_json} | to_nice_json }}
+        dest: "{{ deepseek_v4_ik_evidence_dir }}/candidate-result.json"
+        owner: root
+        group: root
+        mode: "0644"
+
+  always:
+    - name: Stop the isolated candidate after evidence collection
+      community.docker.docker_compose_v2:
+        project_src: "{{ deepseek_v4_ik_install_dir }}"
+        state: absent
+      when: not (deepseek_v4_ik_keep_candidate_running | bool)
+      failed_when: false
+
+    - name: Restore the primary dual-GPU service
+      ansible.builtin.systemd:
+        name: "{{ deepseek_v4_ik_main_unit }}"
+        state: started
+      when: not (deepseek_v4_ik_keep_candidate_running | bool)

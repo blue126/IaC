@@ -1,0 +1,65 @@
+---
+services:
+  candidate:
+    image: {{ deepseek_v4_ik_runtime_image }}
+    entrypoint: []
+    command:
+      - /opt/ik/bin/llama-server
+      - --model
+      - /models/DeepSeek-V4-Flash.gguf
+      - --host
+      - 0.0.0.0
+      - --port
+      - "{{ deepseek_v4_ik_api_port }}"
+      - --alias
+      - {{ deepseek_v4_ik_model_name }}
+      - --ctx-size
+      - "{{ deepseek_v4_ik_context_length }}"
+      - --threads
+      - "{{ deepseek_v4_ik_cpu_threads }}"
+      - --n-gpu-layers
+      - "100"
+      - --split-mode
+      - layer
+      - --cpu-moe
+      - --flash-attn
+      - "on"
+      - --cache-type-k
+      - f16
+      - --cache-type-v
+      - f16
+      - --no-mmap
+      - --jinja
+      - --reasoning-format
+      - deepseek
+    environment:
+      CUDA_VISIBLE_DEVICES: "0,1"
+      GGML_CUDA_NO_PINNED: "1"
+      LD_LIBRARY_PATH: /opt/ik/src:/opt/ik/ggml/src:/opt/ik/examples/mtmd
+    ports:
+      - "{{ deepseek_v4_ik_api_bind_address }}:{{ deepseek_v4_ik_api_port }}:{{ deepseek_v4_ik_api_port }}"
+    volumes:
+      - "{{ deepseek_v4_ik_build_dir }}:/opt/ik:ro"
+      - "{{ deepseek_v4_ik_model_dir }}:/models:ro"
+    devices:
+      - nvidia.com/gpu=0
+      - nvidia.com/gpu=1
+    ipc: host
+    cap_add: [SYS_NICE]
+    init: true
+    restart: "no"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error
+          http://127.0.0.1:{{ deepseek_v4_ik_api_port }}/health >/dev/null || exit 1
+      interval: 30s
+      timeout: 10s
+      start_period: 15m
+      retries: 20
+    logging:
+      driver: local
+      options:
+        max-size: 20m
+        max-file: "2"

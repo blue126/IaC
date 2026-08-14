@@ -1,0 +1,37 @@
+---
+deepseek_v4_ik_install_dir: /opt/deepseek-v4-ik
+deepseek_v4_ik_source_dir: "{{ deepseek_v4_ik_install_dir }}/src"
+deepseek_v4_ik_build_dir: "{{ deepseek_v4_ik_source_dir }}/build"
+deepseek_v4_ik_model_dir: /data/models/DeepSeek-V4-Flash-GGUF
+deepseek_v4_ik_model_path: "{{ deepseek_v4_ik_model_dir }}/DeepSeek-V4-Flash.gguf"
+deepseek_v4_ik_model_repository: sokann/DeepSeek-V4-Flash-GGUF
+deepseek_v4_ik_model_revision: 8315f07e97f3e8b15b551da6a82ba944b2e55be9
+deepseek_v4_ik_repository: https://github.com/ikawrakow/ik_llama.cpp.git
+deepseek_v4_ik_commit: 981e5ea0d7579b4803c86afbb09a7cd7d7bf3bb8
+deepseek_v4_ik_model_url: >-
+  https://huggingface.co/sokann/DeepSeek-V4-Flash-GGUF/resolve/
+  8315f07e97f3e8b15b551da6a82ba944b2e55be9/DeepSeek-V4-Flash.gguf
+deepseek_v4_ik_model_sha256: fd4108898e566869e333f11f8e9b40ab773d3431c5a94685aeff5794e2c5572f
+deepseek_v4_ik_model_size_bytes: 156378344544
+deepseek_v4_ik_runtime_image: >-
+  approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8
+deepseek_v4_ik_compose_project: deepseek-v4-ik
+deepseek_v4_ik_api_port: 8081
+deepseek_v4_ik_api_bind_address: 172.17.0.1
+deepseek_v4_ik_context_length: 16384
+deepseek_v4_ik_cpu_threads: 32
+deepseek_v4_ik_main_unit: deepseek-v4.service
+deepseek_v4_ik_service_unit: deepseek-v4-ik.service
+deepseek_v4_ik_model_name: deepseek-v4-flash-gguf-candidate
+deepseek_v4_ik_evidence_dir: /var/lib/deepseek-v4-ik/evidence
+deepseek_v4_ik_webui_container: open-webui
+deepseek_v4_ik_webui_database_path: /opt/open-webui/data/webui.db
+deepseek_v4_ik_webui_backup_dir: /var/backups/open-webui
+deepseek_v4_ik_webui_expected_url: http://host.docker.internal:8080/v1
+deepseek_v4_ik_webui_target_url: http://host.docker.internal:8081/v1
+deepseek_v4_ik_download_container: deepseek-v4-ik-download
+deepseek_v4_ik_prepare: false
+deepseek_v4_ik_run_candidate: false
+deepseek_v4_ik_keep_candidate_running: false
+deepseek_v4_ik_production: false
+deepseek_v4_ik_remove_legacy: false

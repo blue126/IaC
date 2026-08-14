@@ -31,6 +31,12 @@
       An active approved legacy unit was omitted from this lifecycle request;
       no service was changed.
 
+- name: Select active approved legacy units for retirement
+  ansible.builtin.set_fact:
+    deepseek_v4_active_retirement_units: >-
+      {{ deepseek_v4_active_legacy_units.stdout_lines
+         | intersect(deepseek_v4_legacy_units) }}
+
 - name: Inspect Open WebUI database before cutover
   ansible.builtin.stat:
     path: "{{ deepseek_v4_webui_database_path }}"
@@ -87,12 +93,12 @@
           Open WebUI backup or retirement failed; the legacy writer was
           restored and no inference lifecycle transition was attempted.
 
-- name: Stop and disable exact approved legacy units
+- name: Stop and disable active approved legacy units
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: stopped
     enabled: false
-  loop: "{{ deepseek_v4_legacy_units }}"
+  loop: "{{ deepseek_v4_active_retirement_units }}"
 
 - name: Inspect the legacy model switch command
   ansible.builtin.stat:

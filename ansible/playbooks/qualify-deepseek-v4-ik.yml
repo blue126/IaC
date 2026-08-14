@@ -1,0 +1,21 @@
+---
+- name: Prepare DeepSeek V4 GGUF candidate
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  vars:
+    deepseek_v4_ik_run_candidate: false
+  roles:
+    - role: deepseek-v4-ik
+  tags: [prepare]
+
+- name: Qualify DeepSeek V4 GGUF candidate
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  vars:
+    deepseek_v4_ik_prepare: false
+    deepseek_v4_ik_run_candidate: true
+  roles:
+    - role: deepseek-v4-ik
+  tags: [candidate, verify, benchmark]
