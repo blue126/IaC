@@ -3,7 +3,10 @@
   ansible.builtin.assert:
     that:
       - deepseek_v4_ik_api_port | int != 8080
-      - deepseek_v4_ik_context_length | int == 16384
+      - deepseek_v4_ik_backend_api_port | int != deepseek_v4_ik_api_port | int
+      - deepseek_v4_ik_backend_api_bind_address == '127.0.0.1'
+      - deepseek_v4_ik_api_allowed_cidrs | length > 0
+      - deepseek_v4_ik_context_length | int == 131072
       - deepseek_v4_ik_cpu_threads | int == 32
       - deepseek_v4_ik_commit | length == 40
       - deepseek_v4_ik_model_sha256 | length == 64

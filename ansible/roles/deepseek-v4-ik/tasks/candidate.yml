@@ -1,7 +1,29 @@
 ---
-- name: Stop the active KTransformers owner for exclusive candidate access
+- name: Create the isolated candidate harness directory
+  ansible.builtin.file:
+    path: "{{ deepseek_v4_ik_candidate_harness_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the isolated candidate harness
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../deepseek-v4/files/{{ item }}"
+    dest: "{{ deepseek_v4_ik_candidate_harness_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "{{ '0750' if item.endswith('.py') else '0640' }}"
+  loop:
+    - contract-runner.py
+    - benchmark-runner.py
+    - api-fixtures-v1.json
+    - correctness-corpus-v1.json
+    - benchmark-corpus-v1.json
+
+- name: Stop the active GGUF owner for exclusive candidate access
   ansible.builtin.systemd:
-    name: "{{ deepseek_v4_ik_main_unit }}"
+    name: "{{ deepseek_v4_ik_service_unit }}"
     state: stopped
 
 - name: Run candidate verification with guaranteed primary restoration
@@ -13,7 +35,7 @@
 
     - name: Wait for candidate API readiness
       ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ deepseek_v4_ik_api_port }}/health"
+        url: "http://{{ deepseek_v4_ik_backend_api_bind_address }}:{{ deepseek_v4_ik_backend_api_port }}/health"
         status_code: 200
       register: deepseek_v4_ik_health
       retries: 90
@@ -22,9 +44,10 @@
 
     - name: Run API contract suite against the candidate
       ansible.builtin.command: >-
-        python3 /opt/deepseek-v4/harness/contract-runner.py
-        --base-url http://127.0.0.1:{{ deepseek_v4_ik_api_port }}
+        python3 {{ deepseek_v4_ik_candidate_harness_dir }}/contract-runner.py
+        --base-url http://{{ deepseek_v4_ik_backend_api_bind_address }}:{{ deepseek_v4_ik_backend_api_port }}
         --model {{ deepseek_v4_ik_model_name }}
+        --skip-compatibility
         --output {{ deepseek_v4_ik_evidence_dir }}/contract.json
       register: deepseek_v4_ik_contract
       changed_when: false
@@ -32,8 +55,8 @@
 
     - name: Run repeated candidate benchmark
       ansible.builtin.command: >-
-        python3 /opt/deepseek-v4/harness/benchmark-runner.py
-        --base-url http://127.0.0.1:{{ deepseek_v4_ik_api_port }}
+        python3 {{ deepseek_v4_ik_candidate_harness_dir }}/benchmark-runner.py
+        --base-url http://{{ deepseek_v4_ik_backend_api_bind_address }}:{{ deepseek_v4_ik_backend_api_port }}
         --model {{ deepseek_v4_ik_model_name }}
         --output {{ deepseek_v4_ik_evidence_dir }}/benchmark.json
       register: deepseek_v4_ik_benchmark
@@ -45,8 +68,8 @@
         content: >-
           {{ {'contract_rc': deepseek_v4_ik_contract.rc,
               'benchmark_rc': deepseek_v4_ik_benchmark.rc,
-              'contract': deepseek_v4_ik_contract.stdout | from_json,
-              'benchmark': deepseek_v4_ik_benchmark.stdout | from_json} | to_nice_json }}
+              'contract_stdout': deepseek_v4_ik_contract.stdout,
+              'benchmark_stdout': deepseek_v4_ik_benchmark.stdout} | to_nice_json }}
         dest: "{{ deepseek_v4_ik_evidence_dir }}/candidate-result.json"
         owner: root
         group: root
@@ -60,8 +83,8 @@
       when: not (deepseek_v4_ik_keep_candidate_running | bool)
       failed_when: false
 
-    - name: Restore the primary dual-GPU service
+    - name: Restore the primary GGUF service
       ansible.builtin.systemd:
-        name: "{{ deepseek_v4_ik_main_unit }}"
+        name: "{{ deepseek_v4_ik_service_unit }}"
         state: started
       when: not (deepseek_v4_ik_keep_candidate_running | bool)

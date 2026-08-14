@@ -2,6 +2,15 @@
 # LLM appliance host configuration
 ansible_host: 192.168.1.247
 
+# Publish the stable OpenAI-compatible API only to the trusted home LAN.
+# Docker bridge access remains necessary for Open WebUI via host.docker.internal.
+deepseek_v4_ik_api_bind_address: 0.0.0.0
+deepseek_v4_ik_api_allowed_cidrs:
+  - 127.0.0.0/8
+  - 172.17.0.0/16
+  - 172.18.0.0/16
+  - 192.168.1.0/24
+
 # DeepSeek V4 controlled release pins, captured for the approved G2 rollout.
 deepseek_v4_model_repository: deepseek-ai/DeepSeek-V4-Flash-0731
 deepseek_v4_model_revision: 7872f01b1d1fe23eabc4c98b48bffcef5a386062

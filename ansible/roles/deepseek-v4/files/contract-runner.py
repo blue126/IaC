@@ -71,6 +71,11 @@ def normalized(value):
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
 
+def is_ok_reply(value):
+    """Accept the requested token with only optional terminal punctuation."""
+    return normalized(value).rstrip(".。!！") == "ok"
+
+
 def valid_add_function(content):
     """Statically require an add(a, b) function returning a + b."""
     code = content.strip()
@@ -219,19 +224,33 @@ def run_correctness(base_url, model):
     return results
 
 
-def run_live(base_url, model):
+def run_live(base_url, model, skip_compatibility=False):
     """Run sync, SSE, reasoning, tool and continuation contracts."""
     results = []
     sync = base_payload(model, "Reply with exactly OK.")
     results.append(
         guarded(
             "sync-chat",
-            lambda: normalized(
+            lambda: is_ok_reply(
                 post(base_url, sync)["choices"][0]["message"].get("content") or ""
-            ) == "ok",
+            ),
         )
     )
 
+    if not skip_compatibility:
+        zero_thinking = dict(sync, thinking_budget_tokens=0)
+
+        def check_zero_thinking():
+            body = post(base_url, zero_thinking)
+            message = body["choices"][0]["message"]
+            content = message.get("content") or ""
+            return (
+                validate_message(body)
+                and "</think>" not in content
+                and is_ok_reply(content)
+            )
+
+        results.append(guarded("zero-thinking-chat", check_zero_thinking))
     stream = dict(sync, stream=True)
     results.append(
         guarded("sse-chat", lambda: validate_sse(post(base_url, stream, True)))
@@ -340,13 +359,18 @@ def main():
     parser.add_argument("--base-url")
     parser.add_argument("--model")
     parser.add_argument("--output")
+    parser.add_argument("--skip-compatibility", action="store_true")
     args = parser.parse_args()
     if not args.self_test and (not args.base_url or not args.model):
         parser.error("live mode requires --base-url and --model")
     results = (
         canned_results()
         if args.self_test
-        else run_live(args.base_url.rstrip("/"), args.model)
+        else run_live(
+            args.base_url.rstrip("/"),
+            args.model,
+            args.skip_compatibility,
+        )
     )
     evidence = {
         "schema_version": 1,

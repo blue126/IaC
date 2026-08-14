@@ -6,6 +6,37 @@
     owner: root
     group: root
     mode: "0644"
+  register: deepseek_v4_ik_compose_config
+
+- name: Create the local compatibility proxy directory
+  ansible.builtin.file:
+    path: /usr/local/libexec
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the local OpenAI compatibility proxy
+  ansible.builtin.copy:
+    src: openai-compat-proxy.py
+    dest: "{{ deepseek_v4_ik_compat_proxy_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  register: deepseek_v4_ik_compat_proxy_code
+
+- name: Install the versioned compatibility contract harness
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../deepseek-v4/files/{{ item }}"
+    dest: "/usr/local/libexec/{{ item }}"
+    owner: root
+    group: root
+    mode: "{{ '0755' if item == 'contract-runner.py' else '0644' }}"
+  loop:
+    - contract-runner.py
+    - api-fixtures-v1.json
+    - correctness-corpus-v1.json
+    - benchmark-corpus-v1.json
 
 - name: Render the production GGUF systemd owner
   ansible.builtin.template:
@@ -14,21 +45,57 @@
     owner: root
     group: root
     mode: "0644"
+  register: deepseek_v4_ik_service_unit_config
+  notify: Reload systemd
+
+- name: Render the OpenAI compatibility proxy owner
+  ansible.builtin.template:
+    src: deepseek-v4-ik-compat.service.j2
+    dest: "/etc/systemd/system/{{ deepseek_v4_ik_compat_service_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: deepseek_v4_ik_compat_proxy_unit
   notify: Reload systemd
 
 - name: Flush systemd unit changes
   ansible.builtin.meta: flush_handlers
+
+- name: Gather service facts before retiring the superseded owner
+  ansible.builtin.service_facts:
 
 - name: Stop and disable the superseded KTransformers owner
   ansible.builtin.systemd:
     name: "{{ deepseek_v4_ik_main_unit }}"
     state: stopped
     enabled: false
+  when: >-
+    deepseek_v4_ik_main_unit in ansible_facts.services
+    and ansible_facts.services[deepseek_v4_ik_main_unit].status | default('not-found') != 'not-found'
+
+- name: Inspect the current GGUF production owner state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_ik_service_unit }}"]
+  register: deepseek_v4_ik_service_state
+  changed_when: false
+  failed_when: false
 
 - name: Enable and start the GGUF production owner
   ansible.builtin.systemd:
     name: "{{ deepseek_v4_ik_service_unit }}"
-    state: started
+    state: >-
+      {{ 'restarted' if (deepseek_v4_ik_compose_config.changed
+      or deepseek_v4_ik_service_unit_config.changed
+      or deepseek_v4_ik_service_state.rc != 0) else 'started' }}
+    enabled: true
+
+- name: Enable and start the OpenAI compatibility proxy
+  ansible.builtin.systemd:
+    name: "{{ deepseek_v4_ik_compat_service_unit }}"
+    state: >-
+      {{ 'restarted' if (deepseek_v4_ik_compat_proxy_code.changed
+      or deepseek_v4_ik_compat_proxy_unit.changed
+      or deepseek_v4_ik_compose_config.changed) else 'started' }}
     enabled: true
 
 - name: Wait for the GGUF production API
@@ -39,6 +106,23 @@
   retries: 120
   delay: 10
   until: deepseek_v4_ik_production_health.status == 200
+
+- name: Run the production-facing compatibility API contract
+  ansible.builtin.command: >-
+    python3 {{ deepseek_v4_ik_contract_runner_path }}
+    --base-url http://{{ deepseek_v4_ik_api_bind_address }}:{{ deepseek_v4_ik_api_port }}
+    --model {{ deepseek_v4_ik_model_name }}
+    --output {{ deepseek_v4_ik_evidence_dir }}/compatibility-contract.json
+  register: deepseek_v4_ik_compatibility_contract
+  changed_when: false
+
+- name: Require the production-facing compatibility contract to pass
+  ansible.builtin.assert:
+    that:
+      - (deepseek_v4_ik_compatibility_contract.stdout | from_json).status == 'pass'
+    fail_msg: >-
+      The proxy-facing API contract failed; inspect
+      {{ deepseek_v4_ik_evidence_dir }}/compatibility-contract.json before using the service.
 
 - name: Verify the candidate is reachable from Open WebUI
   ansible.builtin.command:
@@ -60,6 +144,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Install the guarded Open WebUI connection updater
   ansible.builtin.copy:
@@ -68,6 +153,7 @@
     owner: root
     group: root
     mode: "0750"
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Render the Open WebUI production Compose project
   ansible.builtin.template:
@@ -76,16 +162,19 @@
     owner: root
     group: root
     mode: "0644"
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Stop Open WebUI before its SQLite connection migration
   community.docker.docker_container:
     name: "{{ deepseek_v4_ik_webui_container }}"
     state: stopped
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Remove the stopped legacy Open WebUI container before Compose ownership changes
   community.docker.docker_container:
     name: "{{ deepseek_v4_ik_webui_container }}"
     state: absent
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Switch the saved Open WebUI local endpoint to the GGUF service
   ansible.builtin.command:
@@ -102,6 +191,7 @@
       - "{{ deepseek_v4_ik_webui_target_url }}"
   register: deepseek_v4_ik_webui_switch
   changed_when: "(deepseek_v4_ik_webui_switch.stdout | from_json).changed"
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Recreate Open WebUI with its private host gateway mapping
   ansible.builtin.command:
@@ -115,6 +205,7 @@
       - "{{ deepseek_v4_ik_webui_container }}"
   args:
     chdir: /opt/open-webui
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Wait for Open WebUI to become healthy
   ansible.builtin.command:
@@ -125,6 +216,7 @@
   delay: 5
   until: >-
     (deepseek_v4_ik_webui_inspect.stdout | from_json)[0].State.Health.Status == 'healthy'
+  when: deepseek_v4_ik_manage_webui | bool
 
 - name: Remove legacy service units
   ansible.builtin.file:

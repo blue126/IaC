@@ -1,0 +1,49 @@
+---
+- name: Render DeepSeek V4 GGUF compatibility boundary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../../roles/deepseek-v4-ik/defaults/main.yml
+  vars:
+    deepseek_v4_ik_render_dir: /tmp/deepseek-v4-ik-render
+    deepseek_v4_ik_compat_proxy_path: /tmp/deepseek-v4-ik-render/openai-compat-proxy.py
+  pre_tasks:
+    - name: Create the render fixture directory
+      ansible.builtin.file:
+        path: "{{ deepseek_v4_ik_render_dir }}"
+        state: directory
+        mode: "0755"
+  tasks:
+    - name: Render the private candidate Compose fixture
+      ansible.builtin.template:
+        src: ../../roles/deepseek-v4-ik/templates/docker-compose.yml.j2
+        dest: "{{ deepseek_v4_ik_render_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Render the compatibility proxy unit fixture
+      ansible.builtin.template:
+        src: ../../roles/deepseek-v4-ik/templates/deepseek-v4-ik-compat.service.j2
+        dest: "{{ deepseek_v4_ik_render_dir }}/deepseek-v4-ik-compat.service"
+        mode: "0644"
+
+    - name: Read the rendered private candidate Compose fixture
+      ansible.builtin.slurp:
+        src: "{{ deepseek_v4_ik_render_dir }}/docker-compose.yml"
+      register: deepseek_v4_ik_rendered_compose
+
+    - name: Read the rendered compatibility proxy unit fixture
+      ansible.builtin.slurp:
+        src: "{{ deepseek_v4_ik_render_dir }}/deepseek-v4-ik-compat.service"
+      register: deepseek_v4_ik_rendered_unit
+
+    - name: Assert the stable frontend remains proxy-owned
+      ansible.builtin.assert:
+        that:
+          - "'127.0.0.1:8082:8082' in (deepseek_v4_ik_rendered_compose.content | b64decode)"
+          - "'172.17.0.1:8081:8081' not in (deepseek_v4_ik_rendered_compose.content | b64decode)"
+          - "'--listen-port 8081' in (deepseek_v4_ik_rendered_unit.content | b64decode)"
+          - "'--backend-port 8082' in (deepseek_v4_ik_rendered_unit.content | b64decode)"
+          - "'--allow-cidrs 127.0.0.0/8,172.17.0.0/16,172.18.0.0/16' in (deepseek_v4_ik_rendered_unit.content | b64decode)"
+          - "'\nRestart=on-failure' in (deepseek_v4_ik_rendered_unit.content | b64decode)"
+          - "'--timezone' not in (deepseek_v4_ik_rendered_unit.content | b64decode)"

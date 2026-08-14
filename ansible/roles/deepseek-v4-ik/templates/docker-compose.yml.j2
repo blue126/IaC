@@ -10,7 +10,7 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - "{{ deepseek_v4_ik_api_port }}"
+      - "{{ deepseek_v4_ik_backend_api_port }}"
       - --alias
       - {{ deepseek_v4_ik_model_name }}
       - --ctx-size
@@ -37,7 +37,7 @@ services:
       GGML_CUDA_NO_PINNED: "1"
       LD_LIBRARY_PATH: /opt/ik/src:/opt/ik/ggml/src:/opt/ik/examples/mtmd
     ports:
-      - "{{ deepseek_v4_ik_api_bind_address }}:{{ deepseek_v4_ik_api_port }}:{{ deepseek_v4_ik_api_port }}"
+      - "{{ deepseek_v4_ik_backend_api_bind_address }}:{{ deepseek_v4_ik_backend_api_port }}:{{ deepseek_v4_ik_backend_api_port }}"
     volumes:
       - "{{ deepseek_v4_ik_build_dir }}:/opt/ik:ro"
       - "{{ deepseek_v4_ik_model_dir }}:/models:ro"
@@ -53,7 +53,7 @@ services:
         - CMD-SHELL
         - >-
           curl --fail --silent --show-error
-          http://127.0.0.1:{{ deepseek_v4_ik_api_port }}/health >/dev/null || exit 1
+          http://127.0.0.1:{{ deepseek_v4_ik_backend_api_port }}/health >/dev/null || exit 1
       interval: 30s
       timeout: 10s
       start_period: 15m

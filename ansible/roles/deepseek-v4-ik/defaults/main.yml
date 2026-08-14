@@ -18,7 +18,21 @@ deepseek_v4_ik_runtime_image: >-
 deepseek_v4_ik_compose_project: deepseek-v4-ik
 deepseek_v4_ik_api_port: 8081
 deepseek_v4_ik_api_bind_address: 172.17.0.1
-deepseek_v4_ik_context_length: 16384
+deepseek_v4_ik_api_allowed_cidrs:
+  - 127.0.0.0/8
+  - 172.17.0.0/16
+  - 172.18.0.0/16
+deepseek_v4_ik_backend_api_port: 8082
+deepseek_v4_ik_backend_api_bind_address: 127.0.0.1
+deepseek_v4_ik_compat_service_unit: deepseek-v4-ik-compat.service
+deepseek_v4_ik_compat_proxy_path: /usr/local/libexec/openai-compat-proxy.py
+deepseek_v4_ik_contract_runner_path: /usr/local/libexec/contract-runner.py
+deepseek_v4_ik_candidate_harness_dir: "{{ deepseek_v4_ik_install_dir }}/harness"
+deepseek_v4_ik_compat_timeout_seconds: 1800
+# 128K is the approved interactive coding target.  The model's 16K KV cache
+# consumes only 688 MiB across both GPUs, so this remains within the measured
+# memory envelope while leaving room for a single long-running session.
+deepseek_v4_ik_context_length: 131072
 deepseek_v4_ik_cpu_threads: 32
 deepseek_v4_ik_main_unit: deepseek-v4.service
 deepseek_v4_ik_service_unit: deepseek-v4-ik.service
@@ -35,3 +49,4 @@ deepseek_v4_ik_run_candidate: false
 deepseek_v4_ik_keep_candidate_running: false
 deepseek_v4_ik_production: false
 deepseek_v4_ik_remove_legacy: false
+deepseek_v4_ik_manage_webui: false

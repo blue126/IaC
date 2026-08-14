@@ -3,6 +3,7 @@
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,6 +30,12 @@ evidence_validator = (ANSIBLE / "roles/deepseek-v4/files/evidence-validator.py")
 lifecycle_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/lifecycle.yml").read_text()
 verify_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/verify.yml").read_text()
 activate_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/activate.yml").read_text()
+ik_root = ANSIBLE / "roles/deepseek-v4-ik"
+ik_compose = (ik_root / "templates/docker-compose.yml.j2").read_text()
+ik_production = (ik_root / "tasks/production.yml").read_text()
+ik_candidate = (ik_root / "tasks/candidate.yml").read_text()
+ik_proxy_unit = (ik_root / "templates/deepseek-v4-ik-compat.service.j2").read_text()
+ik_proxy = ik_root / "files/openai-compat-proxy.py"
 fixture_dir = ANSIBLE / "roles/deepseek-v4/files"
 fixture_documents = {
     path.name: json.loads(path.read_text())
@@ -117,6 +124,43 @@ require(
     ),
     "a versioned JSON fixture is missing schema_version",
 )
+require(ik_proxy.exists(), "GGUF OpenAI compatibility proxy is absent")
+require("deepseek_v4_ik_backend_api_port" in ik_compose, "GGUF backend port is not isolated")
+require(
+    "deepseek_v4_ik_backend_api_bind_address" in ik_compose,
+    "GGUF candidate does not bind through the private backend address",
+)
+require(
+    "deepseek_v4_ik_api_port" not in ik_compose.split("ports:", 1)[1],
+    "GGUF candidate still publishes the stable frontend port directly",
+)
+require(
+    "deepseek_v4_ik_compat_service_unit" in ik_production,
+    "production tasks do not own the compatibility proxy",
+)
+require("Requires={{ deepseek_v4_ik_service_unit }}" in ik_proxy_unit,
+        "compatibility proxy does not depend on the candidate owner")
+require("--timezone" not in ik_proxy_unit,
+        "compatibility proxy must not inject trusted-date context")
+require("--allow-cidrs" in ik_proxy_unit,
+        "compatibility proxy does not restrict API source networks")
+require("zero-thinking-chat" in contract_runner,
+        "live contract runner is missing the zero-thinking regression")
+require("/opt/deepseek-v4/harness" not in ik_candidate,
+        "candidate workflow still depends on retired DeepSeek harnesses")
+require("deepseek_v4_ik_service_unit" in ik_candidate,
+        "candidate workflow does not stop and restore the active GGUF owner")
+require("benchmark-runner.py" in ik_candidate,
+        "candidate workflow does not install its benchmark runner")
+require("deepseek_v4_ik_manage_webui: false" in (ik_root / "defaults/main.yml").read_text(),
+        "parser compatibility deployment can still recreate Open WebUI by default")
+proxy_self_test = subprocess.run(
+    [sys.executable, str(ik_proxy), "--self-test"],
+    capture_output=True,
+    text=True,
+)
+require(proxy_self_test.returncode == 0,
+        f"compatibility proxy self-test failed: {proxy_self_test.stdout.strip()}")
 
 report = {"schema_version": 1, "status": "pass" if not failures else "fail", "failures": failures}
 print(json.dumps(report, indent=2, sort_keys=True))
