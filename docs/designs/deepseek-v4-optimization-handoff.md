@@ -12,7 +12,7 @@
 
 ## 0. 一句话现状
 
-homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）**正确性达标但性能不达标**（decode ~8 tok/s，目标 ≥10；8K 冷 TTFT 85–113s）。已决定走 **B 路线：升级到官方 0731 模型 + DSpark 投机解码 + mainline llama.cpp**。Stage 1（模型下载 + runtime 编译 + 硬件核验）**已完成**；下一步是 **Stage 2（隔离搭建 + 契约 + 性能基准）**，见 §6。
+homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）已切换到 **官方 0731 模型 + DSpark + mainline llama.cpp**。mainline 服务、稳定 API 和固定 chat 均已验证；1K/8K decode 略低于 ik，但 TTFT 与 prefill 显著改善（§3.5）。
 
 ---
 
@@ -26,23 +26,25 @@ homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）**正确性达�
 | **ESXi 宿主机** | 192.168.1.251 | `ssh -i /Users/weierfu/Projects/IaC/.ssh/id_rsa_esxi_t7910 root@192.168.1.251` | ESXi 8.0.3；**必须用工作区 `.ssh/` 下的 RSA key**（`~/.ssh/id_ed25519` 不被接受） |
 | 本机（开发/管理） | — | — | 仓库在 `/Users/weierfu/Projects/IaC`；Ansible 从 `ansible/` 目录跑 |
 
-### 1.2 生产服务形态（不要动）
+### 1.2 当前服务形态
 
 ```
-Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ openai-compat-proxy → 127.0.0.1:8082（ik llama-server，loopback）
+Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ openai-compat-proxy → 127.0.0.1:8082（mainline llama-server，loopback）
 ```
-- systemd：`deepseek-v4-ik.service`（候选容器 `restart:no`）；代理 `deepseek-v4-ik-compat.service`（`PartOf=` 跟随候选）
-- 生产模型：`/data/models/DeepSeek-V4-Flash-GGUF/`（sokann，145.6GiB，block_count=43，无投机 head）
-- 生产 runtime：`ik_llama.cpp@981e5ea0`（`/opt/deepseek-v4-ik/src/build/bin/llama-server`）
-- **任何实验都必须用独立 Compose project + 独立端口，生产不动；候选期间生产按 spec 互斥设计会短暂停止**
+- systemd：`deepseek-v4-mainline.service`（active + enabled）；独立代理 `deepseek-v4-ik-compat.service`
+- 当前模型：`/data/models/DeepSeek-V4-Flash-0731-GGUF/`（UD-Q3_K_M 四分片 + Q8_0 drafter）
+- 当前 runtime：mainline llama.cpp `10bf611e`（`/opt/deepseek-v4-mainline/src/build/bin/llama-server`）
+- ik `deepseek-v4-ik.service` 当前 inactive，完整保留但不自动回退。
+- 这是 homelab 快速验证环境，不建立 candidate/promotion/soak 框架。mainline 使用独立 role、Compose project 和 systemd unit，但切换后直接接管现有 loopback backend `8082`。
+- `deepseek-v4-ik.service` 保留但不自动回退；不要修改 `deepseek-v4-ik` role。mainline 启动或最小 smoke 失败时保留现场，直接检查错误并继续修复。
 
 ### 1.3 关键路径（guest 上）
 
 | 路径 | 内容 |
 |---|---|
-| `/data/models/DeepSeek-V4-Flash-GGUF/` | 生产模型（sokann） |
+| `/data/models/DeepSeek-V4-Flash-GGUF/` | 当前 ik 模型（sokann） |
 | `/data/models/DeepSeek-V4-Flash-0731-GGUF/` | **新模型**（unsloth UD-Q3_K_M 4 分片 + drafter，已 sha256 验证 ✅） |
-| `/opt/deepseek-v4-ik/` | 生产 ik runtime（src/build） |
+| `/opt/deepseek-v4-ik/` | 当前 ik runtime（src/build） |
 | `/opt/deepseek-v4-mainline/` | **新 mainline runtime**（src/build/bin/llama-server，已编译 ✅） |
 | `/var/lib/deepseek-v4-ik/evidence/` | 证据目录（不可覆盖，按 experiment-id 建子目录） |
 | `/tmp/0731-sha256.log`、`/tmp/mainline-build.log` | 下载校验/编译日志 |
@@ -53,12 +55,12 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 
 | 项 | 状态 |
 |---|---|
-| 0731 模型下载（138.97GB，5 文件） | ✅ 完成，**SHA-256 5/5 全部通过**（§4.3 清单） |
+| 0731 模型下载（138.97GB，5 文件） | ✅ 完成，**SHA-256 5/5 全部通过**（§3.3 清单） |
 | mainline llama-server 编译 | ✅ 完成，git HEAD=`10bf611e`（=pin），容器内运行验证通过 |
 | P1：PCIe 维护窗口 | ✅ 物理完成 + 复核：GPU0 Gen3×16 / **GPU1 Gen3×8（卡的问题，未解决）** |
 | P2/P3：P2P / graph split | ❌ **永久阻塞**（P2P=NS，不同 root port），已从路线图移除 |
 | R6：prompt-cache 保存阻塞 /health | ⚠️ checkpoint=8 缓解（72s→22–28s）但**未解决**（同步保存根本问题） |
-| Stage 2：DSpark 隔离搭建 | ⬜ 待做（见 §6） |
+| Stage 2：mainline + DSpark 切换 | ✅ 已部署；health/chat 与 1K/8K 快速基准完成（见 §3.5、§5） |
 
 ---
 
@@ -104,6 +106,21 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 - **运行要点**：二进制 rpath 是容器路径，且依赖 `libnccl.so.2`（宿主机没有）→ **必须在容器内运行**，并 `--gpus all`（挂驱动）+ `LD_LIBRARY_PATH` 指向二进制目录。构建脚本：`scripts/deepseek-v4-mainline-build.sh`。
 - 可选优化：`-DGGML_NCCL=OFF` 重建可消除 NCCL 依赖（本机 layer split 用不到 NCCL）；多卡如需可调 `GGML_SCHED_MAX_SPLIT_INPUTS`（当前不用）。
 
+### 3.5 mainline + DSpark 快速基准（2026-08-17）
+
+同一 `benchmark-runner.py`、cold-prefill、每档 3 样本中位；已依次实测 DSpark `n_max=1` 和 `n_max=2`：
+
+| 指标 | ik 基线 | `n_max=1` | `n_max=2` | `n_max=2` 对 `n_max=1` |
+|---|---:|---:|---:|---:|
+| 1K decode | 8.05 tok/s | 7.58 tok/s | 7.75 tok/s | +2.3% |
+| 1K TTFT | ~22 s | 7.76 s | 7.68 s | -1.1% |
+| 1K prefill | ~71 tok/s | 152.64 tok/s | 154.27 tok/s | +1.1% |
+| 8K decode | 7.68 tok/s | 7.31 tok/s | 7.11 tok/s | -2.6% |
+| 8K TTFT | ~85–113 s | 39.79 s | 40.12 s | +0.8% |
+| 8K prefill | ~89 tok/s | 233.66 tok/s | 231.79 tok/s | -0.8% |
+
+`n_max=2` 只在 1K decode 上有小幅收益，8K decode 反而回退，未显示整体优于 `n_max=1`，因此运行参数回调为 `n_max=1`。这里的“不回退”仅指不退回 ik runtime；实验参数可以按结果回调。结果文件：guest `/tmp/mainline-dspark-1k.json`、`/tmp/mainline-dspark-8k.json`、`/tmp/mainline-dspark-nmax2-1k.json`、`/tmp/mainline-dspark-nmax2-8k.json`。
+
 ---
 
 ## 4. 已做的决定（不要推翻，除非有强证据）
@@ -115,54 +132,46 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 
 ---
 
-## 5. 下一步：Stage 2（DSpark 落地）—— 具体操作
+## 5. Stage 2：快速切换到 mainline + DSpark（已完成）
 
-> 原则：隔离优先、正确性先于性能、一次一个变量、证据不可覆盖。
+本阶段只做快速部署与最小验证，不建立 candidate、watchdog、soak、A/B runner 或 promotion 框架。新入口是 `ansible/playbooks/deploy-deepseek-v4-mainline.yml`；它不会修改 ik role、兼容代理或 Open WebUI。
 
-### 5.1 隔离 smoke test（最快验证能跑）
-
-在 guest 上（生产不动）：
+### 5.1 本地语法检查
 
 ```bash
-docker run --rm --gpus all -p 127.0.0.1:8083:8083 \
-  -e LD_LIBRARY_PATH=/build \
-  -v /opt/deepseek-v4-mainline/src/build/bin:/build \
-  -v /data/models/DeepSeek-V4-Flash-0731-GGUF:/models:ro \
-  -w /build \
-  approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8 \
-  ./llama-server --host 0.0.0.0 --port 8083 \
-  --model /models/UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00001-of-00004.gguf \
-  --model-draft /models/dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf \
-  --spec-type draft-dspark --spec-draft-n-max 1 \
-  --fit off --flash-attn on --jinja \
-  --ctx-size 131072 --threads 32 --numa distribute \
-  --threads-batch 36 --batch-size 4096 --ubatch-size 2048 \
-  --cache-ram 8192 --n-gpu-layers 100 --split-mode layer --cpu-moe \
-  --no-mmap --cache-type-k f16 --cache-type-v f16
+cd ansible
+ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --syntax-check
 ```
 
-要点：
-- **多分片模型**：`--model` 指第一个分片即可，自动加载其余分片；
-- `--fit off` 对 DSpark **必需**（PR 线程实测，否则失败）；
-- `--spec-draft-n-max` 上限 clamp 到 5（V4 drafter 训练块大小），默认 3；**CPU-MoE 下从 1 起测**；
-- smoke：`curl 127.0.0.1:8083/v1/models` → 一个同步 chat（小输出）→ 观察 GPU 利用/无 crash。
+### 5.2 切换命令（2026-08-17 已执行成功）
 
-### 5.2 正式候选流程（复用仓库现有 runner）
+```bash
+cd ansible
+ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml
+```
 
-1. 建 experiment-id 证据目录（`/var/lib/deepseek-v4-ik/evidence/<id>/`），manifest 记录命令/pin/control；
-2. **19 项 API 契约**（复用 `ansible/roles/deepseek-v4/files/contract-runner.py` 或等价 runner，指向 8083）；
-3. **DSpark 输出与关闭投机时逐 token 一致**（投机解码理论无损，须实测证明）；
-4. **性能 A/B**：同 corpus（固定 1K/8K cold-prefill，三样本中位），n_max=1→2→3；
-5. **门槛**：decode 中位 ≥10 tok/s（目标）、无 swap/OOM/restart、每卡峰值显存 ≥2GiB 余量；
-6. **对照**：与 ik 基线（§3.1）比；若需严格归因，补「Q3_K_M 无 DSpark」对照（去掉 `--model-draft`/`--spec-type`）；
-7. 达标后：完整 128K recall + **一小时 soak**（health 空洞 ≤60s）+ post-contract → 才可 promote。
+流程固定为：
 
-### 5.3 注意事项（已知坑）
+1. 在停止 ik 前校验 mainline git HEAD、binary SHA-256、固定 runtime image，以及四个基座分片和 drafter 的 SHA-256；任一不符立即失败，ik 保持运行。
+2. 渲染独立 `deepseek-v4-mainline` Compose project 与 systemd unit。
+3. 停止并禁用 `deepseek-v4-ik.service`，启动并启用 `deepseek-v4-mainline.service`，由 mainline 直接接管 `127.0.0.1:8082`。
+4. 等待 backend `8082/health` 和稳定入口 `8081/health`，再通过 `8081` 发送一次 `temperature=0`、`seed=42`、要求只回复 `OK` 的固定 chat。
+5. 启动或 smoke 失败时不自动恢复 ik；保留 mainline 配置与日志，检查错误并继续修复直到成功。
 
-- **R6 阻塞问题在新 runtime 上必须复现验证**（mainline 是另一套 `server_prompt_cache`；127K→短请求切换 + 独立 /health 探针）；
-- mainline 的 `--cache-ram`/`--ctx-checkpoints`/`--cpu-moe` 语义与 ik 大致一致但实现不同，**不要假定行为相同**；
-- DSpark 在 CPU-MoE 上的净收益未知——若 n_max 调档后仍无增益，如实记录，不硬推广；
-- 模型加载 ~130GB、冷启动按十分钟量级规划。
+只做只读复核时：
+
+```bash
+cd ansible
+ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
+```
+
+### 5.3 已固定的运行要点
+
+- 容器使用两张 GPU，binary 目录只读挂载到 `/build`，`LD_LIBRARY_PATH=/build`；
+- 模型目录只读挂载；`--model` 只指向第一个分片，由 llama.cpp 自动加载其余分片；
+- Q8_0 drafter 固定使用 `--spec-type draft-dspark --spec-draft-n-max 1 --fit off`；
+- 模型加载约 130GB，首次健康检查按最长 20 分钟等待；
+- ik runtime 和模型保留、不删除，仅作为人工回退备份；部署流程不会自动退回 ik。
 
 ---
 
@@ -170,7 +179,7 @@ docker run --rm --gpus all -p 127.0.0.1:8083:8083 \
 
 | 阶段 | 内容 | 证据门 |
 |---|---|---|
-| 3 | 1K/8K 基准重跑（PCIe ×16 后，P1 验收） | 同 corpus 对照无回退 |
+| 3 | 在当前 GPU0 ×16 / GPU1 ×8 拓扑重跑 1K/8K 基准（P1 性能验收） | 同 corpus 对照无回退 |
 | 4 | GPU1 ×8 卡问题（维护窗口：清洁/交换测试） | 两卡 Gen3 ×16 |
 | 5 | prefill 优化：`--override-tensor` 精准放专家（shared/gate/up-down 优先） | 全契约 + 显存余量 + 收益归因 |
 | 6 | 容量轨道：256K/384K profile | 峰值分配 + recall，不混入速度实验 |
@@ -181,10 +190,10 @@ docker run --rm --gpus all -p 127.0.0.1:8083:8083 \
 ## 7. 规则与护栏（必须遵守）
 
 1. **不自动 commit**——完成工作后先问用户「Ready to commit?」；
-2. **Ask First**（未经用户同意不做）：runtime/model pin 变更、删除任何东西、ESXi/BIOS/PCIe/电源变更、context >128K、并发；
-3. **一次只改一个主变量**，显式 control；证据目录按 experiment-id 不可覆盖；
-4. **正确性先于性能**（19 契约 + 128K recall）；无 swap/OOM/restart；每卡峰值 ≥2GiB；
-5. **生产服务不动**；候选独立 Compose project + 独立端口；候选期生产互斥停止由现有 candidate 流程管理；
+2. **Ask First**（未经用户同意不做）：实际连接 guest 执行部署、runtime/model pin 变更、改变 `n_max`、删除旧 ik runtime/模型或 service、ESXi/BIOS/PCIe/电源变更、context >128K、并发；
+3. 当前目标是快速验证；默认只做 artifact preflight、health 和一次固定 chat，不追加长测；
+4. mainline 失败不自动回退；保留现场并继续排错直到成功；
+5. ik role、兼容代理和 Open WebUI 不为 mainline 做兼容性改造；
 6. 文档/对话中文，代码注释英文，commit 用 Conventional Commits（英文）；
 7. Ansible 工作目录 `ansible/`；inventory 由 Terraform state 生成，失效先跑 `scripts/refresh-terraform-state.sh`；
 8. 模型/runtime pin 变更必须先验 SHA-256 或 git HEAD。
@@ -198,7 +207,7 @@ docker run --rm --gpus all -p 127.0.0.1:8083:8083 \
 - [ ] prefill TTFT 无固定目标（越快越好）；PCIe ×16 对 prefill 的实际收益待基准验证
 - [ ] mainline 可选重建 `-DGGML_NCCL=OFF`（消除 NCCL 依赖）
 - [ ] HF 下载限速：guest 上设 `HF_TOKEN`（只读）可提速
-- [ ] 0731 最终资格认证（一小时 soak）在 Stage 2 达标后进行
+- [ ] mainline 快速部署后按实际体验决定是否补充性能或长上下文测试
 
 ---
 

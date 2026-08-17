@@ -1,7 +1,7 @@
 # DeepSeek V4 Flash 本地推理性能优化全景计划
 
 **日期**：2026-08-15
-**状态**：规划稿（未提交，未实施）
+**状态**：执行中（Stage 1–2 已完成快速部署与基准；未提交）
 **关联**：
 - `docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`（部署与实验纪年）
 - `_bmad-output/implementation-artifacts/spec-deepseek-v4-memory-prefill-experiments.md`（实验规范）
@@ -16,11 +16,11 @@
 优化不能靠单一杠杆解决，而是一个**分阶段、有依赖、有证据门**的组合：
 
 1. **decode 杠杆**：投机解码（**0731 + DSpark**）→ agentic 质量大幅提升 + decode ~1.8×（本机待测），是 decode 达标的主攻方向，需换模型 + 换 runtime（详见 §6）。
-2. **prefill 杠杆**：PCIe ×8→×16 + ESXi P2P → 解锁 graph split → 再用 `--override-tensor` 精准放专家。这是 TTFT 达标的主攻方向（§7）。
+2. **prefill 杠杆**：基于当前 GPU0 Gen3×16 / GPU1 Gen3×8 拓扑重跑基准，再用 `--override-tensor` 精准放专家；P2P/graph split 已确认物理阻塞并关闭。这是 TTFT 优化的主攻方向（§7）。
 3. **显存利用杠杆**：`--n-cpu-moe` 逐层 + `--override-tensor`，已测单层收益 2–3%，需与 PCIe 改善叠加才能放大（§8）。
 4. **容量杠杆**：>128K context、KV 量化——是容量不是速度，独立轨道（§9）。
 5. **可用性杠杆**：R6 的 34GiB prompt-cache 同步保存阻塞 /health，是独立正确性缺陷（§10）。
-6. **模型杠杆**：Q3_K_M 降量化（省 CPU 带宽换 decode）——已决定，与 MTP 一并落地（§6）。
+6. **模型杠杆**：UD-Q3_K_M 基座 + Q8_0 DSpark drafter——已决定，并入 Stage 2（§6）。
 7. **运行时迁移杠杆**：SGLang-KT 当前在 3090 上不可行，作为天花板之后的备选（§11）。
 
 **核心原则**（沿用仓库规范）：一次只改一个主变量、正确性先于性能、每个候选过 19 项契约 + 资源护栏、未达 ~10% 推广线不 promote、证据不可覆盖。
@@ -39,10 +39,10 @@
 | prefill 吞吐 | 1K 冷 ~71 / 8K 冷 ~89 tok/s | 越快越好 | ⚠️ |
 | 空闲显存 | GPU0/1 各 ~11–12 GiB | 每卡峰值留 ≥2 GiB | 有富余 |
 | 主机可用 RAM | ~150–186 GiB（视负载） | 无 swap/OOM | ✅ |
-| P2P | 两方向均 `NS`，无 NVLink | 需 `P2P=Enabled` 才开放 graph | ❌ |
-| PCIe | 两卡均 Gen3 ×8 | Gen3 ×16 | ❌ |
+| P2P | 两方向均 `NS`，无 NVLink | 路线已关闭 | ❌ 物理阻塞 |
+| PCIe | GPU0 Gen3 ×16 / GPU1 Gen3 ×8（维护后） | 两卡 Gen3 ×16 | ⚠️ GPU1 待维护 |
 
-**已收敛、不再折腾的基线参数**（§9.1 单变量实验结论）：`threads=32`、`numa=distribute`、`threads-batch=36`、`batch=4096`、`ubatch=2048`、pinned host memory=on、`cache-ram=8GiB`、全 CPU-MoE、`split-mode=layer`、`ctx=131072`。
+**已收敛、不再折腾的基线参数**（单变量实验结论）：`threads=32`、`numa=distribute`、`threads-batch=36`、`batch=4096`、`ubatch=2048`、pinned host memory=on、`cache-ram=8GiB`、全 CPU-MoE、`split-mode=layer`、`ctx=131072`。
 
 ---
 
@@ -65,20 +65,19 @@ prefill 85–113s ← 同样被 CPU 专家带宽主导，冷前缀无 KV cache �
 
 | # | 杠杆 | 作用维度 | 预期 | 成本/风险 | 依赖 | 状态 |
 |---|---|---|---|---|---|---|
-| D1 | 投机解码 MTP（NextN） | decode | 1.3–1.6× | 换模型+换 runtime，高 | 无 | **待实施** |
+| D1 | 0731 + DSpark 投机解码 | decode | ~1.8×（GPU-heavy；本机实测未兑现） | 换模型+换 runtime，高 | 无 | **已部署；decode -5%左右，prefill/TTFT 显著改善** |
 | D2 | `--n-cpu-moe` 41→40 逐层 | decode/PP | 每层 2–3% | 低 | 无 | 42 已测，未达标 |
 | D3 | `--override-tensor` 精准放专家 | decode/PP | 可能 >整层 | 中（正则放错毁正确性） | dry-run | 未做 |
 | D4 | `--fit`/`--fit-margin` 自动放置 | decode/PP | 未测 | 低 | 无 | 未做 |
 | D5 | `--parallel 2` 并发 | 总吞吐 | 单用户无益 | 中（分薄 KV） | 多用户需求 | 暂缓 |
-| P1 | PCIe ×8→×16 维护窗口 | prefill/H2D | 未量化 | 高（停机维护） | 无 | 待排 |
+| P1 | PCIe 链路维护与基准验收 | prefill/H2D | 未量化 | 高（停机维护） | 无 | **物理维护完成；GPU0 ×16 / GPU1 ×8；基准待跑** |
 | P2 | ESXi P2P 开启 | 跨卡 DMA | 前置条件 | 高（ESXi 配置） | 无 | **已启用参数，仍不可用**（物理拓扑：不同 root port） |
 | P3 | graph split | prefill/分布 | 未量化 | 高（P2P+正确性） | P2 | **物理阻塞，降级** |
 | P4 | `--override-tensor`（同 D3） | prefill | — | — | — | 未做 |
 | C1 | context >128K（256/384K） | 容量 | 非速度 | 中 | 无 | 独立轨道 |
 | C2 | KV 量化 | 容量 | 非速度 | 中（质量回归） | 无 | 低优先 |
 | A1 | R6 prompt-cache 阻塞修复 | 可用性 | — | 低 | 无 | 进行中 |
-| M1 | 模型降量化 Q3_K_M | decode | ~13%（rogerai 4×Blackwell 实测 Q3_K_M vs Q8，本机待测） | 低 | 与 D1 同批 | **已决定** |
-| M2 | 升级 0731（DSpark） | decode/**质量** | DSpark ~1.8×（本机待测）；agentic 质量大幅提升 | 高（另下模型） | 无 | **已定（并入 D1）** |
+| M1 | UD-Q3_K_M 基座 + Q8_0 drafter | decode | DSpark ~1.8×（GPU-heavy；本机待测）；agentic 质量大幅提升 | 高（换模型） | 与 D1 同批 | **Stage 1 文件校验完成** |
 | R1 | 迁 SGLang-KT | 天花板 | 未量化 | 高 | 硬件升级 | 3090 阻塞 |
 
 ---
@@ -86,7 +85,7 @@ prefill 85–113s ← 同样被 CPU 专家带宽主导，冷前缀无 KV cache �
 ## 4. 依赖关系与解锁路径
 
 ```
-                    ┌─ D1 MTP ──── 需 M1 换模型(Q3_K_M-MTP) + R 换 runtime(mainline) ──┐
+                    ┌─ D1 DSpark ── 需 M1 换模型(UD-Q3_K_M + Q8_0 drafter) + mainline ─┐
                     │                                                                    │
 decode 达标 ────────┼─ D2/D3 专家上 GPU ── 需 P1 PCIe×16 改善 H2D 才能放大 ──────────────┤
                     │                                                                    │
@@ -96,12 +95,12 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
                                                                                          │
 容量/质量 ───────── C1 context / C2 KV 量化（独立，不混入速度实验）                        │
                                                                                          │
-可用性 ─────────── A1 R6 checkpoint/cache 修复（独立，任何 runtime 变更前先修复）          │
+可用性 ─────────── A1 R6 在 mainline 复现/判定（Stage 2 promotion 前必须通过）             │
 ```
 
 **关键路径判断**：
-- **decode 达标**的主路径是 **D1（MTP）**，因为它是唯一有量级（1.3–1.6×）的 decode 杠杆；D2/D3 是百分比级补充。
-- **prefill 达标**的主路径：**P1（PCIe ×16，改善 H2D）→ P4（override-tensor）**；P2/P3（P2P/graph）因物理拓扑不可用，**已放弃**（2026-08-16 实测 `cuDeviceCanAccessPeer()=0`、不同 root port）。
+- **decode 达标**的主路径是 **D1（0731 + DSpark）**，因为它是当前唯一有量级预期的 decode 杠杆；D2/D3 是百分比级补充。
+- **prefill 达标**的主路径：**P1（在当前 ×16/×8 拓扑完成基准验收）→ P4（override-tensor）**；P2/P3（P2P/graph）因物理拓扑不可用，**已放弃**（2026-08-16 实测 `cuDeviceCanAccessPeer()=0`、不同 root port）。
 - D2/D3（专家上 GPU）只有在 PCIe ×16 改善 H2D 之后才能体现出应有收益——当前 ×8 拓扑下「GPU 专家放置会回退」（host_vars 注释已印证）。
 
 ---
@@ -110,16 +109,15 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 | 阶段 | 内容 | 证据门（通过才进下一阶段） | 是否变服务 |
 |---|---|---|---|
-| **0** | 冻结基线 + 观测 | 现有 19 项契约 + 128K + 资源采样基线可复现 | 否 |
-| **1** | A1：修复 R6 checkpoint/cache 阻塞 | 128K→短请求切换时 /health 不再超时（相邻空洞 ≤60s）+ 一小时 soak | 是（候选） |
-| **2** | D1+M1：0731 + DSpark + mainline `draft-dspark` | decode 中位 ≥10 tok/s（目标）、19 契约、128K recall、无 swap/OOM/restart | 是（隔离候选） |
-| **3** | P1：PCIe ×8→×16 维护窗口（目标：H2D/专家 offload 改善；**不以解锁 graph 为目标**） | 两端 `LnkSta` 均 Gen3 ×16；同 corpus 重跑 1K/8K 基准 | 是（停机） |
-| **4** | ~~P2/P3：ESXi P2P + graph split~~ → **已实测物理不可用，放弃**（`cuDeviceCanAccessPeer()=0`，Slot 2/4 不同 root port） | — | 否（跳过） |
-| **6** | D3/D4：`--override-tensor`/`--fit` 精放 | 全契约 + 显存余量 + 收益归因 | 是（候选） |
-| **7** | C1/C2：容量轨道 | 峰值分配 + recall，不影响 128K 交互基线 | 否→是 |
-| **8** | M2/R1：0731 升级 / SGLang-KT | 独立 release 证据 | 是 |
+| **1** | 0731 模型下载、SHA-256、mainline 编译与硬件核验 | 5/5 SHA-256、runtime pin、容器内启动、PCIe/P2P 证据 | **已完成** |
+| **2** | D1+M1：0731 + DSpark + mainline `draft-dspark` | 快速 health/chat + 1K/8K 三样本基准 | **已完成；mainline 当前运行** |
+| **3** | 在当前 GPU0 ×16 / GPU1 ×8 拓扑重跑 1K/8K 基准 | 同 corpus 对照无回退，完成 P1 性能验收 | 是（隔离候选） |
+| **4** | GPU1 ×8 卡问题：清洁、重插或交换测试 | GPU1 Gen3 ×16，或记录卡 lane 损伤并接受 ×8 | 是（停机维护） |
+| **5** | D3/D4：`--override-tensor`/`--fit` 精放 | 全契约 + 显存余量 + 收益归因 | 是（隔离候选） |
+| **6** | C1/C2：256K/384K 容量轨道 | 峰值分配 + recall，不影响 128K 交互基线 | 是（隔离候选） |
+| **7** | R1：SGLang-KT 重评估 | 硬件升级或已知阻塞修复后的独立 release 证据 | 是 |
 
-> 顺序依据：先修正确性（A1），再做有量级的 decode 杠杆（D1+M1，因为它不依赖硬件变更），然后才进硬件维护窗口（P1/P2/P3，成本最高），最后做百分比级微调（D2/D3/D4）和容量/运行时轨道。
+> 顺序依据：Stage 1 已完成；下一步先在隔离的 mainline 候选中验证有量级的 decode 杠杆，并把 R6 作为 promotion 前的可用性门。之后完成当前 PCIe 拓扑的性能验收，再按维护窗口、百分比级微调、容量和长期 runtime 轨道推进。P2P/graph split 已关闭，不再进入执行路线。
 
 ---
 
@@ -127,7 +125,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 ### D1 + M1：投机解码（0731 + DSpark，主攻）
 
-**目标模型**：`unsloth/DeepSeek-V4-Flash-0731-GGUF` 基座（量化档待定，~104–162GB）+ 同仓库 DSpark drafter（`dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf`，10.9GB）。
+**目标模型**：`unsloth/DeepSeek-V4-Flash-0731-GGUF` 的 UD-Q3_K_M 基座（4 分片，约 128GB）+ Q8_0 DSpark drafter（`dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf`，10.9GB）。
 **目标 runtime**：mainline llama.cpp（#25784/`596a579` 之后），flag `--spec-type draft-dspark --spec-draft-n-max N --fit off -fa on --jinja`。
 
 **为什么必须换模型 + 换 runtime**（已核实）：
@@ -168,9 +166,9 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 **基座量化档（unsloth）**：UD-IQ3_XXS ~104GB（最小可用）/ UD-Q3_K_M ~128GB / UD-Q4_K_XL ~155GB / UD-Q8_K_XL ~162GB；drafter 有 Q8_0（10.9GB）和 BF16（11.3GB）两档。
 
-**修订建议**：B（0731 + DSpark）现在**可行且更优**——质量提升确定且直接命中 coding 负载，下载量相当（甚至更小），速度不确定性用「n_max 从 1 起测」来兜底。**倾向改选 B**，前提是你接受「0731 是 DSpark-only、无 NextN 回退」。
+**决策结论**：B（0731 + DSpark）**可行且已采用**——质量提升确定且直接命中 coding 负载，速度不确定性用「n_max 从 1 起测」兜底。0731 是 DSpark-only，无 NextN 回退。
 
-**已拍板：B。Stage 1 下载对象 = unsloth 0731 基座 + DSpark drafter（基座量化档待定）。**
+**已拍板：B。Stage 1 下载对象 = unsloth 0731 UD-Q3_K_M 基座 + Q8_0 DSpark drafter；5/5 SHA-256 已通过。**
 
 ### D2：`--n-cpu-moe` 逐层（补充）
 
@@ -188,7 +186,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 ## 7. prefill 杠杆详细方案（TTFT 达标主攻）
 
-### P1：PCIe ×16 维护窗口 —— **已完成并复核（2026-08-16）**
+### P1：PCIe 链路维护 —— **物理操作已完成，性能验收待跑（2026-08-16）**
 
 - **结论**：链路速度无问题——空闲时 Gen1 是 ASPM 省电降速，**负载时两卡均协商到 Gen3**（负载采样 + ESXi `capList/16` 双重验证）；`lspci` 的 5GT/s×32 是 ESXi 直通占位值，不可信。
 - **GPU0（03:00.0）：Gen3 ×16 ✅**——宽度 ×8→×16，维护成功（ESXi LnkSta 负载下 8GT/s ×16）。
@@ -225,12 +223,12 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 ---
 
-## 10. 可用性杠杆（A1，优先于一切 runtime 变更）
+## 10. 可用性杠杆（A1，Stage 2 promotion 门）
 
 - **R6 缺陷**：127K→短请求切换时，pinned ik 同步保存 34.1GiB prompt-cache state（约 32 个 checkpoint，每个约 872.6 MiB，另有 KV 等其余 state），72s 阻塞 /health，相邻空洞 60.0001s 超界。
 - **已批准的修复路径**：隔离的 `--ctx-checkpoints` 实验（显式 32 对照 → 8 → 仅 8 不达标才 4），每档 3 次长文 recall + 短请求 handoff + 独立 /health 探针。
 - **checkpoint=8 实测（2026-08-16）**：同步保存时间显著改善（约 72s → 22–28s），**但仍出现 health timeout，可用性未解决**——属缓解而非修复：同步保存在任务队列执行的根本问题未变，只是 state 变小。若采纳，须配合「cache 策略跳过超大单条」或「保存异步化」，且不能靠放宽 health 门来「通过」。
-- 任何 runtime 迁移（D1）**之前**先在新 runtime 上复现/修复此缺陷，否则会把可用性问题一起带过去。
+- 允许在隔离候选中启动 mainline 以验证其独立 `server_prompt_cache` 行为；但在 R6 复现并达到 health 门之前，**不得 promote** 新 runtime。
 
 ---
 
@@ -262,7 +260,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 - [x] prefill TTFT 目标：**无固定数值，越快越好**（用户已确认）；候选较 control 需实际下降（参考 ~10% 推广线）且无回归。
 - [x] **方向性决策：已定 B（0731 + DSpark）**（§6）。基座量化档：**UD-Q3_K_M**（已下载）；drafter：**Q8_0**（已下载）。
 - [x] PCIe/P2P：P1 已复核（GPU0 Gen3×16 ✅ / GPU1 Gen3×8 ⚠️）；P2P 物理不可用 → P2/P3 放弃。
-- [ ] mainline `draft-dspark` 的 n_max 在本机 CPU-MoE 下取几（1–5，默认 3；建议从 1/2 起测）。
+- [x] mainline `draft-dspark` 的 n_max 已实测 1/2：2 仅改善 1K decode（+2.3%），8K decode 回退（-2.6%），没有整体优于 1；采用 1。
 - [x] 0731（DSpark）已并入 D1 主线。
 
 ---
@@ -306,4 +304,20 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 - 脚本：`scripts/deepseek-v4-mainline-build.sh`（自动检测 host nvcc；否则在 pinned runtime image 内编译，与 `prepare.yml` 同模式）。
 - 构建参数：`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86`，target `llama-server`。
 - 状态：**已完成**（容器内编译，git HEAD = pin 一致）；二进制 `/opt/deepseek-v4-mainline/src/build/bin/llama-server`，容器内 `--gpus all` 运行验证通过。注意：构建 rpath 为容器路径，部署须在容器内运行或显式 `LD_LIBRARY_PATH`；mainline 默认启用 NCCL（本机 layer split 用不到，可选 `-DGGML_NCCL=OFF` 重建消除依赖）。
-- 备注：rohitraj 提到多卡需编译期调高 `GGML_SCHED_MAX_SPLIT_INPUTS`；本机当前 layer split 非 graph split，先不调，graph 实验启用时再评估。
+- 备注：rohitraj 提到多卡 graph split 可能需调高 `GGML_SCHED_MAX_SPLIT_INPUTS`；本机使用 layer split，且 graph 路线已关闭，因此不调整。
+
+### 15.3 mainline + DSpark 快速部署与基准（2026-08-17）
+
+- 服务：`deepseek-v4-mainline.service` active + enabled；ik inactive；稳定 API `8081` health/chat 通过。
+- 1K：decode 7.58 tok/s，TTFT 7.76s，prefill 152.64 tok/s。
+- 8K：decode 7.31 tok/s，TTFT 39.79s，prefill 233.66 tok/s。
+- 相比 ik：decode 约回退 5%，但 TTFT 下降约 53–65%，prefill 提升至约 2.15–2.63×。
+- 资源：0 restart、无 swap、GPU0/1 空闲显存约 7.3/9.4GiB、available RAM 约 207GiB。
+- 证据：guest `/tmp/mainline-dspark-1k.json`、`/tmp/mainline-dspark-8k.json`。
+
+`n_max=2` 追加基准：
+
+- 1K：decode 7.75 tok/s，TTFT 7.68s，prefill 154.27 tok/s；对 `n_max=1` 分别为 +2.3%、-1.1%、+1.1%。
+- 8K：decode 7.11 tok/s，TTFT 40.12s，prefill 231.79 tok/s；对 `n_max=1` 分别为 -2.6%、+0.8%、-0.8%。
+- 结论：`n_max=2` 没有整体性能优势，运行参数回调为 1；不退回 ik runtime。
+- 证据：guest `/tmp/mainline-dspark-nmax2-1k.json`、`/tmp/mainline-dspark-nmax2-8k.json`。
