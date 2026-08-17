@@ -1,7 +1,7 @@
 # DeepSeek V4 Flash 本地推理性能优化全景计划
 
-**日期**：2026-08-15
-**状态**：执行中（Stage 1–2 已完成快速部署与基准；未提交）
+**创建日期**：2026-08-15；**最后更新**：2026-08-17
+**状态**：执行中（Stage 1–3 已完成；mainline + DSpark 当前运行，部署与文档已提交）
 **关联**：
 - `docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`（部署与实验纪年）
 - `_bmad-output/implementation-artifacts/spec-deepseek-v4-memory-prefill-experiments.md`（实验规范）
@@ -11,19 +11,19 @@
 
 ## TL;DR
 
-当前部署（`ik_llama.cpp@981e5ea0` + `sokann/DeepSeek-V4-Flash-GGUF` + 双 3090 layer split + 全 CPU-MoE + 128K）**正确性已达标（19/19 契约、128K recall），但交互性能不达标**：decode ~8 tok/s（目标 ≥10），8K 冷 prefill TTFT ~85–113s。根因是**模型 145.6 GiB 远超 48GB 显存，稀疏专家几乎全在 CPU 内存，decode/prefill 都被 CPU 内存带宽与专家计算主导**，两张卡各闲置 ~11GiB 显存。
+当前部署是 `mainline llama.cpp@10bf611e` + 0731 UD-Q3_K_M + Q8_0 DSpark + 双 3090 layer split + 全 CPU-MoE + 128K，`n_max=1`。相对历史 ik 基线，decode 约回退 5%，但 1K/8K cold TTFT 分别降至 7.76s/39.79s，prefill 提升到 152.64/233.66 tok/s。`n_max=2` 没有整体优势，已回调到 1；服务保持 mainline，不退回 ik。
 
 优化不能靠单一杠杆解决，而是一个**分阶段、有依赖、有证据门**的组合：
 
-1. **decode 杠杆**：投机解码（**0731 + DSpark**）→ agentic 质量大幅提升 + decode ~1.8×（本机待测），是 decode 达标的主攻方向，需换模型 + 换 runtime（详见 §6）。
-2. **prefill 杠杆**：基于当前 GPU0 Gen3×16 / GPU1 Gen3×8 拓扑重跑基准，再用 `--override-tensor` 精准放专家；P2P/graph split 已确认物理阻塞并关闭。这是 TTFT 优化的主攻方向（§7）。
+1. **已落地杠杆**：0731 + DSpark + mainline，agentic 质量和 prefill/TTFT 是主要收益；官方 GPU-heavy 环境的 decode 加速未在本机 CPU-MoE 上兑现。
+2. **下一软件杠杆**：在当前 GPU0 Gen3×16 / GPU1 Gen3×8 拓扑上探索 `--override-tensor` 精准放置；P2P/graph split 已确认物理阻塞并关闭。
 3. **显存利用杠杆**：`--n-cpu-moe` 逐层 + `--override-tensor`，已测单层收益 2–3%，需与 PCIe 改善叠加才能放大（§8）。
 4. **容量杠杆**：>128K context、KV 量化——是容量不是速度，独立轨道（§9）。
 5. **可用性杠杆**：R6 的 34GiB prompt-cache 同步保存阻塞 /health，是独立正确性缺陷（§10）。
 6. **模型杠杆**：UD-Q3_K_M 基座 + Q8_0 DSpark drafter——已决定，并入 Stage 2（§6）。
 7. **运行时迁移杠杆**：SGLang-KT 当前在 3090 上不可行，作为天花板之后的备选（§11）。
 
-**核心原则**（沿用仓库规范）：一次只改一个主变量、正确性先于性能、每个候选过 19 项契约 + 资源护栏、未达 ~10% 推广线不 promote、证据不可覆盖。
+**当前执行原则**：这是 homelab 快速验证；一次只改一个主变量，先 health/chat，再跑同 corpus 1K/8K 三样本与 control 对比，并检查 OOM/restart。未经用户要求不扩展成长 soak 或 production promotion 流程。
 
 ---
 
@@ -48,6 +48,8 @@
 
 ## 2. 瓶颈诊断（为什么慢）
 
+以下数字描述历史 ik 基线；mainline 已显著改善 prefill/TTFT，但全 CPU-MoE 下的 CPU 内存带宽/专家计算瓶颈仍存在：
+
 ```
 decode ~8 tok/s ← 每个 token 要读激活的 6 个专家权重（256 专家 MoE）
                   ← 专家在 CPU 内存 → CPU 内存带宽 + 专家计算主导
@@ -67,17 +69,17 @@ prefill 85–113s ← 同样被 CPU 专家带宽主导，冷前缀无 KV cache �
 |---|---|---|---|---|---|---|
 | D1 | 0731 + DSpark 投机解码 | decode | ~1.8×（GPU-heavy；本机实测未兑现） | 换模型+换 runtime，高 | 无 | **已部署；decode -5%左右，prefill/TTFT 显著改善** |
 | D2 | `--n-cpu-moe` 41→40 逐层 | decode/PP | 每层 2–3% | 低 | 无 | 42 已测，未达标 |
-| D3 | `--override-tensor` 精准放专家 | decode/PP | 可能 >整层 | 中（正则放错毁正确性） | dry-run | 未做 |
-| D4 | `--fit`/`--fit-margin` 自动放置 | decode/PP | 未测 | 低 | 无 | 未做 |
+| D3 | `--override-tensor` 精准放专家 | decode/PP | 可能 >整层 | 中（正则放错毁正确性） | help + GGUF/verbose 张量发现 | 未做 |
+| D4 | `--fit` 自动放置 | decode/PP | — | — | — | **当前不做：DSpark 已验证必须 `--fit off`** |
 | D5 | `--parallel 2` 并发 | 总吞吐 | 单用户无益 | 中（分薄 KV） | 多用户需求 | 暂缓 |
-| P1 | PCIe 链路维护与基准验收 | prefill/H2D | 未量化 | 高（停机维护） | 无 | **物理维护完成；GPU0 ×16 / GPU1 ×8；基准待跑** |
+| P1 | PCIe 链路维护与基准验收 | prefill/H2D | 已形成当前拓扑基线 | 高（停机维护） | 无 | **完成：GPU0 ×16 / GPU1 ×8；1K/8K 已跑** |
 | P2 | ESXi P2P 开启 | 跨卡 DMA | 前置条件 | 高（ESXi 配置） | 无 | **已启用参数，仍不可用**（物理拓扑：不同 root port） |
 | P3 | graph split | prefill/分布 | 未量化 | 高（P2P+正确性） | P2 | **物理阻塞，降级** |
 | P4 | `--override-tensor`（同 D3） | prefill | — | — | — | 未做 |
 | C1 | context >128K（256/384K） | 容量 | 非速度 | 中 | 无 | 独立轨道 |
 | C2 | KV 量化 | 容量 | 非速度 | 中（质量回归） | 无 | 低优先 |
 | A1 | R6 prompt-cache 阻塞修复 | 可用性 | — | 低 | 无 | 进行中 |
-| M1 | UD-Q3_K_M 基座 + Q8_0 drafter | decode | DSpark ~1.8×（GPU-heavy；本机待测）；agentic 质量大幅提升 | 高（换模型） | 与 D1 同批 | **Stage 1 文件校验完成** |
+| M1 | UD-Q3_K_M 基座 + Q8_0 drafter | decode/质量 | 本机 decode 未提升；prefill/TTFT 显著改善 | 高（换模型） | 与 D1 同批 | **已部署并基准验证** |
 | R1 | 迁 SGLang-KT | 天花板 | 未量化 | 高 | 硬件升级 | 3090 阻塞 |
 
 ---
@@ -87,21 +89,21 @@ prefill 85–113s ← 同样被 CPU 专家带宽主导，冷前缀无 KV cache �
 ```
                     ┌─ D1 DSpark ── 需 M1 换模型(UD-Q3_K_M + Q8_0 drafter) + mainline ─┐
                     │                                                                    │
-decode 达标 ────────┼─ D2/D3 专家上 GPU ── 需 P1 PCIe×16 改善 H2D 才能放大 ──────────────┤
+decode 改善 ────────┼─ D2/D3 专家上 GPU ── 当前 ×16/×8 可测；GPU1 修到 ×16 后再复测 ───┤
                     │                                                                    │
                     └─ D5 并发（仅当多用户）                                            │
                                                                                          │
-prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tensor；P2/P3(graph) 物理阻塞已放弃 │
+prefill 改善 ────── 当前拓扑基线已完成 ──► P4 override-tensor；P2/P3 已放弃            │
                                                                                          │
 容量/质量 ───────── C1 context / C2 KV 量化（独立，不混入速度实验）                        │
                                                                                          │
-可用性 ─────────── A1 R6 在 mainline 复现/判定（Stage 2 promotion 前必须通过）             │
+可用性 ─────────── A1 R6 在 mainline 按需复现/判定                                      │
 ```
 
 **关键路径判断**：
-- **decode 达标**的主路径是 **D1（0731 + DSpark）**，因为它是当前唯一有量级预期的 decode 杠杆；D2/D3 是百分比级补充。
-- **prefill 达标**的主路径：**P1（在当前 ×16/×8 拓扑完成基准验收）→ P4（override-tensor）**；P2/P3（P2P/graph）因物理拓扑不可用，**已放弃**（2026-08-16 实测 `cuDeviceCanAccessPeer()=0`、不同 root port）。
-- D2/D3（专家上 GPU）只有在 PCIe ×16 改善 H2D 之后才能体现出应有收益——当前 ×8 拓扑下「GPU 专家放置会回退」（host_vars 注释已印证）。
+- D1 已落地，但 decode 目标未达；下一软件杠杆是 D3/P4 `override-tensor`。
+- 当前 ×16/×8 拓扑的 control 已完成，可直接做单变量候选；GPU1 修到 ×16 后再复测胜出候选。P2P/graph 因物理拓扑不可用，已放弃。
+- `override-tensor` 必须先核实 pinned mainline 的帮助文本，并从 GGUF 工具或 verbose 加载日志取得实际张量名；当前 binary 没有 `--dry-run`，不能照抄旧 ik 正则。
 
 ---
 
@@ -111,13 +113,13 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 |---|---|---|---|
 | **1** | 0731 模型下载、SHA-256、mainline 编译与硬件核验 | 5/5 SHA-256、runtime pin、容器内启动、PCIe/P2P 证据 | **已完成** |
 | **2** | D1+M1：0731 + DSpark + mainline `draft-dspark` | 快速 health/chat + 1K/8K 三样本基准 | **已完成；mainline 当前运行** |
-| **3** | 在当前 GPU0 ×16 / GPU1 ×8 拓扑重跑 1K/8K 基准 | 同 corpus 对照无回退，完成 P1 性能验收 | 是（隔离候选） |
-| **4** | GPU1 ×8 卡问题：清洁、重插或交换测试 | GPU1 Gen3 ×16，或记录卡 lane 损伤并接受 ×8 | 是（停机维护） |
-| **5** | D3/D4：`--override-tensor`/`--fit` 精放 | 全契约 + 显存余量 + 收益归因 | 是（隔离候选） |
-| **6** | C1/C2：256K/384K 容量轨道 | 峰值分配 + recall，不影响 128K 交互基线 | 是（隔离候选） |
-| **7** | R1：SGLang-KT 重评估 | 硬件升级或已知阻塞修复后的独立 release 证据 | 是 |
+| **3** | 当前 GPU0 ×16 / GPU1 ×8 的 mainline 1K/8K 基准 | 同 corpus `n_max=1/2` 对照 | **已完成；采用 1** |
+| **4** | D3：`--override-tensor` 精放（下一软件步骤） | help/list-devices + GGUF/verbose 日志核实；health/chat；1K/8K 三样本；无 OOM/restart | 是 |
+| **H1** | GPU1 ×8 清洁、重插或交换测试（独立硬件轨道） | GPU1 Gen3 ×16，或确认卡 lane 损伤并接受 ×8 | 是（停机维护） |
+| **5** | C1/C2：256K/384K 容量轨道 | 峰值分配 + recall，不影响 128K 交互基线 | 是 |
+| **6** | R1：SGLang-KT 重评估 | 硬件升级或已知阻塞修复后的独立验证 | 是 |
 
-> 顺序依据：Stage 1 已完成；下一步先在隔离的 mainline 候选中验证有量级的 decode 杠杆，并把 R6 作为 promotion 前的可用性门。之后完成当前 PCIe 拓扑的性能验收，再按维护窗口、百分比级微调、容量和长期 runtime 轨道推进。P2P/graph split 已关闭，不再进入执行路线。
+> 当前 Stage 1–3 已完成。下一位 AI 从 Stage 4 的 `override-tensor` 发现步骤开始；H1 是独立维护窗口，不阻塞软件实验。P2P/graph split 已关闭，不再进入执行路线。
 
 ---
 
@@ -140,9 +142,9 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 | B2 rogerai fork + v1 | 备选 | 可跑但小众，仅作 B1 fallback |
 | B3 SGLang-KT | ❌ | 3090 跑不起来（issue #1999）+ DSpark 不支持（issue #2118） |
 
-**已知风险**：(1) 0731 基座降量化 + 加 DSpark 同时改变多个变量，归因需补对照；(2) R6 的 34GiB 阻塞在 mainline 是否复现需 Stage 2 实测（mainline 是另一套 `server_prompt_cache`）；(3) DSpark 在本机 CPU-MoE 的净收益待测，先测 n_max=1/2 兜底。
+**实测结论/遗留**：(1) 0731 基座降量化 + DSpark 是组合变化，不能把全部差异归因给 speculation；(2) R6 是否在 mainline 的独立 `server_prompt_cache` 实现中复现仍未知；(3) `n_max=1/2` 已测，采用 1，不要重复。
 
-**预期**：质量（agentic）确定大幅提升；decode 官方 ~1.8×（GPU 上），本机 CPU-MoE 待测（可能 1.2–1.6×，n_max 从 1 起测）。**不是**简单照搬官方数字（那是 GPU-heavy 硬件）。
+**实测**：质量方向保留 0731；官方 ~1.8× decode 数据来自 GPU-heavy 硬件，本机 CPU-MoE 未兑现。实际主要收益是 prefill/TTFT，详见 §15.3。
 
 ### ✅ 已定：B（0731 + DSpark）—— 决策过程记录
 
@@ -159,7 +161,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 |---|---|---|
 | agentic 质量 | 基线（Preview，已被 0731 取代） | **大幅更好**（DeepSWE 7.3→54.4） |
 | 投机机制 | NextN 单 head（embedded） | DSpark（独立 drafter） |
-| decode 加速 | 1.3–1.6×（n_max=1，适合 spill） | ~1.8×（GPU 上）；**本机 CPU-MoE 待测**，n_max 可降 |
+| decode 加速 | 1.3–1.6×（外部数据） | 外部 GPU-heavy ~1.8×；**本机实测约比 ik 低 5%** |
 | 模型下载 | rogerai Q3_K_M-MTP 143GB | unsloth 0731 基座 ~104–162GB + drafter ~7–11GB |
 | runtime | mainline `draft-mtp` | mainline `draft-dspark` |
 | 复杂度 | 已评估 | 已评估（同 mainline，多一个 drafter 文件） |
@@ -173,26 +175,28 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 ### D2：`--n-cpu-moe` 逐层（补充）
 
 - 已测 `--n-cpu-moe 42`：1K/8K decode 仅 +3.4%/+2.4%，8K 未达 8 tok/s 门槛，按「首个收益不显著即停」规则未继续。
-- 若 PCIe ×16（P3 阶段后）改善 H2D，可重测 41/40 看收益是否累积（spec 已留此口子）。
-- 每步强制：峰值显存每卡留 ≥2GiB、全契约、无 OOM。
+- 若 GPU1 后续修复到 ×16，可选择性重测胜出候选；不要先重复已失败的 42 档。
+- 每步至少要求：health/chat、峰值显存每卡留 ≥2GiB、无 OOM/restart；完整契约仅在用户要求资格验证时运行。
 
-### D3/D4：`--override-tensor` / `--fit`（微调）
+### D3：`--override-tensor`（下一软件实验）
 
 - 研究结论：优先把 **shared expert、gate、up/down** 等高频张量放快内存，再放稀疏 `exps`。
-- 用 `--dry-run` 先抓实际张量布局；正则表达式放错张量会毁正确性，须二次评审。
-- `--fit` 在 ik fork 默认关，可用 `--fit-margin`/`--gpu-fit-margin` 评估；显式放置更易审计。
+- 当前 pinned binary 已确认语法：主模型 `-ot/--override-tensor <tensor name pattern>=<buffer type>,...`，drafter `-otd/--override-tensor-draft`；`--list-devices` 返回 `CUDA0`/`CUDA1`。
+- 当前 binary 没有 `--dry-run`。须先通过 GGUF 检查工具或一次受控 `--verbose` 加载获取真实张量名，并实证 buffer type 写法；正则表达式放错张量会破坏正确性。
+- 一次只加一条规则，rendered command 与当前 control 做 diff；先 health/chat，再跑 1K/8K 三样本并检查 OOM/restart。
+- `--fit off` 是当前 DSpark 路线的已验证必需项，不把 `--fit` 作为下一实验变量。
 
 ---
 
 ## 7. prefill 杠杆详细方案（TTFT 达标主攻）
 
-### P1：PCIe 链路维护 —— **物理操作已完成，性能验收待跑（2026-08-16）**
+### P1：PCIe 链路维护 —— **物理操作与当前拓扑基准已完成（2026-08-17）**
 
 - **结论**：链路速度无问题——空闲时 Gen1 是 ASPM 省电降速，**负载时两卡均协商到 Gen3**（负载采样 + ESXi `capList/16` 双重验证）；`lspci` 的 5GT/s×32 是 ESXi 直通占位值，不可信。
 - **GPU0（03:00.0）：Gen3 ×16 ✅**——宽度 ×8→×16，维护成功（ESXi LnkSta 负载下 8GT/s ×16）。
-- **GPU1（04:00.0）：Gen3 ×8 ⚠️**——宽度未达 ×16（ESXi LnkCap 显示槽能力 ×16，但只协商 ×8）。待查：BIOS bifurcation（是否 ×8×8）、riser、插拔接触。
+- **GPU1（04:00.0）：Gen3 ×8 ⚠️**——槽能力 ×16，但 GPU1 在换槽后仍跟随该卡保持 ×8，问题已收敛到卡的金手指接触或 lane 损伤；维护时清洁/重插并做交换确认。
 - 影响：GPU0 H2D 带宽翻倍（~7→~14 GB/s）；GPU1 不变。decode 为 CPU 带宽主导，PCIe 影响预计二阶。
-- 遗留：1K/8K 基准重跑（P1 验收门），须同 corpus。
+- 当前 ×16/×8 拓扑的 mainline 1K/8K control 已完成（§15.3）；遗留仅是 GPU1 ×8 的独立硬件处理。
 
 ### P2：ESXi P2P 开启 —— **已实测不可用（2026-08-16）**
 
@@ -209,7 +213,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 ## 8. 显存利用杠杆
 
-- 当前 23GiB 显存富余，但**不能**假定都能放专家：需以 `--dry-run` + 峰值采样为准。
+- 当前约 16.7GiB 总空闲显存（实测 GPU0/1 约 7.3/9.4GiB），但**不能**假定都能放专家：须以张量发现、受控加载和峰值采样为准。
 - D2/D3 都是这个池子的使用者，优先级：shared/gate/up-down 先于稀疏 exps。
 - 每步护栏：每卡峰值留 ≥2GiB、无 swap、无 OOM、128K 启动不退化。
 
@@ -223,12 +227,12 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 ---
 
-## 10. 可用性杠杆（A1，Stage 2 promotion 门）
+## 10. 可用性杠杆（A1，按需验证）
 
 - **R6 缺陷**：127K→短请求切换时，pinned ik 同步保存 34.1GiB prompt-cache state（约 32 个 checkpoint，每个约 872.6 MiB，另有 KV 等其余 state），72s 阻塞 /health，相邻空洞 60.0001s 超界。
 - **已批准的修复路径**：隔离的 `--ctx-checkpoints` 实验（显式 32 对照 → 8 → 仅 8 不达标才 4），每档 3 次长文 recall + 短请求 handoff + 独立 /health 探针。
 - **checkpoint=8 实测（2026-08-16）**：同步保存时间显著改善（约 72s → 22–28s），**但仍出现 health timeout，可用性未解决**——属缓解而非修复：同步保存在任务队列执行的根本问题未变，只是 state 变小。若采纳，须配合「cache 策略跳过超大单条」或「保存异步化」，且不能靠放宽 health 门来「通过」。
-- 允许在隔离候选中启动 mainline 以验证其独立 `server_prompt_cache` 行为；但在 R6 复现并达到 health 门之前，**不得 promote** 新 runtime。
+- mainline 已直接用于 homelab。若实际使用仍出现长上下文切换时的 health 空洞，再在 mainline 上复现；不要假定 ik 的 `server_prompt_cache` 行为原样继承。
 
 ---
 
@@ -241,6 +245,8 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 ---
 
 ## 12. 验收标准与成功指标（汇总）
+
+下表是需要完整资格验证时的标准，不是下一轮快速 `override-tensor` 实验的默认工作量。快速实验按 §TL;DR 的最小 health/chat + 1K/8K 三样本执行；只有用户明确要求长期采用或完整验证时才扩展到 19 契约、128K 和 soak。
 
 | 目标 | KPI | 证据 |
 |---|---|---|
@@ -267,7 +273,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 ## 14. 关键引用
 
-- 当前模型 base：`sokann/DeepSeek-V4-Flash-GGUF`（base_model: `deepseek-ai/DeepSeek-V4-Flash`）
+- 历史 ik 基线模型：`sokann/DeepSeek-V4-Flash-GGUF`；当前模型：`unsloth/DeepSeek-V4-Flash-0731-GGUF` 的 UD-Q3_K_M + Q8_0 drafter
 - MTP GGUF：https://huggingface.co/rogerai-fyi/DeepSeek-V4-Flash-MTP-GGUF
 - mainline DSpark/MTP 合并：https://github.com/ggml-org/llama.cpp/pull/25784
 - DSpark 实测（1.83×）：https://rohitraj.tech/ar/notes/deepseek-dspark-speculative-decoding-llamacpp-2026
@@ -301,7 +307,7 @@ prefill 达标 ────── P1 PCIe×16（H2D）──► P4 override-tens
 
 - **Pin**：`ggml-org/llama.cpp@10bf611e533d81f739128304991c5e133c6aebd8`（2026-08-16 master HEAD，≥ `596a579`/PR #25784，含 `draft-dspark`）。
 - 目录：guest `/opt/deepseek-v4-mainline/{src,build}`（隔离，不动 `/opt/deepseek-v4-ik`）。
-- 脚本：`scripts/deepseek-v4-mainline-build.sh`（自动检测 host nvcc；否则在 pinned runtime image 内编译，与 `prepare.yml` 同模式）。
+- 脚本：`scripts/deepseek-v4-mainline-build.sh`（固定在 pinned runtime image 内编译并校验 binary SHA-256）。
 - 构建参数：`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86`，target `llama-server`。
 - 状态：**已完成**（容器内编译，git HEAD = pin 一致）；二进制 `/opt/deepseek-v4-mainline/src/build/bin/llama-server`，容器内 `--gpus all` 运行验证通过。注意：构建 rpath 为容器路径，部署须在容器内运行或显式 `LD_LIBRARY_PATH`；mainline 默认启用 NCCL（本机 layer split 用不到，可选 `-DGGML_NCCL=OFF` 重建消除依赖）。
 - 备注：rohitraj 提到多卡 graph split 可能需调高 `GGML_SCHED_MAX_SPLIT_INPUTS`；本机使用 layer split，且 graph 路线已关闭，因此不调整。
