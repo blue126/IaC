@@ -45,6 +45,7 @@
     dest: "{{ anki_api_base_dir }}/docker-compose.yml"
     mode: '0644'
   notify: Restart anki-api
+  tags: [config]
 
 - name: Start anki-api containers
   community.docker.docker_compose_v2:

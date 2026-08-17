@@ -1,0 +1,145 @@
+---
+- name: Validate reverse proxy variables
+  ansible.builtin.assert:
+    that:
+      - caddy_reverse_proxy_name is match('^[a-z0-9][a-z0-9-]*$')
+      - caddy_reverse_proxy_domain | length > 0
+      - caddy_reverse_proxy_upstream | length > 0
+    fail_msg: >-
+      caddy_reverse_proxy_name must be a safe kebab-case filename, and
+      caddy_reverse_proxy_domain and caddy_reverse_proxy_upstream must be set
+
+- name: Check Caddy installation
+  ansible.builtin.command:
+    argv:
+      - "{{ caddy_binary_path }}"
+      - version
+  changed_when: false
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Assert Caddy service is running
+  ansible.builtin.assert:
+    that:
+      - (caddy_service_name + '.service') in ansible_facts.services
+      - ansible_facts.services[caddy_service_name + '.service'].state == 'running'
+    fail_msg: "{{ caddy_service_name }}.service must be running before configuration"
+
+- name: Create Caddy site configuration directory
+  ansible.builtin.file:
+    path: "{{ caddy_site_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Caddy systemd override directory
+  ansible.builtin.file:
+    path: "{{ caddy_systemd_override_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Validate and deploy managed Caddy configuration
+  block:
+    - name: Create temporary Caddy candidate directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: .caddy-candidate
+      register: caddy_candidate_dir
+      check_mode: false
+
+    - name: Allow Caddy to read candidate configuration
+      ansible.builtin.file:
+        path: "{{ caddy_candidate_dir.path }}"
+        state: directory
+        owner: "{{ caddy_user }}"
+        group: "{{ caddy_group }}"
+        mode: "0750"
+      check_mode: false
+
+    - name: Find existing managed Caddy site configurations
+      ansible.builtin.find:
+        paths: "{{ caddy_site_config_dir }}"
+        patterns: "*.caddy"
+        file_type: file
+      register: caddy_existing_site_configs
+      failed_when: false
+
+    - name: Copy existing Caddy site configurations into candidate
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ caddy_candidate_dir.path }}/{{ item.path | basename }}"
+        remote_src: true
+        mode: "0644"
+      loop: "{{ caddy_existing_site_configs.files | default([]) }}"
+      when: (item.path | basename) != (caddy_reverse_proxy_name + '.caddy')
+      check_mode: false
+
+    - name: Render reverse proxy site candidate
+      ansible.builtin.template:
+        src: reverse-proxy.Caddyfile.j2
+        dest: "{{ caddy_candidate_dir.path }}/{{ caddy_reverse_proxy_name }}.caddy"
+        mode: "0644"
+      check_mode: false
+
+    - name: Render managed Caddy aggregate candidate
+      ansible.builtin.template:
+        src: managed.Caddyfile.j2
+        dest: "{{ caddy_candidate_dir.path }}/managed.Caddyfile"
+        mode: "0644"
+      vars:
+        caddy_managed_site_import: "{{ caddy_candidate_dir.path }}/*.caddy"
+      check_mode: false
+
+    - name: Validate managed Caddy candidate
+      ansible.builtin.command:
+        argv:
+          - "{{ caddy_binary_path }}"
+          - validate
+          - --config
+          - "{{ caddy_candidate_dir.path }}/managed.Caddyfile"
+          - --adapter
+          - caddyfile
+      become: true
+      become_user: caddy
+      changed_when: false
+      check_mode: false
+
+    - name: Deploy reverse proxy site configuration
+      ansible.builtin.template:
+        src: reverse-proxy.Caddyfile.j2
+        dest: "{{ caddy_site_config_dir }}/{{ caddy_reverse_proxy_name }}.caddy"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload managed Caddy configuration
+
+    - name: Deploy managed Caddy aggregate configuration
+      ansible.builtin.template:
+        src: managed.Caddyfile.j2
+        dest: "{{ caddy_managed_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload managed Caddy configuration
+
+    - name: Deploy Caddy systemd configuration override
+      ansible.builtin.template:
+        src: caddy.service.override.conf.j2
+        dest: "{{ caddy_systemd_override_dir }}/managed-config.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload managed Caddy configuration
+  always:
+    - name: Remove temporary Caddy candidate directory
+      ansible.builtin.file:
+        path: "{{ caddy_candidate_dir.path }}"
+        state: absent
+      when:
+        - caddy_candidate_dir is defined
+        - caddy_candidate_dir.path is defined
+      check_mode: false

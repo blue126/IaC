@@ -28,6 +28,21 @@
   roles:
     - anki-api
 
+- name: Configure Anki Writer reverse proxy
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  become: true
+  tags: [config]
+  tasks:
+    - name: Configure Anki Writer Caddy site
+      ansible.builtin.include_role:
+        name: caddy
+        tasks_from: reverse-proxy
+      vars:
+        caddy_reverse_proxy_name: ankiwriter
+        caddy_reverse_proxy_domain: "{{ anki_writer_public_domain }}"
+        caddy_reverse_proxy_upstream: "{{ anki_writer_proxy_upstream }}"
+
 - name: Verify Anki Sync Server
   hosts: oracle-cloud-ubuntu2404
   gather_facts: false
@@ -103,6 +118,41 @@
       register: writer_health
       failed_when: false
 
+    - name: Test public anki-writer HTTPS endpoint
+      ansible.builtin.uri:
+        url: "https://{{ anki_writer_public_domain }}/health"
+        timeout: 15
+        status_code: 200
+        validate_certs: true
+      register: writer_public_health
+      delegate_to: localhost
+      become: false
+      retries: 6
+      delay: 10
+      until: (writer_public_health.status | default(0)) == 200
+
+    - name: Assert Anki API ports are not publicly reachable
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: "{{ item }}"
+        state: stopped
+        connect_timeout: 2
+        timeout: 5
+      loop:
+        - "{{ ldoce5_port }}"
+        - "{{ anki_writer_port }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Assert Anki API health endpoints
+      ansible.builtin.assert:
+        that:
+          - ldoce5_health.status == 200
+          - writer_health.status == 200
+          - writer_public_health.status == 200
+        fail_msg: "Anki API health verification failed"
+        success_msg: "✅ Anki API endpoints are healthy"
+
     - name: Display deployment summary
       debug:
         msg:
@@ -111,8 +161,9 @@
           - "============================================"
           - "Host:          {{ ansible_host }}"
           - "Sync Server:   http://{{ ansible_host }}:{{ hostvars[inventory_hostname].anki_sync_server_port | default(8080) }}"
-          - "ldoce5-api:    http://{{ ansible_host }}:{{ ldoce5_port }}  (health: {{ ldoce5_health.status | default('N/A') }})"
-          - "anki-writer:   http://{{ ansible_host }}:{{ anki_writer_port }}  (health: {{ writer_health.status | default('N/A') }})"
+          - "ldoce5-api:    http://localhost:{{ ldoce5_port }}  (health: {{ ldoce5_health.status | default('N/A') }})"
+          - "anki-writer:   http://localhost:{{ anki_writer_port }}  (health: {{ writer_health.status | default('N/A') }})"
+          - "Public writer: https://{{ anki_writer_public_domain }}  (health: {{ writer_public_health.status | default('N/A') }})"
           - "============================================"
           - "Data dirs:"
           - "  dict:        {{ anki_api_dict_dir | default('/opt/anki/dict') }}"

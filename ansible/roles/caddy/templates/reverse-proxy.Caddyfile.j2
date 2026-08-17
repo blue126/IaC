@@ -1,0 +1,9 @@
+{{ caddy_reverse_proxy_domain }} {
+    reverse_proxy {{ caddy_reverse_proxy_upstream }}
+
+    header {
+        X-Content-Type-Options nosniff
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+}

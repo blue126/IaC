@@ -9,6 +9,11 @@ ldoce5_mdd_filename: "Longman Dictionary Of Contemporary English 5th.mdd"   # TO
 anki_writer_sync_user: anki
 # anki_writer_sync_password comes from vault_anki_writer_sync_password
 
+# Public Anki Writer reverse proxy
+anki_writer_public_domain: ankiwriter.willfan.me
+anki_writer_proxy_upstream: 127.0.0.1:5051
+caddy_binary_path: /usr/bin/caddy
+
 # unified-proxy
 repo_url: "https://github.com/blue126/unified-proxy.git"
 repo_version: "main"

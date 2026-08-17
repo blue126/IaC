@@ -1,0 +1,5 @@
+[Service]
+ExecStart=
+ExecStart={{ caddy_binary_path }} run --environ --config {{ caddy_managed_config_path }} --adapter caddyfile
+ExecReload=
+ExecReload={{ caddy_binary_path }} reload --config {{ caddy_managed_config_path }} --adapter caddyfile --force

@@ -1,0 +1,2 @@
+import {{ caddy_base_config_path }}
+import {{ caddy_managed_site_import | default(caddy_site_config_dir + '/*.caddy') }}

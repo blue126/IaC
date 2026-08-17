@@ -9,6 +9,17 @@ caddy_webdav_root: /var/www/webdav
 caddy_webdav_port: 8080
 caddy_domain: localhost
 caddy_reverse_proxies: []
+
+# Existing-install reverse proxy configuration
+caddy_binary_path: /usr/sbin/caddy
+caddy_service_name: caddy
+caddy_base_config_path: /etc/caddy/Caddyfile
+caddy_managed_config_path: /etc/caddy/managed.Caddyfile
+caddy_site_config_dir: /etc/caddy/conf.d
+caddy_systemd_override_dir: /etc/systemd/system/caddy.service.d
+caddy_reverse_proxy_name: ""
+caddy_reverse_proxy_domain: ""
+caddy_reverse_proxy_upstream: ""
 # Cloudflare API token for DNS challenge (vault indirect reference)
 cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
 # WebDAV basic auth password, hashed for Caddy (vault indirect reference)

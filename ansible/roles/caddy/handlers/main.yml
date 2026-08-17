@@ -3,3 +3,9 @@
   service:
     name: caddy
     state: restarted
+
+- name: Reload managed Caddy configuration
+  ansible.builtin.systemd:
+    name: "{{ caddy_service_name }}"
+    daemon_reload: true
+    state: reloaded
