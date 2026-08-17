@@ -13,7 +13,9 @@
 
 ## 0. 一句话现状
 
-homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）已切换到 **官方 0731 模型 + DSpark + mainline llama.cpp**，当前固定 `n_max=1`，并已采用一条 `--override-tensor` 规则把尾部三层的路由专家放到 CUDA1（§3.6）。mainline active、ik inactive、稳定 API `8081` 健康、容器 restart=0。8K decode 由 7.31 提升到 **7.87 tok/s（+7.8%）**，已超过 ik 基线 7.68；1K 持平。
+homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）已切换到 **官方 0731 模型 + DSpark + mainline llama.cpp**，当前固定 `n_max=1`。在此之上采用了四项优化：一条 `--override-tensor` 规则把尾部三层路由专家放到 CUDA1（§3.6）、`numactl --interleave=all`、`kernel.numa_balancing=0`、`--threads 16`（§3.9）。mainline active、ik inactive、稳定 API `8081` 健康、容器 restart=0。
+
+decode **1K 7.58 → 8.94 tok/s（+18.0%）、8K 7.31 → 8.58 tok/s（+17.4%）**，两档均稳定高于 8.0 门槛，也都超过 ik 基线（8.05 / 7.68）。**收益的大头来自 NUMA 内存放置修复，不是推理参数**（§3.9）。
 
 ---
 
@@ -63,8 +65,11 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 | R6：prompt-cache 保存阻塞 /health | ⚠️ checkpoint=8 缓解（72s→22–28s）但**未解决**（同步保存根本问题） |
 | Stage 2：mainline + DSpark 切换 | ✅ 已部署；health/chat 与 1K/8K 快速基准完成（见 §3.5、§5） |
 | P1：当前 PCIe 拓扑性能基准 | ✅ 已由 mainline `n_max=1/2` 的同 corpus 1K/8K 基准覆盖 |
-| `--override-tensor` 精准放置 | ✅ 已探索并**采用**：blk.40–42 路由专家 → CUDA1，8K decode +7.8%（§3.6） |
-| 当前推荐参数 | ✅ mainline + DSpark，`n_max=1` + 上述 `-ot` 规则；不要再重复 `n_max` 1/2 对比 |
+| `--override-tensor` 精准放置 | ✅ 已探索并**采用**：blk.40–42 路由专家 → CUDA1，8K decode +7.8%（§3.6）；追加 blk.0 → CUDA0 已测并回退（§3.7） |
+| 部署耗时 | ✅ 模型校验默认降为大小比对，一次参数重部署由约 15 分钟降到约 5 分钟（§5.2） |
+| **NUMA 内存放置** | ✅ **本轮最大收益**：`numactl --interleave=all` + `numa_balancing=0` + `threads=16`（§3.9） |
+| 显存占用拆解 | ✅ 已用 `-lv 5` 取得权威数字；KV 仅 3.7 GiB，DSpark 占 15.2 GiB（§3.10） |
+| 当前推荐参数 | ✅ mainline + DSpark，`n_max=1` + `-ot` 规则 + §3.9 三项；不要再重复 `n_max` 1/2 对比 |
 
 ---
 
@@ -177,6 +182,83 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 
 **已知残余不确定性**：control 数据取自重启前的容器实例，因此"重启本身带来的运气"（NUMA/内存布局）未被单独排除。若要更强证据，可把 `deepseek_v4_mainline_tensor_overrides` 置空重新部署再测一轮 8K。GPU1 目前是 Gen3×8，结论只代表当前拓扑。
 
+### 3.7 追加规则 blk.0 → CUDA0（2026-08-17，已测并**回退**）
+
+在 §3.6 基础上追加第二条规则 `blk\.0\.ffn_(down|gate|up)_exps=CUDA0`（+2656 MiB，累计移出 10624 MiB / 9.25%）。**结论：回退**。
+
+| 指标 | blk.40–42（保留） | 追加 blk.0（回退） |
+|---|---:|---:|
+| 8K decode 中位（冷样本） | 7.873 | 7.771 |
+| 8K decode 冷样本跨度 | **0.26** | **1.46** |
+| 1K decode | 7.541 | 7.699 |
+| 8K TTFT | 38.93 s | 37.91 s |
+| 8K prefill | 239.06 | 245.30 |
+| GPU0 峰值余量 | 4518 MiB | **1866 MiB** |
+
+8K 冷样本（6 个）：6.697 / 7.416 / 7.606 / 7.936 / 8.126 / 8.156。即使剔除 6.697 这个离群值也没有超过 blk.40–42，而离散度是它的 5 倍。
+
+回退理由：decode（尤其 8K）是本轮主指标；1866 MiB 余量配 `--fit off`，未来任何加载期变化（更长 context、不同 batch）都会直接 OOM。1K decode、TTFT 和 prefill 确实各有 2–3% 的一致改善，如果后续把优化目标改成 prefill/TTFT，可以重新考虑这条规则——但要先解决 GPU0 余量问题。
+
+**二阶效应的实测修正**：§3.6 第 6 条预期"往 CUDA0 加载荷会把 drafter 推回 CUDA1"，实测并非如此——GPU0 +2502 MiB、GPU1 −140 MiB，drafter 基本没动。drafter 的重分布不是对称的，做显存预算时**必须实测，不能按上一次的比例外推**。
+
+### 3.8 基准方法陷阱：`--cold-prefill` 的 nonce 是确定性的
+
+`benchmark-runner.py` 的 nonce 是 `sha256(f"{case_id}:{sample_index}:{seed}")`，**只保证单次运行内各样本互不命中**。跨运行用同样的 case/seed/样本数重跑，prompt 完全相同 → 全部命中 prompt cache，TTFT 从 38 s 掉到 0.8 s、prefill 从 239 掉到 9 tok/s，decode 也偏高，数据不可与冷启动结果比较。
+
+判别方法：8K 样本 TTFT <10 s 即为缓存命中。想在**同一容器实例**内取得新的冷样本，用更大的 `--repeat-samples`（新下标产生新 nonce）再只取新下标的样本，或重启服务清空缓存。
+
+§3.6 和 §3.7 的跨配置对比都是重新部署后在空缓存上跑的（TTFT 38–40 s），结论不受此影响。
+
+### 3.9 NUMA 内存放置 + 线程数（2026-08-17，本轮最大收益）
+
+**起因**：把显存占用拆解清楚后（§3.10）发现，decode 每 token 从主存读约 2.5 GiB 专家权重、实测 7.87 tok/s → 有效带宽仅约 **20 GB/s**，而宿主是双路 E5-2686 v4、四通道 DDR4，理论值 100+ GB/s。差了 5 倍。
+
+**根因**：`/proc/<pid>/numa_maps` 显示 105 GiB 常驻内存 **74% 落在 node1、26% 在 node0**。`--no-mmap` 下模型由 `cudaHostAlloc` 分配页锁定内存，页归属遵循 first-touch，于是绝大部分落在加载线程所在的节点。结果是 node1 的内存控制器扛下四分之三流量，node0 的大半闲置——双路机器被压到接近单路带宽。
+
+**注意**：guest 的 NUMA **拓扑本身是正确的**（2 节点，node0=CPU 0-17、node1=CPU 18-35，距离 10/20），尽管 ESXi 上 VM 配的是 cores-per-socket=1 / sockets=36。ESXi 6.5+ 的 vNUMA 自动计算，与 cores-per-socket 无关，**不需要改成 2×18**。问题在放置，不在拓扑。
+
+**三项修复与实测**（同 corpus、cold-prefill、每档 3 样本中位）：
+
+| 配置 | 1K decode | 8K decode |
+|---|---:|---:|
+| `-ot` blk.40–42（§3.6 终点），threads=32 | 7.541 | 7.873 |
+| + `numactl --interleave=all` | 8.303 | 8.635 |
+| + `kernel.numa_balancing=0` | 8.710 | 8.269 |
+| **+ `--threads 16`（当前默认）** | **8.941** | **8.577** |
+| 相对 §3.6 终点 | **+18.6%** | **+8.9%** |
+| 相对最初 control | **+18.0%** | **+17.4%** |
+
+要点：
+
+1. `numactl --interleave=all` 把落点从 74/26 改善到 **60/40**，没有到 50/50——`cudaHostAlloc` 的一部分内存由 CUDA 驱动按 GPU 亲和性就近放置，不完全受 mempolicy 管辖。**剩余空间仍可挖**。
+2. `--numa distribute` **确实**会绑定计算线程（17 个到 node0、18 个到 node1），早前"没有绑定"的观察是空闲时采样、线程池未起来所致。
+3. **线程数与内存格局耦合**：NUMA 修复前 threads=16 是 1K 赢 8K 输；修复后两档都赢。decode 是带宽受限而非计算受限，线程越多在失衡的内存子系统上争抢越严重——历史上"36 比 32 差"由此得到统一解释。计划文档曾把 `threads=32` 列为"已收敛、不再折腾"，**该结论作废**（它当初只和 36 比过，从未向下扫描）。
+4. `numa_balancing=0` 单独看在 8K 上是负的（8.635 → 8.269），但叠加 threads=16 后 8K 回到 8.577。**未测组合**：`interleave` + threads=16 但不关 numa_balancing，其 8K 可能更高。
+
+**成本**：不占显存、不改任何推理参数、不动硬件。`numactl` 由固定 runtime image 自带；sysctl 写在 `/etc/sysctl.d/99-deepseek-v4-mainline.conf`，重启存活。
+
+### 3.10 显存占用拆解（2026-08-17）
+
+用 `-lv 5` 跑一次加载取得权威数字（该开关是 `deepseek_v4_mainline_log_verbosity`，默认关闭，**不要常开**，它对每个请求都打 debug）。单位 MiB：
+
+| 组成 | CUDA0 | CUDA1 |
+|---|---:|---:|
+| 主模型权重 | 3311 | 11566 |
+| **drafter 权重** | **10209** | 178 |
+| 主模型 KV cache | 1838 | 1989 |
+| 主模型 compute buffer | 2813 | 1329 |
+| drafter compute buffer | 1096 | 3633 |
+| CUDA context / 分配器开销 | ~600 | ~1600 |
+| nvidia-smi 实测 | 19886 | 20310 |
+
+另有 107262 MiB 专家权重在 `CUDA_Host`（页锁定主存，**不是普通 CPU 内存**——loader 对 CPU override 会从 CPU buft 列表挑 extra 类型）。
+
+由此确立的三件事：
+
+1. **KV cache 只有 3.7 GiB**，因为 43 层**全部是 SWA（窗口 128）**，不随 128K 上下文线性增长。"量化 KV / 降 ctx 腾显存"这个方向基本无效，最多省 1.8 GiB。
+2. **DSpark 总成本约 15.2 GiB**（drafter 权重 10.4 + compute buffer 4.7），占在用显存的 38%，且权重几乎全压在 CUDA0 上。这解释了为什么 §3.7 往 CUDA0 加载荷时余量那么紧。
+3. **但不要动 DSpark**：drafter 权重 94% 是专家（9792 MiB / 3 层）。若用 `--cpu-moe-draft` 挪到主存，释放 9.5 GiB 可多放 3 层主模型专家（每 token 少读 186 MiB），但 drafter 自己每 token 要读 6/256 × 9792 = **229 MiB**，**净增 43 MiB/token，反而更慢**。而 DSpark 当前接受率 0.70–0.79、mean len 1.83，收益远大于这点显存。此路分析上即可否决，无需实验。
+
 ---
 
 ## 4. 已做的决定（不要推翻，除非有强证据）
@@ -210,7 +292,7 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml
 
 流程固定为：
 
-1. 在停止 ik 前校验 mainline git HEAD、binary SHA-256、固定 runtime image，以及四个基座分片和 drafter 的 SHA-256；任一不符立即失败，ik 保持运行。
+1. 在停止 ik 前校验 mainline git HEAD、binary SHA-256、固定 runtime image，以及五个模型文件；任一不符立即失败，ik 保持运行。模型这一步默认只比对**文件大小**（`deepseek_v4_mainline_verify_model_checksums: false`）——138GB 全量哈希要约 7 分钟，会主导一次纯参数重部署，而大小检查同样能拦住文件缺失/截断。**模型文件本身变更或重新同步后，必须把该开关翻回 `true` 跑一次。**
 2. 渲染独立 `deepseek-v4-mainline` Compose project 与 systemd unit。
 3. 停止并禁用 `deepseek-v4-ik.service`，启动并启用 `deepseek-v4-mainline.service`，由 mainline 直接接管 `127.0.0.1:8082`。
 4. 等待 backend `8082/health` 和稳定入口 `8081/health`，再通过 `8081` 发送一次 `temperature=0`、`seed=42`、要求只回复 `OK` 的固定 chat。
@@ -238,7 +320,10 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 
 | 优先级 | 内容 | 最小完成标准 |
 |---|---|---|
-| **下一步** | 把 `-ot` 扩展到 CUDA0 侧：追加 `blk\.(0\|1)\.ffn_(down\|gate\|up)_exps=CUDA0`（blk.0–21 归 CUDA0）。注意 §3.6 第 6 条的二阶效应——主模型多占 CUDA0 会把 drafter 推回 CUDA1，必须先重测峰值显存再定层数 | 与当前 blk.40–42 配置对照，同 1K/8K 三样本；无 OOM/restart；峰值余量 ≥2 GiB |
+| **下一步** | 继续挖 NUMA：落点仍是 60/40 而非 50/50（§3.9 要点 1）。可试 `--load-mode mmap` 配合 interleave，或在容器外用 `numactl --membind` 显式分配 | 落点接近 50/50；同 1K/8K 三样本对照当前默认 |
+| 顺带 | 补测 `interleave` + `threads=16` 但**不关** `numa_balancing` 的组合（§3.9 要点 4），其 8K 可能高于当前的 8.577 | 同上 |
+| 低优先 | 线程数在 8–24 之间细扫（当前只测过 16/32/36） | 同上 |
+| 已封闭 | `-ot` 的 CUDA0 侧（§3.7 证伪）、shared expert/router（no-op）、`--cpu-moe-draft`（§3.10 分析否决）、KV 量化（KV 仅 3.7 GiB）、改 ESXi cores-per-socket（拓扑本就正确）、开 HT（steal=0、且负载不缺线程） | — |
 | 可并行但需维护窗口 | GPU1 ×8：关机、清洁/重插、交换测试 | 达到 Gen3×16，或确认卡 lane 损伤并接受 ×8 |
 | 低优先 | 在 mainline 上复现 R6 prompt-cache `/health` 阻塞 | 判断是否仍存在；不要直接沿用 ik 结论 |
 | 按需 | 256K/384K 容量 profile | 峰值分配 + recall；不混入速度实验 |
@@ -257,7 +342,7 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 5. ik role、兼容代理和 Open WebUI 不为 mainline 做兼容性改造；
 6. 文档/对话中文，代码注释英文，commit 用 Conventional Commits（英文）；
 7. Ansible 工作目录 `ansible/`；inventory 由 Terraform state 生成，失效先跑 `scripts/refresh-terraform-state.sh`；
-8. 模型/runtime pin 变更必须先验 SHA-256 或 git HEAD。
+8. 模型/runtime pin 变更必须先验 SHA-256 或 git HEAD；日常参数迭代走默认的大小检查即可（§5.2 第 1 条）。
 
 ---
 
@@ -269,7 +354,7 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 - [ ] mainline 可选重建 `-DGGML_NCCL=OFF`（消除 NCCL 依赖）
 - [ ] HF 下载限速：guest 上设 `HF_TOKEN`（只读）可提速
 - [x] ~~`override-tensor` CLI 语法、真实张量名、buffer type 精确值和首个单变量候选~~ → 全部核实并采用，见 §3.6
-- [ ] `-ot` 只用掉 CUDA1 的余量；CUDA0 侧（blk.0–21）尚未试，两卡合计理论上还能再挪约 2–3 层（见 §6）
+- [ ] CUDA0 侧（§3.7）已试并回退；CUDA1 侧还剩 4252 MiB，够再挪一层（见 §6）
 - [ ] §3.6 的 control 取自重启前实例，"重启运气"未单独排除；如需更强证据可置空变量重测一轮 8K
 
 ---
