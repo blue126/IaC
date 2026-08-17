@@ -56,6 +56,8 @@ module "llm_server" {
   extra_config = {
     "pciPassthru.use64bitMMIO"    = "TRUE"
     "pciPassthru.64bitMMIOSizeGB" = tostring(var.llm_server_mmio_size_gb)
+    "pciPassthru.allowP2P"        = "TRUE"
+    "pciPassthru.relaxACSforP2P"  = "TRUE"
     "mem.hotadd"                  = "FALSE"
   }
 }
