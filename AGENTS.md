@@ -19,6 +19,7 @@ ansible/
   playbooks/        # Deployment playbooks (one per service)
   roles/            # Modular roles (common, docker, tailscale, netbox, pbs, etc.)
   inventory/        # Dynamic inventory from Terraform state + group/host vars
+                    # Exception: OCI hosts use a static inventory, not the plugin
 scripts/            # Helper scripts (secrets bridge, Netbox fetch, Jenkins tests)
 docs/               # Deployment guides, technical guides, learning notes
 ```
@@ -50,7 +51,8 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
 - **File organization**: `versions.tf`, `provider.tf`, `variables.tf`, then **one `.tf` file per service** (module call + outputs + `ansible_host` resource)
 - **Module structure**: `main.tf`, `variables.tf`, `outputs.tf` (3-file standard)
 - **Sensitive variables**: Always mark `sensitive = true`
-- **Backend**: HCP Terraform Cloud (`cloud { organization = "homelab-roseville" }`)
+- **Backend**: HCP Terraform Cloud (`cloud { organization = "homelab-roseville" }`), **Local execution mode** — plan/apply run on this machine, HCP only stores state
+- **Workspaces**: `iac-proxmox` → `terraform/proxmox/`, `iac-esxi` → `terraform/esxi/`, `iac-oci` → `terraform/oci/`
 - **Lifecycle blocks**: Use `ignore_changes` for clone, full_clone, efidisk, ostemplate, description
 
 ### Ansible
