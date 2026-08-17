@@ -1,0 +1,20 @@
+---
+- name: Deploy DeepSeek V4 mainline DSpark service
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  roles:
+    - role: deepseek-v4-mainline
+  tags: [deploy]
+
+- name: Verify DeepSeek V4 mainline DSpark service
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Load read-only mainline service verification
+      ansible.builtin.import_role:
+        name: deepseek-v4-mainline
+        tasks_from: verify
+      tags: [verify]
+  tags: [never, verify]

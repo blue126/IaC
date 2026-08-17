@@ -1,0 +1,17 @@
+[Unit]
+Description=DeepSeek V4 mainline llama.cpp Compose owner
+After=docker.service
+Requires=docker.service
+Conflicts={{ deepseek_v4_mainline_ik_service_unit }}
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ deepseek_v4_mainline_install_dir }}
+ExecStart=/usr/bin/docker compose --project-name {{ deepseek_v4_mainline_compose_project }} up -d --no-build --pull never --force-recreate server
+ExecStop=/usr/bin/docker compose --project-name {{ deepseek_v4_mainline_compose_project }} down --remove-orphans --timeout 300
+TimeoutStartSec=1200
+TimeoutStopSec=420
+
+[Install]
+WantedBy=multi-user.target

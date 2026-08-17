@@ -1,0 +1,85 @@
+---
+- name: Inspect the mainline runtime owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_mainline_service_unit }}"]
+  register: deepseek_v4_mainline_verify_owner
+  changed_when: false
+  failed_when: false
+
+- name: Inspect the retired ik runtime owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_mainline_ik_service_unit }}"]
+  register: deepseek_v4_mainline_verify_ik_owner
+  changed_when: false
+  failed_when: false
+
+- name: Require mainline to be the only runtime owner
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_mainline_verify_owner.stdout | trim == 'active'
+      - deepseek_v4_mainline_verify_ik_owner.stdout | trim != 'active'
+    fail_msg: Mainline is not the sole active DeepSeek V4 runtime owner.
+
+- name: Inspect the running mainline Compose services
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ deepseek_v4_mainline_compose_project }}"
+      - --file
+      - "{{ deepseek_v4_mainline_install_dir }}/docker-compose.yml"
+      - ps
+      - --status
+      - running
+      - --services
+  register: deepseek_v4_mainline_verify_services
+  changed_when: false
+
+- name: Require the mainline server container to be running
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_mainline_verify_services.stdout_lines == ['server']
+    fail_msg: The mainline Compose server is not the sole running service.
+
+- name: Verify the mainline backend health endpoint
+  ansible.builtin.uri:
+    url: >-
+      http://127.0.0.1:{{ deepseek_v4_mainline_backend_port }}/health
+    status_code: 200
+
+- name: Verify the stable API health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ deepseek_v4_mainline_stable_port }}/health"
+    status_code: 200
+
+- name: Verify a deterministic chat through the stable API
+  ansible.builtin.uri:
+    url: >-
+      http://127.0.0.1:{{ deepseek_v4_mainline_stable_port }}/v1/chat/completions
+    method: POST
+    body_format: json
+    body:
+      model: "{{ deepseek_v4_mainline_model_name }}"
+      messages:
+        - role: user
+          content: "{{ deepseek_v4_mainline_chat_prompt }}"
+      temperature: 0
+      seed: 42
+      max_tokens: 32
+      thinking_budget_tokens: 0
+    status_code: 200
+    return_content: true
+    timeout: 1800
+  register: deepseek_v4_mainline_verify_chat
+
+- name: Require the deterministic chat response
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_mainline_verify_chat.json.choices | length > 0
+      - >-
+        (deepseek_v4_mainline_verify_chat.json.choices[0].message.content |
+        default('') | trim | length > 0) or
+        (deepseek_v4_mainline_verify_chat.json.choices[0].message.reasoning_content |
+        default('') | trim | length > 0)
+    fail_msg: Mainline returned an unexpected deterministic chat response.

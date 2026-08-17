@@ -1,0 +1,40 @@
+---
+deepseek_v4_mainline_install_dir: /opt/deepseek-v4-mainline
+deepseek_v4_mainline_source_dir: "{{ deepseek_v4_mainline_install_dir }}/src"
+deepseek_v4_mainline_build_dir: "{{ deepseek_v4_mainline_source_dir }}/build"
+deepseek_v4_mainline_binary_path: >-
+  {{ deepseek_v4_mainline_build_dir }}/bin/llama-server
+deepseek_v4_mainline_commit: 10bf611e533d81f739128304991c5e133c6aebd8
+deepseek_v4_mainline_binary_sha256: >-
+  2e63f6a8aa2508d129aaef1d59769754e2ae37558b9eec3dbe8d0307ea4d7074
+deepseek_v4_mainline_runtime_image: >-
+  approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8
+
+deepseek_v4_mainline_model_dir: /data/models/DeepSeek-V4-Flash-0731-GGUF
+deepseek_v4_mainline_model_files:
+  - path: UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00001-of-00004.gguf
+    sha256: 36e02d6d87c9fbfe0dd4e8fd0d03cef2aa2c509248802a9d1772159112db3734
+  - path: UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00002-of-00004.gguf
+    sha256: b210930a3dc8ad13b55f6a0eb79b58abb0752ac446cb53aebcdc744c6834a7ad
+  - path: UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00003-of-00004.gguf
+    sha256: ac71bc6fd30c0af3eb702cea5bc94be570b9fed4857d63bf7180ec668683612c
+  - path: UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00004-of-00004.gguf
+    sha256: 28b764750db8c4539df530292cd5950c6d161d81b20673b736ff4f8ca4ffa7ae
+  - path: dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf
+    sha256: 2c7ac54b0b64a99df1f139a9f1371a00198265e1d6a614b77597d20a655a4249
+deepseek_v4_mainline_model_path: >-
+  /models/UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00001-of-00004.gguf
+deepseek_v4_mainline_draft_model_path: >-
+  /models/dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf
+
+deepseek_v4_mainline_compose_project: deepseek-v4-mainline
+deepseek_v4_mainline_service_unit: deepseek-v4-mainline.service
+deepseek_v4_mainline_ik_service_unit: deepseek-v4-ik.service
+deepseek_v4_mainline_compat_service_unit: deepseek-v4-ik-compat.service
+deepseek_v4_mainline_backend_port: 8082
+deepseek_v4_mainline_stable_port: 8081
+deepseek_v4_mainline_model_name: deepseek-v4-flash
+deepseek_v4_mainline_spec_draft_n_max: 1
+deepseek_v4_mainline_start_retries: 120
+deepseek_v4_mainline_start_delay_seconds: 8
+deepseek_v4_mainline_chat_prompt: Reply with exactly OK.

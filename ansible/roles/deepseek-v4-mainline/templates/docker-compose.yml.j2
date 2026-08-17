@@ -1,0 +1,66 @@
+---
+services:
+  server:
+    image: {{ deepseek_v4_mainline_runtime_image }}
+    entrypoint: []
+    command:
+      - /build/llama-server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "{{ deepseek_v4_mainline_backend_port }}"
+      - --alias
+      - {{ deepseek_v4_mainline_model_name }}
+      - --model
+      - {{ deepseek_v4_mainline_model_path }}
+      - --model-draft
+      - {{ deepseek_v4_mainline_draft_model_path }}
+      - --spec-type
+      - draft-dspark
+      - --spec-draft-n-max
+      - "{{ deepseek_v4_mainline_spec_draft_n_max }}"
+      - --fit
+      - "off"
+      - --flash-attn
+      - "on"
+      - --jinja
+      - --ctx-size
+      - "131072"
+      - --threads
+      - "32"
+      - --numa
+      - distribute
+      - --threads-batch
+      - "36"
+      - --batch-size
+      - "4096"
+      - --ubatch-size
+      - "2048"
+      - --cache-ram
+      - "8192"
+      - --n-gpu-layers
+      - "100"
+      - --split-mode
+      - layer
+      - --cpu-moe
+      - --no-mmap
+      - --cache-type-k
+      - f16
+      - --cache-type-v
+      - f16
+    environment:
+      CUDA_VISIBLE_DEVICES: "0,1"
+      LD_LIBRARY_PATH: /build
+    ports:
+      - "127.0.0.1:{{ deepseek_v4_mainline_backend_port }}:{{ deepseek_v4_mainline_backend_port }}"
+    volumes:
+      - "{{ deepseek_v4_mainline_build_dir }}/bin:/build:ro"
+      - "{{ deepseek_v4_mainline_model_dir }}:/models:ro"
+    devices:
+      - nvidia.com/gpu=0
+      - nvidia.com/gpu=1
+    ipc: host
+    cap_add: [SYS_NICE]
+    init: true
+    restart: "no"
+    stop_grace_period: 300s

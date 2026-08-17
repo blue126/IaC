@@ -1,0 +1,236 @@
+---
+- name: Validate the fixed mainline deployment boundary
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_mainline_commit ==
+        '10bf611e533d81f739128304991c5e133c6aebd8'
+      - >-
+        deepseek_v4_mainline_binary_sha256 ==
+        '2e63f6a8aa2508d129aaef1d59769754e2ae37558b9eec3dbe8d0307ea4d7074'
+      - >-
+        deepseek_v4_mainline_runtime_image ==
+        'approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8'
+      - deepseek_v4_mainline_spec_draft_n_max | int == 1
+      - deepseek_v4_mainline_backend_port | int == 8082
+      - deepseek_v4_mainline_stable_port | int == 8081
+      - deepseek_v4_mainline_model_name == 'deepseek-v4-flash'
+      - deepseek_v4_mainline_install_dir == '/opt/deepseek-v4-mainline'
+      - >-
+        deepseek_v4_mainline_source_dir ==
+        '/opt/deepseek-v4-mainline/src'
+      - >-
+        deepseek_v4_mainline_build_dir ==
+        '/opt/deepseek-v4-mainline/src/build'
+      - >-
+        deepseek_v4_mainline_binary_path ==
+        '/opt/deepseek-v4-mainline/src/build/bin/llama-server'
+      - >-
+        deepseek_v4_mainline_model_dir ==
+        '/data/models/DeepSeek-V4-Flash-0731-GGUF'
+      - >-
+        deepseek_v4_mainline_model_path ==
+        '/models/UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00001-of-00004.gguf'
+      - >-
+        deepseek_v4_mainline_draft_model_path ==
+        '/models/dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf'
+      - deepseek_v4_mainline_compose_project == 'deepseek-v4-mainline'
+      - >-
+        deepseek_v4_mainline_service_unit ==
+        'deepseek-v4-mainline.service'
+      - >-
+        deepseek_v4_mainline_ik_service_unit ==
+        'deepseek-v4-ik.service'
+      - >-
+        deepseek_v4_mainline_compat_service_unit ==
+        'deepseek-v4-ik-compat.service'
+      - >-
+        deepseek_v4_mainline_model_files | map(attribute='path') | list ==
+        [
+          'UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00001-of-00004.gguf',
+          'UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00002-of-00004.gguf',
+          'UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00003-of-00004.gguf',
+          'UD-Q3_K_M/DeepSeek-V4-Flash-0731-UD-Q3_K_M-00004-of-00004.gguf',
+          'dspark-DeepSeek-V4-Flash-0731-Q8_0.gguf'
+        ]
+      - >-
+        deepseek_v4_mainline_model_files | map(attribute='sha256') | list ==
+        [
+          '36e02d6d87c9fbfe0dd4e8fd0d03cef2aa2c509248802a9d1772159112db3734',
+          'b210930a3dc8ad13b55f6a0eb79b58abb0752ac446cb53aebcdc744c6834a7ad',
+          'ac71bc6fd30c0af3eb702cea5bc94be570b9fed4857d63bf7180ec668683612c',
+          '28b764750db8c4539df530292cd5950c6d161d81b20673b736ff4f8ca4ffa7ae',
+          '2c7ac54b0b64a99df1f139a9f1371a00198265e1d6a614b77597d20a655a4249'
+        ]
+    fail_msg: Mainline deployment pins or fixed service boundaries changed.
+
+- name: Inspect the mainline runtime commit
+  ansible.builtin.command:
+    argv:
+      - git
+      - -C
+      - "{{ deepseek_v4_mainline_source_dir }}"
+      - rev-parse
+      - HEAD
+  register: deepseek_v4_mainline_actual_commit
+  changed_when: false
+
+- name: Inspect the mainline binary checksum
+  ansible.builtin.stat:
+    path: "{{ deepseek_v4_mainline_binary_path }}"
+    checksum_algorithm: sha256
+    get_checksum: true
+  register: deepseek_v4_mainline_binary
+
+- name: Inspect the model checksums
+  ansible.builtin.stat:
+    path: "{{ deepseek_v4_mainline_model_dir }}/{{ item.path }}"
+    checksum_algorithm: sha256
+    get_checksum: true
+  loop: "{{ deepseek_v4_mainline_model_files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: deepseek_v4_mainline_models
+
+- name: Inspect the pinned runtime image
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - inspect
+      - "{{ deepseek_v4_mainline_runtime_image }}"
+  register: deepseek_v4_mainline_image
+  changed_when: false
+
+- name: Require the mainline source revision to match its pin
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_mainline_actual_commit.stdout | trim ==
+        deepseek_v4_mainline_commit
+    fail_msg: >-
+      Mainline source HEAD mismatch at {{ deepseek_v4_mainline_source_dir }}:
+      expected {{ deepseek_v4_mainline_commit }}, observed
+      {{ deepseek_v4_mainline_actual_commit.stdout | trim }}. ik has not been
+      stopped.
+
+- name: Require the mainline binary to match its pin
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_mainline_binary.stat.exists
+      - >-
+        deepseek_v4_mainline_binary.stat.checksum | default('') ==
+        deepseek_v4_mainline_binary_sha256
+    fail_msg: >-
+      Mainline binary mismatch at {{ deepseek_v4_mainline_binary_path }}:
+      expected {{ deepseek_v4_mainline_binary_sha256 }}, observed
+      {{ deepseek_v4_mainline_binary.stat.checksum | default('missing') }}. ik
+      has not been stopped.
+
+- name: Require the pinned runtime image to exist
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_mainline_image.rc == 0
+    fail_msg: >-
+      Pinned runtime image {{ deepseek_v4_mainline_runtime_image }} is missing;
+      ik has not been stopped.
+
+- name: Require each model artifact to match its pin
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.checksum is defined
+      - item.stat.checksum | default('') == item.item.sha256
+    fail_msg: "Model artifact pin verification failed: {{ item.item.path }}"
+  loop: "{{ deepseek_v4_mainline_models.results }}"
+  loop_control:
+    label: "{{ item.item.path }}"
+
+- name: Deploy the mainline Compose definition
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ deepseek_v4_mainline_install_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy the mainline systemd owner
+  ansible.builtin.template:
+    src: deepseek-v4-mainline.service.j2
+    dest: "/etc/systemd/system/{{ deepseek_v4_mainline_service_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Apply the mainline systemd owner
+  ansible.builtin.meta: flush_handlers
+
+- name: Validate the mainline Compose definition before stopping ik
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ deepseek_v4_mainline_compose_project }}"
+      - --file
+      - "{{ deepseek_v4_mainline_install_dir }}/docker-compose.yml"
+      - config
+      - --quiet
+  changed_when: false
+
+- name: Switch from ik to mainline without automatic rollback
+  block:
+    - name: Stop the existing mainline runtime owner before reconfiguration
+      ansible.builtin.systemd:
+        name: "{{ deepseek_v4_mainline_service_unit }}"
+        state: stopped
+
+    - name: Stop and disable the ik runtime owner
+      ansible.builtin.systemd:
+        name: "{{ deepseek_v4_mainline_ik_service_unit }}"
+        state: stopped
+        enabled: false
+
+    - name: Wait for the ik backend port to be released
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ deepseek_v4_mainline_backend_port }}"
+        state: stopped
+        timeout: 60
+
+    - name: Start and enable the mainline runtime owner
+      ansible.builtin.systemd:
+        name: "{{ deepseek_v4_mainline_service_unit }}"
+        state: restarted
+        enabled: true
+
+    - name: Wait for the mainline backend
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ deepseek_v4_mainline_backend_port }}/health
+        status_code: 200
+        timeout: 2
+      register: deepseek_v4_mainline_backend_health
+      until: deepseek_v4_mainline_backend_health.status == 200
+      retries: "{{ deepseek_v4_mainline_start_retries }}"
+      delay: "{{ deepseek_v4_mainline_start_delay_seconds }}"
+
+    - name: Start the existing compatibility proxy
+      ansible.builtin.systemd:
+        name: "{{ deepseek_v4_mainline_compat_service_unit }}"
+        state: started
+        enabled: true
+
+    - name: Wait for the stable API
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ deepseek_v4_mainline_stable_port }}/health
+        status_code: 200
+      register: deepseek_v4_mainline_stable_health
+      until: deepseek_v4_mainline_stable_health.status == 200
+      retries: 12
+      delay: 5
+
+    - name: Run a deterministic chat through the stable API
+      ansible.builtin.include_tasks: verify.yml
