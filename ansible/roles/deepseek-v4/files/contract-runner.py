@@ -10,6 +10,13 @@ import urllib.request
 from pathlib import Path
 
 REVISION = "v1"
+HEARTBEAT_PATH = None
+
+
+def touch_heartbeat():
+    """Refresh the managed-host watchdog heartbeat when configured."""
+    if HEARTBEAT_PATH is not None:
+        HEARTBEAT_PATH.touch(exist_ok=True)
 
 
 def validate_message(body, expected_tools=None):
@@ -104,8 +111,10 @@ def post(base_url, payload, stream=False):
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
     )
+    touch_heartbeat()
     with urllib.request.urlopen(request, timeout=1800) as response:
         raw = response.read().decode()
+    touch_heartbeat()
     return raw if stream else json.loads(raw)
 
 
@@ -360,7 +369,10 @@ def main():
     parser.add_argument("--model")
     parser.add_argument("--output")
     parser.add_argument("--skip-compatibility", action="store_true")
+    parser.add_argument("--heartbeat-file")
     args = parser.parse_args()
+    global HEARTBEAT_PATH
+    HEARTBEAT_PATH = Path(args.heartbeat_file) if args.heartbeat_file else None
     if not args.self_test and (not args.base_url or not args.model):
         parser.error("live mode requires --base-url and --model")
     results = (
@@ -382,7 +394,8 @@ def main():
     if args.output:
         target = Path(args.output)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(rendered + "\n", encoding="utf-8")
+        with target.open("x", encoding="utf-8") as output_file:
+            output_file.write(rendered + "\n")
     print(rendered)
     return 0 if evidence["status"] == "pass" else 1
 

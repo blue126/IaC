@@ -1,0 +1,47 @@
+---
+- name: Inspect the stable production owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_ik_service_unit }}"]
+  register: deepseek_v4_ik_verify_owner
+  changed_when: false
+  failed_when: false
+
+- name: Inspect the stable compatibility proxy
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_ik_compat_service_unit }}"]
+  register: deepseek_v4_ik_verify_proxy
+  changed_when: false
+  failed_when: false
+
+- name: Inspect the superseded runtime owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_ik_main_unit }}"]
+  register: deepseek_v4_ik_verify_superseded_owner
+  changed_when: false
+  failed_when: false
+
+- name: Inspect compatibility proxy lifecycle dependencies
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - "{{ deepseek_v4_ik_compat_service_unit }}"
+      - --property=Requires,PartOf
+  register: deepseek_v4_ik_verify_proxy_dependencies
+  changed_when: false
+
+- name: Verify the stable public health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ deepseek_v4_ik_api_probe_address }}:{{ deepseek_v4_ik_api_port }}/health"
+    status_code: 200
+  register: deepseek_v4_ik_verify_health
+
+- name: Require the stable owner and independent proxy
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_verify_owner.stdout | trim == 'active'
+      - deepseek_v4_ik_verify_proxy.stdout | trim == 'active'
+      - deepseek_v4_ik_verify_superseded_owner.stdout | trim != 'active'
+      - deepseek_v4_ik_service_unit not in deepseek_v4_ik_verify_proxy_dependencies.stdout
+      - deepseek_v4_ik_verify_health.status == 200
+    fail_msg: Stable production owner, proxy independence, or public health verification failed.

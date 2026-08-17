@@ -1,8 +1,7 @@
 [Unit]
 Description=DeepSeek V4 GGUF OpenAI compatibility proxy
-Requires={{ deepseek_v4_ik_service_unit }}
-After={{ deepseek_v4_ik_service_unit }}
-PartOf={{ deepseek_v4_ik_service_unit }}
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple

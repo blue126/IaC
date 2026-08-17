@@ -124,20 +124,3 @@
         -DCMAKE_CUDA_ARCHITECTURES=86 && cmake --build build --target llama-server -j 16
   args:
     creates: "{{ deepseek_v4_ik_build_dir }}/bin/llama-server"
-
-- name: Render the isolated candidate Compose project
-  ansible.builtin.template:
-    src: docker-compose.yml.j2
-    dest: "{{ deepseek_v4_ik_install_dir }}/docker-compose.yml"
-    owner: root
-    group: root
-    mode: "0644"
-
-- name: Validate rendered candidate Compose configuration
-  community.docker.docker_compose_v2:
-    project_src: "{{ deepseek_v4_ik_install_dir }}"
-    state: present
-    build: never
-    services: []
-  check_mode: true
-  changed_when: false

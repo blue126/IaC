@@ -196,6 +196,18 @@ class ProxyHandler(BaseHTTPRequestHandler):
         """Log only safe operational metadata, never prompts or authorization values."""
         sys.stderr.write("%s %s\n" % (self.command, self.path))
 
+    @staticmethod
+    def _read_sse_line(upstream):
+        """Read one decoded SSE line, including from a chunked HTTP response."""
+        fragments = []
+        while True:
+            fragment = upstream.read(1)
+            if not fragment:
+                return b"".join(fragments)
+            fragments.append(fragment)
+            if fragment == b"\n":
+                return b"".join(fragments)
+
     def _forward(self):
         if not client_allowed(self.client_address[0], self.allowed_networks):
             self.send_error(403, "source address is not allowed")
@@ -231,7 +243,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             upstream = connection.getresponse()
             content_type = upstream.getheader("Content-Type", "")
             content_encoding = upstream.getheader("Content-Encoding", "identity").lower()
-            is_sse = eligible and "text/event-stream" in content_type.lower()
+            is_sse = "text/event-stream" in content_type.lower()
             is_json = eligible and "application/json" in content_type.lower()
             if eligible and content_encoding not in {"", "identity"}:
                 upstream.read()
@@ -244,11 +256,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
             self.end_headers()
             self.close_connection = True
-            if is_sse:
+            if is_sse and eligible:
                 normalizer = ThoughtStreamNormalizer()
                 event_lines = []
                 while True:
-                    line = upstream.fp.readline()
+                    line = self._read_sse_line(upstream)
                     if not line:
                         for rendered in self._normalize_sse_event(normalizer, event_lines):
                             self.wfile.write(rendered.encode("utf-8"))
@@ -261,6 +273,16 @@ class ProxyHandler(BaseHTTPRequestHandler):
                         self.wfile.flush()
                         continue
                     event_lines.append(text.rstrip("\r\n"))
+            elif is_sse:
+                # No compatibility transform is needed: relay every upstream
+                # line immediately so normal streaming does not become a
+                # buffered end-of-response delivery.
+                while True:
+                    line = self._read_sse_line(upstream)
+                    if not line:
+                        break
+                    self.wfile.write(line)
+                    self.wfile.flush()
             else:
                 response = upstream.read()
                 self.wfile.write(normalize_completion(response) if is_json else response)

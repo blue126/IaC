@@ -9,9 +9,9 @@ Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory={{ deepseek_v4_ik_install_dir }}
 ExecStart=/usr/bin/docker compose --project-name {{ deepseek_v4_ik_compose_project }} up -d --no-build --pull never --force-recreate candidate
-ExecStop=/usr/bin/docker compose --project-name {{ deepseek_v4_ik_compose_project }} stop candidate
+ExecStop=/usr/bin/docker compose --project-name {{ deepseek_v4_ik_compose_project }} down --remove-orphans --timeout 300
 TimeoutStartSec=1200
-TimeoutStopSec=180
+TimeoutStopSec=420
 
 [Install]
 WantedBy=multi-user.target

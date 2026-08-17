@@ -1,28 +1,339 @@
 ---
-- name: Validate isolated candidate controls
+- name: Require exactly one lifecycle action
+  ansible.builtin.assert:
+    that:
+      - >-
+        [
+          deepseek_v4_ik_platform | bool,
+          deepseek_v4_ik_prepare | bool,
+          deepseek_v4_ik_run_candidate | bool,
+          deepseek_v4_ik_verify_stable | bool,
+          deepseek_v4_ik_run_topology_preflight | bool,
+          deepseek_v4_ik_run_final_qualification | bool,
+          deepseek_v4_ik_production | bool
+        ] | select('equalto', true) | list | length == 1
+    fail_msg: >-
+      Select exactly one platform, prepare, experiment, verify, topology,
+      final, or production lifecycle action.
+
+- name: Validate the approved GPU platform bundle
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_platform_target_kernel == '6.8.0-101-generic'
+      - deepseek_v4_ik_platform_kernel_package_version == '6.8.0-101.101'
+      - >-
+        deepseek_v4_ik_platform_nvidia_package_version ==
+        '590.48.01-0ubuntu0.24.04.1'
+      - deepseek_v4_ik_platform_nvidia_module_version == '590.48.01'
+      - >-
+        deepseek_v4_ik_platform_nvidia_driver_package ==
+        'nvidia-driver-590-open'
+      - >-
+        deepseek_v4_ik_platform_nvidia_module_package ==
+        'linux-modules-nvidia-590-open-6.8.0-101-generic'
+      - >-
+        deepseek_v4_ik_platform_package_bundle | map(attribute='name') | list ==
+        [
+          'linux-image-6.8.0-101-generic',
+          'linux-modules-6.8.0-101-generic',
+          'linux-headers-6.8.0-101-generic',
+          'linux-modules-nvidia-590-open-6.8.0-101-generic',
+          'nvidia-driver-590-open',
+          'nvidia-utils-590'
+        ]
+      - >-
+        deepseek_v4_ik_platform_package_bundle |
+        map(attribute='version') | list ==
+        [
+          '6.8.0-101.101',
+          '6.8.0-101.101',
+          '6.8.0-101.101',
+          '6.8.0-101.101',
+          '590.48.01-0ubuntu0.24.04.1',
+          '590.48.01-0ubuntu0.24.04.1'
+        ]
+      - >-
+        deepseek_v4_ik_platform_tracking_packages ==
+        [
+          'linux-virtual',
+          'linux-image-virtual',
+          'linux-headers-virtual',
+          'linux-headers-generic',
+          'linux-modules-nvidia-590-open-generic'
+        ]
+      - >-
+        deepseek_v4_ik_platform_hold_packages ==
+        [
+          'linux-image-6.8.0-101-generic',
+          'linux-modules-6.8.0-101-generic',
+          'linux-headers-6.8.0-101-generic',
+          'linux-modules-nvidia-590-open-6.8.0-101-generic',
+          'nvidia-driver-590-open',
+          'nvidia-utils-590',
+          'linux-virtual',
+          'linux-image-virtual',
+          'linux-headers-virtual',
+          'linux-headers-generic',
+          'linux-modules-nvidia-590-open-generic'
+        ]
+      - >-
+        deepseek_v4_ik_platform_grub_menuentry ==
+        'Advanced options for Ubuntu>Ubuntu, with Linux 6.8.0-101-generic'
+      - deepseek_v4_ik_platform_expected_gpu_count | int == 2
+      - >-
+        deepseek_v4_ik_platform_expected_gpu_name ==
+        'NVIDIA GeForce RTX 3090'
+    fail_msg: >-
+      The GPU platform action only permits the approved
+      6.8.0-101-generic/NVIDIA 590.48.01 bundle. Re-qualify any other bundle
+      before changing this gate.
+  when: deepseek_v4_ik_platform | bool
+
+- name: Validate fixed service boundaries
   ansible.builtin.assert:
     that:
       - deepseek_v4_ik_api_port | int != 8080
-      - deepseek_v4_ik_backend_api_port | int != deepseek_v4_ik_api_port | int
+      - deepseek_v4_ik_api_port | int == 8081
+      - deepseek_v4_ik_backend_api_port | int == 8082
       - deepseek_v4_ik_backend_api_bind_address == '127.0.0.1'
+      - deepseek_v4_ik_api_probe_address == '127.0.0.1'
       - deepseek_v4_ik_api_allowed_cidrs | length > 0
+      - "'127.0.0.0/8' in deepseek_v4_ik_api_allowed_cidrs"
+      - >-
+        deepseek_v4_ik_api_allowed_cidrs |
+        difference([
+          '127.0.0.0/8',
+          '172.17.0.0/16',
+          '172.18.0.0/16',
+          '192.168.1.0/24'
+        ]) | length == 0
+      - deepseek_v4_ik_context_length | int == 131072
+      - deepseek_v4_ik_context_validation_prompt_tokens | int == 127000
+      - deepseek_v4_ik_cpu_threads | int == 32
+      - deepseek_v4_ik_numa_mode == 'distribute'
+      - deepseek_v4_ik_batch_threads | int == 36
+      - not (deepseek_v4_ik_disable_pinned_memory | bool)
+      - deepseek_v4_ik_batch_size | int == 4096
+      - deepseek_v4_ik_ubatch_size | int == 2048
+      - deepseek_v4_ik_ctx_checkpoints | int in [4, 8, 32]
+      - >-
+        not (deepseek_v4_ik_emit_ctx_checkpoints | bool) or
+        deepseek_v4_ik_ctx_checkpoints | int in [4, 8, 32]
+      - >-
+        deepseek_v4_ik_emit_ctx_checkpoints | bool or
+        deepseek_v4_ik_ctx_checkpoints | int == 32
+      - >-
+        deepseek_v4_ik_approved_command == [
+          '/opt/ik/bin/llama-server', '--model',
+          '/models/DeepSeek-V4-Flash.gguf', '--host', '0.0.0.0',
+          '--port', '8082', '--alias',
+          'deepseek-v4-flash-gguf-candidate', '--ctx-size', '131072',
+          '--threads', '32', '--numa', 'distribute', '--threads-batch', '36',
+          '--batch-size', '4096', '--ubatch-size', '2048', '--cache-ram',
+          '8192', '--n-gpu-layers', '100', '--split-mode', 'layer',
+          '--cpu-moe', '--flash-attn', 'on', '--cache-type-k', 'f16',
+          '--cache-type-v', 'f16', '--no-mmap', '--jinja',
+          '--reasoning-format', 'deepseek', '--no-display-prompt'
+        ]
+      - >-
+        deepseek_v4_ik_commit ==
+        '981e5ea0d7579b4803c86afbb09a7cd7d7bf3bb8'
+      - >-
+        deepseek_v4_ik_binary_sha256 ==
+        'cd7132eeaf6d7f347a1916a83654eafb64c883fcdb59359ee5fb74dc59f1cdf1'
+      - >-
+        deepseek_v4_ik_model_revision ==
+        '8315f07e97f3e8b15b551da6a82ba944b2e55be9'
+      - >-
+        deepseek_v4_ik_model_sha256 ==
+        'fd4108898e566869e333f11f8e9b40ab773d3431c5a94685aeff5794e2c5572f'
+      - >-
+        deepseek_v4_ik_runtime_image ==
+        'approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8'
+    fail_msg: Candidate must keep the isolated port and an approved experiment value.
+  when: not (deepseek_v4_ik_platform | bool)
+
+- name: Validate controlled experiment identifiers and fixed baseline
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_experiment_id is match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+      - deepseek_v4_ik_control_id is match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+      - deepseek_v4_ik_experiment_id != deepseek_v4_ik_control_id
+      - >-
+        deepseek_v4_ik_experiment_primary_variable in
+        ['baseline', 'cache_ram_mib', 'ctx_checkpoints', 'n_cpu_moe', 'split_mode']
       - deepseek_v4_ik_context_length | int == 131072
       - deepseek_v4_ik_cpu_threads | int == 32
-      - deepseek_v4_ik_commit | length == 40
-      - deepseek_v4_ik_model_sha256 | length == 64
-    fail_msg: Candidate must keep an isolated port and the approved conservative baseline.
+      - deepseek_v4_ik_numa_mode == 'distribute'
+      - deepseek_v4_ik_batch_threads | int == 36
+      - not (deepseek_v4_ik_disable_pinned_memory | bool)
+      - deepseek_v4_ik_batch_size | int == 4096
+      - deepseek_v4_ik_ubatch_size | int == 2048
+      - not (deepseek_v4_ik_keep_candidate_running | bool)
+      - deepseek_v4_ik_cache_ram_mib | int in [8192, 16384, 32768]
+      - deepseek_v4_ik_control_cache_ram_mib | int in [8192, 16384, 32768]
+      - deepseek_v4_ik_ctx_checkpoints | int in [4, 8, 32]
+      - deepseek_v4_ik_control_ctx_checkpoints | int in [4, 8, 32]
+      - deepseek_v4_ik_checkpoint_transition_repeats | int in [1, 3]
+      - >-
+        not (deepseek_v4_ik_checkpoint_diagnostic | bool) or
+        (deepseek_v4_ik_experiment_primary_variable == 'ctx_checkpoints' and
+        deepseek_v4_ik_ctx_checkpoints | int == 8 and
+        deepseek_v4_ik_control_ctx_checkpoints | int == 32 and
+        deepseek_v4_ik_checkpoint_transition_repeats | int == 1)
+      - >-
+        deepseek_v4_ik_checkpoint_diagnostic | bool or
+        deepseek_v4_ik_checkpoint_transition_repeats | int == 3
+      - >-
+        not (deepseek_v4_ik_reuse_verified_model_checksum | bool) or
+        (deepseek_v4_ik_emit_ctx_checkpoints | bool and
+        deepseek_v4_ik_experiment_primary_variable in
+        ['baseline', 'ctx_checkpoints'])
+      - deepseek_v4_ik_cache_prompt_repeats | int == 1024
+      - deepseek_v4_ik_experiment_watchdog_timeout_seconds | int == 25200
+      - deepseek_v4_ik_experiment_heartbeat_stale_seconds | int == 1200
+      - deepseek_v4_ik_minimum_memavailable_bytes | int == 34359738368
+      - deepseek_v4_ik_minimum_gpu_free_mib | int == 2048
+      - >-
+        (deepseek_v4_ik_moe_mode == 'all_cpu' and
+        deepseek_v4_ik_n_cpu_moe | int == 0) or
+        (deepseek_v4_ik_moe_mode == 'n_cpu_moe' and
+        deepseek_v4_ik_n_cpu_moe | int >= 1 and
+        deepseek_v4_ik_n_cpu_moe | int <= 42)
+      - >-
+        (deepseek_v4_ik_control_moe_mode == 'all_cpu' and
+        deepseek_v4_ik_control_n_cpu_moe | int == 0) or
+        (deepseek_v4_ik_control_moe_mode == 'n_cpu_moe' and
+        deepseek_v4_ik_control_n_cpu_moe | int >= 1 and
+        deepseek_v4_ik_control_n_cpu_moe | int <= 42)
+      - deepseek_v4_ik_split_mode in ['layer', 'graph']
+      - deepseek_v4_ik_control_split_mode in ['layer', 'graph']
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'baseline' or
+        (deepseek_v4_ik_cache_ram_mib | int == 8192 and
+        deepseek_v4_ik_control_cache_ram_mib | int == 8192 and
+        deepseek_v4_ik_moe_mode == 'all_cpu' and
+        deepseek_v4_ik_control_moe_mode == 'all_cpu' and
+        deepseek_v4_ik_n_cpu_moe | int == 0 and
+        deepseek_v4_ik_control_n_cpu_moe | int == 0 and
+        deepseek_v4_ik_split_mode == 'layer' and
+        deepseek_v4_ik_control_split_mode == 'layer' and
+        deepseek_v4_ik_ctx_checkpoints | int == 32 and
+        deepseek_v4_ik_control_ctx_checkpoints | int == 32)
+    fail_msg: >-
+      Experiment identifiers, fixed pins, and reviewed candidate values must
+      satisfy the approved 128K dual-GPU experiment boundary.
+  when: deepseek_v4_ik_run_candidate | bool
+
+- name: Validate exactly one reviewed experiment transition
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'baseline' or
+        (deepseek_v4_ik_cache_ram_mib | int == deepseek_v4_ik_control_cache_ram_mib | int and
+        deepseek_v4_ik_moe_mode == deepseek_v4_ik_control_moe_mode and
+        deepseek_v4_ik_n_cpu_moe | int == deepseek_v4_ik_control_n_cpu_moe | int and
+        deepseek_v4_ik_split_mode == deepseek_v4_ik_control_split_mode and
+        deepseek_v4_ik_ctx_checkpoints | int == deepseek_v4_ik_control_ctx_checkpoints | int)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'cache_ram_mib' or
+        (deepseek_v4_ik_control_cache_ram_mib | int == 8192 and
+        deepseek_v4_ik_cache_ram_mib | int in [16384, 32768])
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'cache_ram_mib' or
+        deepseek_v4_ik_cache_ram_mib | int != 32768 or
+        (deepseek_v4_ik_cache_intermediate_id is
+        match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$') and
+        deepseek_v4_ik_cache_intermediate_id != deepseek_v4_ik_control_id and
+        deepseek_v4_ik_cache_intermediate_id != deepseek_v4_ik_experiment_id)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'cache_ram_mib' or
+        (deepseek_v4_ik_moe_mode == deepseek_v4_ik_control_moe_mode and
+        deepseek_v4_ik_n_cpu_moe | int == deepseek_v4_ik_control_n_cpu_moe | int and
+        deepseek_v4_ik_split_mode == deepseek_v4_ik_control_split_mode and
+        deepseek_v4_ik_ctx_checkpoints | int == deepseek_v4_ik_control_ctx_checkpoints | int)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'ctx_checkpoints' or
+        (deepseek_v4_ik_control_ctx_checkpoints | int == 32 and
+        deepseek_v4_ik_ctx_checkpoints | int in [8, 4] and
+        deepseek_v4_ik_emit_ctx_checkpoints | bool and
+        deepseek_v4_ik_cache_ram_mib | int == deepseek_v4_ik_control_cache_ram_mib | int and
+        deepseek_v4_ik_moe_mode == deepseek_v4_ik_control_moe_mode and
+        deepseek_v4_ik_n_cpu_moe | int == deepseek_v4_ik_control_n_cpu_moe | int and
+        deepseek_v4_ik_split_mode == deepseek_v4_ik_control_split_mode)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'ctx_checkpoints' or
+        deepseek_v4_ik_ctx_checkpoints | int != 4 or
+        (deepseek_v4_ik_checkpoint_intermediate_id is
+        match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$') and
+        deepseek_v4_ik_checkpoint_intermediate_id != deepseek_v4_ik_control_id and
+        deepseek_v4_ik_checkpoint_intermediate_id != deepseek_v4_ik_experiment_id)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable in
+        ['baseline', 'ctx_checkpoints'] or
+        not (deepseek_v4_ik_emit_ctx_checkpoints | bool)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'n_cpu_moe' or
+        ((deepseek_v4_ik_control_moe_mode == 'all_cpu' and
+        deepseek_v4_ik_moe_mode == 'n_cpu_moe' and
+        deepseek_v4_ik_n_cpu_moe | int == 42) or
+        (deepseek_v4_ik_control_moe_mode == 'n_cpu_moe' and
+        deepseek_v4_ik_moe_mode == 'n_cpu_moe' and
+        deepseek_v4_ik_n_cpu_moe | int == (deepseek_v4_ik_control_n_cpu_moe | int) - 1))
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'n_cpu_moe' or
+        (deepseek_v4_ik_cache_ram_mib | int == deepseek_v4_ik_control_cache_ram_mib | int and
+        deepseek_v4_ik_split_mode == deepseek_v4_ik_control_split_mode and
+        deepseek_v4_ik_ctx_checkpoints | int == deepseek_v4_ik_control_ctx_checkpoints | int)
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'split_mode' or
+        (deepseek_v4_ik_control_split_mode == 'layer' and
+        deepseek_v4_ik_split_mode == 'graph')
+      - >-
+        deepseek_v4_ik_experiment_primary_variable != 'split_mode' or
+        (deepseek_v4_ik_cache_ram_mib | int == deepseek_v4_ik_control_cache_ram_mib | int and
+        deepseek_v4_ik_moe_mode == deepseek_v4_ik_control_moe_mode and
+        deepseek_v4_ik_n_cpu_moe | int == deepseek_v4_ik_control_n_cpu_moe | int and
+        deepseek_v4_ik_ctx_checkpoints | int == deepseek_v4_ik_control_ctx_checkpoints | int)
+      - >-
+        deepseek_v4_ik_split_mode != 'graph' or
+        deepseek_v4_ik_graph_preflight_evidence_path | length > 0
+    fail_msg: >-
+      A candidate must advance exactly one approved cache, checkpoint, MoE-layer,
+      or graph variable from its named control; graph also requires two-GPU
+      preflight evidence.
+  when: deepseek_v4_ik_run_candidate | bool
 
 - name: Include artifact preparation tasks
-  ansible.builtin.import_tasks: prepare.yml
+  ansible.builtin.include_tasks: prepare.yml
   when: deepseek_v4_ik_prepare | bool
-  tags: [prepare]
+
+- name: Include GPU platform recovery tasks
+  ansible.builtin.include_tasks: platform.yml
+  when:
+    - deepseek_v4_ik_platform | bool
+    - not (deepseek_v4_ik_validate_only | bool)
 
 - name: Include candidate execution tasks
-  ansible.builtin.import_tasks: candidate.yml
-  when: deepseek_v4_ik_run_candidate | bool
-  tags: [candidate, verify, benchmark]
+  ansible.builtin.include_tasks: candidate.yml
+  when:
+    - deepseek_v4_ik_run_candidate | bool
+    - not (deepseek_v4_ik_validate_only | bool)
+
+- name: Include stable service verification tasks
+  ansible.builtin.include_tasks: verify.yml
+  when: deepseek_v4_ik_verify_stable | bool
+
+- name: Include dual-GPU topology preflight tasks
+  ansible.builtin.include_tasks: topology-preflight.yml
+  when: deepseek_v4_ik_run_topology_preflight | bool
+
+- name: Include final production qualification tasks
+  ansible.builtin.include_tasks: final-qualification.yml
+  when: deepseek_v4_ik_run_final_qualification | bool
 
 - name: Include production cutover tasks
-  ansible.builtin.import_tasks: production.yml
-  when: deepseek_v4_ik_production | bool
-  tags: [production]
+  ansible.builtin.include_tasks: production.yml
+  when:
+    - deepseek_v4_ik_production | bool
+    - not (deepseek_v4_ik_validate_only | bool)

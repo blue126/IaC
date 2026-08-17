@@ -1,0 +1,455 @@
+---
+- name: Validate pinned GPU platform inputs
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_ik_platform_target_kernel is
+        match('^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-generic$')
+      - deepseek_v4_ik_platform_kernel_package_version | length > 0
+      - deepseek_v4_ik_platform_nvidia_package_version | length > 0
+      - deepseek_v4_ik_platform_nvidia_module_version | length > 0
+      - deepseek_v4_ik_platform_package_bundle | length >= 5
+      - >-
+        deepseek_v4_ik_platform_package_bundle | map(attribute='name') |
+        unique | list | length ==
+        deepseek_v4_ik_platform_package_bundle | length
+      - >-
+        deepseek_v4_ik_platform_package_bundle | map(attribute='name') |
+        select('search', 'dkms') | list | length == 0
+      - >-
+        deepseek_v4_ik_platform_hold_packages | sort ==
+        ((deepseek_v4_ik_platform_package_bundle |
+        map(attribute='name') | list) +
+        deepseek_v4_ik_platform_tracking_packages) | unique | sort
+      - >-
+        deepseek_v4_ik_platform_nvidia_driver_package in
+        deepseek_v4_ik_platform_hold_packages
+      - >-
+        deepseek_v4_ik_platform_nvidia_module_package in
+        deepseek_v4_ik_platform_hold_packages
+      - >-
+        deepseek_v4_ik_platform_grub_menuentry is
+        search(deepseek_v4_ik_platform_target_kernel ~ '$')
+      - "'\n' not in deepseek_v4_ik_platform_grub_menuentry"
+      - deepseek_v4_ik_platform_reboot_timeout_seconds | int >= 300
+      - deepseek_v4_ik_platform_expected_gpu_count | int == 2
+    fail_msg: >-
+      Platform recovery requires one complete, non-DKMS, host-specific
+      kernel/NVIDIA bundle and an explicit target GRUB entry.
+
+- name: Read the running kernel before platform recovery
+  ansible.builtin.command: uname -r
+  register: deepseek_v4_ik_platform_kernel_before
+  changed_when: false
+  check_mode: false
+
+- name: Query exact platform package versions
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - --show
+      - >-
+        --showformat=${db:Status-Want}\t${db:Status-Status}\t${Version}
+      - "{{ item.name }}"
+  loop: "{{ deepseek_v4_ik_platform_package_bundle }}"
+  loop_control:
+    label: "{{ item.name }}={{ item.version }}"
+  register: deepseek_v4_ik_platform_package_queries
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require every exact platform package before mutation
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout.split('\t') | length == 3
+      - item.stdout.split('\t')[0] in ['install', 'hold']
+      - item.stdout.split('\t')[1] == 'installed'
+      - item.stdout.split('\t')[2] == item.item.version
+    fail_msg: >-
+      Required package {{ item.item.name }}={{ item.item.version }} is not
+      installed exactly; refusing to alter boot policy or reboot.
+  loop: "{{ deepseek_v4_ik_platform_package_queries.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Query installed tracking packages
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - --show
+      - '--showformat=${db:Status-Want}\t${db:Status-Status}'
+      - "{{ item }}"
+  loop: "{{ deepseek_v4_ik_platform_tracking_packages }}"
+  register: deepseek_v4_ik_platform_tracking_queries
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require every tracking package before mutation
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout.split('\t') | length == 2
+      - item.stdout.split('\t')[0] in ['install', 'hold']
+      - item.stdout.split('\t')[1] == 'installed'
+    fail_msg: >-
+      Tracking package {{ item.item }} is not installed; refusing to create a
+      partial hold policy.
+  loop: "{{ deepseek_v4_ik_platform_tracking_queries.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Inspect target kernel boot artifacts
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "/boot/vmlinuz-{{ deepseek_v4_ik_platform_target_kernel }}"
+    - "/boot/initrd.img-{{ deepseek_v4_ik_platform_target_kernel }}"
+    - /boot/grub/grub.cfg
+  register: deepseek_v4_ik_platform_boot_artifacts
+
+- name: Require target kernel boot artifacts before mutation
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg
+    fail_msg: >-
+      Required boot artifact {{ item.item }} is absent; refusing to alter the
+      GRUB default or reboot.
+  loop: "{{ deepseek_v4_ik_platform_boot_artifacts.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Inspect the target kernel NVIDIA module
+  ansible.builtin.command:
+    argv:
+      - modinfo
+      - --set-version
+      - "{{ deepseek_v4_ik_platform_target_kernel }}"
+      - --field
+      - "{{ item }}"
+      - nvidia
+  loop: [version, filename]
+  register: deepseek_v4_ik_platform_target_module
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require the exact precompiled NVIDIA module before mutation
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_platform_target_module.results[0].rc == 0
+      - >-
+        deepseek_v4_ik_platform_target_module.results[0].stdout ==
+        deepseek_v4_ik_platform_nvidia_module_version
+      - deepseek_v4_ik_platform_target_module.results[1].rc == 0
+      - >-
+        deepseek_v4_ik_platform_target_module.results[1].stdout is
+        search('^/lib/modules/' ~ deepseek_v4_ik_platform_target_kernel ~ '/')
+      - >-
+        '/updates/dkms/' not in
+        deepseek_v4_ik_platform_target_module.results[1].stdout
+    fail_msg: >-
+      The target kernel lacks the exact precompiled NVIDIA module; DKMS or a
+      mixed driver bundle is not permitted.
+
+- name: Confirm the NVIDIA module package owns the target module
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - --search
+      - "{{ deepseek_v4_ik_platform_target_module.results[1].stdout }}"
+  register: deepseek_v4_ik_platform_module_owner
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require module ownership by the pinned binary package
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_platform_module_owner.rc == 0
+      - >-
+        deepseek_v4_ik_platform_module_owner.stdout is
+        search('^' ~ deepseek_v4_ik_platform_nvidia_module_package ~ ':')
+    fail_msg: >-
+      The NVIDIA module is not owned by
+      {{ deepseek_v4_ik_platform_nvidia_module_package }}; refusing recovery.
+
+- name: Read the generated GRUB menu before mutation
+  ansible.builtin.slurp:
+    src: /boot/grub/grub.cfg
+  register: deepseek_v4_ik_platform_grub_cfg
+
+- name: Require the target GRUB menu entry before mutation
+  ansible.builtin.assert:
+    that:
+      - >-
+        "submenu 'Advanced options for Ubuntu'" in
+        (deepseek_v4_ik_platform_grub_cfg.content | b64decode)
+      - >-
+        ("menuentry 'Ubuntu, with Linux " ~
+        deepseek_v4_ik_platform_target_kernel ~ "'") in
+        (deepseek_v4_ik_platform_grub_cfg.content | b64decode)
+    fail_msg: >-
+      The exact target kernel menu entry is absent from grub.cfg; refusing to
+      write a default or reboot.
+
+- name: Reset the exact unattended-upgrade blacklist
+  ansible.builtin.set_fact:
+    deepseek_v4_ik_platform_blacklist_patterns: []
+
+- name: Build the exact unattended-upgrade blacklist
+  ansible.builtin.set_fact:
+    deepseek_v4_ik_platform_blacklist_patterns: >-
+      {{ (deepseek_v4_ik_platform_blacklist_patterns | default([])) +
+      ['^' ~ (item | regex_escape) ~ '$'] }}
+  loop: "{{ deepseek_v4_ik_platform_hold_packages }}"
+
+- name: Build the managed unattended-upgrade policy
+  ansible.builtin.set_fact:
+    deepseek_v4_ik_platform_unattended_policy: |
+      // Managed by Ansible. Other unattended security updates remain enabled.
+      Unattended-Upgrade::Package-Blacklist {
+      {% for pattern in deepseek_v4_ik_platform_blacklist_patterns %}
+          "{{ pattern }}";
+      {% endfor %}
+      };
+
+- name: Apply the pinned platform policy
+  when: not (deepseek_v4_ik_platform_verify_only | bool)
+  block:
+    - name: Hold the verified kernel and NVIDIA packages
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: "{{ deepseek_v4_ik_platform_hold_packages }}"
+
+    - name: Exclude only the verified platform packages from unattended upgrades
+      ansible.builtin.copy:
+        content: "{{ deepseek_v4_ik_platform_unattended_policy }}"
+        dest: "{{ deepseek_v4_ik_platform_unattended_policy_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Require explicit approval before changing the VM boot target
+      ansible.builtin.assert:
+        that:
+          - >-
+            deepseek_v4_ik_platform_kernel_before.stdout ==
+            deepseek_v4_ik_platform_target_kernel or
+            deepseek_v4_ik_platform_allow_reboot | bool or ansible_check_mode
+        fail_msg: >-
+          Package holds and the narrow APT policy are configured, but GRUB was
+          not changed and the VM was not rebooted. The running kernel is
+          {{ deepseek_v4_ik_platform_kernel_before.stdout }}; re-run with
+          deepseek_v4_ik_platform_allow_reboot=true to approve both actions.
+
+    - name: Pin the verified kernel as the GRUB default
+      ansible.builtin.template:
+        src: 99-deepseek-v4-kernel.cfg.j2
+        dest: "{{ deepseek_v4_ik_platform_grub_dropin_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Update GRUB menu
+
+    - name: Regenerate GRUB after passing the reboot gate
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read the regenerated GRUB menu before reboot
+      ansible.builtin.slurp:
+        src: /boot/grub/grub.cfg
+      register: deepseek_v4_ik_platform_regenerated_grub_cfg
+
+    - name: Require the approved entry in the regenerated GRUB menu
+      ansible.builtin.assert:
+        that:
+          - >-
+            "submenu 'Advanced options for Ubuntu'" in
+            (deepseek_v4_ik_platform_regenerated_grub_cfg.content | b64decode)
+          - >-
+            ("menuentry 'Ubuntu, with Linux " ~
+            deepseek_v4_ik_platform_target_kernel ~ "'") in
+            (deepseek_v4_ik_platform_regenerated_grub_cfg.content | b64decode)
+        fail_msg: >-
+          update-grub did not retain the approved target entry; refusing to
+          reboot the VM.
+
+    - name: Report the reboot that check mode would require
+      ansible.builtin.debug:
+        msg: >-
+          Check mode: the VM would reboot from
+          {{ deepseek_v4_ik_platform_kernel_before.stdout }} to
+          {{ deepseek_v4_ik_platform_target_kernel }}.
+      when:
+        - ansible_check_mode
+        - >-
+          deepseek_v4_ik_platform_kernel_before.stdout !=
+          deepseek_v4_ik_platform_target_kernel
+
+    - name: Reboot the VM into the verified kernel
+      ansible.builtin.reboot:
+        msg: Rebooting the LLM VM into the verified kernel/NVIDIA bundle
+        reboot_timeout: >-
+          {{ deepseek_v4_ik_platform_reboot_timeout_seconds }}
+      when:
+        - not ansible_check_mode
+        - deepseek_v4_ik_platform_allow_reboot | bool
+        - >-
+          deepseek_v4_ik_platform_kernel_before.stdout !=
+          deepseek_v4_ik_platform_target_kernel
+
+- name: Verify the recovered GPU platform
+  when: not ansible_check_mode
+  block:
+    - name: Read the running kernel after platform recovery
+      ansible.builtin.command: uname -r
+      register: deepseek_v4_ik_platform_kernel_after
+      changed_when: false
+
+    - name: Read the running NVIDIA module version
+      ansible.builtin.command:
+        argv: [modinfo, --field, version, nvidia]
+      register: deepseek_v4_ik_platform_running_module
+      changed_when: false
+      failed_when: false
+
+    - name: Enumerate NVIDIA GPU identities and driver versions
+      ansible.builtin.command:
+        argv:
+          - nvidia-smi
+          - --query-gpu=name,driver_version
+          - --format=csv,noheader
+      register: deepseek_v4_ik_platform_gpus
+      changed_when: false
+      failed_when: false
+      retries: 12
+      delay: 5
+      until:
+        - deepseek_v4_ik_platform_gpus.rc == 0
+        - >-
+          deepseek_v4_ik_platform_gpus.stdout_lines | length ==
+          deepseek_v4_ik_platform_expected_gpu_count | int
+
+    - name: Re-query exact platform package versions after recovery
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - >-
+            --showformat=${db:Status-Want}\t${db:Status-Status}\t${Version}
+          - "{{ item.name }}"
+      loop: "{{ deepseek_v4_ik_platform_package_bundle }}"
+      loop_control:
+        label: "{{ item.name }}={{ item.version }}"
+      register: deepseek_v4_ik_platform_package_recheck
+      changed_when: false
+      failed_when: false
+
+    - name: Require the exact held package bundle after recovery
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+          - item.stdout.split('\t') | length == 3
+          - item.stdout.split('\t')[0] == 'hold'
+          - item.stdout.split('\t')[1] == 'installed'
+          - item.stdout.split('\t')[2] == item.item.version
+        fail_msg: >-
+          Package {{ item.item.name }} changed between preflight and final
+          verification; the platform bundle is not safe to use.
+      loop: "{{ deepseek_v4_ik_platform_package_recheck.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Read held packages
+      ansible.builtin.command: apt-mark showhold
+      register: deepseek_v4_ik_platform_held_packages
+      changed_when: false
+
+    - name: Read effective APT configuration
+      ansible.builtin.command: apt-config dump
+      register: deepseek_v4_ik_platform_apt_config
+      changed_when: false
+
+    - name: Check unattended-upgrades remains enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, unattended-upgrades.service]
+      register: deepseek_v4_ik_platform_unattended_enabled
+      changed_when: false
+      failed_when: false
+
+    - name: Check the unattended-upgrade timer remains enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, apt-daily-upgrade.timer]
+      register: deepseek_v4_ik_platform_unattended_timer_enabled
+      changed_when: false
+      failed_when: false
+
+    - name: Read managed platform policy files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ deepseek_v4_ik_platform_unattended_policy_path }}"
+        - "{{ deepseek_v4_ik_platform_grub_dropin_path }}"
+      register: deepseek_v4_ik_platform_policy_files
+
+    - name: Require the recovered kernel, module, holds, and narrow policy
+      ansible.builtin.assert:
+        that:
+          - >-
+            deepseek_v4_ik_platform_kernel_after.stdout ==
+            deepseek_v4_ik_platform_target_kernel
+          - deepseek_v4_ik_platform_running_module.rc == 0
+          - >-
+            deepseek_v4_ik_platform_running_module.stdout ==
+            deepseek_v4_ik_platform_nvidia_module_version
+          - deepseek_v4_ik_platform_gpus.rc == 0
+          - >-
+            deepseek_v4_ik_platform_gpus.stdout_lines | length ==
+            deepseek_v4_ik_platform_expected_gpu_count | int
+          - >-
+            deepseek_v4_ik_platform_hold_packages |
+            difference(deepseek_v4_ik_platform_held_packages.stdout_lines) |
+            length == 0
+          - >-
+            deepseek_v4_ik_platform_blacklist_patterns |
+            difference(deepseek_v4_ik_platform_apt_config.stdout |
+            regex_findall(
+            'Unattended-Upgrade::Package-Blacklist::\\s+"([^"]+)";')) |
+            length == 0
+          - >-
+            deepseek_v4_ik_platform_apt_config.stdout is
+            search('APT::Periodic::Unattended-Upgrade "1";')
+          - deepseek_v4_ik_platform_unattended_enabled.rc == 0
+          - >-
+            deepseek_v4_ik_platform_unattended_enabled.stdout in
+            ['enabled', 'static']
+          - deepseek_v4_ik_platform_unattended_timer_enabled.rc == 0
+          - >-
+            deepseek_v4_ik_platform_unattended_timer_enabled.stdout == 'enabled'
+          - >-
+            (deepseek_v4_ik_platform_policy_files.results[0].content |
+            b64decode) ==
+            deepseek_v4_ik_platform_unattended_policy
+          - >-
+            ('GRUB_DEFAULT="' ~ deepseek_v4_ik_platform_grub_menuentry ~
+            '"') in (deepseek_v4_ik_platform_policy_files.results[1].content |
+            b64decode)
+        fail_msg: >-
+          GPU platform verification failed: kernel, NVIDIA module, package
+          holds, narrow unattended-upgrade policy, or GRUB pin is not exact.
+
+    - name: Require two exact RTX 3090 identities on the pinned driver
+      ansible.builtin.assert:
+        that:
+          - item.split(', ') | length == 2
+          - item.split(', ')[0] == deepseek_v4_ik_platform_expected_gpu_name
+          - item.split(', ')[1] == deepseek_v4_ik_platform_nvidia_module_version
+        fail_msg: >-
+          Unexpected GPU identity or driver version: {{ item }}
+      loop: "{{ deepseek_v4_ik_platform_gpus.stdout_lines }}"
+      loop_control:
+        label: "{{ item }}"

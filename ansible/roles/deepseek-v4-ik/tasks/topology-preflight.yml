@@ -1,0 +1,64 @@
+---
+- name: Validate the topology preflight identifier
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_ik_topology_preflight_id is
+        match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+    fail_msg: Topology preflight requires a safe immutable evidence ID.
+
+- name: Reserve topology preflight evidence atomically
+  ansible.builtin.command:
+    argv:
+      - mkdir
+      - --mode=0750
+      - "{{ deepseek_v4_ik_topology_preflight_dir }}"
+  register: deepseek_v4_ik_topology_reservation
+  changed_when: deepseek_v4_ik_topology_reservation.rc == 0
+  failed_when: false
+
+- name: Refuse duplicate topology preflight evidence
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_topology_reservation.rc == 0
+    fail_msg: >-
+      Topology evidence directory already exists; choose a new preflight ID.
+
+- name: Create the topology preflight harness directory
+  ansible.builtin.file:
+    path: "{{ deepseek_v4_ik_topology_preflight_dir }}/harness"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the pinned topology preflight runner
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../deepseek-v4/files/topology-preflight.py"
+    dest: "{{ deepseek_v4_ik_topology_preflight_dir }}/harness/topology-preflight.py"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Capture dual-GPU topology and CUDA P2P evidence
+  ansible.builtin.command:
+    argv: >-
+      {{
+        ['python3',
+         deepseek_v4_ik_topology_preflight_dir ~ '/harness/topology-preflight.py',
+         '--output',
+         deepseek_v4_ik_topology_preflight_dir ~ '/topology-p2p.json']
+        + (['--p2p-binary', deepseek_v4_ik_topology_p2p_binary]
+           if deepseek_v4_ik_topology_p2p_binary | length > 0 else [])
+      }}
+  register: deepseek_v4_ik_topology_preflight_result
+  changed_when: false
+  failed_when: false
+
+- name: Require complete topology and CUDA P2P measurement
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_ik_topology_preflight_result.rc == 0
+    fail_msg: >-
+      Topology/P2P measurement is incomplete. Preserve its JSON and provide a
+      working p2pBandwidthLatencyTest binary before graph qualification.

@@ -8,6 +8,7 @@ deepseek_v4_ik_model_repository: sokann/DeepSeek-V4-Flash-GGUF
 deepseek_v4_ik_model_revision: 8315f07e97f3e8b15b551da6a82ba944b2e55be9
 deepseek_v4_ik_repository: https://github.com/ikawrakow/ik_llama.cpp.git
 deepseek_v4_ik_commit: 981e5ea0d7579b4803c86afbb09a7cd7d7bf3bb8
+deepseek_v4_ik_binary_sha256: cd7132eeaf6d7f347a1916a83654eafb64c883fcdb59359ee5fb74dc59f1cdf1
 deepseek_v4_ik_model_url: >-
   https://huggingface.co/sokann/DeepSeek-V4-Flash-GGUF/resolve/
   8315f07e97f3e8b15b551da6a82ba944b2e55be9/DeepSeek-V4-Flash.gguf
@@ -18,6 +19,7 @@ deepseek_v4_ik_runtime_image: >-
 deepseek_v4_ik_compose_project: deepseek-v4-ik
 deepseek_v4_ik_api_port: 8081
 deepseek_v4_ik_api_bind_address: 172.17.0.1
+deepseek_v4_ik_api_probe_address: 127.0.0.1
 deepseek_v4_ik_api_allowed_cidrs:
   - 127.0.0.0/8
   - 172.17.0.0/16
@@ -29,24 +31,169 @@ deepseek_v4_ik_compat_proxy_path: /usr/local/libexec/openai-compat-proxy.py
 deepseek_v4_ik_contract_runner_path: /usr/local/libexec/contract-runner.py
 deepseek_v4_ik_candidate_harness_dir: "{{ deepseek_v4_ik_install_dir }}/harness"
 deepseek_v4_ik_compat_timeout_seconds: 1800
-# 128K is the approved interactive coding target.  The model's 16K KV cache
-# consumes only 688 MiB across both GPUs, so this remains within the measured
-# memory envelope while leaving room for a single long-running session.
+# 128K is the approved interactive coding target. The measured 128K KV cache
+# uses about 5,504 MiB across both GPUs and retains headroom for one session.
 deepseek_v4_ik_context_length: 131072
 deepseek_v4_ik_cpu_threads: 32
+deepseek_v4_ik_numa_mode: distribute
+deepseek_v4_ik_batch_threads: 36
+deepseek_v4_ik_disable_pinned_memory: false
+deepseek_v4_ik_batch_size: 4096
+deepseek_v4_ik_ubatch_size: 2048
+deepseek_v4_ik_cache_ram_mib: 8192
+# Stable production intentionally uses the pinned runtime default. Candidate
+# controls can emit 32 explicitly to prove equivalence before a reduction.
+deepseek_v4_ik_ctx_checkpoints: 32
+deepseek_v4_ik_emit_ctx_checkpoints: false
+deepseek_v4_ik_moe_mode: all_cpu
+deepseek_v4_ik_n_cpu_moe: 0
+deepseek_v4_ik_split_mode: layer
 deepseek_v4_ik_main_unit: deepseek-v4.service
 deepseek_v4_ik_service_unit: deepseek-v4-ik.service
 deepseek_v4_ik_model_name: deepseek-v4-flash-gguf-candidate
+deepseek_v4_ik_approved_command:
+  - /opt/ik/bin/llama-server
+  - --model
+  - /models/DeepSeek-V4-Flash.gguf
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8082"
+  - --alias
+  - deepseek-v4-flash-gguf-candidate
+  - --ctx-size
+  - "131072"
+  - --threads
+  - "32"
+  - --numa
+  - distribute
+  - --threads-batch
+  - "36"
+  - --batch-size
+  - "4096"
+  - --ubatch-size
+  - "2048"
+  - --cache-ram
+  - "8192"
+  - --n-gpu-layers
+  - "100"
+  - --split-mode
+  - layer
+  - --cpu-moe
+  - --flash-attn
+  - "on"
+  - --cache-type-k
+  - f16
+  - --cache-type-v
+  - f16
+  - --no-mmap
+  - --jinja
+  - --reasoning-format
+  - deepseek
+  - --no-display-prompt
+deepseek_v4_ik_configured_command: >-
+  {{ deepseek_v4_ik_approved_command[0:11]
+  + (['--ctx-checkpoints', deepseek_v4_ik_ctx_checkpoints | string]
+     if deepseek_v4_ik_emit_ctx_checkpoints | bool else [])
+  + deepseek_v4_ik_approved_command[11:] }}
 deepseek_v4_ik_evidence_dir: /var/lib/deepseek-v4-ik/evidence
+deepseek_v4_ik_experiment_id: ""
+deepseek_v4_ik_control_id: ""
+deepseek_v4_ik_cache_intermediate_id: ""
+deepseek_v4_ik_checkpoint_intermediate_id: ""
+deepseek_v4_ik_experiment_primary_variable: ""
+deepseek_v4_ik_checkpoint_diagnostic: false
+deepseek_v4_ik_checkpoint_transition_repeats: 3
+deepseek_v4_ik_reuse_verified_model_checksum: false
+deepseek_v4_ik_model_checksum_proof_path: >-
+  {{ deepseek_v4_ik_evidence_dir }}/model.sha256
+deepseek_v4_ik_control_cache_ram_mib: 8192
+deepseek_v4_ik_control_ctx_checkpoints: 32
+deepseek_v4_ik_control_moe_mode: all_cpu
+deepseek_v4_ik_control_n_cpu_moe: 0
+deepseek_v4_ik_control_split_mode: layer
+deepseek_v4_ik_control_experiment_dir: >-
+  {{ deepseek_v4_ik_evidence_dir }}/{{ deepseek_v4_ik_control_id }}
+deepseek_v4_ik_cache_intermediate_dir: >-
+  {{ deepseek_v4_ik_evidence_dir }}/{{ deepseek_v4_ik_cache_intermediate_id }}
+deepseek_v4_ik_graph_preflight_evidence_path: ""
+deepseek_v4_ik_experiment_dir: >-
+  {{ deepseek_v4_ik_evidence_dir }}/{{ deepseek_v4_ik_experiment_id }}
+deepseek_v4_ik_experiment_compose_project: >-
+  deepseek-v4-ik-exp-{{ deepseek_v4_ik_experiment_id }}
+deepseek_v4_ik_resource_sample_interval_seconds: 2
+deepseek_v4_ik_resource_sample_limit: 18000
+deepseek_v4_ik_minimum_memavailable_bytes: 34359738368
+deepseek_v4_ik_minimum_gpu_free_mib: 2048
+deepseek_v4_ik_cache_prompt_repeats: 1024
+deepseek_v4_ik_experiment_watchdog_timeout_seconds: 25200
+deepseek_v4_ik_experiment_heartbeat_stale_seconds: 1200
+deepseek_v4_ik_experiment_watchdog_unit: >-
+  deepseek-v4-ik-watchdog-{{ deepseek_v4_ik_experiment_id }}.service
 deepseek_v4_ik_webui_container: open-webui
 deepseek_v4_ik_webui_database_path: /opt/open-webui/data/webui.db
 deepseek_v4_ik_webui_backup_dir: /var/backups/open-webui
 deepseek_v4_ik_webui_expected_url: http://host.docker.internal:8080/v1
 deepseek_v4_ik_webui_target_url: http://host.docker.internal:8081/v1
 deepseek_v4_ik_download_container: deepseek-v4-ik-download
+deepseek_v4_ik_platform: false
+deepseek_v4_ik_platform_verify_only: false
+deepseek_v4_ik_platform_allow_reboot: false
+deepseek_v4_ik_platform_reboot_timeout_seconds: 900
+# Platform pins are host-specific and must be supplied by inventory.  Empty
+# defaults make accidental use on another GPU host fail before any mutation.
+deepseek_v4_ik_platform_target_kernel: ""
+deepseek_v4_ik_platform_kernel_package_version: ""
+deepseek_v4_ik_platform_nvidia_package_version: ""
+deepseek_v4_ik_platform_nvidia_module_version: ""
+deepseek_v4_ik_platform_nvidia_driver_package: nvidia-driver-590-open
+deepseek_v4_ik_platform_nvidia_module_package: >-
+  linux-modules-nvidia-590-open-{{ deepseek_v4_ik_platform_target_kernel }}
+deepseek_v4_ik_platform_package_bundle:
+  - name: "linux-image-{{ deepseek_v4_ik_platform_target_kernel }}"
+    version: "{{ deepseek_v4_ik_platform_kernel_package_version }}"
+  - name: "linux-modules-{{ deepseek_v4_ik_platform_target_kernel }}"
+    version: "{{ deepseek_v4_ik_platform_kernel_package_version }}"
+  - name: "linux-headers-{{ deepseek_v4_ik_platform_target_kernel }}"
+    version: "{{ deepseek_v4_ik_platform_kernel_package_version }}"
+  - name: "{{ deepseek_v4_ik_platform_nvidia_module_package }}"
+    version: "{{ deepseek_v4_ik_platform_kernel_package_version }}"
+  - name: "{{ deepseek_v4_ik_platform_nvidia_driver_package }}"
+    version: "{{ deepseek_v4_ik_platform_nvidia_package_version }}"
+  - name: nvidia-utils-590
+    version: "{{ deepseek_v4_ik_platform_nvidia_package_version }}"
+deepseek_v4_ik_platform_tracking_packages: []
+deepseek_v4_ik_platform_hold_packages: >-
+  {{ ((deepseek_v4_ik_platform_package_bundle |
+  map(attribute='name') | list) +
+  deepseek_v4_ik_platform_tracking_packages) | unique | list }}
+deepseek_v4_ik_platform_grub_menuentry: >-
+  Advanced options for Ubuntu>Ubuntu, with Linux
+  {{ deepseek_v4_ik_platform_target_kernel }}
+deepseek_v4_ik_platform_grub_dropin_path: >-
+  /etc/default/grub.d/99-deepseek-v4-kernel.cfg
+deepseek_v4_ik_platform_unattended_policy_path: >-
+  /etc/apt/apt.conf.d/52deepseek-v4-platform-pins
+deepseek_v4_ik_platform_expected_gpu_count: 2
+deepseek_v4_ik_platform_expected_gpu_name: NVIDIA GeForce RTX 3090
 deepseek_v4_ik_prepare: false
 deepseek_v4_ik_run_candidate: false
 deepseek_v4_ik_keep_candidate_running: false
+deepseek_v4_ik_validate_only: false
+deepseek_v4_ik_verify_stable: false
+deepseek_v4_ik_run_topology_preflight: false
+deepseek_v4_ik_topology_preflight_id: ""
+deepseek_v4_ik_topology_p2p_binary: ""
+deepseek_v4_ik_topology_preflight_dir: >-
+  {{ deepseek_v4_ik_evidence_dir }}/{{ deepseek_v4_ik_topology_preflight_id }}
+deepseek_v4_ik_run_final_qualification: false
+deepseek_v4_ik_final_qualification_id: ""
+deepseek_v4_ik_final_qualification_dir: >-
+  {{ deepseek_v4_ik_evidence_dir }}/{{ deepseek_v4_ik_final_qualification_id }}
+deepseek_v4_ik_soak_duration_seconds: 3600
+deepseek_v4_ik_soak_interval_seconds: 30
+deepseek_v4_ik_soak_completion_interval_seconds: 300
+deepseek_v4_ik_context_validation_prompt_tokens: 127000
 deepseek_v4_ik_production: false
 deepseek_v4_ik_remove_legacy: false
 deepseek_v4_ik_manage_webui: false

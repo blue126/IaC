@@ -26,6 +26,13 @@ defaults = (ANSIBLE / "roles/deepseek-v4/defaults/main.yml").read_text()
 webui_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/webui.yml").read_text()
 contract_runner = (ANSIBLE / "roles/deepseek-v4/files/contract-runner.py").read_text()
 benchmark_runner = (ANSIBLE / "roles/deepseek-v4/files/benchmark-runner.py").read_text()
+context_runner = (ANSIBLE / "roles/deepseek-v4/files/context-window-runner.py").read_text()
+checkpoint_runner = (
+    ANSIBLE / "roles/deepseek-v4/files/checkpoint-transition-runner.py"
+).read_text()
+experiment_verdict = (
+    ANSIBLE / "roles/deepseek-v4/files/experiment-verdict.py"
+).read_text()
 evidence_validator = (ANSIBLE / "roles/deepseek-v4/files/evidence-validator.py").read_text()
 lifecycle_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/lifecycle.yml").read_text()
 verify_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/verify.yml").read_text()
@@ -33,7 +40,12 @@ activate_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/activate.yml").read_text()
 ik_root = ANSIBLE / "roles/deepseek-v4-ik"
 ik_compose = (ik_root / "templates/docker-compose.yml.j2").read_text()
 ik_production = (ik_root / "tasks/production.yml").read_text()
+ik_main = (ik_root / "tasks/main.yml").read_text()
 ik_candidate = (ik_root / "tasks/candidate.yml").read_text()
+ik_platform = (ik_root / "tasks/platform.yml").read_text()
+ik_platform_grub = (ik_root / "templates/99-deepseek-v4-kernel.cfg.j2").read_text()
+ik_handlers = (ik_root / "handlers/main.yml").read_text()
+ik_qualification = (ANSIBLE / "playbooks/qualify-deepseek-v4-ik.yml").read_text()
 ik_proxy_unit = (ik_root / "templates/deepseek-v4-ik-compat.service.j2").read_text()
 ik_proxy = ik_root / "files/openai-compat-proxy.py"
 fixture_dir = ANSIBLE / "roles/deepseek-v4/files"
@@ -115,6 +127,44 @@ require("done_count == 1" in contract_runner, "SSE terminator is not strict")
 require("expected_tools" in contract_runner, "tool arguments are not validated")
 require("target_prompt_tokens" in benchmark_runner, "benchmark token target is absent")
 require("calibrated_prompt" in benchmark_runner, "benchmark input is not tokenizer-calibrated")
+require(
+    all(
+        'f"{base_url}/tokenize"' in runner
+        and "observed = token_count(base_url, prompt)" in runner
+        for runner in (context_runner, checkpoint_runner)
+    ),
+    "a long-context runner calibrates by generating instead of tokenizing",
+)
+require(
+    "recall_marker_present" in checkpoint_runner
+    and "handoff_expected_present" in checkpoint_runner,
+    "checkpoint evidence cannot distinguish verbose from missing answers",
+)
+require(
+    "restore-result.json" in ik_candidate
+    and "deepseek_v4_ik_exact_restore_verified" in ik_candidate,
+    "checkpoint qualification can precede exact control restoration evidence",
+)
+require(
+    "checkpoint diagnostic evidence cannot unlock 4 checkpoints"
+    in experiment_verdict,
+    "single-repeat checkpoint diagnostics can unlock checkpoint 4",
+)
+require(
+    'default=10800' in checkpoint_runner
+    and "deepseek_v4_ik_experiment_watchdog_timeout_seconds: 25200"
+    in (ik_root / "defaults/main.yml").read_text()
+    and "deepseek_v4_ik_experiment_watchdog_timeout_seconds | int) + 3600"
+    in ik_candidate,
+    "checkpoint route and watchdog budgets do not preserve restoration margin",
+)
+require(
+    "deepseek_v4_ik_emit_ctx_checkpoints | bool and" in ik_main
+    and "['baseline', 'ctx_checkpoints']" in ik_main
+    and "deepseek_v4_ik_model_checksum_proof_stat.stat.pw_name" in ik_candidate
+    and "deepseek_v4_ik_candidate_model_stat.stat.mtime" in ik_candidate,
+    "verified model checksum reuse is not limited to fresh root-owned checkpoint evidence",
+)
 require("validate_benchmark" in evidence_validator, "benchmark evidence is not validated")
 require("map(attribute='id')" in verify_tasks, "model identity check is not exact")
 require(
@@ -138,8 +188,11 @@ require(
     "deepseek_v4_ik_compat_service_unit" in ik_production,
     "production tasks do not own the compatibility proxy",
 )
-require("Requires={{ deepseek_v4_ik_service_unit }}" in ik_proxy_unit,
-        "compatibility proxy does not depend on the candidate owner")
+require(
+    "Requires={{ deepseek_v4_ik_service_unit }}" not in ik_proxy_unit
+    and "PartOf={{ deepseek_v4_ik_service_unit }}" not in ik_proxy_unit,
+    "compatibility proxy is still coupled to the production owner",
+)
 require("--timezone" not in ik_proxy_unit,
         "compatibility proxy must not inject trusted-date context")
 require("--allow-cidrs" in ik_proxy_unit,
@@ -154,6 +207,48 @@ require("benchmark-runner.py" in ik_candidate,
         "candidate workflow does not install its benchmark runner")
 require("deepseek_v4_ik_manage_webui: false" in (ik_root / "defaults/main.yml").read_text(),
         "parser compatibility deployment can still recreate Open WebUI by default")
+require("deepseek_v4_ik_platform: false" in (ik_root / "defaults/main.yml").read_text(),
+        "GPU platform lifecycle is not disabled by default")
+require("deepseek_v4_ik_platform | bool" in ik_main and "platform.yml" in ik_main,
+        "GPU platform is absent from the exactly-one lifecycle gate")
+require("deepseek_v4_ik_platform_allow_reboot: false" in (ik_root / "defaults/main.yml").read_text(),
+        "VM reboot is not fail-closed by default")
+require("deepseek_v4_ik_platform_allow_reboot | bool" in ik_platform,
+        "platform recovery lacks an explicit VM reboot gate")
+require("${db:Status-Want}" in ik_platform
+        and "${db:Status-Status}" in ik_platform,
+        "platform package probes are not stable after apt-mark hold")
+require(ik_platform.count("check_mode: false") >= 5,
+        "read-only platform probes are skipped by Ansible check mode")
+require(
+    ik_platform.index("Require explicit approval before changing the VM boot target")
+    < ik_platform.index("Pin the verified kernel as the GRUB default"),
+    "GRUB can change before the explicit reboot gate passes",
+)
+require("selection: hold" in ik_platform and "Package-Blacklist" in ik_platform,
+        "platform packages are not protected from automatic advancement")
+require("unattended-upgrades.service" in ik_platform,
+        "platform verification does not preserve unattended security updates")
+require("apt-daily-upgrade.timer" in ik_platform
+        and 'APT::Periodic::Unattended-Upgrade "1";' in ik_platform,
+        "platform verification does not prove unattended upgrades are scheduled")
+require("Re-query exact platform package versions after recovery" in ik_platform,
+        "platform verification does not close the preflight-to-hold package race")
+require("Reset the exact unattended-upgrade blacklist" in ik_platform,
+        "platform blacklist facts are not deterministic across plays")
+require("/updates/dkms/" in ik_platform and "dkms" not in ik_platform_grub,
+        "platform recovery does not reject a DKMS module path")
+require("state: absent" not in ik_platform and "purge" not in ik_platform,
+        "platform recovery can remove the rescue kernel or packages")
+require("Update GRUB menu" in ik_handlers and "GRUB_DEFAULT" in ik_platform_grub,
+        "the pinned GRUB default is not regenerated through a handler")
+require("platform-verify" in ik_qualification and "tags: [never, platform]" in ik_qualification,
+        "qualification playbook lacks explicit platform entrypoints")
+require("6.8.0-101-generic" in host_vars and "590.48.01-0ubuntu0.24.04.1" in host_vars,
+        "host inventory lacks the exact verified kernel/NVIDIA bundle")
+require("deepseek_v4_ik_platform_expected_gpu_count" in ik_platform
+        and "deepseek_v4_ik_platform_expected_gpu_name" in ik_platform,
+        "platform verification does not require two exact RTX 3090 identities")
 proxy_self_test = subprocess.run(
     [sys.executable, str(ik_proxy), "--self-test"],
     capture_output=True,

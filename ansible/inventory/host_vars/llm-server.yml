@@ -11,6 +11,30 @@ deepseek_v4_ik_api_allowed_cidrs:
   - 172.18.0.0/16
   - 192.168.1.0/24
 
+# Best measured prefill setting: permit pinned host allocations for H2D.
+deepseek_v4_ik_disable_pinned_memory: false
+deepseek_v4_ik_batch_size: 4096
+deepseek_v4_ik_ubatch_size: 2048
+deepseek_v4_ik_context_length: 131072
+deepseek_v4_ik_cpu_threads: 32
+# Controlled prefill experiment baseline.  Each subsequent adjustment is
+# deployed and benchmarked independently before progressing to the next one.
+deepseek_v4_ik_numa_mode: distribute
+deepseek_v4_ik_batch_threads: 36
+
+# Verified VM kernel/NVIDIA bundle. Platform recovery validates that every
+# version is already installed before it changes holds, GRUB, or reboots.
+deepseek_v4_ik_platform_target_kernel: 6.8.0-101-generic
+deepseek_v4_ik_platform_kernel_package_version: 6.8.0-101.101
+deepseek_v4_ik_platform_nvidia_package_version: 590.48.01-0ubuntu0.24.04.1
+deepseek_v4_ik_platform_nvidia_module_version: 590.48.01
+deepseek_v4_ik_platform_tracking_packages:
+  - linux-virtual
+  - linux-image-virtual
+  - linux-headers-virtual
+  - linux-headers-generic
+  - linux-modules-nvidia-590-open-generic
+
 # DeepSeek V4 controlled release pins, captured for the approved G2 rollout.
 deepseek_v4_model_repository: deepseek-ai/DeepSeek-V4-Flash-0731
 deepseek_v4_model_revision: 7872f01b1d1fe23eabc4c98b48bffcef5a386062

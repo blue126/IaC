@@ -31,9 +31,17 @@
     dest: "/usr/local/libexec/{{ item }}"
     owner: root
     group: root
-    mode: "{{ '0755' if item == 'contract-runner.py' else '0644' }}"
+    mode: "{{ '0755' if item.endswith('.py') else '0644' }}"
   loop:
     - contract-runner.py
+    - benchmark-runner.py
+    - coding-cache-runner.py
+    - experiment-watchdog.py
+    - resource-sampler.py
+    - runtime-log-sanitizer.py
+    - topology-preflight.py
+    - context-window-runner.py
+    - soak-runner.py
     - api-fixtures-v1.json
     - correctness-corpus-v1.json
     - benchmark-corpus-v1.json
@@ -100,7 +108,7 @@
 
 - name: Wait for the GGUF production API
   ansible.builtin.uri:
-    url: "http://{{ deepseek_v4_ik_api_bind_address }}:{{ deepseek_v4_ik_api_port }}/health"
+    url: "http://{{ deepseek_v4_ik_api_probe_address }}:{{ deepseek_v4_ik_api_port }}/health"
     status_code: 200
   register: deepseek_v4_ik_production_health
   retries: 120
@@ -110,7 +118,7 @@
 - name: Run the production-facing compatibility API contract
   ansible.builtin.command: >-
     python3 {{ deepseek_v4_ik_contract_runner_path }}
-    --base-url http://{{ deepseek_v4_ik_api_bind_address }}:{{ deepseek_v4_ik_api_port }}
+    --base-url http://{{ deepseek_v4_ik_api_probe_address }}:{{ deepseek_v4_ik_api_port }}
     --model {{ deepseek_v4_ik_model_name }}
     --output {{ deepseek_v4_ik_evidence_dir }}/compatibility-contract.json
   register: deepseek_v4_ik_compatibility_contract
