@@ -14,6 +14,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+/.ssh/
 #Ansible Related
 ansible/credentials/
 ansible/collections/
@@ -32,3 +33,4 @@ _bmad-output/
 node_modules/
 tmp/
 .vagrant/
+.ua/
