@@ -82,11 +82,11 @@
     get_checksum: true
   register: deepseek_v4_mainline_binary
 
-- name: Inspect the model checksums
+- name: Inspect the model artifacts
   ansible.builtin.stat:
     path: "{{ deepseek_v4_mainline_model_dir }}/{{ item.path }}"
     checksum_algorithm: sha256
-    get_checksum: true
+    get_checksum: "{{ deepseek_v4_mainline_verify_model_checksums | bool }}"
   loop: "{{ deepseek_v4_mainline_model_files }}"
   loop_control:
     label: "{{ item.path }}"
@@ -139,12 +139,27 @@
   ansible.builtin.assert:
     that:
       - item.stat.exists
-      - item.stat.checksum is defined
-      - item.stat.checksum | default('') == item.item.sha256
-    fail_msg: "Model artifact pin verification failed: {{ item.item.path }}"
+      - item.stat.size == item.item.size
+      - >-
+        not (deepseek_v4_mainline_verify_model_checksums | bool)
+        or item.stat.checksum | default('') == item.item.sha256
+    fail_msg: >-
+      Model artifact pin verification failed: {{ item.item.path }}
+      (checksums {{ 'on' if deepseek_v4_mainline_verify_model_checksums | bool
+      else 'off' }}). ik has not been stopped.
   loop: "{{ deepseek_v4_mainline_models.results }}"
   loop_control:
     label: "{{ item.item.path }}"
+
+- name: Apply the host NUMA balancing setting
+  ansible.posix.sysctl:
+    name: kernel.numa_balancing
+    value: "{{ deepseek_v4_mainline_numa_balancing }}"
+    sysctl_file: /etc/sysctl.d/99-deepseek-v4-mainline.conf
+    sysctl_set: true
+    state: present
+    reload: true
+  when: deepseek_v4_mainline_numa_balancing | string | length > 0
 
 - name: Deploy the mainline Compose definition
   ansible.builtin.template:

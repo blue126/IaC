@@ -4,6 +4,10 @@ services:
     image: {{ deepseek_v4_mainline_runtime_image }}
     entrypoint: []
     command:
+{% if deepseek_v4_mainline_numactl_policy %}
+      - numactl
+      - {{ deepseek_v4_mainline_numactl_policy }}
+{% endif %}
       - /build/llama-server
       - --host
       - 0.0.0.0
@@ -27,7 +31,7 @@ services:
       - --ctx-size
       - "131072"
       - --threads
-      - "32"
+      - "{{ deepseek_v4_mainline_threads }}"
       - --numa
       - distribute
       - --threads-batch
@@ -44,7 +48,7 @@ services:
       - layer
 {% if deepseek_v4_mainline_tensor_overrides %}
       - --override-tensor
-      - '{{ deepseek_v4_mainline_tensor_overrides }}'
+      - '{{ deepseek_v4_mainline_tensor_overrides | join(",") }}'
 {% endif %}
       - --cpu-moe
       - --no-mmap
@@ -52,6 +56,10 @@ services:
       - f16
       - --cache-type-v
       - f16
+{% if deepseek_v4_mainline_log_verbosity | string | length > 0 %}
+      - -lv
+      - "{{ deepseek_v4_mainline_log_verbosity }}"
+{% endif %}
     environment:
       CUDA_VISIBLE_DEVICES: "0,1"
       LD_LIBRARY_PATH: /build
