@@ -35,6 +35,13 @@ deepseek_v4_mainline_backend_port: 8082
 deepseek_v4_mainline_stable_port: 8081
 deepseek_v4_mainline_model_name: deepseek-v4-flash
 deepseek_v4_mainline_spec_draft_n_max: 1
+# --override-tensor rules, rendered ahead of --cpu-moe because the loader takes
+# the first matching override and stops. The three tail layers already own their
+# attention and shared-expert weights on CUDA1 under --split-mode layer, so
+# moving their routed experts there removes both the CPU reads and the
+# GPU->CPU->GPU hop. Costs 7968 MiB of CUDA1. Set to "" to restore all-CPU MoE.
+deepseek_v4_mainline_tensor_overrides: >-
+  blk\.(40|41|42)\.ffn_(down|gate|up)_exps=CUDA1
 deepseek_v4_mainline_start_retries: 120
 deepseek_v4_mainline_start_delay_seconds: 8
 deepseek_v4_mainline_chat_prompt: Reply with exactly OK.

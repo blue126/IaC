@@ -42,6 +42,10 @@ services:
       - "100"
       - --split-mode
       - layer
+{% if deepseek_v4_mainline_tensor_overrides %}
+      - --override-tensor
+      - '{{ deepseek_v4_mainline_tensor_overrides }}'
+{% endif %}
       - --cpu-moe
       - --no-mmap
       - --cache-type-k

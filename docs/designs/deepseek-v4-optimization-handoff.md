@@ -1,7 +1,8 @@
 # DeepSeek V4 Flash 本地推理优化 —— 项目交接文档（Handoff）
 
-**日期**：2026-08-17
+**最后更新/实机核验**：2026-08-17
 **用途**：交给接手本项目的 AI/工程师。**只读本文档即可继续工作**，不需要原始对话上下文。
+**权威顺序**：当前运行事实以已提交的 `deepseek-v4-mainline` Ansible role 和 guest 实机为准；本文件是操作入口；性能计划只提供背景和后续方向。`_bmad-output/implementation-artifacts/spec-switch-deepseek-v4-to-mainline-dspark.md` 是已完成的历史实施 spec，**不是当前配置来源**。
 **关联文档**（细节均在，按需查阅）：
 - `docs/designs/deepseek-v4-performance-optimization-plan.md`（全景优化计划，最详细）
 - `docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`（部署与实验纪年）
@@ -12,7 +13,7 @@
 
 ## 0. 一句话现状
 
-homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）已切换到 **官方 0731 模型 + DSpark + mainline llama.cpp**。mainline 服务、稳定 API 和固定 chat 均已验证；1K/8K decode 略低于 ik，但 TTFT 与 prefill 显著改善（§3.5）。
+homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）已切换到 **官方 0731 模型 + DSpark + mainline llama.cpp**，当前固定 `n_max=1`，并已采用一条 `--override-tensor` 规则把尾部三层的路由专家放到 CUDA1（§3.6）。mainline active、ik inactive、稳定 API `8081` 健康、容器 restart=0。8K decode 由 7.31 提升到 **7.87 tok/s（+7.8%）**，已超过 ik 基线 7.68；1K 持平。
 
 ---
 
@@ -23,8 +24,8 @@ homelab 的 DeepSeek V4 Flash（GGUF，双 RTX 3090，CPU-MoE）已切换到 **�
 | 机器 | 地址 | 登录 | 说明 |
 |---|---|---|---|
 | **llm-server**（guest，跑推理） | 192.168.1.247 | `ssh ubuntu@192.168.1.247`（默认 key `~/.ssh/id_ed25519`，免密 sudo） | Ubuntu，36 核，334GB RAM，双 RTX 3090（ESXi 直通） |
-| **ESXi 宿主机** | 192.168.1.251 | `ssh -i /Users/weierfu/Projects/IaC/.ssh/id_rsa_esxi_t7910 root@192.168.1.251` | ESXi 8.0.3；**必须用工作区 `.ssh/` 下的 RSA key**（`~/.ssh/id_ed25519` 不被接受） |
-| 本机（开发/管理） | — | — | 仓库在 `/Users/weierfu/Projects/IaC`；Ansible 从 `ansible/` 目录跑 |
+| **ESXi 宿主机** | 192.168.1.251 | 从仓库根目录运行 `ssh -i .ssh/id_rsa_esxi_t7910 root@192.168.1.251` | ESXi 8.0.3；**必须用工作区 `.ssh/` 下的 RSA key**（`~/.ssh/id_ed25519` 不被接受） |
+| 本机（开发/管理） | — | — | macOS 路径通常为 `/Users/weierfu/Projects/IaC`，Dev Container 为 `/workspaces/IaC`；Ansible 从 `ansible/` 目录跑 |
 
 ### 1.2 当前服务形态
 
@@ -34,17 +35,17 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 - systemd：`deepseek-v4-mainline.service`（active + enabled）；独立代理 `deepseek-v4-ik-compat.service`
 - 当前模型：`/data/models/DeepSeek-V4-Flash-0731-GGUF/`（UD-Q3_K_M 四分片 + Q8_0 drafter）
 - 当前 runtime：mainline llama.cpp `10bf611e`（`/opt/deepseek-v4-mainline/src/build/bin/llama-server`）
-- ik `deepseek-v4-ik.service` 当前 inactive，完整保留但不自动回退。
+- ik `deepseek-v4-ik.service` 当前 inactive，完整保留；仅在用户明确要求时人工切回，部署失败不会自动切回。
 - 这是 homelab 快速验证环境，不建立 candidate/promotion/soak 框架。mainline 使用独立 role、Compose project 和 systemd unit，但切换后直接接管现有 loopback backend `8082`。
-- `deepseek-v4-ik.service` 保留但不自动回退；不要修改 `deepseek-v4-ik` role。mainline 启动或最小 smoke 失败时保留现场，直接检查错误并继续修复。
+- 不要为了 mainline 改造 `deepseek-v4-ik` role。mainline 启动或最小 smoke 失败时保留现场，直接检查错误并继续修复。
 
 ### 1.3 关键路径（guest 上）
 
 | 路径 | 内容 |
 |---|---|
-| `/data/models/DeepSeek-V4-Flash-GGUF/` | 当前 ik 模型（sokann） |
+| `/data/models/DeepSeek-V4-Flash-GGUF/` | 保留的 ik 模型（sokann，当前未运行） |
 | `/data/models/DeepSeek-V4-Flash-0731-GGUF/` | **新模型**（unsloth UD-Q3_K_M 4 分片 + drafter，已 sha256 验证 ✅） |
-| `/opt/deepseek-v4-ik/` | 当前 ik runtime（src/build） |
+| `/opt/deepseek-v4-ik/` | 保留的 ik runtime（src/build，当前未运行） |
 | `/opt/deepseek-v4-mainline/` | **新 mainline runtime**（src/build/bin/llama-server，已编译 ✅） |
 | `/var/lib/deepseek-v4-ik/evidence/` | 证据目录（不可覆盖，按 experiment-id 建子目录） |
 | `/tmp/0731-sha256.log`、`/tmp/mainline-build.log` | 下载校验/编译日志 |
@@ -61,6 +62,9 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 | P2/P3：P2P / graph split | ❌ **永久阻塞**（P2P=NS，不同 root port），已从路线图移除 |
 | R6：prompt-cache 保存阻塞 /health | ⚠️ checkpoint=8 缓解（72s→22–28s）但**未解决**（同步保存根本问题） |
 | Stage 2：mainline + DSpark 切换 | ✅ 已部署；health/chat 与 1K/8K 快速基准完成（见 §3.5、§5） |
+| P1：当前 PCIe 拓扑性能基准 | ✅ 已由 mainline `n_max=1/2` 的同 corpus 1K/8K 基准覆盖 |
+| `--override-tensor` 精准放置 | ✅ 已探索并**采用**：blk.40–42 路由专家 → CUDA1，8K decode +7.8%（§3.6） |
+| 当前推荐参数 | ✅ mainline + DSpark，`n_max=1` + 上述 `-ot` 规则；不要再重复 `n_max` 1/2 对比 |
 
 ---
 
@@ -103,7 +107,7 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 - Pin：`ggml-org/llama.cpp@10bf611e533d81f739128304991c5e133c6aebd8`（2026-08-16 master，含 DSpark，≥ #25784/`596a579`）
 - 二进制：`/opt/deepseek-v4-mainline/src/build/bin/llama-server`
 - 构建：容器内（`approachingai/ktransformers@sha256:5e8f614b...`），`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86`
-- **运行要点**：二进制 rpath 是容器路径，且依赖 `libnccl.so.2`（宿主机没有）→ **必须在容器内运行**，并 `--gpus all`（挂驱动）+ `LD_LIBRARY_PATH` 指向二进制目录。构建脚本：`scripts/deepseek-v4-mainline-build.sh`。
+- **运行要点**：二进制 rpath 是容器路径，且依赖 `libnccl.so.2`（宿主机没有）→ **必须在容器内运行**。当前 Compose 用 CDI 映射 `nvidia.com/gpu=0/1`，并设置 `LD_LIBRARY_PATH=/build`；构建验证脚本使用 `--gpus all`。构建脚本：`scripts/deepseek-v4-mainline-build.sh`。
 - 可选优化：`-DGGML_NCCL=OFF` 重建可消除 NCCL 依赖（本机 layer split 用不到 NCCL）；多卡如需可调 `GGML_SCHED_MAX_SPLIT_INPUTS`（当前不用）。
 
 ### 3.5 mainline + DSpark 快速基准（2026-08-17）
@@ -123,12 +127,66 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 
 ---
 
+### 3.6 `--override-tensor` 精准放置（2026-08-17，已采用）
+
+**先决知识（全部来自 pinned binary 的源码与 GGUF header，不是猜测）**
+
+1. **`--cpu-moe` 只是一条正则规则**：`common/arg.cpp` 把 `\.ffn_(up|down|gate|gate_up)_(ch|)exps` → CPU push 进和 `-ot` **同一个** `tensor_buft_overrides` 向量。
+2. **首个命中即生效**：`src/llama-model-loader.cpp` 对每个张量按向量顺序做 `std::regex_search`，命中即 `break`。所以 **`-ot` 必须排在 `--cpu-moe` 之前**，顺序 = 命令行顺序。
+3. **buffer type 只接受三个值**：解析器用各 device 的默认 buft 建表，即 `CUDA0`、`CUDA1`、`CPU`（`#define GGML_CUDA_NAME "CUDA"`）。`CUDA_Host` 之类不在表内；写错会打印 Available buffer types 后**在加载模型前**退出。
+4. **shared expert 方向无效**：`ffn_*_shexp` 和路由 `ffn_gate_inp` **不匹配** `--cpu-moe` 的正则（要求以 `exps` 结尾），本来就在 GPU 上。对它们加 `-ot ...=CUDA*` 是 no-op。本模型也没有 `_chexps` 张量。
+5. **层→设备归属**（`src/llama-model.cpp` 默认按加载时空闲显存分割，两卡等量）：`n_layer=43`、`ngl=100` → **blk.0–21 属 CUDA0，blk.22–42 + output 属 CUDA1**。`-ot` 的目标设备必须与该层归属一致，否则每 token 多出跨卡搬运（无 P2P，要绕 host）。
+6. **drafter 不继承主模型的 `-ot`**（`common_base_params_to_speculative` 只复制 `params_spec.tensor_buft_overrides`），单变量干净。但 drafter 在主模型**之后**加载且 `tensor_split` 未设，所以它按"此刻的空闲显存"分割——主模型多占 CUDA1 会把 drafter 的层推向 CUDA0（实测 GPU0 +3.3GiB）。做显存预算时必须算上这个二阶效应。
+
+**真实张量名与尺寸**（用 stdlib-only 脚本读 GGUF header 取得，guest 无 numpy 且禁止装包）：
+
+| 张量 | 量化 | 每层 | 说明 |
+|---|---|---:|---|
+| `blk.{0..42}.ffn_down_exps.weight` | MXFP4 | 1088 MiB | 路由专家，`--cpu-moe` 命中 |
+| `blk.{0..42}.ffn_gate_exps.weight` | IQ3_XXS | 784 MiB | 同上（blk.26 为 MXFP4 1088 MiB） |
+| `blk.{0..42}.ffn_up_exps.weight` | IQ3_XXS | 784 MiB | 同上（blk.26 同） |
+| `blk.{0..42}.ffn_{down,gate,up}_shexp.weight` | Q8_0 | 各 8.5 MiB | **不**命中，已在 GPU |
+| `blk.{0..42}.ffn_gate_inp.weight` | BF16 | 2 MiB | **不**命中，已在 GPU |
+
+`expert_count=256`、`expert_used_count=6` → 每层每 token 实际只读 6/256 ≈ 62 MiB，全 43 层 ≈ 2.6 GiB/token。命中 `--cpu-moe` 的共 129 个张量、112.12 GiB。
+
+**采用的规则**（单变量，其余参数不变）：
+
+```
+--override-tensor 'blk\.(40|41|42)\.ffn_(down|gate|up)_exps=CUDA1'
+```
+
+恰好命中 9 个张量、7968 MiB（占专家权重 6.94%）。选尾部三层是因为它们的 attn/norm/shexp 本就在 CUDA1，顺带消除了每层每 token 的 GPU→CPU→GPU 往返。
+
+**结果**（同 `benchmark-runner.py`、同 `benchmark-corpus-v1.json`、cold-prefill、每档 3 样本）：
+
+| 指标 | control（`n_max=1`） | `-ot` blk.40–42 | 变化 |
+|---|---:|---:|---:|
+| 1K decode | 7.577 tok/s | 7.541 tok/s | -0.5% |
+| 1K TTFT | 7.76 s | 7.70 s | -0.8% |
+| 1K prefill | 152.64 tok/s | 154.06 tok/s | +0.9% |
+| **8K decode** | **7.305 tok/s** | **7.873 tok/s** | **+7.8%** |
+| 8K TTFT | 39.79 s | 38.93 s | -2.2% |
+| 8K prefill | 233.66 tok/s | 239.06 tok/s | +2.3% |
+
+判定依据不只是中位数：8K 实验三样本 **7.695 / 7.873 / 7.957**，最小值都高于 control 三样本的最大值（7.525），两组完全不重叠；1K 两组重叠（实验 7.538/7.674/7.541 vs control 6.938/7.577/7.799），判无变化。8K decode 已超过 ik 基线 7.68。
+
+健康性：RestartCount=0、OOMKilled=false、容器日志 0 条 CUDA/OOM 错误、DSpark 接受率 0.70–0.79、`--tags verify` 全过。峰值显存 GPU0 20058 MiB / GPU1 20464 MiB（各余约 4.1–4.5 GiB）。
+
+结果文件：guest `/tmp/mainline-ot40-42-1k.json`、`/tmp/mainline-ot40-42-8k.json`。
+
+**已知残余不确定性**：control 数据取自重启前的容器实例，因此"重启本身带来的运气"（NUMA/内存布局）未被单独排除。若要更强证据，可把 `deepseek_v4_mainline_tensor_overrides` 置空重新部署再测一轮 8K。GPU1 目前是 Gen3×8，结论只代表当前拓扑。
+
+---
+
 ## 4. 已做的决定（不要推翻，除非有强证据）
 
-1. **B 路线**：0731 + DSpark（放弃 Preview + NextN-MTP 路线 A）——agentic 质量确定大幅提升，DSpark decode ~1.8×（GPU 上；本机 CPU-MoE 待测，`n_max` 从 1 起测兜底）。
+1. **B 路线**：0731 + DSpark（放弃 Preview + NextN-MTP 路线 A）——agentic 质量提升是主要收益；官方 GPU-heavy 环境的 decode ~1.8× **未在本机 CPU-MoE 上兑现**。
 2. **量化档**：`UD-Q3_K_M`（~128GB，4 分片）；**drafter**：`Q8_0`（10.9GB）。
 3. **runtime**：mainline llama.cpp（pin `10bf611e`）。
 4. 其它低成本杠杆（cache 16/32GiB、n-cpu-moe 42、checkpoint=8 等）已测，均未达 10% 推广线——按规则不推广，**不要重复测**。
+5. `n_max=1/2` 已测，采用 `1`；禁止把”不退回 ik”误解成”实验参数不能回调”。
+6. `-ot blk\.(40|41|42)\.ffn_(down|gate|up)_exps=CUDA1` 已测并**采用**（§3.6）。shared expert / 路由方向已证实是 no-op，不要再试。
 
 ---
 
@@ -170,20 +228,23 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 - 容器使用两张 GPU，binary 目录只读挂载到 `/build`，`LD_LIBRARY_PATH=/build`；
 - 模型目录只读挂载；`--model` 只指向第一个分片，由 llama.cpp 自动加载其余分片；
 - Q8_0 drafter 固定使用 `--spec-type draft-dspark --spec-draft-n-max 1 --fit off`；
+- `deepseek_v4_mainline_tensor_overrides` 默认渲染出一条 `--override-tensor`，位置在 `--cpu-moe` **之前**（§3.6）；置空即回到全 CPU-MoE；
 - 模型加载约 130GB，首次健康检查按最长 20 分钟等待；
 - ik runtime 和模型保留、不删除，仅作为人工回退备份；部署流程不会自动退回 ik。
 
 ---
 
-## 6. 后续路线图（Stage 3+，按序）
+## 6. 接手后的下一步
 
-| 阶段 | 内容 | 证据门 |
+| 优先级 | 内容 | 最小完成标准 |
 |---|---|---|
-| 3 | 在当前 GPU0 ×16 / GPU1 ×8 拓扑重跑 1K/8K 基准（P1 性能验收） | 同 corpus 对照无回退 |
-| 4 | GPU1 ×8 卡问题（维护窗口：清洁/交换测试） | 两卡 Gen3 ×16 |
-| 5 | prefill 优化：`--override-tensor` 精准放专家（shared/gate/up-down 优先） | 全契约 + 显存余量 + 收益归因 |
-| 6 | 容量轨道：256K/384K profile | 峰值分配 + recall，不混入速度实验 |
-| 7 | 长期：SGLang-KT 重评估（当前 3090 不可行） | 硬件升级或 issue #1999 修复后 |
+| **下一步** | 把 `-ot` 扩展到 CUDA0 侧：追加 `blk\.(0\|1)\.ffn_(down\|gate\|up)_exps=CUDA0`（blk.0–21 归 CUDA0）。注意 §3.6 第 6 条的二阶效应——主模型多占 CUDA0 会把 drafter 推回 CUDA1，必须先重测峰值显存再定层数 | 与当前 blk.40–42 配置对照，同 1K/8K 三样本；无 OOM/restart；峰值余量 ≥2 GiB |
+| 可并行但需维护窗口 | GPU1 ×8：关机、清洁/重插、交换测试 | 达到 Gen3×16，或确认卡 lane 损伤并接受 ×8 |
+| 低优先 | 在 mainline 上复现 R6 prompt-cache `/health` 阻塞 | 判断是否仍存在；不要直接沿用 ik 结论 |
+| 按需 | 256K/384K 容量 profile | 峰值分配 + recall；不混入速度实验 |
+| 长期 | SGLang-KT 重评估 | 3090 阻塞解除或硬件升级后再做 |
+
+`-ot` 的语法、优先级、buffer type 和真实张量名已全部实证并落地，见 §3.6——**不需要再重新发现**。该 binary **没有 `--dry-run` 选项**；改规则前的低成本校验办法是：用 `scripts/gguf-tensor-names.py` 把候选正则跑一遍真实张量名，确认命中数和字节数，再算显存预算（别忘了 drafter 的二阶重分布）。GPU1 仍为 Gen3×8，因此结果只代表当前拓扑；若以后修复到 ×16，再复测胜出候选。
 
 ---
 
@@ -191,8 +252,8 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 
 1. **不自动 commit**——完成工作后先问用户「Ready to commit?」；
 2. **Ask First**（未经用户同意不做）：实际连接 guest 执行部署、runtime/model pin 变更、改变 `n_max`、删除旧 ik runtime/模型或 service、ESXi/BIOS/PCIe/电源变更、context >128K、并发；
-3. 当前目标是快速验证；默认只做 artifact preflight、health 和一次固定 chat，不追加长测；
-4. mainline 失败不自动回退；保留现场并继续排错直到成功；
+3. 当前是 homelab 快速验证：性能候选默认只做 health/chat + 同 corpus 1K/8K 三样本，不自行扩展成长 soak/完整 production qualification；
+4. mainline 失败不自动切回 ik；保留现场并继续排错。实验参数可依据数据回调；
 5. ik role、兼容代理和 Open WebUI 不为 mainline 做兼容性改造；
 6. 文档/对话中文，代码注释英文，commit 用 Conventional Commits（英文）；
 7. Ansible 工作目录 `ansible/`；inventory 由 Terraform state 生成，失效先跑 `scripts/refresh-terraform-state.sh`；
@@ -204,22 +265,29 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 
 - [ ] GPU1 ×8（卡 lane 问题，维护窗口处理，不阻塞 DSpark）
 - [ ] R6 prompt-cache 同步保存阻塞（checkpoint=8 缓解未根治；候选：cache 策略跳过超大单条 / 保存异步化；新 runtime 上先复现）
-- [ ] prefill TTFT 无固定目标（越快越好）；PCIe ×16 对 prefill 的实际收益待基准验证
+- [ ] GPU1 从 ×8 修复到 ×16 后，对 prefill/`override-tensor` 的增量收益未知
 - [ ] mainline 可选重建 `-DGGML_NCCL=OFF`（消除 NCCL 依赖）
 - [ ] HF 下载限速：guest 上设 `HF_TOKEN`（只读）可提速
-- [ ] mainline 快速部署后按实际体验决定是否补充性能或长上下文测试
+- [x] ~~`override-tensor` CLI 语法、真实张量名、buffer type 精确值和首个单变量候选~~ → 全部核实并采用，见 §3.6
+- [ ] `-ot` 只用掉 CUDA1 的余量；CUDA0 侧（blk.0–21）尚未试，两卡合计理论上还能再挪约 2–3 层（见 §6）
+- [ ] §3.6 的 control 取自重启前实例，"重启运气"未单独排除；如需更强证据可置空变量重测一轮 8K
 
 ---
 
 ## 9. 参考资料
 
 - 全景计划：`docs/designs/deepseek-v4-performance-optimization-plan.md`
+- 当前部署入口：`ansible/playbooks/deploy-deepseek-v4-mainline.yml`
+- 当前参数：`ansible/roles/deepseek-v4-mainline/defaults/main.yml` 与 `templates/docker-compose.yml.j2`
 - 学习笔记：`docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`
 - 实验规范：`_bmad-output/implementation-artifacts/spec-deepseek-v4-memory-prefill-experiments.md`
 - 研究：`_bmad-output/planning-artifacts/research/technical-deepseek-v4-gguf-memory-and-prefill-optimization-research-2026-08-14.md`
 - 构建脚本：`scripts/deepseek-v4-mainline-build.sh`
+- GGUF 张量名检查（校验 `-ot` 正则用）：`scripts/gguf-tensor-names.py`
 - DSpark/MTP 合并 PR：https://github.com/ggml-org/llama.cpp/pull/25784
 - DSpark 实测文章：https://rohitraj.tech/ar/notes/deepseek-dspark-speculative-decoding-llamacpp-2026
 - 模型源：https://huggingface.co/unsloth/DeepSeek-V4-Flash-0731-GGUF
 - SGLang-KT 阻塞：issue #1999（3090）、#2118（DSpark 缺失）
 - ESXi P2P 参数：https://knowledge.broadcom.com/external/article/312208/vsphere-vmdirectpath-io-and-dynamic-dire.html
+
+> 接手提醒：不要以已完成的 `spec-switch-deepseek-v4-to-mainline-dspark.md` 继续实施；其中可能保留实验过程中的旧参数。先读本文件，再核对 role/defaults 与 guest 实机。
