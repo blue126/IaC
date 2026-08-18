@@ -17,4 +17,3 @@ data "vsphere_host" "host" {
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
-# Test VM resource removed - using module-based PBS VM instead (see pbs.tf)
