@@ -336,7 +336,7 @@ gather 访问模式**不是**问题。带宽在 **8 线程即饱和**，与推�
 参数已保留在 role 里（`deepseek_v4_mainline_spec_types`，默认 `draft-dspark`），
 注释记录了数字，避免重复试。
 
-### 3.14 MoE expert cache（2026-08-18，**首轮测试无效，结论待定**）
+### 3.14 MoE expert cache（2026-08-18，重测后**不采用**，归因未尽）
 
 上游讨论 <https://github.com/ggml-org/llama.cpp/discussions/24528> 报告同配置
 （DeepSeek-V4-Flash + 投机解码 + 3090）**+37%～+55%**。本机首轮实测三种模式全部
@@ -370,13 +370,33 @@ binary SHA-256 `b3ff859472b5f760a1688355dfe09e833a79a6c2b3d49abd6d642b2032918503
    cache 在 256 token 内只付得起填充成本、收不到收益，B 组的 −53% 完全可能就是
    纯填充开销。
 
-**重测方案**（未执行）：
+**重测已执行（2026-08-18）**。方法：全部撤掉 `-ot`、两组对称开 `-lv 4`、
+warmup 512 token 后测 3×1024 token 稳态（脚本逐轮打印，确认无爬坡趋势）。
 
-- 撤掉 `-ot`（置空 `deepseek_v4_mainline_tensor_overrides`），把显存让给 cache
-- 加 `-lv 4`，确认 pool 实际大小、hits 非零、failures 为零
-- 改用长生成测稳态：单请求 ≥1024 token，丢弃前若干 token 的填充期，或连续多轮
-  让 cache 预热后再计时；不要用 3×256 冷样本
-- 对照组必须同样撤掉 `-ot`，否则又混入两个变量
+| decode tok/s（中位） | drafter 钉 CUDA0 | drafter 不钉 |
+|---|---:|---:|
+| `--moe-cache off --repack on` | **8.841** | **8.247** |
+| `--moe-cache auto` | 8.713（dormant） | **6.555** |
+
+分离出的两个效应：
+
+- **drafter 换卡代价 −6.7%**（8.841 → 8.247，cache 关的条件下）
+- **cache 自身代价 −20.5%**（8.247 → 6.555，drafter 位置固定的条件下）
+
+**为什么第一次会 dormant**：`--spec-draft-device CUDA0`（当初为绕开 OOM 而加）把
+10.4 GiB drafter 压在 CUDA0，使其只剩 4027 MiB；扣掉 `reserve=3072 MiB` 后
+`granted=955 MiB`，**差 69 MiB 没过 `min-slab=1024 MiB` 门槛**，整个 session 休眠
+（`hits=0`）。而那次 OOM 的前提（`-ot` 占着 CUDA1）在撤掉 `-ot` 后已不存在——
+**上一步的临时绕过手段，在前提消失后变成了新的阻塞**。这类"补丁残留"只能靠读运行时
+统计发现，推理发现不了。
+
+**cache 真正工作时的 pool**（drafter 不钉）：CUDA0 `iq3_xxs 7043 MiB` +
+`mxfp4 5410 MiB`，CUDA1 `1016 + 841 MiB`，合计约 14.3 GiB，全部 `coverage=partial`。
+
+**仍缺的一块**：基准期间的命中率。`[moe-cache]` 统计行只在加载期打印，其时间戳早于
+pool 分配，所以现有的 `hits=0/12` 不代表基准期间。因此无法区分"cache 在命中但开销
+更大"与"cache 几乎不命中纯属白占"——两者都指向本硬件不适用，但对"能否调参救回"的
+答案不同。已就此询问上游研究，未决。
 
 **踩到的坑**：该 fork 早于 DSpark/shared-draft device 修复，会试图把整个 10.4 GiB
 drafter 放到 CUDA1 并在加载期 OOM。必须显式 `--spec-draft-device CUDA0`
