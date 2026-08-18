@@ -43,6 +43,18 @@ deepseek_v4_mainline_compat_service_unit: deepseek-v4-ik-compat.service
 deepseek_v4_mainline_backend_port: 8082
 deepseek_v4_mainline_stable_port: 8081
 deepseek_v4_mainline_model_name: deepseek-v4-flash
+# Speculative implementations, comma separated. Draftless implementations run
+# ahead of the draft model. 'ngram-mod,draft-dspark' was measured and rejected:
+# it costs 14.7% at 1K and 18.4% at 8K on the corpus, with no overlap between
+# the sample sets at 8K. The lookup and fallback path is not free when the
+# output does not repeat the context, so the miss case is a real regression
+# rather than the expected no-op. Do not enable it without a workload whose
+# output quotes its input heavily enough to pay that back.
+deepseek_v4_mainline_spec_types: draft-dspark
+# Only rendered when ngram-mod is in the type list above.
+deepseek_v4_mainline_ngram_mod_n_match: 24
+deepseek_v4_mainline_ngram_mod_n_min: 48
+deepseek_v4_mainline_ngram_mod_n_max: 64
 # DSpark draft length. Mean accepted length is capped at n_max + 1, so this is
 # the only knob that can raise it. 2 is the measured optimum: mean len goes
 # 1.83 -> 2.3 -> 2.6 for n_max 1 -> 2 -> 3, but decode goes 8.94 -> 9.46 -> 8.15

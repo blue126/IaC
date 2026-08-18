@@ -20,7 +20,15 @@ services:
       - --model-draft
       - {{ deepseek_v4_mainline_draft_model_path }}
       - --spec-type
-      - draft-dspark
+      - {{ deepseek_v4_mainline_spec_types }}
+{% if 'ngram-mod' in deepseek_v4_mainline_spec_types %}
+      - --spec-ngram-mod-n-match
+      - "{{ deepseek_v4_mainline_ngram_mod_n_match }}"
+      - --spec-ngram-mod-n-min
+      - "{{ deepseek_v4_mainline_ngram_mod_n_min }}"
+      - --spec-ngram-mod-n-max
+      - "{{ deepseek_v4_mainline_ngram_mod_n_max }}"
+{% endif %}
       - --spec-draft-n-max
       - "{{ deepseek_v4_mainline_spec_draft_n_max }}"
       - --fit
