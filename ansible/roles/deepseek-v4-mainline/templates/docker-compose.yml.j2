@@ -82,6 +82,9 @@ services:
     environment:
       CUDA_VISIBLE_DEVICES: "0,1"
       LD_LIBRARY_PATH: /build
+{% for key, value in deepseek_v4_mainline_extra_env.items() | sort %}
+      {{ key }}: "{{ value }}"
+{% endfor %}
     ports:
       - "127.0.0.1:{{ deepseek_v4_mainline_backend_port }}:{{ deepseek_v4_mainline_backend_port }}"
     volumes:

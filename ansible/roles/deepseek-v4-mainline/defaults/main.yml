@@ -44,6 +44,11 @@ deepseek_v4_mainline_binary_sha256: >-
 # on CUDA1, which OOMs once the main model is resident, so that variant needs
 # this set explicitly.
 deepseek_v4_mainline_draft_device: ""
+# Extra environment for the server process, merged into the Compose service.
+# Used for the moe-cache variant's GGML_CUDA_MOE_CACHE_* controls, e.g.
+# RESERVE_MB (per card, default 3072) and STATS (print counters every N collect
+# calls; without it the counters only appear at session teardown).
+deepseek_v4_mainline_extra_env: {}
 # MoE expert cache, only available on the moe-cache variant. Empty omits the
 # flag. Values: auto | on | off | 0 | N (MiB of VRAM per device).
 deepseek_v4_mainline_moe_cache: ""

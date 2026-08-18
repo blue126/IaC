@@ -336,7 +336,7 @@ gather 访问模式**不是**问题。带宽在 **8 线程即饱和**，与推�
 参数已保留在 role 里（`deepseek_v4_mainline_spec_types`，默认 `draft-dspark`），
 注释记录了数字，避免重复试。
 
-### 3.14 MoE expert cache（2026-08-18，重测后**不采用**，归因未尽）
+### 3.14 MoE expert cache（2026-08-18，**不采用**，归因完成）
 
 上游讨论 <https://github.com/ggml-org/llama.cpp/discussions/24528> 报告同配置
 （DeepSeek-V4-Flash + 投机解码 + 3090）**+37%～+55%**。本机首轮实测三种模式全部
@@ -393,10 +393,46 @@ warmup 512 token 后测 3×1024 token 稳态（脚本逐轮打印，确认无爬
 **cache 真正工作时的 pool**（drafter 不钉）：CUDA0 `iq3_xxs 7043 MiB` +
 `mxfp4 5410 MiB`，CUDA1 `1016 + 841 MiB`，合计约 14.3 GiB，全部 `coverage=partial`。
 
-**仍缺的一块**：基准期间的命中率。`[moe-cache]` 统计行只在加载期打印，其时间戳早于
-pool 分配，所以现有的 `hits=0/12` 不代表基准期间。因此无法区分"cache 在命中但开销
-更大"与"cache 几乎不命中纯属白占"——两者都指向本硬件不适用，但对"能否调参救回"的
-答案不同。已就此询问上游研究，未决。
+**决定性一轮（归因已完成）**：`GGML_CUDA_MOE_CACHE_RESERVE_MB=2560` 让 CUDA0 的
+granted 从 955 抬到约 1467 MiB 过门槛，drafter 仍钉 CUDA0，**cache 成为唯一变量**；
+`GGML_CUDA_MOE_CACHE_STATS=200` 打开周期性统计，拿到基准期间的真实计数。
+
+| | cache off | cache auto |
+|---|---:|---:|
+| decode（drafter 钉 CUDA0，无 `-ot`） | **8.841** | **5.584（−36.8%）** |
+
+基准期间的实际统计：
+
+```
+CUDA0 hits=232054/329604   (70.4%)  used=415/415    evictions=10967   fill-fail=0
+CUDA1 hits=1951634/3218208 (60.6%)  used=3696/3696  evictions=145042  fill-fail=0
+      dispatch-fail=0  collect-fail=0  fusion=647706/1070640 (60%)  cpu-overlap=916
+```
+
+**机制完全正常，但仍然大亏**：
+
+- 命中率 **60–70%**，远高于 12.5% 的容量占比——**专家访问确实高度倾斜，RFC 的前提成立**
+- `dispatch-fail=0`、`collect-fail=0`、fusion 正常工作，没有任何失败路径
+- 但两卡 `used` 都是 **100% 占满**，且 `evictions`≈`filled`（145042 vs 148738）——
+  **工作集远大于 14.3 GiB 的 cache，每填一个就踢掉一个，全程颠簸**
+- 149229 次填充 × 每专家 3–4 MiB ≈ **500 GiB 的 PCIe 填充流量**，这个开销吞掉了
+  60–70% 命中的全部收益还倒亏
+
+**结论：不采用，原因是容量，不是实现。** 上游作者建议 cache 应能容纳工作集的
+20–30%，本机只有 12.5%，落在颠簸区。要翻盘需要的不是调参，而是显著更大的显存
+（或显著更小的模型）——两者都不是调优能解决的。
+
+**`cpu-overlap` 不是核心机制的指标**（我一度误判）。它只统计"某节点全部命中时，
+策略故意留几行给 CPU 与 GPU 并行"这一特殊优化，实测 916，天然很小。真正的
+CPU/GPU 重叠是每个 partial-hit 节点的常态行为，不进这个计数器。判读优先级应是
+`hits/total` → `dispatch-fail`/`collect-fail` → `used/capacity` → `filled`/`evictions`。
+
+**可复用的环境变量**（均在 `ggml/src/ggml-cuda/moe-cache.cu` 实证）：
+`GGML_CUDA_MOE_CACHE_RESERVE_MB`（每卡保留，默认 3072）、
+`GGML_CUDA_MOE_CACHE_STATS`（每 N 次 collect 打印统计；**不设则只在 session
+teardown 打印**，这正是前两轮拿不到数据的原因）、`..._MAX_BATCH`、
+`..._OVERLAP_CPU_ROWS`、`..._ADMIT_AFTER`、`..._BUDGET_MB` 等。role 的
+`deepseek_v4_mainline_extra_env` 可注入任意一项。
 
 **踩到的坑**：该 fork 早于 DSpark/shared-draft device 修复，会试图把整个 10.4 GiB
 drafter 放到 CUDA1 并在加载期 OOM。必须显式 `--spec-draft-device CUDA0`
