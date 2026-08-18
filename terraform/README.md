@@ -17,6 +17,15 @@ This directory contains the Infrastructure as Code (IaC) definitions for the hom
 *   **`oci/`**:  
     Configuration for Oracle Cloud Infrastructure.
 
+## Known Gaps
+
+*   **`proxmox-backup-server` on `pve1` is not managed by Terraform.**
+    It was migrated off the ESXi host manually, and no `.tf` definition or
+    state entry exists for it under `proxmox/`. Import it into the
+    `iac-proxmox` workspace next time `pve1` is up, so the backup server does
+    not stay outside IaC. The retired ESXi copy is still defined in
+    `esxi/pbs.tf`; remove that file and apply once the migration is confirmed.
+
 ## How to Run
 
 To apply changes to Proxmox resources:
