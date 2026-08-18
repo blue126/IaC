@@ -43,7 +43,13 @@ deepseek_v4_mainline_compat_service_unit: deepseek-v4-ik-compat.service
 deepseek_v4_mainline_backend_port: 8082
 deepseek_v4_mainline_stable_port: 8081
 deepseek_v4_mainline_model_name: deepseek-v4-flash
-deepseek_v4_mainline_spec_draft_n_max: 1
+# DSpark draft length. Mean accepted length is capped at n_max + 1, so this is
+# the only knob that can raise it. 2 is the measured optimum: mean len goes
+# 1.83 -> 2.3 -> 2.6 for n_max 1 -> 2 -> 3, but decode goes 8.94 -> 9.46 -> 8.15
+# because the third draft token costs another drafter forward pass while its
+# acceptance falls to 0.53. 1 was the old default and only looked right while
+# the NUMA placement was broken and per-layer overhead was different.
+deepseek_v4_mainline_spec_draft_n_max: 2
 # --override-tensor rules, joined with commas and rendered ahead of --cpu-moe
 # because the loader takes the first matching override and stops. Each rule must
 # target the device that already owns those layers under --split-mode layer
@@ -63,8 +69,11 @@ deepseek_v4_mainline_tensor_overrides:
 # library only logs at trace and debug; do not leave it on, it logs per request.
 deepseek_v4_mainline_log_verbosity: ""
 # Decode-side thread count on a 36-core host. Fewer threads win because decode
-# is memory-bandwidth bound, not compute bound: 32 beat 36, then 16 beat 32 on
-# both the 1K and 8K corpora once the NUMA placement below was fixed.
+# is latency bound, not throughput bound: measured host bandwidth is ~80 GB/s
+# interleaved while decode only draws ~22 GB/s, and per-layer GPU/CPU handoff
+# plus threadpool sync dominates the 2.6 ms each layer costs. Coordinating more
+# threads over that little work costs more than it returns: 32 beat 36, 16 beat
+# 32, and 8 ties 16.
 deepseek_v4_mainline_threads: 16
 # Memory policy for the server process. --no-mmap loads the 105 GiB of expert
 # weights through cudaHostAlloc, whose pages follow first touch, so they landed

@@ -11,7 +11,6 @@
       - >-
         deepseek_v4_mainline_runtime_image ==
         'approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8'
-      - deepseek_v4_mainline_spec_draft_n_max | int == 1
       - deepseek_v4_mainline_backend_port | int == 8082
       - deepseek_v4_mainline_stable_port | int == 8081
       - deepseek_v4_mainline_model_name == 'deepseek-v4-flash'
