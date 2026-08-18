@@ -1,12 +1,56 @@
 ---
+# Compose file and systemd unit always live here, independent of which runtime
+# build is selected below.
 deepseek_v4_mainline_install_dir: /opt/deepseek-v4-mainline
-deepseek_v4_mainline_source_dir: "{{ deepseek_v4_mainline_install_dir }}/src"
+# Which built runtime to run. Every entry is a build whose binary SHA-256 was
+# recorded at build time; the role asserts the selected triple matches one of
+# them exactly, so an unverified binary can never be deployed.
+#   mainline  - ggml-org upstream, the promoted default
+#   moe-cache - leloch/llama.cpp @ moe-cache-v2-pr, adds --moe-cache. Branches
+#               from upstream 15586e2d, an ancestor of the mainline pin with
+#               153 commits in between, so it is A/B material, not a pin bump.
+deepseek_v4_mainline_runtime_variants:
+  mainline:
+    root: /opt/deepseek-v4-mainline
+    commit: 10bf611e533d81f739128304991c5e133c6aebd8
+    binary_sha256: >-
+      2e63f6a8aa2508d129aaef1d59769754e2ae37558b9eec3dbe8d0307ea4d7074
+  moe-cache:
+    root: /opt/deepseek-v4-moe-cache
+    commit: e3096b046bb809f7f80bc47801f6579aed1cbc60
+    binary_sha256: >-
+      b3ff859472b5f760a1688355dfe09e833a79a6c2b3d49abd6d642b2032918503
+deepseek_v4_mainline_runtime_variant: mainline
+# Indexed directly rather than through an intermediate dict variable: a folded
+# scalar holding a whole mapping comes back as its string form, and .root then
+# silently yields nothing.
+deepseek_v4_mainline_runtime_root: >-
+  {{ deepseek_v4_mainline_runtime_variants[
+     deepseek_v4_mainline_runtime_variant]['root'] }}
+deepseek_v4_mainline_source_dir: >-
+  {{ deepseek_v4_mainline_runtime_root }}/src
 deepseek_v4_mainline_build_dir: "{{ deepseek_v4_mainline_source_dir }}/build"
 deepseek_v4_mainline_binary_path: >-
   {{ deepseek_v4_mainline_build_dir }}/bin/llama-server
-deepseek_v4_mainline_commit: 10bf611e533d81f739128304991c5e133c6aebd8
+deepseek_v4_mainline_commit: >-
+  {{ deepseek_v4_mainline_runtime_variants[
+     deepseek_v4_mainline_runtime_variant]['commit'] }}
 deepseek_v4_mainline_binary_sha256: >-
-  2e63f6a8aa2508d129aaef1d59769754e2ae37558b9eec3dbe8d0307ea4d7074
+  {{ deepseek_v4_mainline_runtime_variants[
+     deepseek_v4_mainline_runtime_variant]['binary_sha256'] }}
+# Explicit drafter device. Empty lets the runtime place it, which mainline does
+# well (10.2 GiB on CUDA0, 0.2 on CUDA1). The moe-cache fork predates the
+# shared-draft device fixes and instead tries to put the whole 10.4 GiB drafter
+# on CUDA1, which OOMs once the main model is resident, so that variant needs
+# this set explicitly.
+deepseek_v4_mainline_draft_device: ""
+# MoE expert cache, only available on the moe-cache variant. Empty omits the
+# flag. Values: auto | on | off | 0 | N (MiB of VRAM per device).
+deepseek_v4_mainline_moe_cache: ""
+# Weight repacking. Empty leaves the binary default. 'on' or 'off' render
+# --repack / --no-repack, needed to separate the cost of disabling repacking
+# from the benefit of the cache itself.
+deepseek_v4_mainline_repack: ""
 deepseek_v4_mainline_runtime_image: >-
   approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8
 

@@ -19,6 +19,10 @@ services:
       - {{ deepseek_v4_mainline_model_path }}
       - --model-draft
       - {{ deepseek_v4_mainline_draft_model_path }}
+{% if deepseek_v4_mainline_draft_device | string | length > 0 %}
+      - --spec-draft-device
+      - {{ deepseek_v4_mainline_draft_device }}
+{% endif %}
       - --spec-type
       - {{ deepseek_v4_mainline_spec_types }}
 {% if 'ngram-mod' in deepseek_v4_mainline_spec_types %}
@@ -59,6 +63,13 @@ services:
       - '{{ deepseek_v4_mainline_tensor_overrides | join(",") }}'
 {% endif %}
       - --cpu-moe
+{% if deepseek_v4_mainline_moe_cache | string | length > 0 %}
+      - --moe-cache
+      - "{{ deepseek_v4_mainline_moe_cache }}"
+{% endif %}
+{% if deepseek_v4_mainline_repack | string | length > 0 %}
+      - --{{ 'no-repack' if deepseek_v4_mainline_repack == 'off' else 'repack' }}
+{% endif %}
       - --no-mmap
       - --cache-type-k
       - f16

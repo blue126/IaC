@@ -3,11 +3,16 @@
   ansible.builtin.assert:
     that:
       - >-
-        deepseek_v4_mainline_commit ==
-        '10bf611e533d81f739128304991c5e133c6aebd8'
+        deepseek_v4_mainline_runtime_variant in
+        deepseek_v4_mainline_runtime_variants
       - >-
-        deepseek_v4_mainline_binary_sha256 ==
-        '2e63f6a8aa2508d129aaef1d59769754e2ae37558b9eec3dbe8d0307ea4d7074'
+        deepseek_v4_mainline_commit | trim ==
+        deepseek_v4_mainline_runtime_variants[
+           deepseek_v4_mainline_runtime_variant]['commit']
+      - >-
+        deepseek_v4_mainline_binary_sha256 | trim ==
+        deepseek_v4_mainline_runtime_variants[
+           deepseek_v4_mainline_runtime_variant]['binary_sha256']
       - >-
         deepseek_v4_mainline_runtime_image ==
         'approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8'
@@ -16,14 +21,11 @@
       - deepseek_v4_mainline_model_name == 'deepseek-v4-flash'
       - deepseek_v4_mainline_install_dir == '/opt/deepseek-v4-mainline'
       - >-
-        deepseek_v4_mainline_source_dir ==
-        '/opt/deepseek-v4-mainline/src'
+        deepseek_v4_mainline_source_dir | trim ==
+        deepseek_v4_mainline_runtime_root | trim ~ '/src'
       - >-
-        deepseek_v4_mainline_build_dir ==
-        '/opt/deepseek-v4-mainline/src/build'
-      - >-
-        deepseek_v4_mainline_binary_path ==
-        '/opt/deepseek-v4-mainline/src/build/bin/llama-server'
+        deepseek_v4_mainline_binary_path | trim ==
+        deepseek_v4_mainline_runtime_root | trim ~ '/src/build/bin/llama-server'
       - >-
         deepseek_v4_mainline_model_dir ==
         '/data/models/DeepSeek-V4-Flash-0731-GGUF'
