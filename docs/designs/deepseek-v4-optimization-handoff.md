@@ -336,12 +336,11 @@ gather 访问模式**不是**问题。带宽在 **8 线程即饱和**，与推�
 参数已保留在 role 里（`deepseek_v4_mainline_spec_types`，默认 `draft-dspark`），
 注释记录了数字，避免重复试。
 
-### 3.14 MoE expert cache（2026-08-18，已实测并**否决**）
+### 3.14 MoE expert cache（2026-08-18，**首轮测试无效，结论待定**）
 
 上游讨论 <https://github.com/ggml-org/llama.cpp/discussions/24528> 报告同配置
-（DeepSeek-V4-Flash + 投机解码 + 3090）**+37%～+55%**，机制正对 §3.11 的瓶颈：
-高频专家常驻显存，`MUL_MAT_ID` 仍由 CPU 主持，CPU 算 miss 行的同时 CUDA 算 hit
-行。**在本机实测全部不成立。**
+（DeepSeek-V4-Flash + 投机解码 + 3090）**+37%～+55%**。本机首轮实测三种模式全部
+不如现状，但**该轮测试设计有三处缺陷，结果不足以否决机制**。
 
 已构建并保留：`leloch/llama.cpp @ moe-cache-v2-pr`，pin
 `e3096b046bb809f7f80bc47801f6579aed1cbc60`，装在 `/opt/deepseek-v4-moe-cache`，
@@ -351,33 +350,37 @@ binary SHA-256 `b3ff859472b5f760a1688355dfe09e833a79a6c2b3d49abd6d642b2032918503
 
 | 配置 | 1K decode | 8K decode |
 |---|---:|---:|
-| **当前 mainline（保留）** | **9.459** | **8.916** |
+| 当前 mainline（保留） | 9.459 | 8.916 |
 | A：新二进制，`--moe-cache off --repack on` | 9.021 | 9.092 |
-| B：`--moe-cache 2048` | **4.266** | **3.948** |
+| B：`--moe-cache 2048` | 4.266 | 3.948 |
 | C：`--moe-cache auto` | 8.702 | 8.433 |
 
-三条结论：
+**A 组的结论有效且可复用**：换到这个较旧的基线本身代价中性（1K −4.6%、8K +2.0%），
+缺少那 153 个上游提交并未明显拖慢。
 
-1. **换基线本身代价中性**（A 组：1K −4.6%、8K +2.0%）。缺那 153 个上游提交并未
-   明显拖慢，所以下面两组的差值可视为 cache 自身的贡献。
-2. **数值预算是灾难**（B 组，−53%/−57%）。`N` 和 `on` 都会**关闭 weight
-   repacking**，而本模型有 **112 GiB 专家权重**，2048 MiB/卡只覆盖约 **3.6%**——
-   为 3.6% 的命中率让其余 96.4% 失去 repack 优化，血亏。加到 3072 只到 5.4%
-   覆盖率，填不平这个坑，因此**未测、也不必测**。
-3. **`auto` 保留 repack 但仍无收益**（C 组：相对当前 −8.0%/−5.4%，相对同二进制
-   关 cache 也是 −3.5%/−7.2%）。日志确认 cache 已激活
-   （`mode=auto budget=free-minus-reserve`），是收益不敌开销，不是没生效。
+**B、C 两组无效**，三处缺陷任何一处都足以单独造成观察到的结果：
 
-**根因**：专家权重 112 GiB 与可用显存（两卡合计余量不足 9 GiB，且 `-ot` 已占用
-CUDA1 的 7968 MiB）比例过于悬殊，覆盖率天然只有个位数百分比。讨论区报正收益的
-验证者，要么模型小得多，要么空闲显存大得多。**这是硬件比例问题，不是参数没调对。**
+1. **`-ot` 未撤，饿死了 cache**。测试时两卡空闲显存仅 4646 / 4220 MiB，因为
+   `-ot blk.40-42` 占用了 CUDA1 的 7968 MiB。撤掉后两卡合计可用从 8.9 GiB 升到
+   约 16.8 GiB。上游验证者没有这个竞争性占用。
+2. **从未验证命中统计**。只看到 `mode=auto budget=free-minus-reserve` 一行就断定
+   "已启用但收益不敌开销"。必须用 `-lv 4` 读实际 pool、hits 和 failures——
+   "分配了显存"不等于在工作，hits 可能为 0。
+3. **基准形态不适用**。每样本仅生成 256 token、3 个冷样本。带 admission/fill 的
+   cache 在 256 token 内只付得起填充成本、收不到收益，B 组的 −53% 完全可能就是
+   纯填充开销。
 
-**踩到的坑**（若将来重试）：该 fork 早于 DSpark/shared-draft device 修复，会试图
-把整个 10.4 GiB drafter 放到 CUDA1 并在加载期 OOM。必须显式
-`--spec-draft-device CUDA0`（role 变量 `deepseek_v4_mainline_draft_device`）。
+**重测方案**（未执行）：
 
-**未测的变体**：撤掉 `-ot` 把 CUDA1 的 7968 MiB 让给 cache，覆盖率可到约 10%。
-不建议——要先放弃 §3.6 已验证的收益，去赌一个 auto 模式下已经是负值的机制。
+- 撤掉 `-ot`（置空 `deepseek_v4_mainline_tensor_overrides`），把显存让给 cache
+- 加 `-lv 4`，确认 pool 实际大小、hits 非零、failures 为零
+- 改用长生成测稳态：单请求 ≥1024 token，丢弃前若干 token 的填充期，或连续多轮
+  让 cache 预热后再计时；不要用 3×256 冷样本
+- 对照组必须同样撤掉 `-ot`，否则又混入两个变量
+
+**踩到的坑**：该 fork 早于 DSpark/shared-draft device 修复，会试图把整个 10.4 GiB
+drafter 放到 CUDA1 并在加载期 OOM。必须显式 `--spec-draft-device CUDA0`
+（role 变量 `deepseek_v4_mainline_draft_device`）。
 
 ---
 
@@ -444,7 +447,7 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 | 高价值但需批准 | 并发吞吐测量（服务器已有 4 个 slot）。§3.11 表明带宽闲置 3.7 倍，多路并发应能把总吞吐推到远高于单流；这不改善单条对话延迟，但决定这台机器能否同时服务多 agent | 2/4 路并发的总 tok/s |
 | 长期 | 软件预取：让第 N 层计算时预读第 N+1 层专家权重，填满每层 1.8 ms 的空窗（§3.11）。llama.cpp 未实现，需改代码 | — |
 | 低优先 | 继续挖 NUMA：落点仍是 60/40 而非 50/50（§3.9 要点 1）；线程数 8–24 细扫（8 与 16 已知打平） | — |
-| **已封闭**（不要重试） | `-ot` 的 CUDA0 侧（§3.7 证伪）、shared expert/router（no-op）、`--cpu-moe-draft`（§3.10 否决）、KV 量化（KV 仅 3.7 GiB）、改 ESXi cores-per-socket（vNUMA 本就正确）、开 HT（steal=0 且不缺线程）、加线程（8 线程即饱和）、更快解码的量化格式（非算力受限）、补内存条/换 DDR4-2400（天花板未触及）、`n_max=3`（§3.12 转负）、`ngram-mod`（§3.13 大幅回退）、**MoE expert cache 三种模式（§3.14 全部无收益）** | — |
+| **已封闭**（不要重试） | `-ot` 的 CUDA0 侧（§3.7 证伪）、shared expert/router（no-op）、`--cpu-moe-draft`（§3.10 否决）、KV 量化（KV 仅 3.7 GiB）、改 ESXi cores-per-socket（vNUMA 本就正确）、开 HT（steal=0 且不缺线程）、加线程（8 线程即饱和）、更快解码的量化格式（非算力受限）、补内存条/换 DDR4-2400（天花板未触及）、`n_max=3`（§3.12 转负）、`ngram-mod`（§3.13 大幅回退） | — |
 | 可并行但需维护窗口 | GPU1 ×8：关机、清洁/重插、交换测试 | 达到 Gen3×16，或确认卡 lane 损伤并接受 ×8 |
 | 低优先 | 在 mainline 上复现 R6 prompt-cache `/health` 阻塞 | 判断是否仍存在；不要直接沿用 ik 结论 |
 | 按需 | 256K/384K 容量 profile | 峰值分配 + recall；不混入速度实验 |
