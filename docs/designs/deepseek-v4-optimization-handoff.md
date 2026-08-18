@@ -322,6 +322,64 @@ gather 访问模式**不是**问题。带宽在 **8 线程即饱和**，与推�
 2. **DSpark 总成本约 15.2 GiB**（drafter 权重 10.4 + compute buffer 4.7），占在用显存的 38%，且权重几乎全压在 CUDA0 上。这解释了为什么 §3.7 往 CUDA0 加载荷时余量那么紧。
 3. **但不要动 DSpark**：drafter 权重 94% 是专家（9792 MiB / 3 层）。若用 `--cpu-moe-draft` 挪到主存，释放 9.5 GiB 可多放 3 层主模型专家（每 token 少读 186 MiB），但 drafter 自己每 token 要读 6/256 × 9792 = **229 MiB**，**净增 43 MiB/token，反而更慢**。而 DSpark 当前接受率 0.70–0.79、mean len 1.83，收益远大于这点显存。此路分析上即可否决，无需实验。
 
+### 3.13 `ngram-mod` 投机（2026-08-18，已测并**否决**）
+
+`--spec-type ngram-mod,draft-dspark`（外加 `--spec-ngram-mod-n-match 24
+--spec-ngram-mod-n-min 48 --spec-ngram-mod-n-max 64`）。设想是命中重复上下文时
+提交 48–64 token 长块、未命中回落 DSpark，因此"最坏也就是持平"。
+
+**实测是明确回退**：1K decode 9.459 → 8.069（−14.7%），8K 8.916 → 7.271
+（−18.4%，三样本 7.139/7.271/7.519 与原组完全不重叠）。
+
+结论：n-gram 查找与回落路径**不是零开销旁路**，未命中时要付真实代价。只有输出
+大量引用输入的负载（代码改写、摘要、逐字引用）才可能回本，开放式对话不要开。
+参数已保留在 role 里（`deepseek_v4_mainline_spec_types`，默认 `draft-dspark`），
+注释记录了数字，避免重复试。
+
+### 3.14 待办：MoE expert cache（未实施，Track B）
+
+这是目前已知**唯一可能带来数十个百分点**的方向，机制正对 §3.11 的瓶颈：高频专家
+常驻显存，`MUL_MAT_ID` 仍由 CPU 主持，CPU 算 miss 行的同时 CUDA 算 hit 行，形成
+真正的 CPU/GPU 重叠，且不经同步 PCIe 传输（绕开 GPU1 只有 ×8 的限制）。
+
+**来源与实测**（已核对原文，非二手转述）：
+- 讨论：<https://github.com/ggml-org/llama.cpp/discussions/24528>
+- Fork：`leloch/llama.cpp`，分支 `moe-cache-v2-pr`，29 个连续提交
+- 报告数字：**DeepSeek-V4-Flash + 投机解码 +37%～+55%**；独立验证者在 3090 配置
+  上 +21%～+39%；GLM-5.1 754B +25%
+- 主线**没有**该功能（本仓库 pin 的源码全库 grep 无命中），原 PR #24524 已关闭
+
+**运行参数**：`--moe-cache auto|on|off|N`（N = 每卡 MiB，各卡同额、不能分别指定），
+等价环境变量 `LLAMA_ARG_MOE_CACHE`。与现有放置共存：`--cpu-moe` 的 CPU 专家成为
+cache provider；`-ot` 已静态放到 CUDA1 的 blk.40–42 **不进** cache。显式 `on` 或
+数值预算会关闭 weight repacking，因此 miss 路径可能变慢，需要用 `--repack` 单独
+隔离该影响。当前余量下建议从 **2048 MiB/卡** 起步，不要直接上 4096。
+
+**主要代价（必须先想清楚）**：该分支基线是上游 `15586e2d`，而本项目 pin 是
+`10bf611e`；实测 `git merge-base --is-ancestor` 确认前者是后者祖先，两者之间有
+**153 个上游提交**，其中至少 6 个直接涉及投机解码，包括
+`spec: enable backend sampling for both dflash & dspark`（#26958）和
+`spec : auto-detect mtp draft model type`（#27005）。切到该分支等于放弃这些
+DSpark 相关修复——而 DSpark 正是 §3.12 拿到 +5.8% 的地方。
+
+**因此不要"直接换 pin"**。正确做法是**保留现有二进制，另建第二套 llama-server 做
+同机 A/B**，比较"旧基线 + expert cache"与"新基线 + 无 cache"，再决定是否值得
+forward-port。
+
+**正确性风险**（改动 28 文件 / +6814 行，风险不是数值误差而是生命周期）：
+cache 失效协议漏路径会产生旧权重或 UAF；CUDA dispatch 失败时 CPU 必须重算所有被
+跳过的 hit 行；session enter/leave 必须在所有错误路径成对执行。验证至少要覆盖：
+分支自带 `ctest`、固定 seed greedy 的 logits/token 对比、perplexity 与长上下文
+retrieval、DSpark verification batch、target/drafter 反复创建销毁、server
+sleep/wake 与模型 reload、故意压显存验证 OOM/trim 回落 CPU。日志必须看到 cache
+激活且 hits 非零、failures 为零——"分配了显存"不等于在工作。
+
+**回退**：一级 `--moe-cache off --repack on`（同一二进制）；二级切回 `10bf611e`
+原始二进制。cache 不改 GGUF 或 KV 格式，无数据迁移。
+
+**此项需要用户明确批准**（runtime pin/构建变更），且建议单独立项，不要与参数调优
+混在同一轮。
+
 ---
 
 ## 4. 已做的决定（不要推翻，除非有强证据）
@@ -383,11 +441,12 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 
 | 优先级 | 内容 | 最小完成标准 |
 |---|---|---|
-| **下一步** | DSpark 的 `p_min`（接受阈值，当前 0.00）和 `n_min`（当前 0）尚未调过。在 `n_max=2` 下，`p_min>0` 可在草稿置信度低时提前放弃，省掉白算的草稿前向——接受率现为 0.65，有空间 | 同 1K/8K 三样本对照 `n_max=2`；看 `mean len` 与 decode 是否同向 |
+| **下一步（大）** | **MoE expert cache（§3.14）** —— 唯一已知可能带来数十个百分点的方向，同配置实测 +37%～+55%。需单独立项、需批准构建变更 | 见 §3.14 的验证清单 |
+| 下一步（小） | DSpark 的 `p_min`（当前 0.00）和 `n_min`（当前 0）尚未调过。`n_max=2` 下接受率 0.65，`p_min>0` 或可在低置信度时提前放弃、省掉白算的草稿前向 | 同 1K/8K 三样本对照 `n_max=2`；看 `mean len` 与 decode 是否同向 |
 | 高价值但需批准 | 并发吞吐测量（服务器已有 4 个 slot）。§3.11 表明带宽闲置 3.7 倍，多路并发应能把总吞吐推到远高于单流；这不改善单条对话延迟，但决定这台机器能否同时服务多 agent | 2/4 路并发的总 tok/s |
 | 长期 | 软件预取：让第 N 层计算时预读第 N+1 层专家权重，填满每层 1.8 ms 的空窗（§3.11）。llama.cpp 未实现，需改代码 | — |
 | 低优先 | 继续挖 NUMA：落点仍是 60/40 而非 50/50（§3.9 要点 1）；线程数 8–24 细扫（8 与 16 已知打平） | — |
-| **已封闭**（不要重试） | `-ot` 的 CUDA0 侧（§3.7 证伪）、shared expert/router（no-op）、`--cpu-moe-draft`（§3.10 否决）、KV 量化（KV 仅 3.7 GiB）、改 ESXi cores-per-socket（vNUMA 本就正确）、开 HT（steal=0 且不缺线程）、加线程（8 线程即饱和）、更快解码的量化格式（非算力受限）、补内存条/换 DDR4-2400（天花板未触及）、`n_max=3`（§3.12 转负） | — |
+| **已封闭**（不要重试） | `-ot` 的 CUDA0 侧（§3.7 证伪）、shared expert/router（no-op）、`--cpu-moe-draft`（§3.10 否决）、KV 量化（KV 仅 3.7 GiB）、改 ESXi cores-per-socket（vNUMA 本就正确）、开 HT（steal=0 且不缺线程）、加线程（8 线程即饱和）、更快解码的量化格式（非算力受限）、补内存条/换 DDR4-2400（天花板未触及）、`n_max=3`（§3.12 转负）、`ngram-mod`（§3.13 大幅回退） | — |
 | 可并行但需维护窗口 | GPU1 ×8：关机、清洁/重插、交换测试 | 达到 Gen3×16，或确认卡 lane 损伤并接受 ×8 |
 | 低优先 | 在 mainline 上复现 R6 prompt-cache `/health` 阻塞 | 判断是否仍存在；不要直接沿用 ik 结论 |
 | 按需 | 256K/384K 容量 profile | 峰值分配 + recall；不混入速度实验 |
