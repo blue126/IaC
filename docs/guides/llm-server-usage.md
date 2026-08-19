@@ -1,10 +1,12 @@
 # LLM Server 使用说明
 
-> **适用版本**：ik_llama.cpp commit `f7923739`，Open WebUI v0.8.2，SearXNG `latest`
+> **适用版本**：mainline llama.cpp pin `10bf611e`，Open WebUI，SearXNG `latest`
+> **最后核验**：2026-08-18（实机）
 >
 > 本文是**日常使用与运维参考**，重点回答"怎么用"。
-> 配置原理和参数调优详见 [open-webui-config.md](open-webui-config.md)；
-> 系统部署详见 [llm-server-deployment.md](../deployment/llm-server-deployment.md)。
+> Open WebUI 配置原理详见 [open-webui-config.md](open-webui-config.md)；
+> DeepSeek 的调优过程与瓶颈分析详见
+> [deepseek-v4-optimization-handoff.md](../designs/deepseek-v4-optimization-handoff.md)。
 
 ---
 
@@ -14,34 +16,69 @@
 
 ```
 浏览器
-  │  http://<server-ip>:3000
+  │  http://192.168.1.247:3000
   ▼
 Open WebUI (Docker)
-  │  http://host.docker.internal:8080/v1 (OpenAI 兼容接口)
+  │  http://host.docker.internal:8081/v1
   ▼
-llama-server (ik_llama.cpp, systemd 管理)
+openai-compat-proxy (systemd, 端口 8081, CIDR 白名单)
+  │  unit 名仍沿用历史名 deepseek-v4-ik-compat
+  │  http://127.0.0.1:8082
+  ▼
+llama-server (mainline llama.cpp, Docker Compose + systemd)
   │  /data/models/*.gguf
   ▼
-GGUF 模型文件 (Dual RTX 3090 + CPU 混合推理)
-
-Open WebUI ←→ SearXNG (Docker 内部, http://searxng:8080)
-              ↕
-         Google / Bing / DuckDuckGo / Wikipedia (聚合搜索)
+Dual RTX 3090 (48GB) + 384GB RAM
 ```
 
-**硬件**：Dell T7910，2× RTX 3090 (48GB VRAM)，384GB RAM，Ubuntu VM (ESXi)
+**关键**：`8081` 是稳定入口，**永远不变**。后端 `8082` 由当前运行的模型占用，
+切换模型时 Open WebUI 和所有客户端**无需任何改动**。
+
+**硬件**：Dell T7910，2× RTX 3090 (48GB VRAM)，双路 E5-2686 v4（36 核），384GB RAM，Ubuntu VM (ESXi)
 
 ### 1.2 可用模型
 
-同一时间**只运行一个模型**，通过 `switch-model` 命令切换（约 30 秒冷启动）。
+同一时间**只运行一个模型**（两者合计超过 48GB 显存，且共用后端端口 8082），
+通过 Ansible playbook 切换。
 
-| 模型 | 服务名 | 架构 | 量化 | ctx | parallel | 速度 | 特性 |
-|------|--------|------|------|-----|----------|------|------|
-| **Qwen3-VL-32B** | llama-server@qwen3-vl-32b | Dense 32B | Q4_K_M | 65536 | 2 | ~31 tok/s | 视觉（图片）、推理 |
-| **MiniMax M2.5** | llama-server@m25 | MoE 230B (10B active) | UD-Q5_K_XL | 65536 | 1 | ~8 tok/s | 深度推理 |
-| **GLM-4.7-Flash** | llama-server@glm-4.7 | MoE | Q4_K_M | 32768 | 1 | 未实测 | 轻量快速 |
+| 模型 | 服务名 | 架构 | 量化 | ctx | decode 实测 | 定位 |
+|------|--------|------|------|-----|------------|------|
+| **Qwen3.6-27B** | `qwen36` | Dense 27B（原生多模态） | Q5_K_M | 131072 | **37.6 tok/s** | **日常主力**，开机自启 |
+| **DeepSeek V4 Flash** | `deepseek-v4-mainline` | MoE 284B（约 13B 激活） | UD-Q3_K_M | 131072 | 9.5 tok/s | 高难任务，按需启动 |
 
-> **当前开机模型**：qwen3-vl-32b（服务器重启后自动启动）
+> 两个 playbook 都不会改变开机归属：Qwen 始终 `enabled`，DeepSeek 始终 `disabled`。
+> 切换只影响当前运行的服务，重启后回到 Qwen。
+
+> **当前开机模型**：`qwen36`（`enabled`）。DeepSeek 为 `disabled`，需手工切换。
+
+### 1.3 API 接入
+
+| 项 | 值 |
+|---|---|
+| Base URL | `http://192.168.1.247:8081/v1` |
+| 模型名 | `qwen36` 或 `deepseek-v4-flash`（取决于当前运行哪个） |
+| API Key | 不需要 |
+| 访问控制 | CIDR 白名单：`192.168.1.0/24`、`172.17.0.0/16`、`172.18.0.0/16`、`127.0.0.0/8` |
+| 协议 | OpenAI 兼容（`/v1/chat/completions`、`/v1/models`） |
+
+**先确认当前跑的是哪个模型**——`model` 名写错会得到 404：
+
+```bash
+curl -s http://192.168.1.247:8081/v1/models | python3 -m json.tool
+```
+
+```bash
+curl http://192.168.1.247:8081/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "qwen36",
+    "messages": [{"role": "user", "content": "你好"}],
+    "chat_template_kwargs": {"enable_thinking": false}
+  }'
+```
+
+**白名单之外的客户端会被拒绝**（例如经 Tailscale 访问）。需要放通时修改
+`ansible/inventory/host_vars/llm-server.yml` 的 `deepseek_v4_ik_api_allowed_cidrs`。
 
 ---
 
@@ -49,31 +86,48 @@ Open WebUI ←→ SearXNG (Docker 内部, http://searxng:8080)
 
 ### 2.1 模型对比
 
-| | Qwen3-VL-32B | MiniMax M2.5 | GLM-4.7-Flash |
-|---|---|---|---|
-| **定位** | 日常主力（视觉+推理） | 深度推理 | 极速响应 |
-| **生成速度** | ~31 tok/s | ~8 tok/s | 最快（未实测） |
-| **思考模式** | ✅ reasoning_format=auto | ✅ reasoning_format=auto | 未确认 |
-| **视觉（图片）** | ✅ mmproj 视觉编码 | ❌ | ❌ |
-| **并发请求** | 2 个 slot | 1 个 slot | 1 个 slot |
-| **中文质量** | 极强 | 极强 | 好 |
-| **VRAM 占用** | ~36GB（全 GPU） | ~48GB VRAM + CPU RAM 混合 | ~18GB |
-
-> M2.5 使用 CPU-GPU 混合推理：注意力层在 GPU，MoE expert 层部分在 GPU、部分在 CPU。
-> 48GB VRAM 无法容纳全部 230B 参数，因此通过 tensor override 精确控制每层放置位置。
+| | Qwen3.6-27B | DeepSeek V4 Flash |
+|---|---|---|
+| **定位** | 日常主力 | 高难任务 |
+| **decode 实测** | **37.6 tok/s** | 9.5 tok/s |
+| **8K 提示首字延迟** | 数秒 | **约 38 秒** |
+| **加载时间** | **20 秒** | 4–5 分钟 |
+| **显存** | 28.5 GB（剩约 19 GB） | 约 40 GB（剩约 8 GB） |
+| **SWE-bench Verified** | 77.2（厂商自报） | 79.0（厂商自报） |
+| **思考模式** | 可关（见 2.3） | 默认开 |
+| **工具调用** | ✅ playbook 每次部署都验证结构化 `tool_calls` | 未纳入当前 playbook 验证 |
+| **视觉** | 模型原生支持，但当前**未加载 mmproj**，等同不可用 | ❌ |
 
 ### 2.2 场景推荐
 
-| 场景 | 推荐模型 | 原因 |
-|------|---------|------|
-| **图片分析、截图解读** | Qwen3-VL-32B | 唯一支持视觉的模型 |
-| **日常问答、写作、代码** | Qwen3-VL-32B | 默认开机模型，速度快，综合能力强 |
-| **复杂推理、长文深度分析** | M2.5 或 Qwen3-VL | M2.5 更深但更慢，按时间/质量需求选择 |
-| **两人同时使用** | Qwen3-VL-32B | parallel=2，唯一支持双 slot 并发 |
-| **快速检索、简单问答** | GLM-4.7-Flash | 轻量快速（如已切换到该模型） |
+| 场景 | 推荐 | 原因 |
+|------|------|------|
+| **日常问答、写作、代码** | Qwen3.6 | 实测 decode 约快 4 倍，适合高频交互 |
+| **agent 多轮工具循环**（Hermes、OpenClaw） | Qwen3.6 | 多轮任务会累积 TTFT 和生成延迟 |
+| **大范围重构、迁移、安全相关** | DeepSeek | 厂商基准略高，但本地任务正确率尚未对照验证；适合愿意用等待换取潜在质量收益的任务 |
+| **根因高度模糊、错误代价高的任务** | DeepSeek | 作为高能力备用档；是否更正确需结合你的实际任务验证 |
 
-> M2.5 的 ~8 tok/s 不代表"不可用"——开启 thinking 后大量推理在 `<think>` 阶段完成，
-> 最终答案质量可能更高。适合不赶时间的复杂任务。
+> 判断依据：多轮循环会放大延迟——每轮的首字延迟和生成时间累加，DeepSeek 的 38 秒
+> 8K TTFT 在十轮任务里代价显著。单次深度问题则相反，等待换取质量可能划算。
+>
+> 上面两个 SWE-bench 数字都是**厂商自报、不同 harness**，不足以证明两个本地 GGUF
+> 在同一 agent 框架下的真实差距。请以你自己任务上的实测为准。
+
+### 2.3 思考模式（Qwen3.6）
+
+**默认开启**，回答会进 `reasoning_content`，`content` 为空。日常使用建议关闭：
+
+```json
+"chat_template_kwargs": {"enable_thinking": false}
+```
+
+关闭后 `<think>` 块为空，答案直接进 `content`。需要深度推理时去掉这一行即可。
+
+### 2.4 接 agent 框架的注意事项
+
+- **有副作用的工具设** `"parallel_tool_calls": false` —— Hermes 社区实测这一项把依赖调用错误从 10/10 降到 0/10
+- **OpenClaw 开** `localModelLean` —— 减少工具 schema 和隐藏上下文开销
+- **不要用 Q4 KV** —— llama.cpp 明确警告激进 KV 量化会伤害工具调用；本部署固定 `f16`
 
 ---
 
@@ -82,104 +136,125 @@ Open WebUI ←→ SearXNG (Docker 内部, http://searxng:8080)
 ### 3.1 查看当前状态
 
 ```bash
-# 当前运行的模型实例
-systemctl list-units 'llama-server@*' --state=active
+# 哪个模型在跑
+systemctl is-active qwen36 deepseek-v4-mainline
 
-# 服务状态详情（含最近日志）
-systemctl status llama-server@qwen3-vl-32b
+# 稳定入口与后端健康
+curl -sf http://127.0.0.1:8081/health && echo "stable OK"
+curl -sf http://127.0.0.1:8082/health && echo "backend OK"
 
-# API 健康检查
-curl -sf http://localhost:8080/health && echo "OK"
+# 当前模型名
+curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool
 
-# 当前加载的模型名称
-curl -s http://localhost:8080/v1/models | python3 -m json.tool
+# 显存
+nvidia-smi --query-gpu=index,memory.used --format=csv
 ```
 
 ### 3.2 切换模型
 
-```bash
-# 查看可用模型列表 + 当前状态
-switch-model
+**在开发机执行**，不是在服务器上：
 
-# 切换到指定模型
-switch-model qwen3-vl-32b    # 视觉模型（默认）
-switch-model m25              # MiniMax M2.5
-switch-model glm-4.7          # GLM-4.7-Flash
+```bash
+cd /workspaces/IaC/ansible
+
+# 切到 Qwen3.6（日常）
+ansible-playbook playbooks/deploy-qwen36.yml
+
+# 切到 DeepSeek（高难任务）
+ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml
 ```
 
-切换流程：
-1. 停止所有 `llama-server@*` 实例
-2. 启动目标模型实例
-3. 轮询 `/health` 接口直到就绪（超时 120 秒）
-4. 输出 `✓ <model> ready`
+每条命令都是完整部署 + 验证：校验模型文件 → 停掉另一个运行时 → 等端口释放 →
+启动目标 → 等 health → 跑固定 chat（Qwen 还会验证结构化工具调用）。
 
-> **切换期间服务不可用**。如有用户正在对话，请求会超时。
-> 切换完成后 Open WebUI **无需重启**，刷新页面或点击模型下拉框即可看到新模型。
+> **两个模型的校验强度不同**：Qwen 每次部署都计算并比对 SHA-256；DeepSeek 保存了
+> SHA-256 pin，但日常部署**默认只检查文件大小**（哈希 138GB 要约 7 分钟）。模型
+> 重新同步或来源变化后，显式跑一次完整校验（注意这是**完整部署**，会切换并重启服务，
+> 不只是算哈希）：
+>
+> ```bash
+> ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml \
+>   -e deepseek_v4_mainline_verify_model_checksums=true
+> ```
+>
+> **模型每次重新下载、同步或替换后都应执行一次**——大小检查发现不了同尺寸替换或静默损坏。
+
+耗时：Qwen 约 1 分钟，DeepSeek 约 4–5 分钟（模型 130GB，加载慢）。
+
+> **切换期间服务不可用**，正在进行的对话会超时。
+> 切换后 Open WebUI **无需重启**，但模型下拉框里的名字会变，需要重新选一次。
+
+**只做只读验证**（不切换、不重启）——**按当前运行的模型二选一**，两个 verify 都会
+断言自己是唯一 active 的运行时，验证未运行的那个必然失败：
+
+```bash
+ansible-playbook playbooks/deploy-qwen36.yml --tags verify
+ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
+```
 
 ### 3.3 查看推理日志
 
+**以下命令在 LLM 服务器上执行**（`ssh ubuntu@192.168.1.247`）。两个模型都跑在
+Docker 里，推理日志用 `docker logs`，`journalctl` 只有启停记录。
+
 ```bash
-# 实时日志流
-journalctl -u llama-server@qwen3-vl-32b -f
+# 当前容器名
+docker ps --format '{{.Names}}' | grep -E 'qwen36|deepseek'
 
-# 最近 100 行
-journalctl -u llama-server@qwen3-vl-32b -n 100
+# 实时日志（按当前运行的模型二选一）
+docker logs -f qwen36-server-1
+docker logs -f deepseek-v4-mainline-server-1
 
-# 按时间过滤
-journalctl -u llama-server@qwen3-vl-32b --since "10 minutes ago"
+# 只看速度指标
+docker logs -f qwen36-server-1 | grep -E 'tok/s|print_timing'
 
-# 只看生成速度指标
-journalctl -u llama-server@qwen3-vl-32b -f | grep -E 'tok/s|timing'
+# systemd 层面（只有启停，没有推理日志）
+journalctl -u qwen36 -n 50
+journalctl -u deepseek-v4-mainline -n 50
 ```
 
+> 若当前用户不在 `docker` 组，所有 `docker` 命令前加 `sudo`。
+
 关注指标：
-- `n_prompt_tokens_processed`：prefill token 数（越多 TTFT 越长）
-- `eval duration` / `tok/s`：生成速度
+- `prompt eval time` —— prefill，决定首字延迟
+- `eval time` / `tok/s` —— 生成速度
+- `draft acceptance` / `mean len` —— 仅 DeepSeek，投机解码效率
 
 ### 3.4 服务管理
 
+**在 LLM 服务器上执行。**
+
 ```bash
-# 重启当前模型（修改配置后）
-sudo systemctl restart llama-server@qwen3-vl-32b
+# 重启当前模型（按实际运行的那个）
+sudo systemctl restart qwen36
+sudo systemctl restart deepseek-v4-mainline
 
-# 手动停止（停机维护）
-sudo systemctl stop 'llama-server@*'
+# 停机维护（两个都停）
+sudo systemctl stop qwen36 deepseek-v4-mainline
 
-# 查看 systemd 服务定义
-systemctl cat llama-server@qwen3-vl-32b
+# 查看服务定义
+systemctl cat qwen36
 ```
 
-> 直接 `systemctl stop/start` 不经过 switch-model 的健康检查。
-> 维护场景使用；日常切换请用 `switch-model`。
+> 两个 unit 互相声明了 `Conflicts=`，启动一个会自动停掉另一个——它们抢同一个后端
+> 端口 8082，且合计超过 48GB 显存。
+>
+> 直接 `systemctl start` 不经过 Ansible 的文件校验和验证步骤，**也不会调整开机归属**。
+> 日常切换请用 playbook；`systemctl` 仅用于维护。
 
-### 3.5 模型配置文件
+### 3.5 配置与参数
 
-配置文件位于 `/opt/llm-server/models/`：
+参数由 Ansible role 管理，**不要直接改服务器上的文件**（下次部署会覆盖）：
 
-```
-/opt/llm-server/models/
-  ├── m25.env              # MiniMax M2.5 参数
-  ├── m25.ot               # MiniMax M2.5 tensor override 规则
-  ├── qwen3-vl-32b.env     # Qwen3-VL 参数
-  └── glm-4.7.env          # GLM-4.7 参数
-```
+| 模型 | role 默认值 |
+|------|------------|
+| Qwen3.6 | `ansible/roles/qwen36/defaults/main.yml` |
+| DeepSeek | `ansible/roles/deepseek-v4-mainline/defaults/main.yml` |
 
-关键变量（`.env` 文件）：
+改完重跑对应 playbook 即可生效。
 
-| 变量 | qwen3-vl-32b | m25 | glm-4.7 |
-|------|-------------|-----|---------|
-| LLAMA_CTX_SIZE | 65536 | 65536 | 32768 |
-| LLAMA_PARALLEL | 2 | 1 | 1 |
-| LLAMA_TEMP | 0.6 | 0.8 | 1.0 |
-| LLAMA_TOP_K | 20 | 40 | — |
-| LLAMA_TOP_P | 0.95 | 0.95 | 0.95 |
-| LLAMA_REASONING_FORMAT | auto | auto | — |
-| LLAMA_CACHE_TYPE_K / V | q8_0 | q8_0 | q8_0 |
-| LLAMA_MMPROJ | ✅ (视觉编码器) | — | — |
-
-> **临时调参**：直接编辑 `.env` 文件，然后 `sudo systemctl restart llama-server@<name>`。
-> **持久化**：修改 `ansible/inventory/host_vars/llm-server.yml` 并重跑 Ansible playbook，
-> 否则下次 Ansible 运行会覆盖 `.env`。
+两个模型都保存了 SHA-256 pin。**Qwen 每次部署强制比对**；DeepSeek 日常部署只检查
+文件大小，显式开启完整校验时才比对 SHA-256（见 3.2）。
 
 ---
 
@@ -193,15 +268,18 @@ systemctl cat llama-server@qwen3-vl-32b
 
 ### 4.2 选择模型
 
-打开新对话 → 点击顶部模型下拉框选择：
+打开新对话 → 点击顶部模型下拉框：
 
-- `qwen3-vl-32b` — 当前运行的 Qwen3-VL 模型
-- `MiniMax-M2.5` — 切换到 M2.5 后才可见
-- `glm-4.7-flash` — 切换到 GLM 后才可见
-- `gpt-4o-mini` — OpenAI API（仅用于标题/标签生成，不建议直接对话）
+- `qwen36` —— 当前运行的 Qwen3.6（日常默认）
+- `deepseek-v4-flash` —— 仅在切换到 DeepSeek 后才出现
+- `gpt-4o-mini` —— OpenAI API，仅用于标题/标签生成，不建议直接对话
 
-> 模型列表由 Open WebUI 从 llama-server 的 `/v1/models` 动态拉取。
-> 如果看不到某个模型，说明对应的 llama-server 实例未运行，需要 SSH 切换（见 Section 3.2）。
+> 模型列表由 Open WebUI 从稳定入口 `8081` 的 `/v1/models` 动态拉取。**同一时间只会有
+> 一个本地模型**——看不到另一个是正常的，说明它没在跑。
+>
+> 切换模型后如果下拉框没更新，刷新页面即可。若某个自定义模型条目指向了已不存在的
+> base model，会报 `404: Model not found`，需要在 Workspace → Models 里改 base model
+> 或删掉该条目。
 
 ### 4.3 Web 搜索
 
@@ -220,22 +298,11 @@ systemctl cat llama-server@qwen3-vl-32b
 
 ### 4.4 上传图片（视觉功能）
 
-> **仅 Qwen3-VL-32B 支持**。M2.5 和 GLM 不支持视觉，上传图片不会被识别。
+> **当前不可用。** Qwen3.6-27B 本身是原生多模态模型，但本部署**没有加载 mmproj
+> 视觉投影器**，因此上传图片不会被识别。
 
-**操作步骤**：
-1. 确认顶部显示 `qwen3-vl-32b` 模型
-2. 点击输入框旁的纸夹/上传图标
-3. 选择图片文件（JPG、PNG、WebP）
-4. 输入问题，发送
-
-**支持场景**：
-- 截图解读（代码、错误信息、UI 界面）
-- 图表/图形分析
-- OCR（从图片提取文字）
-- 多图对比（注意 ctx 消耗较大）
-
-> 图片由 mmproj 视觉编码器转为 token，分辨率越高消耗 ctx 越多。
-> 高分辨率图片（4K）可能增加数秒的 prefill 时间。
+要启用需要额外下载对应的 mmproj GGUF 并在 role 里加 `--mmproj` 参数。纯文本场景下
+不加载它没有任何开销，所以默认关闭。
 
 ### 4.5 Memory（记忆功能）
 
@@ -262,36 +329,30 @@ systemctl cat llama-server@qwen3-vl-32b
 
 ## 5. 性能预期与等待时间
 
-### 5.1 各模型速度参考
+速度与能力对比见 [2.1](#21-模型对比)，此处只解释成因和使用影响。
 
-| 模型 | 生成速度 | 短 prompt TTFT | 长 prompt TTFT | 备注 |
-|------|---------|---------------|---------------|------|
-| Qwen3-VL-32B | ~31 tok/s | <1s | ~3s | Dense 全 GPU，KV cache q8_0 |
-| MiniMax M2.5 | ~8 tok/s | ~3s | ~8s | CPU-GPU 混合，含 thinking |
-| GLM-4.7-Flash | 未实测 | — | — | 预期最快（轻量 MoE） |
+> decode 数字为固定 corpus、cold prefill、三样本中位。标"约/数秒"的首字延迟是运维
+> 观察值，不是同等方法的正式基准。
 
-> TTFT = Time to First Token，发送消息后到第一个 token 出现的等待时间。
-> Builtin Tools 开启越多，baseline prompt_tokens 越高，TTFT 越长
-> （详见 [open-webui-config.md](open-webui-config.md) Section 2.2）。
+### 5.1 DeepSeek 为什么慢
+
+它的 112 GiB 专家权重放不进 48GB 显存，只能常驻主存，每生成一个 token 要从内存读约
+2.6 GiB。已实测确认瓶颈是 43 层串行链的每层固定开销（每层 2.6 ms 中仅 0.8 ms 是内存
+读取），**不是带宽、不是线程数、不是 PCIe 宽度**——机器内存带宽 80 GB/s 只用掉 27%，
+PCIe 只用掉 1.4%。
+
+详见 [deepseek-v4-optimization-handoff.md](../designs/deepseek-v4-optimization-handoff.md)，
+里面记录了已实测排除的十余个方向，避免重复投入。
 
 ### 5.2 Web 搜索额外延迟
 
-模型决定搜索时额外增加 ~3-5 秒（SearXNG 查询 + 结果返回）。
-不搜索时无额外延迟。
+搜索 + 抓取网页通常增加 3–10 秒，取决于返回站点数量。
 
-### 5.3 图片处理额外延迟
+### 5.3 并发使用
 
-mmproj 编码阶段：视图片分辨率通常 1-5 秒。之后 TTFT 与纯文本无显著差异。
-
-### 5.4 并发使用
-
-| 模型 | 并发 slot | 行为 |
-|------|----------|------|
-| Qwen3-VL-32B | 2 | 两个请求可同时推理 |
-| M2.5 / GLM | 1 | 第二个请求排队等待 |
-
-> Task Model (gpt-4o-mini) 走外部 OpenAI API，不占用本地 slot。
-> 标题/标签生成不影响用户请求。
+后端自动初始化 4 个 slot。**并发会摊薄单请求速度**。DeepSeek 的内存带宽有大量闲置
+（只用了 27%），说明并发总吞吐**有提升潜力**，但 2/4 路并发尚未正式测量——
+**不要用单流数字乘以 slot 数来做容量承诺**。
 
 ---
 
@@ -299,143 +360,174 @@ mmproj 编码阶段：视图片分辨率通常 1-5 秒。之后 TTFT 与纯文�
 
 ### 6.1 模型没有响应 / 连接错误
 
-```bash
-# 1. 确认 llama-server 是否在运行
-systemctl list-units 'llama-server@*' --state=active
-# 无输出 = 没有模型在运行
-
-# 2. 检查健康状态
-curl -sf http://localhost:8080/health && echo "healthy" || echo "not ready"
-
-# 3. 未运行则启动
-switch-model qwen3-vl-32b
-
-# 4. 查看错误日志
-journalctl -u llama-server@qwen3-vl-32b -n 50
-```
-
-### 6.2 响应速度很慢
-
-| 现象 | 可能原因 | 解决 |
-|------|---------|------|
-| 发送后长时间空白 | Thinking 阶段（`<think>` 内容不显示） | 正常现象，等待 "Thought for X seconds" |
-| TTFT 很长 | 开启了过多 Builtin Tools | 关闭不必要的 Tools（Code Interpreter 等） |
-| 长对话越来越慢 | KV cache 接近 ctx 上限 | 新建对话 |
-| 明显低于预期速度 | GPU 异常 | 查 `journalctl` 日志 + `nvidia-smi` |
-
-### 6.3 Web 搜索不工作
-
-排查清单：
-
-```
-✅ 输入框旁 🌐 按钮是否开启？
-✅ Admin → Settings → Web Search 全局开关是否开启？
-✅ SearXNG 容器是否健康？
-```
+**在 LLM 服务器上**：
 
 ```bash
-# 验证 SearXNG 状态
-docker exec searxng wget -qO- "http://localhost:8080/healthz"
+# 1. 哪个模型在跑？两个都 inactive 就是没起来
+systemctl is-active qwen36 deepseek-v4-mainline
+
+# 2. 后端和稳定入口
+curl -sf http://127.0.0.1:8082/health && echo "backend OK"
+curl -sf http://127.0.0.1:8081/health && echo "stable OK"
+
+# 3. 容器层面的错误 —— 先确认容器名，再按当前模型二选一
+docker ps --format '{{.Names}}' | grep -E 'qwen36|deepseek'
+docker logs --tail 30 qwen36-server-1
+docker logs --tail 30 deepseek-v4-mainline-server-1
 ```
 
-> Native FC 模式下模型自主决定是否搜索。如果问题"看起来不需要外部信息"，
-> 模型可能不触发搜索。可在消息中明确要求。
+**在开发机的 `/workspaces/IaC/ansible` 目录**（重新部署会做完整校验）：
 
-### 6.4 图片上传后模型没看到
+```bash
+ansible-playbook playbooks/deploy-qwen36.yml
+```
 
-1. 确认当前模型是 `qwen3-vl-32b`（其他模型不支持视觉）
-2. 确认 Admin → Models → qwen3-vl-32b → Capabilities → Vision 已勾选
-3. 检查 mmproj 加载：
-   ```bash
-   journalctl -u llama-server@qwen3-vl-32b -n 100 | grep -i mmproj
-   ```
+**8082 通但 8081 不通**：兼容代理没起来 →
+`sudo systemctl start deepseek-v4-ik-compat`（unit 名沿用历史名）。
 
-### 6.5 对话标题未生成
+**从外部机器连不上**：检查来源 IP 是否在白名单内（见 1.3）。Tailscale 等非
+`192.168.1.0/24` 的来源会被拒绝。
 
-- 标题由 gpt-4o-mini (Task Model) 生成，需要外网连接
-- 检查：`docker logs open-webui --tail 50 2>&1 | grep -E '500|title|error'`
-- 不影响对话功能，仅标题显示为默认值
+### 6.2 回复内容是空的
 
-### 6.6 切换模型后看不到新模型
+Qwen3.6 **默认开启思考模式**，答案进 `reasoning_content` 而不是 `content`。
+请求里加：
 
-1. 确认 switch-model 输出 `✓ <model> ready`
-2. 验证就绪：`curl -sf http://localhost:8080/health && echo "ready"`
-3. 刷新 Open WebUI 页面或重新点击模型下拉框
-4. 如仍不可见：`curl -s http://localhost:8080/v1/models | python3 -m json.tool`
+```json
+"chat_template_kwargs": {"enable_thinking": false}
+```
+
+Open WebUI 里看不到这个现象（它会显示 reasoning），但用 API 直连时很常见。
+
+**先看 `reasoning_content`**：它非空而 `content` 为空，属于思考模式的正常表现；
+**两者都为空才是异常**，继续检查 `finish_reason` 和容器日志。
+
+### 6.3 `404: Model not found`
+
+**最常见的原因是请求里的 `model` 与当前后端不一致**——同一时间只有一个模型在跑。
+
+**第一步**，确认当前实际提供的模型名：
+
+```bash
+curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool
+```
+
+请求里的 `model` 必须等于返回的 `data[].id`（`qwen36` 或 `deepseek-v4-flash`）。
+
+**第二步**，如果直接调 API 正常、只有 Open WebUI 报 404，那是 Open WebUI 的自定义
+模型条目指向了已不存在的 base model。到 Workspace → Models 找到该条目，把 base
+model 改成当前存在的，或直接删掉这个自定义条目。
+
+### 6.4 响应速度突然变慢
+
+```bash
+# 确认跑的是哪个模型——切到 DeepSeek 会慢 4 倍
+curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool
+
+# 有没有别的进程抢 GPU
+nvidia-smi
+
+# 是不是并发请求摊薄了（容器名按当前模型替换）
+docker logs --tail 20 qwen36-server-1 | grep slot
+```
+
+### 6.5 工具调用不工作 / 返回裸 JSON
+
+模型把工具调用当普通文本输出，而不是结构化的 `tool_calls`。按层排查：
+
+**1. 用 playbook 的 canonical 验证**（开发机 `/workspaces/IaC/ansible`）：
+
+```bash
+ansible-playbook playbooks/deploy-qwen36.yml --tags verify
+```
+
+它会直接断言 `tool_calls` 能被解析出来。这一步过了说明服务端没问题。
+
+**2. 分别打后端和稳定入口**（服务器上），同一个带 `tools` 的请求：
+
+| 现象 | 结论 |
+|---|---|
+| 8082 结构化、8081 异常 | 兼容代理的问题 |
+| 两边都是裸 JSON/XML | 模型模板或 llama.cpp parser 没生效，检查 `--jinja` |
+| 两边都正常、只有 Open WebUI 异常 | Open WebUI 的 Function Calling 需设为 `native` |
+
+**3. 检查请求本身**：`tools` 数组是否符合 OpenAI 规范。
+
+> **不要在客户端自己解析裸 JSON 绕过去**——那说明模板或解析器没生效，应该修服务端。
+
+### 6.6 Web 搜索不工作
+
+```bash
+docker ps --filter name=searxng
+docker logs --tail 20 searxng
+```
+
+确认 Open WebUI 里 🌐 按钮已开启（它是"授权模型使用搜索"，不是"强制搜索"）。
 
 ---
 
 ## 7. 快速参考卡
 
-### 7.1 服务端常用命令
+### 7.1 常用命令
+
+**在 LLM 服务器上**（`ssh ubuntu@192.168.1.247`）：
 
 ```bash
-# === 状态查看 ===
-systemctl list-units 'llama-server@*' --state=active   # 当前运行哪个模型
-curl -sf http://localhost:8080/health && echo "OK"      # API 健康检查
-curl -s http://localhost:8080/v1/models | python3 -m json.tool  # 模型名称
+systemctl is-active qwen36 deepseek-v4-mainline
+curl -sf http://127.0.0.1:8081/health && echo OK
+curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool
+nvidia-smi --query-gpu=index,memory.used --format=csv
 
-# === 切换模型 ===
-switch-model                  # 列出可用模型 + 当前状态
-switch-model qwen3-vl-32b    # 视觉模型（默认开机）
-switch-model m25              # MiniMax M2.5
-switch-model glm-4.7          # GLM-4.7-Flash
-
-# === 日志 ===
-journalctl -u llama-server@qwen3-vl-32b -f     # 实时日志
-journalctl -u llama-server@qwen3-vl-32b -n 50  # 最近 50 行
-
-# === Docker ===
-docker ps                          # 容器状态
-docker logs open-webui --tail 50   # Open WebUI 日志
-docker restart open-webui          # 重启 Open WebUI
+docker logs -f qwen36-server-1
+docker logs -f deepseek-v4-mainline-server-1
+docker restart open-webui
 ```
 
-### 7.2 模型特性速查
+**在开发机的 `/workspaces/IaC/ansible` 目录**：
 
-| 功能 | Qwen3-VL-32B | M2.5 | GLM-4.7 |
-|------|:-----------:|:---:|:-------:|
-| 图片/视觉 | ✅ | ❌ | ❌ |
-| 深度推理 | ✅ (auto) | ✅ (auto) | — |
-| 中文 | ✅✅ | ✅✅ | ✅ |
-| 速度 | ~31 tok/s | ~8 tok/s | 最快 |
-| 并发 | 2 slot | 1 slot | 1 slot |
-| 默认开机 | ✅ | ❌ | ❌ |
+```bash
+ansible-playbook playbooks/deploy-qwen36.yml                  # 切到日常
+ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml    # 切到高难任务
+ansible-playbook playbooks/deploy-qwen36.yml --tags verify    # 只验证，不重启
+```
 
-### 7.3 Open WebUI 快捷操作
+### 7.2 模型速查
 
-| 操作 | 方法 |
+| | Qwen3.6 | DeepSeek V4 Flash |
+|---|---|---|
+| 模型名 | `qwen36` | `deepseek-v4-flash` |
+| 服务 | `qwen36` | `deepseek-v4-mainline` |
+| 速度 | 37.6 tok/s | 9.5 tok/s |
+| 开机自启 | ✅ | ❌ |
+| 思考模式 | 可关 | 默认开 |
+
+### 7.3 访问地址
+
+| 服务 | 地址 |
 |------|------|
-| 新建对话 | `Ctrl+Shift+O` |
-| 切换模型 | 顶部下拉框 |
-| 开启搜索 | 输入框旁 🌐 按钮 |
-| 上传图片 | 输入框旁纸夹图标（需 qwen3-vl-32b） |
-| 管理记忆 | 头像 → Settings → Personalisation → Memory |
-
-### 7.4 访问地址
-
-| 服务 | 地址 | 说明 |
-|------|------|------|
-| Open WebUI | `http://<server-ip>:3000` | 主前端 |
-| llama-server API | `http://<server-ip>:8080/v1` | OpenAI 兼容接口 |
-| 健康检查 | `http://<server-ip>:8080/health` | 就绪状态 |
-| SearXNG | Docker 内部 `http://searxng:8080` | 不暴露到宿主机 |
+| Open WebUI | `http://192.168.1.247:3000` |
+| **API（稳定入口）** | **`http://192.168.1.247:8081/v1`** |
+| 健康检查 | `http://192.168.1.247:8081/health` |
+| 后端（仅本机） | `http://127.0.0.1:8082` |
+| SearXNG | Docker 内部，不暴露 |
 
 ---
 
 ## 8. 延伸阅读
 
-| 文档 | 内容 | 适合场景 |
-|------|------|---------|
-| [open-webui-config.md](open-webui-config.md) | Open WebUI 全部设置原理、陷阱、推荐配置 | 理解 Native FC、Builtin Tools 开销、搜索配置 |
-| [multi-model-deployment-plan.md](../deployment/multi-model-deployment-plan.md) | systemd 模板单元架构设计 | 理解 switch-model / launch-llama 内部机制 |
-| [qwen3-vl-32b-tuning-log.md](qwen3-vl-32b-tuning-log.md) | Qwen3-VL 7 轮调优 + 64K 上下文测试 | 视觉模型 benchmark、参数选型依据 |
-| [minimax-m25-tuning-log.md](minimax-m25-tuning-log.md) | M2.5 17 轮调优记录 | CPU-MoE 配置依据、各参数实测影响 |
-| [llm-server-deployment.md](../deployment/llm-server-deployment.md) | Terraform + Ansible 完整部署方案 | 重新部署或理解基础设施配置 |
-| [minimax-llama.md](../designs/minimax-llama.md) | M2.5 原始部署设计 | 引擎选型背景、CPU-MoE 架构原理 |
+| 文档 | 内容 |
+|------|------|
+| [deepseek-v4-optimization-handoff.md](../designs/deepseek-v4-optimization-handoff.md) | DeepSeek 调优全过程、瓶颈归因、已排除的十余个方向 |
+| [open-webui-config.md](open-webui-config.md) | Open WebUI 设置原理、Native FC、搜索配置（⚠️ 其中模型名、8080 端口和 llama-server 命令属于已退役体系，**不可照抄**） |
+| [llm-server-deployment.md](../deployment/llm-server-deployment.md) | Terraform + Ansible 基础设施部署（⚠️ 模型与 llama-server 部分仍是已退役的 ik + MiniMax 方案） |
+
+> 历史文档（描述已退役的 ik_llama.cpp / `switch-model` 体系，仅作背景参考）：
+> [multi-model-deployment-plan.md](../deployment/multi-model-deployment-plan.md)、
+> [qwen3-vl-32b-tuning-log.md](qwen3-vl-32b-tuning-log.md)、
+> [minimax-llama.md](../designs/minimax-llama.md)
 
 ---
 
-> **参数覆盖优先级**：Open WebUI 模型设置 > llama-server `.env` 默认值。
-> 如果在 Open WebUI 中设置了 Temperature/top_k/top_p 等参数，会覆盖服务端配置。
-> 建议在 Open WebUI 侧保持 Default，统一由 `.env`（Ansible 管理）控制。
+> **参数覆盖优先级**：请求里的采样参数会覆盖 llama-server 默认值。当前部署没有在
+> role 里固定 Temperature/top_k/top_p，用的是 llama-server 自身默认值。若要全局
+> 统一，需要先把这些参数显式写进对应 role 的 `defaults/main.yml`。
