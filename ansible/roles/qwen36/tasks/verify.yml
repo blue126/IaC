@@ -1,0 +1,114 @@
+---
+- name: Inspect the Qwen3.6 runtime owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ qwen36_service_unit }}"]
+  register: qwen36_verify_owner
+  changed_when: false
+  failed_when: false
+
+- name: Inspect the displaced DeepSeek runtime owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_mainline_service_unit_ref }}"]
+  register: qwen36_verify_other
+  changed_when: false
+  failed_when: false
+
+- name: Require Qwen3.6 to be the only runtime owner
+  ansible.builtin.assert:
+    that:
+      - qwen36_verify_owner.stdout | trim == 'active'
+      - qwen36_verify_other.stdout | trim != 'active'
+    fail_msg: Qwen3.6 is not the sole active runtime owner.
+
+- name: Verify the backend health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qwen36_backend_port }}/health"
+    status_code: 200
+
+- name: Verify the stable API health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qwen36_stable_port }}/health"
+    status_code: 200
+  register: qwen36_stable_health
+  until: qwen36_stable_health.status == 200
+  retries: 12
+  delay: 5
+
+- name: Verify a deterministic chat through the stable API
+  ansible.builtin.uri:
+    url: >-
+      http://127.0.0.1:{{ qwen36_stable_port }}/v1/chat/completions
+    method: POST
+    body_format: json
+    body:
+      model: "{{ qwen36_model_name }}"
+      messages:
+        - role: user
+          content: "{{ qwen36_chat_prompt }}"
+      temperature: 0
+      seed: 42
+      max_tokens: 32
+      chat_template_kwargs:
+        enable_thinking: false
+    status_code: 200
+    return_content: true
+    timeout: 300
+  register: qwen36_verify_chat
+
+- name: Require a non-empty deterministic chat response
+  ansible.builtin.assert:
+    that:
+      - qwen36_verify_chat.json.choices | length > 0
+      - >-
+        qwen36_verify_chat.json.choices[0].message.content |
+        default('') | trim | length > 0
+    fail_msg: >-
+      Qwen3.6 returned no content with thinking disabled. Check that the chat
+      template still honours enable_thinking.
+
+- name: Verify structured tool calling through the stable API
+  ansible.builtin.uri:
+    url: >-
+      http://127.0.0.1:{{ qwen36_stable_port }}/v1/chat/completions
+    method: POST
+    body_format: json
+    body:
+      model: "{{ qwen36_model_name }}"
+      messages:
+        - role: user
+          content: Read /etc/hostname and tell me what it says.
+      temperature: 0
+      max_tokens: 256
+      parallel_tool_calls: false
+      chat_template_kwargs:
+        enable_thinking: false
+      tools:
+        - type: function
+          function:
+            name: read_file
+            description: Read a file from disk and return its contents.
+            parameters:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Absolute file path
+              required: [path]
+    status_code: 200
+    return_content: true
+    timeout: 300
+  register: qwen36_verify_tool
+
+- name: Require a structured tool call rather than raw text
+  ansible.builtin.assert:
+    that:
+      - >-
+        qwen36_verify_tool.json.choices[0].message.tool_calls |
+        default([]) | length > 0
+      - >-
+        qwen36_verify_tool.json.choices[0].message.tool_calls[0].function.name
+        == 'read_file'
+    fail_msg: >-
+      Qwen3.6 did not emit a parsed tool call. Raw JSON or XML in content means
+      the chat template or the llama.cpp tool parser is not engaged; check that
+      --jinja is present rather than parsing it downstream.
