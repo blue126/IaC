@@ -13,12 +13,122 @@
   changed_when: false
   failed_when: false
 
+- name: Inspect the Qwen runtime owner
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ deepseek_v4_mainline_qwen_service_unit }}"]
+  register: deepseek_v4_mainline_verify_qwen_owner
+  changed_when: false
+  failed_when: false
+
+# systemctl is-enabled exits non-zero for a disabled unit, so neither the return
+# code nor the unit's presence may gate the boot-ownership check: gating on
+# either skips it in exactly the failures it exists to catch. Both the unit's
+# presence and its enabled state are verified by the assertion below instead.
+- name: Check whether the Qwen runtime owner is installed
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - list-unit-files
+      - "{{ deepseek_v4_mainline_qwen_service_unit }}"
+  register: deepseek_v4_mainline_verify_qwen_unit
+  changed_when: false
+  failed_when: false
+
+- name: Inspect boot ownership
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ deepseek_v4_mainline_qwen_service_unit }}"]
+  register: deepseek_v4_mainline_verify_qwen_boot
+  changed_when: false
+  failed_when: false
+
+- name: Inspect this runtime's own boot setting
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ deepseek_v4_mainline_service_unit }}"]
+  register: deepseek_v4_mainline_verify_self_boot
+  changed_when: false
+  failed_when: false
+
+# Not gated on anything: a missing Qwen unit is itself the failure. This role
+# deliberately keeps DeepSeek off the boot path, so something else has to own
+# boot, and on this host that is Qwen.
+- name: Require Qwen to exist and keep boot ownership
+  ansible.builtin.assert:
+    that:
+      - deepseek_v4_mainline_verify_qwen_unit.rc == 0
+      - >-
+        deepseek_v4_mainline_qwen_service_unit in
+        deepseek_v4_mainline_verify_qwen_unit.stdout
+      - >-
+        deepseek_v4_mainline_verify_qwen_boot.stdout | trim == 'enabled'
+    fail_msg: >-
+      {{ deepseek_v4_mainline_qwen_service_unit }} must exist and be enabled,
+      observed '{{ deepseek_v4_mainline_verify_qwen_boot.stdout | trim
+      | default('missing', true) }}'. This role keeps DeepSeek off the boot
+      path on purpose, so without Qwen owning boot a reboot leaves this host
+      with no model running. Deploy playbooks/deploy-qwen36.yml first.
+
+# Asserted positively rather than as 'not enabled': a failed query returns an
+# empty string, which would satisfy a negative test and let the check pass on
+# no evidence at all.
+- name: Require this runtime to stay off the boot path
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_mainline_verify_self_boot.stdout | trim == 'disabled'
+    fail_msg: >-
+      {{ deepseek_v4_mainline_service_unit }} boot setting is
+      '{{ deepseek_v4_mainline_verify_self_boot.stdout | trim
+      | default('unknown', true) }}', expected 'disabled'. Two enabled runtimes
+      bind the same port and together exceed the available VRAM, so they would
+      race on the next reboot.
+
+- name: Inspect the retired ik runtime boot setting
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ deepseek_v4_mainline_ik_service_unit }}"]
+  register: deepseek_v4_mainline_verify_ik_boot
+  changed_when: false
+  failed_when: false
+
+# An explicit allowlist rather than 'not enabled': a failed query returns an
+# empty string and an unknown state returns something else, both of which would
+# slip through a negative test. not-found is allowed because hosts that never
+# ran the ik deployment legitimately have no such unit.
+- name: Require the retired ik runtime to stay off the boot path
+  ansible.builtin.assert:
+    that:
+      - >-
+        deepseek_v4_mainline_verify_ik_boot.stdout | trim in
+        ['disabled', 'not-found', 'masked']
+    fail_msg: >-
+      {{ deepseek_v4_mainline_ik_service_unit }} boot setting is
+      '{{ deepseek_v4_mainline_verify_ik_boot.stdout | trim
+      | default('unknown', true) }}', expected disabled, not-found or masked.
+      It binds the same backend port as the current runtimes, so a reboot could
+      race it against Qwen.
+
+# Positive states rather than 'not active': an empty string from a failed query,
+# or a transitional activating/deactivating, would all satisfy a negative test
+# and let this pass without evidence that the other runtimes actually stopped.
+# On this systemd, is-active prints 'inactive' for a missing unit too (rc=4),
+# so 'inactive' covers both stopped and never-installed.
 - name: Require mainline to be the only runtime owner
   ansible.builtin.assert:
     that:
       - deepseek_v4_mainline_verify_owner.stdout | trim == 'active'
-      - deepseek_v4_mainline_verify_ik_owner.stdout | trim != 'active'
-    fail_msg: Mainline is not the sole active DeepSeek V4 runtime owner.
+      - >-
+        deepseek_v4_mainline_verify_ik_owner.stdout | trim in
+        ['inactive', 'failed']
+      - >-
+        deepseek_v4_mainline_verify_qwen_owner.stdout | trim == 'inactive'
+    fail_msg: >-
+      Expected {{ deepseek_v4_mainline_service_unit }} active and the others
+      stopped, observed mainline
+      '{{ deepseek_v4_mainline_verify_owner.stdout | trim
+      | default('unknown', true) }}', ik
+      '{{ deepseek_v4_mainline_verify_ik_owner.stdout | trim
+      | default('unknown', true) }}', qwen
+      '{{ deepseek_v4_mainline_verify_qwen_owner.stdout | trim
+      | default('unknown', true) }}'.
 
 - name: Inspect the running mainline Compose services
   ansible.builtin.command:

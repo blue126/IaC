@@ -89,6 +89,9 @@ deepseek_v4_mainline_compose_project: deepseek-v4-mainline
 deepseek_v4_mainline_service_unit: deepseek-v4-mainline.service
 deepseek_v4_mainline_ik_service_unit: deepseek-v4-ik.service
 deepseek_v4_mainline_compat_service_unit: deepseek-v4-ik-compat.service
+# The Qwen runtime binds the same backend port and together they exceed 48 GB of
+# VRAM, so it has to be stopped before this one can take the port.
+deepseek_v4_mainline_qwen_service_unit: qwen36.service
 deepseek_v4_mainline_backend_port: 8082
 deepseek_v4_mainline_stable_port: 8081
 deepseek_v4_mainline_model_name: deepseek-v4-flash

@@ -3,6 +3,7 @@ Description=DeepSeek V4 mainline llama.cpp Compose owner
 After=docker.service
 Requires=docker.service
 Conflicts={{ deepseek_v4_mainline_ik_service_unit }}
+Conflicts={{ deepseek_v4_mainline_qwen_service_unit }}
 
 [Service]
 Type=oneshot

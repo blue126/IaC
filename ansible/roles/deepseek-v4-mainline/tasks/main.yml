@@ -208,6 +208,29 @@
         state: stopped
         enabled: false
 
+    - name: Check whether the Qwen runtime owner is installed
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - list-unit-files
+          - "{{ deepseek_v4_mainline_qwen_service_unit }}"
+      register: deepseek_v4_mainline_qwen_unit
+      changed_when: false
+      failed_when: false
+
+    # enabled stays true on purpose: Qwen owns boot, so a reboot returns to it
+    # even while DeepSeek is the live runtime. Disabling it here would leave a
+    # rebooted host with no model running at all.
+    - name: Stop Qwen while preserving its boot ownership
+      ansible.builtin.systemd:
+        name: "{{ deepseek_v4_mainline_qwen_service_unit }}"
+        state: stopped
+        enabled: true
+      when: >-
+        deepseek_v4_mainline_qwen_unit.rc == 0 and
+        deepseek_v4_mainline_qwen_service_unit in
+        deepseek_v4_mainline_qwen_unit.stdout
+
     - name: Wait for the ik backend port to be released
       ansible.builtin.wait_for:
         host: 127.0.0.1
@@ -215,11 +238,14 @@
         state: stopped
         timeout: 60
 
-    - name: Start and enable the mainline runtime owner
+    # Deliberately not enabled: Qwen is the daily runtime and owns boot. Running
+    # this playbook switches the live service without changing what comes back
+    # after a reboot.
+    - name: Start the mainline runtime owner without claiming boot
       ansible.builtin.systemd:
         name: "{{ deepseek_v4_mainline_service_unit }}"
         state: restarted
-        enabled: true
+        enabled: false
 
     - name: Wait for the mainline backend
       ansible.builtin.uri:
