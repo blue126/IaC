@@ -28,6 +28,9 @@
 | 代理地址 | `192.168.1.1:7890` |
 | 代理类型 | HTTP + SOCKS5(混合) |
 | 出口节点 | `cn-exit`(国内 VPS `<cn-exit-vps-ip>`,约 10Mbps) |
+
+> 本仓库是公开的,VPS 的公网地址已脱敏为 `<cn-exit-vps-ip>`。
+> 实际地址见网关上 sing-box 的 Tailscale 节点配置或 Tailscale 管理后台。
 | 配置文件 | 网关 `/etc/sing-box/config.json` |
 | 容器名 | `cn-proxy`(Docker,开机自启) |
 | 状态目录 | `/etc/sing-box/ts-state`(Tailscale 节点身份,持久化免重登) |
