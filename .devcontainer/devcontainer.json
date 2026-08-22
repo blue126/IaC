@@ -8,7 +8,9 @@
   // Configure container runtime security and force using local DNS
     "runArgs": [
       "--security-opt=seccomp=unconfined",
-      "--dns=192.168.1.1"
+      // opencode server (.devcontainer/opencode-serve.sh), for the desktop app
+      // on the host to attach to. Host loopback only — not exposed to the LAN.
+      "--publish=127.0.0.1:4096:4096"
     ],
 
   // Additional features to install
@@ -27,8 +29,6 @@
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
     },
-    // OpenCode feature (community)
-    "ghcr.io/devcontainer-community/devcontainer-features/opencode.ai:1": {},
     // Claude Code feature (Anthropic official)
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
@@ -81,15 +81,39 @@
   ],
   // Environment variables available in container
   "containerEnv": {
-    // Ansible config file location
-    "ANSIBLE_CONFIG": "/workspaces/IaC/ansible/ansible.cfg",
-    // Host workspace path — used to create symlink so Claude Code memory is shared
+    // Host workspace path. Two consumers, both of them symlink workarounds for
+    // tools that assume the host and the container see the same paths:
+    //   post-create.sh      links Claude Code's project history, whose directory
+    //                       name is derived from the workspace path, so host and
+    //                       container sessions land in one place
+    //   opencode-serve.sh   links the host path itself to /workspaces/IaC. The
+    //                       opencode desktop app's project picker browses the
+    //                       HOST filesystem and sends what you pick to the server
+    //                       in here, so without this every prompt dies in
+    //                       FileSystem.realPath and the app shows no reply at
+    //                       all. See anomalyco/opencode#44150.
     "HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
     // Install the latest Codex CLI release during post-create
-    "CODEX_CLI_VERSION": "latest"
+    "CODEX_CLI_VERSION": "latest",
+    // Optional basic-auth password for the opencode server. Export it on the
+    // host to enable auth; left unset, the server runs without it (it is only
+    // published to the host's loopback).
+    "OPENCODE_SERVER_PASSWORD": "${localEnv:OPENCODE_SERVER_PASSWORD}"
   },
+  // Where opencode-serve.sh's installer puts opencode. Its own PATH handling is
+  // skipped whenever the version is already current, so it cannot be relied on.
+  // remoteEnv, not containerEnv: only remoteEnv can expand ${containerEnv:PATH}.
+  "remoteEnv": {
+    "PATH": "/home/vscode/.opencode/bin:${containerEnv:PATH}"
+  },
+  // Runs on the HOST, on create and on every start. Brings up the Playwright MCP
+  // server the container's agents drive, so the browser they open is a real one
+  // on your screen. Detaches immediately; no-op when it is already running.
+  "initializeCommand": "/bin/bash .devcontainer/playwright-mcp-host.sh --detach",
   // Run setup steps serially so dependencies and permissions are deterministic
   "postCreateCommand": "/bin/bash .devcontainer/post-create.sh",
+  // Runs on every start by the devcontainer tooling — but not on `docker start`
+  "postStartCommand": "/bin/bash .devcontainer/opencode-serve.sh",
   // Run as vscode user (not root)
   "remoteUser": "vscode"
 }

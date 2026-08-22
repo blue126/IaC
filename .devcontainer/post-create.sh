@@ -14,8 +14,13 @@ sudo find /home/vscode -xdev \
   \( -path /home/vscode/.ssh -o -path /home/vscode/.claude \) -prune \
   -o ! -user vscode -exec chown vscode:vscode {} +
 
-# Recreate console scripts after Python patch-version changes.
-python3 -m pip install --user --upgrade --force-reinstall -r requirements.txt
+# This used to pass --force-reinstall, to rebuild console scripts after a Python
+# patch-version change. It is not needed: the scripts are shebanged to
+# /usr/local/python/current/bin/python3, which follows the change, and
+# ~/.local/lib/pythonX.Y/site-packages is keyed on the minor version. A minor
+# version change does orphan the packages, but then this line installs them all
+# anyway, because the new site-packages is empty.
+python3 -m pip install --user --upgrade -r requirements.txt
 
 (
   cd ansible
