@@ -1,0 +1,31 @@
+# Runtime files this repo needs that git does not track.
+#
+# A worktree is a fresh checkout, so gitignored files are absent from it.
+# Claude Code copies whatever matches here into every worktree it creates —
+# `claude --worktree` sessions, subagent worktrees, and desktop-app parallel
+# sessions alike. Only paths that match a pattern AND are gitignored are copied.
+#
+# Syntax is .gitignore syntax.
+
+# Ansible. ansible.cfg resolves collections_path and vault_password_file
+# relatively, so a worktree without these fails on the first vault decrypt.
+ansible/.vault_pass
+ansible/collections/
+
+# Terraform. scripts/get-secrets.sh writes these from Ansible Vault.
+terraform/*/secrets.auto.tfvars
+terraform/esxi/terraform.tfvars
+
+# Notion credentials read by scripts/sync_to_notion.py
+.env
+
+# Project-scope MCP servers
+.mcp.json
+
+# Deliberately not copied:
+#   terraform/*/.terraform/   provider binaries, ~66MB per environment.
+#                             Run `terraform init` in the worktree instead.
+#   *.tfstate                 state lives in HCP Terraform, not on disk.
+#   .ssh/                     the repo-local ESXi key is unreferenced; the
+#                             playbooks all use ~/.ssh/id_ed25519.
+#   .claude/                  worktrees are created inside it.
