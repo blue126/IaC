@@ -120,4 +120,19 @@ cd "${workdir}"
 setsid nohup "${opencode_bin}" "${args[@]}" >>"${log}" 2>&1 </dev/null &
 disown 2>/dev/null || true
 
-echo "opencode serve: started on ${bind_host}:${port} (log: ${log})"
+# Launching it says nothing about whether it stayed up, and this has failed
+# intermittently: the process is forked, opens the log, and dies before writing
+# a line, while this script happily reports success. That reads as a working
+# setup right up until the client says the server is down. Wait for the port to
+# actually answer, and fail loudly with the log if it never does.
+for _ in $(seq 1 30); do
+  if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:${port}/doc"; then
+    echo "opencode serve: listening on ${bind_host}:${port} (log: ${log})"
+    exit 0
+  fi
+  sleep 0.5
+done
+
+echo "opencode serve: did not answer on ${port} within 15s. Last log lines:" >&2
+tail -n 5 "${log}" >&2 || true
+exit 1
