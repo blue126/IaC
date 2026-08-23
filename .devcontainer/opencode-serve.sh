@@ -16,6 +16,19 @@
 
 set -euo pipefail
 
+# The server inherits this PATH and hands it to every command the agent runs, so
+# it has to be right regardless of how this script was invoked. A lifecycle hook
+# gets the profile-probed PATH, but a plain `docker exec` gets the bare container
+# one — and then the agent cannot find ansible, which lives in ~/.local/bin.
+# Declare both user bin directories rather than depending on the caller.
+for d in "${HOME}/.local/bin" "${HOME}/.opencode/bin"; do
+  case ":${PATH}:" in
+    *":${d}:"*) ;;
+    *) PATH="${d}:${PATH}" ;;
+  esac
+done
+export PATH
+
 port="${OPENCODE_SERVE_PORT:-4096}"
 workdir="${OPENCODE_SERVE_DIR:-/workspaces/IaC}"
 log="${HOME}/.local/share/opencode/serve.log"
@@ -50,28 +63,6 @@ if [[ -r "${host_auth}" ]]; then
   echo "opencode serve: refreshed credentials from ${host_auth}"
 else
   echo "opencode serve: ${host_auth} not readable; server will have no providers" >&2
-fi
-
-# WORKAROUND — make the host's path for this repo resolve in here too.
-#
-# The opencode desktop app runs on the host and its project picker browses the
-# HOST filesystem, but the server runs in this container. Picking the project
-# hands the server a path like /Users/<you>/Projects/IaC, which it opens
-# literally; with no such path here, every prompt dies in FileSystem.realPath
-# and the app shows no reply at all — no error, nothing. See
-# anomalyco/opencode#44150, and #40136 / #5380 for the same class of bug.
-#
-# Known limitation: realPath resolves this symlink back to ${workdir}, so
-# anything the server reports back to the app carries the container's path,
-# which means nothing on the host. Reads work; a round trip may not. Mounting
-# the checkout a second time at the host's own path avoids that, at the cost of
-# a second mount in devcontainer.json.
-#
-# HOST_WORKSPACE_FOLDER comes from devcontainer.json's containerEnv.
-if [[ -n "${HOST_WORKSPACE_FOLDER:-}" && ! -e "${HOST_WORKSPACE_FOLDER}" ]]; then
-  sudo mkdir -p "$(dirname "${HOST_WORKSPACE_FOLDER}")"
-  sudo ln -sfn "${workdir}" "${HOST_WORKSPACE_FOLDER}"
-  echo "opencode serve: mapped ${HOST_WORKSPACE_FOLDER} -> ${workdir}"
 fi
 
 # Keep the server in step with the desktop app, which updates itself on the host.

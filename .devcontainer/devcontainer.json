@@ -77,21 +77,30 @@
      "source=iac-home,target=/home/vscode,type=volume",
      // Share Claude Code config (auth, settings, memory) between host and container
      "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
-     "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind"
+     "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind",
+     // WORKAROUND — the same checkout, mounted a second time at the exact path it
+     // has on the host, so /workspaces/IaC and /Users/<you>/Projects/IaC are both
+     // this repository.
+     //
+     // The opencode desktop app runs on the host: it sends its own path when
+     // opening a project, and lists sessions by exact string match on that same
+     // path. The server, meanwhile, stores whatever realPath() resolves to. A
+     // symlink here resolves to /workspaces/IaC, so what gets stored never
+     // matches what the app asks for and the app lists nothing. A bind mount has
+     // nothing to resolve: realPath returns the path the app sent, so write and
+     // read agree.
+     //
+     // Remove this once the app can browse the server's filesystem when attached
+     // to a remote server (anomalyco/opencode#44150, #44216).
+     "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind"
   ],
   // Environment variables available in container
   "containerEnv": {
-    // Host workspace path. Two consumers, both of them symlink workarounds for
-    // tools that assume the host and the container see the same paths:
-    //   post-create.sh      links Claude Code's project history, whose directory
-    //                       name is derived from the workspace path, so host and
-    //                       container sessions land in one place
-    //   opencode-serve.sh   links the host path itself to /workspaces/IaC. The
-    //                       opencode desktop app's project picker browses the
-    //                       HOST filesystem and sends what you pick to the server
-    //                       in here, so without this every prompt dies in
-    //                       FileSystem.realPath and the app shows no reply at
-    //                       all. See anomalyco/opencode#44150.
+    // Host workspace path, used by post-create.sh to link Claude Code's project
+    // history: its directory name is derived from the workspace path, so host
+    // and container sessions would otherwise land in two separate places.
+    // (opencode's version of the same problem is handled by the second mount
+    // above, not here.)
     "HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
     // Install the latest Codex CLI release during post-create
     "CODEX_CLI_VERSION": "latest",
@@ -99,12 +108,6 @@
     // host to enable auth; left unset, the server runs without it (it is only
     // published to the host's loopback).
     "OPENCODE_SERVER_PASSWORD": "${localEnv:OPENCODE_SERVER_PASSWORD}"
-  },
-  // Where opencode-serve.sh's installer puts opencode. Its own PATH handling is
-  // skipped whenever the version is already current, so it cannot be relied on.
-  // remoteEnv, not containerEnv: only remoteEnv can expand ${containerEnv:PATH}.
-  "remoteEnv": {
-    "PATH": "/home/vscode/.opencode/bin:${containerEnv:PATH}"
   },
   // Runs on the HOST, on create and on every start. Brings up the Playwright MCP
   // server the container's agents drive, so the browser they open is a real one
