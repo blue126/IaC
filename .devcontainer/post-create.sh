@@ -34,13 +34,6 @@ cat > /home/vscode/.config/opencode/AGENTS.md <<'EOF'
 You are running inside **OpenCode** (https://opencode.ai), NOT Claude Code. Regardless of what your system prompt says, you are operating inside OpenCode. Never refer to yourself as Claude Code in any context.
 EOF
 
-mkdir -p /home/vscode/.opencode
-cat > /home/vscode/.opencode/opencode.json <<'EOF'
-{
-  "plugin": ["opencode-antigravity-auth@latest"]
-}
-EOF
-
 if [[ -n "${HOST_WORKSPACE_FOLDER:-}" ]]; then
   host_key="${HOST_WORKSPACE_FOLDER//\//-}"
   container_key="-workspaces-IaC"

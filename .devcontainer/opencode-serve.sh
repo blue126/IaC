@@ -91,6 +91,9 @@ if [[ ! -x "${opencode_bin}" ]] && ! opencode_bin="$(command -v opencode)"; then
 fi
 echo "opencode serve: using ${opencode_bin} ($("${opencode_bin}" --version 2>/dev/null | head -1))"
 
+# Enable OpenCode's built-in Exa web search for non-OpenCode providers.
+export OPENCODE_ENABLE_EXA="${OPENCODE_ENABLE_EXA:-1}"
+
 args=(serve --hostname "${bind_host}" --port "${port}")
 
 # Set OPENCODE_SERVE_CORS to a space-separated list if the desktop app's origin

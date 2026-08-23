@@ -5,9 +5,8 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  // Configure container runtime security and force using local DNS
+  // Extra docker run arguments
     "runArgs": [
-      "--security-opt=seccomp=unconfined",
       // opencode server (.devcontainer/opencode-serve.sh), for the desktop app
       // on the host to attach to. Host loopback only — not exposed to the LAN.
       "--publish=127.0.0.1:4096:4096"
@@ -32,51 +31,65 @@
     // Claude Code feature (Anthropic official)
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
-  // VS Code customizations
-  "customizations": {
-    "vscode": {
-      // Extensions to install
-      "extensions": [
-        "hashicorp.terraform",
-        "redhat.ansible",
-        "ms-python.python",
-        "ms-python.vscode-pylance",
-        "ms-azuretools.vscode-docker",
-        "mhutchie.git-graph",
-        "anthropic.claude-code"
-      ],
-      // Editor settings
-      "settings": {
-        // Python interpreter path
-        "python.defaultInterpreterPath": "/usr/local/python/current/bin/python3",
-        // Ansible plugin: Python interpreter for ansible modules
-        "ansible.python.interpreterPath": "/usr/local/python/current/bin/python3",
-        // Ansible plugin: Path to ansible executable
-        "ansible.ansible.path": "/home/vscode/.local/bin/ansible",
-        // Ansible plugin: Disable execution environment (use local install)
-        "ansible.executionEnvironment.enabled": false,
-        // Ansible plugin: Enable validation
-        "ansible.validation.enabled": true,
-        // Ansible plugin: Enable ansible-lint
-        "ansible.validation.lint.enabled": true,
-        // Ansible plugin: Path to ansible-lint
-        "ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint",
-        // Ansible plugin: Disable Lightspeed AI (requires subscription)
-        "ansible.lightspeed.enabled": false,
-        // Associate YAML files with Ansible language mode
-        "files.associations": {
-          "*.yml": "ansible",
-          "*.yaml": "ansible"
-        }
-      }
-    }
-  },
+  // VS Code settings, commented out rather than deleted.
+  //
+  // Nothing reads them today: the toolchain runs in this container but the
+  // interfaces run on the host, and .vscode-server here has not been touched
+  // since 2026-08-06. The three hardcoded paths below were all still valid when
+  // this was disabled, so restoring it is a matter of uncommenting.
+  //
+  // Put it back if you return to VS Code — or to any editor that reads
+  // devcontainer.json — since without it the container has no Terraform or
+  // Ansible language support, and the Ansible extension cannot find its
+  // interpreter or ansible-lint.
+  // "customizations": {
+  //   "vscode": {
+  //     // Extensions to install
+  //     "extensions": [
+  //       "hashicorp.terraform",
+  //       "redhat.ansible",
+  //       "ms-python.python",
+  //       "ms-python.vscode-pylance",
+  //       "ms-azuretools.vscode-docker",
+  //       "mhutchie.git-graph",
+  //       "anthropic.claude-code"
+  //     ],
+  //     // Editor settings
+  //     "settings": {
+  //       // Python interpreter path
+  //       "python.defaultInterpreterPath": "/usr/local/python/current/bin/python3",
+  //       // Ansible plugin: Python interpreter for ansible modules
+  //       "ansible.python.interpreterPath": "/usr/local/python/current/bin/python3",
+  //       // Ansible plugin: Path to ansible executable
+  //       "ansible.ansible.path": "/home/vscode/.local/bin/ansible",
+  //       // Ansible plugin: Disable execution environment (use local install)
+  //       "ansible.executionEnvironment.enabled": false,
+  //       // Ansible plugin: Enable validation
+  //       "ansible.validation.enabled": true,
+  //       // Ansible plugin: Enable ansible-lint
+  //       "ansible.validation.lint.enabled": true,
+  //       // Ansible plugin: Path to ansible-lint
+  //       "ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint",
+  //       // Ansible plugin: Disable Lightspeed AI (requires subscription)
+  //       "ansible.lightspeed.enabled": false,
+  //       // Associate YAML files with Ansible language mode
+  //       "files.associations": {
+  //         "*.yml": "ansible",
+  //         "*.yaml": "ansible"
+  //       }
+  //     }
+  //   }
+  // },
   // Volume mounts
   "mounts": [
      "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
      "source=iac-home,target=/home/vscode,type=volume",
      // Share Claude Code config (auth, settings, memory) between host and container
      "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
+     // Same treatment for Codex. Without this the container keeps its own copy on
+     // the home volume — a separate login and a separate history per project,
+     // ~640MB each. The container's existing copy is shadowed, not merged.
+     "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind",
      "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind",
      // WORKAROUND — the same checkout, mounted a second time at the exact path it
      // has on the host, so /workspaces/IaC and /Users/<you>/Projects/IaC are both
