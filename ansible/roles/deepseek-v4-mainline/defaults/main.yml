@@ -144,7 +144,10 @@ deepseek_v4_mainline_threads: 16
 # 74/26 across the two NUMA nodes and left one memory controller carrying most
 # of the decode traffic. Interleaving spreads them evenly. Empty runs the binary
 # directly. numactl ships in the pinned runtime image at /usr/bin/numactl.
-deepseek_v4_mainline_numactl_policy: --interleave=all
+# A list, because single-node binding needs two flags and a folded scalar would
+# hand numactl one argument containing a space.
+deepseek_v4_mainline_numactl_policy:
+  - --interleave=all
 # kernel.numa_balancing on the inference host. llama.cpp warns about it at every
 # start: automatic page migration moves pages out from under a long-lived
 # threadpool and costs TLB shootdowns. Empty leaves the host setting untouched.

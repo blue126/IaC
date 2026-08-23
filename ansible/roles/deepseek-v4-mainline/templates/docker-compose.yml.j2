@@ -6,7 +6,9 @@ services:
     command:
 {% if deepseek_v4_mainline_numactl_policy %}
       - numactl
-      - {{ deepseek_v4_mainline_numactl_policy }}
+{% for flag in deepseek_v4_mainline_numactl_policy %}
+      - {{ flag }}
+{% endfor %}
 {% endif %}
       - /build/llama-server
       - --host
