@@ -28,6 +28,7 @@ _bmad-output/
 .agents/
 .playwright*.json
 .playwright-mcp/
+.devcontainer/.generated/
 
 #########
 node_modules/

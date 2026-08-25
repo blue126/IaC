@@ -1,50 +1,104 @@
+// Toolchain in the container, interfaces on the host.
+//
+// Read .devcontainer/README.md first if this is new to you. Every "why" below
+// is spelled out in .devcontainer/ARCHITECTURE.md — the comments here only say
+// what a line is for, and point at the section that explains it.
+//
+// ⚙️ PROJECT marks the lines a new project has to change. `grep -rn "⚙️"
+//    .devcontainer/` lists every one of them.
 {
-    // Dev container name shown in VS Code
-  "name": "IaC Dev Environment",
-  // Base image: Ubuntu 24.04 with common dev tools
+  // ═══ ① IDENTITY ══════════════════════════════════════════════════════════
+  "name": "IaC Dev Environment",                                  // ⚙️ PROJECT
+
+  // ═══ ② IMAGE ═════════════════════════════════════════════════════════════
+  // Built first; features are layered on top of the finished image, which is
+  // why the Dockerfile cannot use anything a feature installs.
+  // → ARCHITECTURE.md "为什么 agent 不用 feature、也不进 Dockerfile"
   "build": {
     "dockerfile": "Dockerfile"
   },
-  // Extra docker run arguments
-    "runArgs": [
-      // opencode server (.devcontainer/opencode-serve.sh), for the desktop app
-      // on the host to attach to. Host loopback only — not exposed to the LAN.
-      "--publish=127.0.0.1:4096:4096"
-    ],
-
-  // Additional features to install
   "features": {
-    // Terraform CLI for infrastructure provisioning
-    "ghcr.io/devcontainers/features/terraform:1": {},
-    // Python 3.12 for Ansible and scripts
-    "ghcr.io/devcontainers/features/python:1": {
+    "ghcr.io/devcontainers/features/terraform:1": {},             // ⚙️ PROJECT
+    "ghcr.io/devcontainers/features/python:1": {                  // ⚙️ PROJECT
       "version": "3.12"
     },
-    // Docker CLI to manage containers on host
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-    // GitHub CLI for repo and PR workflows
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    // Node.js LTS for JS tooling
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
-    },
-    // Claude Code feature (Anthropic official)
-    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+    }
+    // No coding agent here — they are installed by setup-agents.sh.
+    // docker-outside-of-docker is deliberately absent: it mounts the host's
+    // docker socket, which is host root for anything in this container, and
+    // nothing here needs it. → ARCHITECTURE.md "features"
   },
-  // VS Code settings, commented out rather than deleted.
+
+  // ═══ ③ RUNTIME ═══════════════════════════════════════════════════════════
+  "runArgs": [
+    // opencode server, for the desktop app on the host to attach to. Host
+    // loopback only — not exposed to the LAN. Do not use forwardPorts: the
+    // devcontainer CLI parses it and never implements it.
+    "--publish=127.0.0.1:4096:4096"
+  ],
+  "containerEnv": {
+    // Lets setup-agents.sh join the container's Claude Code history to the
+    // host's — the directory name is derived from the workspace path.
+    "HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+  },
+  "remoteUser": "vscode",
+
+  // ═══ ④ DATA ══════════════════════════════════════════════════════════════
+  // Home is a named volume; host binds are only for what genuinely has to be
+  // shared. Anything added here must also be added to the chown prune list in
+  // setup-agents.sh. → ARCHITECTURE.md "mounts"
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
+
+    // ⚙️ PROJECT — one volume per project, or two projects share a home.
+    "source=iac-home,target=/home/vscode,type=volume",
+
+    // Agent state shared with the host, then the single config file in each
+    // that host-setup.sh rewrites for container networking.
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
+    "source=${localWorkspaceFolder}/.devcontainer/.generated/claude/.claude.json,target=/home/vscode/.claude.json,type=bind",
+    "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind",
+    "source=${localWorkspaceFolder}/.devcontainer/.generated/codex/config.toml,target=/home/vscode/.codex/config.toml,type=bind",
+    "source=${localWorkspaceFolder}/.devcontainer/.generated/opencode/opencode.json,target=/home/vscode/.config/opencode/opencode.json,type=bind",
+    "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind",
+
+    // WORKAROUND — the same checkout mounted a second time at its host path, so
+    // the opencode desktop app and the server agree on what to call it. A
+    // symlink does not work here. → ARCHITECTURE.md "同路径挂载"
+    "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind"
+  ],
+
+  // ═══ ⑤ LIFECYCLE ═════════════════════════════════════════════════════════
+  // Order below is the order these actually run.
+  // → ARCHITECTURE.md "生命周期钩子"
+
+  // HOST, every start, before the container exists: derive each agent's
+  // container config from yours, and bring up Playwright MCP so the browser
+  // agents drive is a real one on your screen.
+  "initializeCommand": "/bin/bash .devcontainer/host-setup.sh",
+
+  // CONTAINER, once per container. Serial on purpose — setup-agents repairs
+  // mount ownership while setup-project writes into the same home directory,
+  // and the object form of this field would run them in parallel.
+  "postCreateCommand": "/bin/bash .devcontainer/setup-agents.sh --install && /bin/bash .devcontainer/setup-project.sh",
+
+  // CONTAINER, every start — but not on `docker start`, which runs no hooks.
+  "postStartCommand": "/bin/bash .devcontainer/setup-agents.sh --serve"
+
+  // ═══ ⑥ EDITOR ════════════════════════════════════════════════════════════
+  // Commented out, not deleted. Nothing reads it today: the toolchain runs in
+  // this container but the interfaces run on the host, and .vscode-server here
+  // has not been touched since 2026-08-06. The hardcoded paths below were all
+  // still valid when this was disabled, so restoring it is a matter of
+  // uncommenting. Put it back if you return to VS Code — without it the
+  // container has no Terraform or Ansible language support, and the Ansible
+  // extension cannot find its interpreter or ansible-lint.
   //
-  // Nothing reads them today: the toolchain runs in this container but the
-  // interfaces run on the host, and .vscode-server here has not been touched
-  // since 2026-08-06. The three hardcoded paths below were all still valid when
-  // this was disabled, so restoring it is a matter of uncommenting.
-  //
-  // Put it back if you return to VS Code — or to any editor that reads
-  // devcontainer.json — since without it the container has no Terraform or
-  // Ansible language support, and the Ansible extension cannot find its
-  // interpreter or ansible-lint.
   // "customizations": {
   //   "vscode": {
-  //     // Extensions to install
   //     "extensions": [
   //       "hashicorp.terraform",
   //       "redhat.ansible",
@@ -54,82 +108,20 @@
   //       "mhutchie.git-graph",
   //       "anthropic.claude-code"
   //     ],
-  //     // Editor settings
   //     "settings": {
-  //       // Python interpreter path
   //       "python.defaultInterpreterPath": "/usr/local/python/current/bin/python3",
-  //       // Ansible plugin: Python interpreter for ansible modules
   //       "ansible.python.interpreterPath": "/usr/local/python/current/bin/python3",
-  //       // Ansible plugin: Path to ansible executable
   //       "ansible.ansible.path": "/home/vscode/.local/bin/ansible",
-  //       // Ansible plugin: Disable execution environment (use local install)
   //       "ansible.executionEnvironment.enabled": false,
-  //       // Ansible plugin: Enable validation
   //       "ansible.validation.enabled": true,
-  //       // Ansible plugin: Enable ansible-lint
   //       "ansible.validation.lint.enabled": true,
-  //       // Ansible plugin: Path to ansible-lint
   //       "ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint",
-  //       // Ansible plugin: Disable Lightspeed AI (requires subscription)
   //       "ansible.lightspeed.enabled": false,
-  //       // Associate YAML files with Ansible language mode
   //       "files.associations": {
   //         "*.yml": "ansible",
   //         "*.yaml": "ansible"
   //       }
   //     }
   //   }
-  // },
-  // Volume mounts
-  "mounts": [
-     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,readonly,type=bind",
-     "source=iac-home,target=/home/vscode,type=volume",
-     // Share Claude Code config (auth, settings, memory) between host and container
-     "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
-     // Same treatment for Codex. Without this the container keeps its own copy on
-     // the home volume — a separate login and a separate history per project,
-     // ~640MB each. The container's existing copy is shadowed, not merged.
-     "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind",
-     "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind",
-     // WORKAROUND — the same checkout, mounted a second time at the exact path it
-     // has on the host, so /workspaces/IaC and /Users/<you>/Projects/IaC are both
-     // this repository.
-     //
-     // The opencode desktop app runs on the host: it sends its own path when
-     // opening a project, and lists sessions by exact string match on that same
-     // path. The server, meanwhile, stores whatever realPath() resolves to. A
-     // symlink here resolves to /workspaces/IaC, so what gets stored never
-     // matches what the app asks for and the app lists nothing. A bind mount has
-     // nothing to resolve: realPath returns the path the app sent, so write and
-     // read agree.
-     //
-     // Remove this once the app can browse the server's filesystem when attached
-     // to a remote server (anomalyco/opencode#44150, #44216).
-     "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind"
-  ],
-  // Environment variables available in container
-  "containerEnv": {
-    // Host workspace path, used by post-create.sh to link Claude Code's project
-    // history: its directory name is derived from the workspace path, so host
-    // and container sessions would otherwise land in two separate places.
-    // (opencode's version of the same problem is handled by the second mount
-    // above, not here.)
-    "HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
-    // Install the latest Codex CLI release during post-create
-    "CODEX_CLI_VERSION": "latest",
-    // Optional basic-auth password for the opencode server. Export it on the
-    // host to enable auth; left unset, the server runs without it (it is only
-    // published to the host's loopback).
-    "OPENCODE_SERVER_PASSWORD": "${localEnv:OPENCODE_SERVER_PASSWORD}"
-  },
-  // Runs on the HOST, on create and on every start. Brings up the Playwright MCP
-  // server the container's agents drive, so the browser they open is a real one
-  // on your screen. Detaches immediately; no-op when it is already running.
-  "initializeCommand": "/bin/bash .devcontainer/playwright-mcp-host.sh --detach",
-  // Run setup steps serially so dependencies and permissions are deterministic
-  "postCreateCommand": "/bin/bash .devcontainer/post-create.sh",
-  // Runs on every start by the devcontainer tooling — but not on `docker start`
-  "postStartCommand": "/bin/bash .devcontainer/opencode-serve.sh",
-  // Run as vscode user (not root)
-  "remoteUser": "vscode"
+  // }
 }
