@@ -14,6 +14,7 @@ Required versions / 固定版本：
 
 ```bash
 hugo version && go version && hugo mod graph
+python3 docs-site/scripts/prepare-content.py
 hugo --cleanDestinationDir --gc --minify --environment production \
   --printPathWarnings --panicOnWarning \
   --baseURL 'https://blue126.github.io/IaC/'
@@ -28,6 +29,11 @@ grep -Fq "rel=alternate type=text/markdown href=${BASE_URL}docs/designs/homelab-
 grep -Fxq '# Homelab IaC 系统架构文档' public/docs/designs/homelab-iac-architecture/index.md
 grep -Fq '本文档描述 Homelab Infrastructure as Code 项目的完整系统架构' public/docs/designs/homelab-iac-architecture/index.md
 grep -Fq "${BASE_URL}docs/designs/homelab-iac-architecture/index.md" public/llms.txt
+grep -Fq '<title>Homelab IaC 系统架构文档 | Homelab IaC Documentation</title>' public/docs/designs/homelab-iac-architecture/index.html
+grep -Fq '<span>Homelab IaC 系统架构文档</span></a>' public/docs/designs/homelab-iac-architecture/index.html
+grep -Fq 'github.com/blue126/IaC/edit/master/docs/designs/homelab-iac-architecture.md' public/docs/designs/homelab-iac-architecture/index.html
+grep -Fq 'Homelab IaC Documentation' public/index.html
+grep -Fq 'Browse documentation' public/index.html
 grep -Fq 'td-diagram--mermaid' public/docs/designs/cicd-architecture/index.html
 grep -Fq 'mermaid-' public/docs/designs/cicd-architecture/index.html
 shopt -s nullglob

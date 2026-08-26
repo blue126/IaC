@@ -1,0 +1,32 @@
+sections:
+  - hero
+  - cards
+  - cta
+
+hero:
+  eyebrow: Homelab Infrastructure as Code
+  title_lines:
+    - words:
+        - { text: Homelab IaC Documentation }
+  lead: Browse Terraform, Ansible, deployment, architecture, incident, and learning documentation from one searchable site.
+  note: HTML, Markdown, and llms.txt from the same source
+  note_icon: fa-solid fa-file-lines
+  actions:
+    - { label: Browse documentation, url: docs/, icon: fa-solid fa-book-open, style: primary }
+    - { label: View source, url: "https://github.com/blue126/IaC", external: true, style: ghost }
+
+cards:
+  eyebrow: Repository documentation
+  title: Start with the area you need
+  columns: 3
+  items:
+    - { title: Architecture, desc: System boundaries, design decisions, and integration patterns., icon: fa-solid fa-diagram-project, url: docs/designs/ }
+    - { title: Deployment, desc: Service installation and operational deployment guides., icon: fa-solid fa-rocket, url: docs/deployment/ }
+    - { title: Guides, desc: Practical Terraform, Ansible, networking, and troubleshooting references., icon: fa-solid fa-compass, url: docs/guides/ }
+
+cta:
+  title: Read the source or the site.
+  text: Existing Markdown remains unchanged in the repository and is published here with search and Agent-friendly outputs.
+  label: Open all documentation
+  url: docs/
+  style: primary

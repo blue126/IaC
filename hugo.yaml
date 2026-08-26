@@ -47,7 +47,9 @@ module:
   mounts:
     - source: docs-site/content
       target: content
-    - source: docs
+    - source: .hugo-content/docs
       target: content/docs
     - source: docs-site/layouts
       target: layouts
+    - source: docs-site/data
+      target: data
