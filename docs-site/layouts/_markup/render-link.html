@@ -1,0 +1,15 @@
+{{- $url := urls.Parse .Destination -}}
+{{- $href := .Destination -}}
+{{- if and (not $url.IsAbs) (not (strings.HasPrefix .Destination "//")) (strings.HasSuffix (strings.ToLower $url.Path) ".md") -}}
+  {{- with .PageInner.GetPage $url.Path -}}
+    {{- $href = .RelPermalink -}}
+    {{- with $url.RawQuery }}{{ $href = printf "%s?%s" $href . }}{{ end -}}
+    {{- with $url.Fragment }}{{ $href = printf "%s#%s" $href . }}{{ end -}}
+  {{- else -}}
+    {{- $sourcePath := path.Clean (path.Join (path.Dir .PageInner.File.Path) $url.Path) -}}
+    {{- $href = printf "%s/blob/%s/%s" $.PageInner.Site.Params.github_repo $.PageInner.Site.Params.github_branch $sourcePath -}}
+    {{- with $url.RawQuery }}{{ $href = printf "%s?%s" $href . }}{{ end -}}
+    {{- with $url.Fragment }}{{ $href = printf "%s#%s" $href . }}{{ end -}}
+  {{- end -}}
+{{- end -}}
+<a href="{{ $href | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text | safeHTML }}</a>

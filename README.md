@@ -183,7 +183,7 @@ All secrets flow from a single encrypted Ansible Vault file. Terraform consumes 
 
 ## Documentation
 
-The [`docs/`](docs/) directory contains 100+ pages of technical documentation:
+The [`docs/`](docs/) directory contains 100+ pages of technical documentation. Browse the [published site](https://willfan.me/IaC/) or preview it locally with `hugo server --baseURL http://localhost:1313/IaC/ --appendPort=false` (see [`docs-site/README.md`](docs-site/README.md) for pinned prerequisites):
 
 - **[Architecture Design](docs/designs/homelab-iac-architecture.md)** — Comprehensive system design
 - **[Deployment Guides](docs/deployment/)** — Step-by-step service deployment

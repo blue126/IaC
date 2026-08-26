@@ -35,3 +35,8 @@ node_modules/
 tmp/
 .vagrant/
 .ua/
+
+# Hugo documentation site artifacts
+/public/
+/resources/_gen/
+/.hugo_build.lock
