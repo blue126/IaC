@@ -78,7 +78,8 @@ def main() -> None:
         if not index.exists():
             title = fallback_title(directory)
             index.write_text(
-                f"---\ntitle: {json.dumps(title, ensure_ascii=False)}\n---\n",
+                f"---\ntitle: {json.dumps(title, ensure_ascii=False)}\n"
+                "page_context_menu: false\nannotation: false\n---\n",
                 encoding="utf-8",
             )
 

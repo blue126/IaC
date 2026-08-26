@@ -2,6 +2,11 @@
 title: Documentation / 文档
 description: Repository designs, deployment guides, incidents, specifications, and learning notes.
 outputs: [HTML, RSS, print, markdown]
+cascade:
+  github_subdir: docs
+  path_base_for_github_subdir:
+    from: ".hugo-content/docs/(.*)"
+    to: "$1"
 ---
 
 此 section 直接挂载仓库 `docs/`，不会复制或改写源文档。使用左侧导航或搜索浏览内容。
