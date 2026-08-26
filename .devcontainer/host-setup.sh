@@ -117,14 +117,14 @@ perl -0pi -e \
   "s|\\Q${host_playwright_url}\\E|${container_playwright_url}|g" \
   "${codex_work}/config.toml"
 perl -0pi -e \
-  "s|(\\[mcp_servers\\.MCP_DOCKER\\.http_headers\\]\\n)|\$1Host = \"${gateway_host_header}\"\\n|g" \
+  "s|(\\[mcp_servers\\.local_mcp_gateway\\.http_headers\\]\\n)|\$1Host = \"${gateway_host_header}\"\\n|g" \
   "${codex_work}/config.toml"
 perl -0pi -e \
-  "s|(\\[mcp_servers\\.MCP_DOCKER\\]\\n(?:(?!\\n\\[).)*?http_headers = \\{ Authorization = \"Bearer [^\"]+\") \\}|\$1, Host = \"${gateway_host_header}\" }|s" \
+  "s|(\\[mcp_servers\\.local_mcp_gateway\\]\\n(?:(?!\\n\\[).)*?http_headers = \\{ Authorization = \"Bearer [^\"]+\") \\}|\$1, Host = \"${gateway_host_header}\" }|s" \
   "${codex_work}/config.toml"
 if ! grep -Fq "Host = \"${gateway_host_header}\"" \
   "${codex_work}/config.toml"; then
-  echo "host-setup: could not add the loopback Host header to MCP_DOCKER: neither rewrite matched. Host Codex config must give MCP_DOCKER an [mcp_servers.MCP_DOCKER.http_headers] table, or an inline http_headers = { Authorization = \"Bearer ...\" }." >&2
+  echo "host-setup: could not add the loopback Host header to local_mcp_gateway: neither rewrite matched. Host Codex config must give local_mcp_gateway an [mcp_servers.local_mcp_gateway.http_headers] table, or an inline http_headers = { Authorization = \"Bearer ...\" }." >&2
   exit 1
 fi
 if ! grep -Fq "url = \"${container_playwright_url}\"" \
@@ -144,11 +144,11 @@ if [[ -f "${host_claude_config}" ]]; then
     --arg host "${gateway_host_header}" \
     --arg playwright_from "${host_playwright_url}" \
     --arg playwright_to "${container_playwright_url}" \
-    'if .mcpServers.MCP_DOCKER.url != $from then
-       error("Host MCP_DOCKER is not configured for the shared Gateway")
+    'if .mcpServers.local_mcp_gateway.url != $from then
+       error("Host local_mcp_gateway is not configured for the shared Gateway")
      else
-       .mcpServers.MCP_DOCKER.url = $to
-       | .mcpServers.MCP_DOCKER.headers.Host = $host
+       .mcpServers.local_mcp_gateway.url = $to
+       | .mcpServers.local_mcp_gateway.headers.Host = $host
      end
      | if .mcpServers.playwright?.url == $playwright_from then
          .mcpServers.playwright.url = $playwright_to
@@ -181,11 +181,11 @@ jq --arg from "${host_gateway_url}" \
   --arg to "${container_gateway_url}" \
   --arg host "${gateway_host_header}" \
   --arg playwright_to "${container_playwright_url}" \
-  'if .mcp.MCP_DOCKER.url != $from then
-     error("Host OpenCode MCP_DOCKER is not configured for the shared Gateway")
+  'if .mcp.local_mcp_gateway.url != $from then
+     error("Host OpenCode local_mcp_gateway is not configured for the shared Gateway")
    else
-     .mcp.MCP_DOCKER.url = $to
-     | .mcp.MCP_DOCKER.headers.Host = $host
+     .mcp.local_mcp_gateway.url = $to
+     | .mcp.local_mcp_gateway.headers.Host = $host
    end
    | if .mcp.playwright == null then
        error("Host OpenCode config must define an mcp.playwright entry")
