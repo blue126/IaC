@@ -5,6 +5,7 @@
   become: true
   roles:
     - common  # F5: consistent with all other deploy playbooks
+    - tailscale
     - gitea
 
 # F11: Role defaults are not available in a separate play.

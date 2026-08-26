@@ -3,6 +3,8 @@
   hosts: netbox
   become: yes
   roles:
+    - common
+    - tailscale
     - docker
     - netbox
 

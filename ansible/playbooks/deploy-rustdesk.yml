@@ -4,6 +4,8 @@
   become: true
   remote_user: ubuntu
   roles:
+    - common
+    - tailscale
     - docker
     - rustdesk
 

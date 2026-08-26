@@ -5,6 +5,7 @@
   become: true
   roles:
     - common
+    - tailscale
     - jenkins
 
 - name: Verify Jenkins Deployment

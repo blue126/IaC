@@ -1,17 +1,39 @@
 ---
-- name: Configure /dev/net/tun passthrough for LXC (on Proxmox Host)
+- name: Ensure TUN device permission in LXC configuration
   delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
-  blockinfile:
+  lineinfile:
     path: "/etc/pve/lxc/{{ proxmox_vmid }}.conf"
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - TAILSCALE"
-    block: |
-      lxc.cgroup2.devices.allow: c 10:200 rwm
-      lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+    line: 'lxc.cgroup2.devices.allow: c 10:200 rwm'
+    state: present
+  register: lxc_tun_device_config
   when:
     - ansible_facts.virtualization_type == 'lxc'
     - proxmox_vmid is defined
     - proxmox_node is defined
-  register: lxc_config_update
+
+- name: Ensure TUN mount entry in LXC configuration
+  delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
+  lineinfile:
+    path: "/etc/pve/lxc/{{ proxmox_vmid }}.conf"
+    line: 'lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file'
+    state: present
+  register: lxc_tun_mount_config
+  when:
+    - ansible_facts.virtualization_type == 'lxc'
+    - proxmox_vmid is defined
+    - proxmox_node is defined
+
+- name: Track LXC TUN configuration changes
+  set_fact:
+    lxc_config_changed: >-
+      {{
+        (lxc_tun_device_config.changed | default(false))
+        or (lxc_tun_mount_config.changed | default(false))
+      }}
+  when:
+    - ansible_facts.virtualization_type == 'lxc'
+    - proxmox_vmid is defined
+    - proxmox_node is defined
 
 - name: Prevent Proxmox from overwriting resolv.conf (LXC only)
   file:
@@ -28,13 +50,13 @@
 - name: Restart LXC container to apply changes
   delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
   command: "pct reboot {{ proxmox_vmid }}"
-  when: lxc_config_update.changed
+  when: lxc_config_changed | default(false) | bool
 
 - name: Wait for container to come back up
   wait_for_connection:
     delay: 10
     timeout: 60
-  when: lxc_config_update.changed
+  when: lxc_config_changed | default(false) | bool
 
 - name: Check if Tailscale is installed
   shell: command -v tailscale
@@ -57,26 +79,46 @@
     value: '1'
     sysctl_set: yes
     state: present
-    reload: yes
+    # LXC guests cannot reload host-only parameters such as kernel.printk.
+    reload: "{{ ansible_facts.virtualization_type != 'lxc' }}"
 
 - name: Check for /dev/net/tun
   stat:
     path: /dev/net/tun
   register: tun_device
 
-- name: Bring up Tailscale
+- name: Check Tailscale connection state
+  command: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+  when: tun_device.stat.exists
+
+- name: Authenticate Tailscale when disconnected
   command: >-
     tailscale up --authkey={{ tailscale_auth_key }} --ssh --reset
     --accept-risk=lose-ssh
     --accept-dns={{ tailscale_accept_dns | bool | lower }}
-  when: tun_device.stat.exists
+  when:
+    - tun_device.stat.exists
+    - tailscale_status.rc != 0 or (tailscale_status.stdout | from_json).BackendState != 'Running'
   register: tailscale_up
   changed_when: "'Success' in tailscale_up.stdout"
   # Without this the auth key is echoed in full whenever the task fails,
   # e.g. when the key has expired.
   no_log: true
 
-# Must run after `tailscale up`, because that is what clears the file.
+- name: Configure Tailscale preferences when connected
+  command: >-
+    tailscale set --ssh --accept-risk=lose-ssh
+    --accept-dns={{ tailscale_accept_dns | bool | lower }}
+  when:
+    - tun_device.stat.exists
+    - tailscale_status.rc == 0
+    - (tailscale_status.stdout | from_json).BackendState == 'Running'
+  changed_when: false
+
+# Must run after Tailscale configuration, because `tailscale up` clears the file.
 #
 # With --accept-dns=false, tailscaled hands /etc/resolv.conf back by restoring
 # whatever it saved before it took DNS over. On pve0 that pre-takeover copy was
@@ -111,5 +153,3 @@
 - name: Display Tailscale Info
   debug:
     msg: "Device: {{ inventory_hostname }} | Tailscale IP: {{ tailscale_ip.stdout }}"
-
-

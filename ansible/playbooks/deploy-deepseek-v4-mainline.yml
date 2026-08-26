@@ -2,8 +2,10 @@
 - name: Deploy DeepSeek V4 mainline DSpark service
   hosts: llm-server
   become: true
-  gather_facts: false
+  gather_facts: true
   roles:
+    - common
+    - tailscale
     - role: deepseek-v4-mainline
   tags: [deploy]
 

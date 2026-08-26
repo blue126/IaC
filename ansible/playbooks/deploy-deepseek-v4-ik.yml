@@ -2,10 +2,12 @@
 - name: Deploy DeepSeek V4 GGUF production service
   hosts: llm-server
   become: true
-  gather_facts: false
+  gather_facts: true
   vars:
     deepseek_v4_ik_production: true
   roles:
+    - common
+    - tailscale
     - role: deepseek-v4-ik
   tags: [production]
 

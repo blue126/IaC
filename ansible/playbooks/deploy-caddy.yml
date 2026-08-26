@@ -32,8 +32,11 @@
 
 - name: Deploy Caddy
   hosts: caddy
+  gather_facts: true
   become: true
   roles:
+    - common
+    - tailscale
     - caddy
 
   post_tasks:

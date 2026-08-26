@@ -2,10 +2,8 @@
 - name: Prepare DeepSeek V4 configuration
   hosts: llm-server
   become: true
-  gather_facts: false
-  roles:
-    - role: deepseek-v4
-  post_tasks:
+  gather_facts: true
+  pre_tasks:
     - name: Reject an actionless deployment invocation
       ansible.builtin.fail:
         msg: >-
@@ -13,7 +11,11 @@
           Select one narrow approved tag and provide its matching gate.
       when:
         - deepseek_v4_requested_action == 'none'
-        - ansible_run_tags == ['all']
+        - "'all' in ansible_run_tags"
+  roles:
+    - common
+    - tailscale
+    - role: deepseek-v4
 
 - name: Verify DeepSeek V4 deployment
   hosts: llm-server

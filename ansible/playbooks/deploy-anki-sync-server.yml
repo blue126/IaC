@@ -11,6 +11,8 @@
   gather_facts: true
   become: true
   roles:
+    - common
+    - tailscale
     - anki-sync-server
 
 - name: Deploy Anki Desktop

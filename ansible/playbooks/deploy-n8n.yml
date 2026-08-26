@@ -4,6 +4,8 @@
   gather_facts: true
   become: true
   roles:
+    - common
+    - tailscale
     - n8n
 
 - name: Verify n8n Deployment

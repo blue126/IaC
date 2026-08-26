@@ -13,6 +13,8 @@
       ansible.builtin.hostname:
         name: "{{ inventory_hostname }}"
   roles:
+    - common
+    - tailscale
     - docker
     - immich
 
@@ -138,4 +140,3 @@
           - "Database Directory: {{ immich_db_dir }}"
           - "========================================="
       when: not ansible_check_mode
-

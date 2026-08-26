@@ -2,8 +2,10 @@
 - name: Deploy Qwen3.6-27B as the daily runtime
   hosts: llm-server
   become: true
-  gather_facts: false
+  gather_facts: true
   roles:
+    - common
+    - tailscale
     - role: qwen36
   tags: [deploy]
 

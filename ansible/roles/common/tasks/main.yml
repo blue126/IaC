@@ -6,6 +6,12 @@
     update_cache: yes
   when: ansible_os_family == "Debian"
 
+- name: Ensure baseline packages are installed on Alpine
+  package:
+    name: "{{ common_packages }}"
+    state: present
+  when: ansible_os_family == "Alpine"
+
 - name: Setup authorized keys for the primary user
   authorized_key:
     user: "{{ ansible_user }}"
@@ -13,10 +19,19 @@
     state: present
   loop: "{{ common_authorized_keys }}"
 
+- name: Check whether sudo and visudo are available
+  stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/bin/sudo
+    - /usr/sbin/visudo
+  register: common_sudo_binaries
+
 - name: Allow 'sudo' group to have passwordless sudo
   lineinfile:
     path: /etc/sudoers
     state: present
-    regexp: '^%sudo'
-    line: '%sudo ALL=(ALL) NOPASSWD: ALL'
+    regexp: "^%{{ 'wheel' if ansible_os_family == 'Alpine' else 'sudo' }}"
+    line: "{{ '%wheel ALL=(ALL) NOPASSWD: ALL' if ansible_os_family == 'Alpine' else '%sudo ALL=(ALL) NOPASSWD: ALL' }}"
     validate: '/usr/sbin/visudo -cf %s'
+  when: common_sudo_binaries.results | map(attribute='stat.exists') | select('equalto', true) | list | length == 2
