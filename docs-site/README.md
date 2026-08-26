@@ -16,8 +16,8 @@ Required versions / 固定版本：
 hugo version && go version && hugo mod graph
 hugo --cleanDestinationDir --gc --minify --environment production \
   --printPathWarnings --panicOnWarning \
-  --baseURL 'https://willfan.me/IaC/'
-BASE_URL='https://willfan.me/IaC/'
+  --baseURL 'https://blue126.github.io/IaC/'
+BASE_URL='https://blue126.github.io/IaC/'
 test -s public/index.html
 test -s public/index.md
 test -s public/llms.txt
