@@ -1,0 +1,53 @@
+baseURL: https://blue126.github.io/IaC/
+title: Homelab IaC Documentation
+locale: zh-cn
+enableGitInfo: true
+enableRobotsTXT: true
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+
+params:
+  description: Terraform and Ansible homelab infrastructure documentation / 家庭实验室基础设施文档
+  github_repo: https://github.com/blue126/IaC
+  github_branch: master
+  offline_search: true
+  offline_search_on_serve: true
+  ui:
+    dark_mode:
+      enable: true
+      show_menu: true
+    docs_section: docs
+    footer_style: slim
+    page_context_menu:
+      enable: true
+      assistant_links: false
+
+outputFormats:
+  markdown:
+    mediaType: text/markdown
+    baseName: index
+    isPlainText: true
+    isHTML: false
+    permalinkable: true
+    rel: alternate
+
+outputs:
+  home: [HTML, RSS, markdown, LLMS]
+  section: [HTML, RSS, print, markdown]
+  page: [HTML, markdown]
+  taxonomy: [HTML, RSS, markdown]
+  term: [HTML, RSS, markdown]
+
+module:
+  imports:
+    - path: github.com/pgsty/oink
+  mounts:
+    - source: docs-site/content
+      target: content
+    - source: docs
+      target: content/docs
+    - source: docs-site/layouts
+      target: layouts

@@ -1,0 +1,106 @@
+name: Documentation Pages
+
+on:
+  pull_request:
+    paths:
+      - docs/**
+      - docs-site/**
+      - hugo.yaml
+      - go.mod
+      - go.sum
+      - .github/workflows/docs-pages.yml
+  push:
+    branches: [master]
+    paths:
+      - docs/**
+      - docs-site/**
+      - hugo.yaml
+      - go.mod
+      - go.sum
+      - .github/workflows/docs-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.0'
+          cache: true
+      - uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.165.0'
+          extended: true
+      - name: Verify pinned toolchain and module
+        shell: bash
+        run: |
+          hugo_version="$(hugo version)"
+          go_version="$(go version)"
+          module_graph="$(hugo mod graph)"
+          [[ "$hugo_version" == *"v0.165.0"* && "$hugo_version" == *"+extended"* ]]
+          [[ "$go_version" == *"go1.25.0"* ]]
+          [[ "$module_graph" == *"github.com/pgsty/oink@v0.7.0"* ]]
+      - name: Build strict production site
+        env:
+          BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: >-
+          hugo --cleanDestinationDir --gc --minify --environment production
+          --printPathWarnings --panicOnWarning
+          --baseURL "$BASE_URL"
+      - name: Smoke check generated site
+        shell: bash
+        env:
+          BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          test -s public/index.html
+          test -s public/index.md
+          test -s public/llms.txt
+          test -s public/docs/designs/homelab-iac-architecture/index.html
+          test -s public/docs/designs/homelab-iac-architecture/index.md
+          grep -Fq "rel=canonical href=${BASE_URL}docs/designs/homelab-iac-architecture/" public/docs/designs/homelab-iac-architecture/index.html
+          grep -Fq "rel=alternate type=text/markdown href=${BASE_URL}docs/designs/homelab-iac-architecture/index.md" public/docs/designs/homelab-iac-architecture/index.html
+          grep -Fxq '# Homelab IaC 系统架构文档' public/docs/designs/homelab-iac-architecture/index.md
+          grep -Fq '本文档描述 Homelab Infrastructure as Code 项目的完整系统架构' public/docs/designs/homelab-iac-architecture/index.md
+          grep -Fq "${BASE_URL}docs/designs/homelab-iac-architecture/index.md" public/llms.txt
+          grep -Fq 'td-diagram--mermaid' public/docs/designs/cicd-architecture/index.html
+          grep -Fq 'mermaid-' public/docs/designs/cicd-architecture/index.html
+          shopt -s nullglob
+          search_indexes=(public/offline-search-index.*.json)
+          test "${#search_indexes[@]}" -eq 1
+          test -s "${search_indexes[0]}"
+          grep -Fq '"title":"Documentation / 文档"' "${search_indexes[0]}"
+          grep -Fq '"ref":"/IaC/docs/"' "${search_indexes[0]}"
+      - uses: actions/upload-pages-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          path: public
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
