@@ -1,0 +1,12 @@
+---
+proxmox_node: pve0
+proxmox_vmid: 109
+
+cloudflared_configure_tunnel: true
+cloudflared_tunnel_name: mcp-gateway
+cloudflared_tunnel_id: "df495648-7b64-48e1-8283-db8e3ce4e874"
+cloudflared_tunnel_credentials: "{{ vault_mcp_gateway_cloudflared_credentials }}"
+cloudflared_ingress_rules:
+  - hostname: mcp.willfan.me
+    path: ^/mcp$
+    service: http://127.0.0.1:3000

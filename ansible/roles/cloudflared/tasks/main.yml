@@ -4,10 +4,10 @@
 #
 # PREREQUISITE (manual one-time setup):
 #   1. cloudflared tunnel login        → generates ~/.cloudflared/cert.pem
-#   2. cloudflared tunnel create {{ cloudflared_tunnel_name }}
+#   2. cloudflared tunnel create <tunnel-name>
 #                                       → generates ~/.cloudflared/<TUNNEL_ID>.json
-#   3. cloudflared tunnel route dns {{ cloudflared_tunnel_name }} {{ cloudflared_hostname }}
-#   4. Add vault_cloudflared_tunnel_id and vault_cloudflared_hostname to Ansible Vault
+#   3. cloudflared tunnel route dns <tunnel-name> <hostname>
+#   4. Configure host-specific tunnel variables in inventory
 
 # === Install cloudflared ===
 
@@ -40,48 +40,86 @@
     msg: "{{ cloudflared_version.stdout }}"
 
 # === Configure tunnel ===
-# NOTE: Config and credentials assume cloudflared runs as root (default in LXC)
 
-- name: Create cloudflared config directory
-  file:
-    path: "{{ cloudflared_config_dir }}"
-    state: directory
-    mode: '0755'
+- name: Configure Cloudflare Tunnel
+  when: cloudflared_configure_tunnel | bool
+  block:
+    - name: Validate Cloudflare Tunnel configuration
+      assert:
+        that:
+          - cloudflared_tunnel_name | length > 0
+          - cloudflared_tunnel_id | length > 0
+          - cloudflared_ingress_rules | length > 0
+        fail_msg: >
+          cloudflared_tunnel_name, cloudflared_tunnel_id, and at least one
+          cloudflared_ingress_rules entry are required when tunnel configuration
+          is enabled.
 
-- name: Check tunnel credentials file exists
-  stat:
-    path: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
-  register: tunnel_credentials
+    - name: Validate Cloudflare Tunnel ingress rules
+      assert:
+        that:
+          - item.hostname is defined
+          - item.hostname | length > 0
+          - item.service is defined
+          - item.service | length > 0
+        fail_msg: >
+          Each cloudflared_ingress_rules entry requires non-empty hostname and
+          service values.
+      loop: "{{ cloudflared_ingress_rules }}"
 
-- name: Fail if tunnel credentials not found
-  fail:
-    msg: >
-      Tunnel credentials file not found at
-      {{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json.
-      Run 'cloudflared tunnel login' and 'cloudflared tunnel create {{ cloudflared_tunnel_name }}'
-      manually first.
-  when: not tunnel_credentials.stat.exists
+    - name: Create cloudflared config directory
+      file:
+        path: "{{ cloudflared_config_dir }}"
+        state: directory
+        mode: '0755'
 
-- name: Deploy cloudflared config
-  template:
-    src: config.yml.j2
-    dest: "{{ cloudflared_config_dir }}/config.yml"
-    mode: '0600'
-  notify: Restart cloudflared
+    - name: Create cloudflared credentials directory
+      file:
+        path: "{{ cloudflared_credentials_dir }}"
+        state: directory
+        mode: '0700'
 
-# === Enable service ===
+    - name: Deploy Cloudflare Tunnel credentials
+      copy:
+        content: "{{ cloudflared_tunnel_credentials | to_nice_json }}\n"
+        dest: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
+        mode: '0600'
+      no_log: true
+      when: cloudflared_tunnel_credentials is not none
+      notify: Restart cloudflared
 
-- name: Install cloudflared as systemd service
-  command: cloudflared service install
-  register: service_install
-  failed_when:
-    - service_install.rc != 0
-    - "'already exists' not in (service_install.stderr | default(''))"
-  changed_when: service_install.rc == 0
+    - name: Check tunnel credentials file exists
+      stat:
+        path: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
+      register: tunnel_credentials
 
-- name: Enable and start cloudflared service
-  systemd:
-    name: cloudflared
-    enabled: yes
-    state: started
-    daemon_reload: yes
+    - name: Fail if tunnel credentials not found
+      fail:
+        msg: >
+          Tunnel credentials file not found at
+          {{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json.
+          Provide cloudflared_tunnel_credentials through Ansible Vault or create
+          the credentials file manually.
+      when: not tunnel_credentials.stat.exists
+
+    - name: Deploy cloudflared config
+      template:
+        src: config.yml.j2
+        dest: "{{ cloudflared_config_dir }}/config.yml"
+        mode: '0600'
+      notify: Restart cloudflared
+
+    - name: Install cloudflared as systemd service
+      command: cloudflared service install
+      register: service_install
+      failed_when:
+        - service_install.rc != 0
+        - "'already exists' not in (service_install.stderr | default(''))"
+      changed_when: service_install.rc == 0
+
+    - name: Enable and start cloudflared service
+      systemd:
+        name: cloudflared
+        enabled: true
+        state: started
+        daemon_reload: true

@@ -13,10 +13,6 @@
   gather_facts: false
   become: true
   tags: [verify]
-  pre_tasks:
-    - name: Load cloudflared role defaults
-      include_vars:
-        file: ../roles/cloudflared/defaults/main.yml
   tasks:
     - name: Check cloudflared service status
       systemd:

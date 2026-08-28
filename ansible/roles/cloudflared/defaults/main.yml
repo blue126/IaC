@@ -1,14 +1,17 @@
 ---
 # Default variables for cloudflared role
 
-# Tunnel configuration
-cloudflared_tunnel_name: jenkins-webhook
-cloudflared_tunnel_id: "{{ vault_cloudflared_tunnel_id }}"  # ... (vault indirect reference)
-cloudflared_hostname: "{{ vault_cloudflared_hostname }}"  # ... (vault indirect reference)
+# Install cloudflared without configuring a tunnel by default.
+cloudflared_configure_tunnel: false
 
-# Service to proxy
-cloudflared_service_url: "http://localhost:8080"
-cloudflared_service_path: /github-webhook/
+# Locally managed tunnel configuration. Override these values in inventory.
+cloudflared_tunnel_name: ""
+cloudflared_tunnel_id: ""
+cloudflared_ingress_rules: []
+
+# Optional credentials dictionary stored in Ansible Vault. When omitted, the
+# credentials file must already exist on the target host.
+cloudflared_tunnel_credentials: null
 
 # Config paths
 cloudflared_config_dir: /etc/cloudflared

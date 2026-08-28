@@ -2,9 +2,12 @@ tunnel: "{{ cloudflared_tunnel_id }}"
 credentials-file: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
 
 ingress:
-  # Only expose the Jenkins webhook endpoint
-  - hostname: "{{ cloudflared_hostname }}"
-    path: "{{ cloudflared_service_path }}"
-    service: "{{ cloudflared_service_url }}"
+{% for rule in cloudflared_ingress_rules %}
+  - hostname: "{{ rule.hostname }}"
+{% if rule.path is defined %}
+    path: "{{ rule.path }}"
+{% endif %}
+    service: "{{ rule.service }}"
+{% endfor %}
   # Catch-all: reject everything else
   - service: http_status:404

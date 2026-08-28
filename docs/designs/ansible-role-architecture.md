@@ -20,10 +20,11 @@
 ```
 ansible/
 ├── playbooks/           # 编排层：声明 role 组合和执行顺序
-├── roles/               # 执行层：13 个 role，每个负责一个服务
+├── roles/               # 执行层：14 个 role，每个负责一个服务
 │   ├── common/          # 基础设施 —— 所有主机的通用配置
 │   ├── docker/          # 基础设施 —— 容器运行环境
 │   ├── tailscale/       # 基础设施 —— VPN 接入
+│   ├── cloudflared/     # 基础设施 —— Cloudflare Tunnel 客户端
 │   ├── netbox/          # 应用服务
 │   ├── netbox-sync/     # 工具 —— 同步 inventory 到 Netbox
 │   ├── homepage/        # 应用服务
@@ -41,7 +42,7 @@ ansible/
 
 ## Role 分类
 
-### 基础设施 Role（3 个）
+### 基础设施 Role（4 个）
 
 为其他 role 提供运行环境，不直接部署应用服务。
 
@@ -50,6 +51,7 @@ ansible/
 | `common` | 安装基础包、部署 SSH 公钥、配置 sudo | 所有主机（via `site.yml`） |
 | `docker` | 安装 Docker Engine + Compose 插件 | immich, netbox, rustdesk, devcontainer |
 | `tailscale` | 安装 Tailscale VPN，处理 LXC 特殊配置 | 所有 tailscale 组成员 |
+| `cloudflared` | 默认安装 cloudflared；当 `cloudflared_configure_tunnel` 为 true 时，可选地管理本机 Cloudflare Tunnel 配置、凭据和 systemd 服务 | 需要由 Cloudflare Tunnel 暴露的主机 |
 
 ### 应用服务 Role（8 个）
 
@@ -104,6 +106,7 @@ roles/<role_name>/
 | common | ✅ | ✅ | — | — | SSH 公钥在 inventory `group_vars/all/common.yml` |
 | docker | — | ✅ | — | — | 纯安装，无可配置参数 |
 | tailscale | ✅ | ✅ | — | — | auth_key 在 `group_vars/tailscale.yml` |
+| cloudflared | ✅ | ✅ | ✅ | ✅ (1) | 默认仅安装；Tunnel 配置由 host_vars 按需启用 |
 | netbox | ✅ | ✅ | — | — | |
 | netbox-sync | ✅ | ✅ | — | — | 需要 `netbox.netbox` collection |
 | homepage | ✅ | ✅ | ✅ | ✅ (6) | 模板包含 dashboard 配置 |
@@ -160,6 +163,15 @@ role defaults (优先级 2)          → 可覆盖的默认值
 |------|--------|------|
 | `tailscale_dns_server` | `"192.168.1.1"` | LXC 容器的 DNS 服务器 |
 | `tailscale_auth_key` | *(group_vars)* | `{{ vault_tailscale_auth_key }}` |
+
+**cloudflared**
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `cloudflared_configure_tunnel` | `false` | 是否管理本机 Cloudflare Tunnel；默认只安装软件包 |
+| `cloudflared_tunnel_name` | `""` | 本机管理的 Tunnel 名称，由 inventory 覆盖 |
+| `cloudflared_tunnel_id` | `""` | 本机管理的 Tunnel ID，由 inventory 覆盖 |
+| `cloudflared_tunnel_credentials` | `null` | 可选的 Tunnel 凭据字典；应通过 Vault 间接引用提供 |
+| `cloudflared_ingress_rules` | `[]` | ingress 规则列表，每项包含 `hostname`、可选 `path` 和 `service` |
 
 #### 应用服务 Role
 
@@ -347,6 +359,7 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 | `deploy-anki.yml` | anki | anki | pip venv |
 | `deploy-n8n.yml` | n8n | n8n | npm 全局安装 |
 | `install-tailscale.yml` | tailscale | tailscale | 脚本安装 |
+| `deploy-cloudflared.yml` | jenkins | common → tailscale → cloudflared | 系统包 + 可选本机 Tunnel 配置 |
 | `setup-pbs-backup.yml` | pbs, pve0 | pbs-client | API 配置 |
 | `sync-netbox.yml` | pve_lxc:pve_vms:proxmox_cluster | netbox-sync | API 同步 |
 

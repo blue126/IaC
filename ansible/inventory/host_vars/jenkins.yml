@@ -1,3 +1,11 @@
 ---
 proxmox_node: pve0
 proxmox_vmid: 107
+
+cloudflared_configure_tunnel: true
+cloudflared_tunnel_name: jenkins-webhook
+cloudflared_tunnel_id: "{{ vault_cloudflared_tunnel_id }}"
+cloudflared_ingress_rules:
+  - hostname: "{{ vault_cloudflared_hostname }}"
+    path: /github-webhook/
+    service: http://localhost:8080

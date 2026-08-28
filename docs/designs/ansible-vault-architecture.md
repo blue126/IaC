@@ -1,6 +1,6 @@
 # Ansible Vault Architecture Design
 
-**Last Updated**: 2026-01-31  
+**Last Updated**: 2026-08-28
 **Status**: ✅ Implemented  
 **Owner**: Homelab IaC Project
 
@@ -39,7 +39,7 @@ ansible/
 - 消费侧变量去掉前缀（例如 `proxmox_password`）
 - 这样可以清楚区分"密码源"和"密码消费点"
 
-### 2. 当前变量清单（18 个）
+### 2. 当前变量清单（21 个）
 
 | 分组 | 变量 | 消费方 | 作用域 |
 |------|------|--------|--------|
@@ -61,6 +61,22 @@ ansible/
 | **Immich** | `vault_immich_db_password` | Ansible | Role配置 |
 | **Anki** | `vault_anki_sync_users` | Ansible | Role配置 |
 | **Cloudflare** | `vault_cloudflare_api_token` | Ansible | Role配置 |
+| **MCP Gateway** | `vault_mcp_gateway_cloudflared_credentials` | `host_vars/mcp-gateway.yml` → `cloudflared` role | 主机特定的服务器配置 |
+| | `vault_mcp_access_client_id` | MCP agent 客户端（Access 请求头） | 共享客户端凭据 |
+| | `vault_mcp_access_client_secret` | MCP agent 客户端（Access 请求头） | 共享客户端凭据 |
+
+**MCP Gateway 作用域说明**：
+
+- `vault_mcp_gateway_cloudflared_credentials` 是 `mcp-gateway` 主机上的
+  Cloudflared 服务器配置。它只通过
+  `inventory/host_vars/mcp-gateway.yml` 的
+  `cloudflared_tunnel_credentials` 间接传入 `cloudflared` role，不能作为
+  agent 客户端凭据分发。
+- `vault_mcp_access_client_id` 和 `vault_mcp_access_client_secret` 是共享的
+  Cloudflare Access Service Token 客户端凭据，供获授权的 MCP agent 在请求
+  `/mcp` 时分别填写 `CF-Access-Client-Id` 与
+  `CF-Access-Client-Secret` 请求头。两者不属于任何单台服务器配置，也不由
+  Terraform 桥接。
 
 ## 间接引用模式
 
@@ -263,6 +279,11 @@ vault.yml (18 个变量)
 │   │   └── vm_cipassword          ← vault_vm_default_password
 │   │         └──> SSH 连接 + cloud-init
 │   │
+│   ├── host_vars/mcp-gateway.yml
+│   │   └── cloudflared_tunnel_credentials
+│   │         ← vault_mcp_gateway_cloudflared_credentials
+│   │         └──> cloudflared role（本机 Tunnel 服务器配置）
+│   │
 │   └── group_vars/oci.yml (预留，当前仅 Terraform 消费)
 │       ├── oci_tenancy_ocid    ← vault_oci_tenancy_ocid
 │       ├── oci_user_ocid       ← vault_oci_user_ocid
@@ -298,6 +319,11 @@ vault.yml (18 个变量)
 │   ├── vault_proxmox_api_token_id  → proxmox/secrets.auto.tfvars
 │   ├── vault_proxmox_api_token_secret → proxmox/secrets.auto.tfvars
 │   └── vault_oci_*                 → oci/secrets.auto.tfvars
+│
+├── MCP Access 共享客户端凭据（不经 Ansible inventory 别名或 Terraform 桥接）
+│   ├── vault_mcp_access_client_id
+│   └── vault_mcp_access_client_secret
+│         └──> 获授权 MCP agent 的 CF-Access 请求头
 │
 └── 无别名 (Terraform-only)
     └── vault_proxmox_password — 仅 get-secrets.sh 消费
@@ -439,6 +465,7 @@ vault_complex_config:
 | 日期 | 版本 | 变更内容 |
 |------|------|----------|
 | 2026-01-31 | 1.0 | 初始版本，基于架构审计和标准化重构 |
+| 2026-08-28 | 1.1 | 补充 MCP Gateway Tunnel 服务器凭据与共享 Access 客户端凭据的作用域和消费者 |
 
 ## 参考文档
 

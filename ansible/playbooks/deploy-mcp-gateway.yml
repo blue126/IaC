@@ -1,0 +1,57 @@
+---
+- name: Deploy MCP Gateway host
+  hosts: mcp-gateway
+  gather_facts: true
+  become: true
+  roles:
+    - common
+    - docker
+    - cloudflared
+
+- name: Verify MCP Gateway host
+  hosts: mcp-gateway
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Check Docker service status
+      systemd:
+        name: docker
+      register: docker_status
+
+    - name: Assert Docker service is active
+      assert:
+        that:
+          - docker_status.status.ActiveState == "active"
+        fail_msg: Docker service is not active
+
+    - name: Check Docker Compose version
+      command: docker compose version
+      changed_when: false
+
+    - name: Check cloudflared service status
+      systemd:
+        name: cloudflared
+      register: cloudflared_status
+
+    - name: Assert cloudflared service is active
+      assert:
+        that:
+          - cloudflared_status.status.ActiveState == "active"
+        fail_msg: cloudflared service is not active
+
+    - name: Validate cloudflared ingress configuration
+      command: >-
+        cloudflared tunnel --config /etc/cloudflared/config.yml ingress validate
+      changed_when: false
+
+    - name: Check MCP ingress rule
+      command: >-
+        cloudflared tunnel --config /etc/cloudflared/config.yml ingress rule
+        https://mcp.willfan.me/mcp
+      register: mcp_ingress_rule
+      changed_when: false
+
+    - name: Display MCP ingress rule
+      debug:
+        msg: "{{ mcp_ingress_rule.stdout }}"
