@@ -12,12 +12,11 @@ coding agent 也跑在容器里,能碰到的只有明确挂进去的东西。但
   OpenCode Desktop  ──── :4096 ────────►  opencode serve
   可见的 Chrome  ◄──  playwright-mcp
                         (:8931)  ◄────────  agent
-  Docker MCP Gateway    (:8811)  ◄────────  agent
 ```
 
 **它不是什么**:不是一个"打开就能用"的通用开发容器。它假设你在 macOS 上、
-用 Docker Desktop、并且在宿主机上已经配好了 Codex / Claude Code / opencode 和
-Docker MCP Gateway。容器**继承**你宿主的这些配置,不自己建一套。
+用 Docker Desktop、并且在宿主机上已经配好了 Codex / Claude Code / opencode。
+容器**继承**你宿主的这些配置,不自己建一套。
 
 ---
 
@@ -40,10 +39,7 @@ echo "宿主机配置（容器会从这里派生）"
 check "~/.codex/config.toml"                 'test -f ~/.codex/config.toml'
 check "~/.claude.json"                       'test -f ~/.claude.json'
 check "~/.config/opencode/opencode.json"     'test -f ~/.config/opencode/opencode.json'
-check "codex 配好了 MCP_DOCKER"              'grep -q "mcp_servers.MCP_DOCKER" ~/.codex/config.toml'
-check "opencode 配好了 MCP_DOCKER"           'jq -e ".mcp.MCP_DOCKER.url" ~/.config/opencode/opencode.json'
 check "opencode 配好了 playwright"           'jq -e ".mcp.playwright" ~/.config/opencode/opencode.json'
-check "Docker MCP Gateway 在 8811"           'lsof -nP -iTCP:8811 -sTCP:LISTEN'
 
 [ $fail -eq 0 ] && echo "全部通过。" || echo "上面打 ✗ 的先补齐，否则容器起不来。"
 ```
@@ -114,14 +110,14 @@ prune 列表 —— 否则那条 `chown` 可能去动一个 bind mount,配上 `s
 ## 4. 验证装对了
 
 ```bash
-# ① 宿主的三个服务都在，且都只绑 127.0.0.1
-lsof -nP -iTCP:8811 -sTCP:LISTEN; lsof -nP -iTCP:8931 -sTCP:LISTEN; lsof -nP -iTCP:4096 -sTCP:LISTEN
-#   期望：三行，地址都是 127.0.0.1:<port>
+# ① 宿主的两个服务都在，且都只绑 127.0.0.1
+lsof -nP -iTCP:8931 -sTCP:LISTEN; lsof -nP -iTCP:4096 -sTCP:LISTEN
+#   期望：两行，地址都是 127.0.0.1:<port>
 
 # ② 容器里的 agent 配置指向宿主，而不是容器自己的 loopback
 devcontainer exec --workspace-folder . \
   grep -c host.docker.internal /home/vscode/.codex/config.toml
-#   期望：2（Gateway 一条 + Playwright 一条）。得到 0 → 见故障 ③
+#   期望：1（Playwright）。得到 0 → 见故障 ③
 
 # ③ 容器能回连宿主的 Playwright
 devcontainer exec --workspace-folder . \

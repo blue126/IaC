@@ -57,11 +57,9 @@ OpenCode Desktop 跑在宿主机,发送的是宿主路径;server 存的是 `real
   OpenCode Desktop  ──── :4096 ────────►  opencode serve
   可见的 Chrome  ◄──  playwright-mcp
                         (:8931)  ◄────────  agent (MCP client)
-  Docker MCP Gateway
-                        (:8811)  ◄────────  agent (MCP client)
 ```
 
-三个服务全部只绑 `127.0.0.1`。容器通过 Docker Desktop 的 `host.docker.internal`
+两个服务全部只绑 `127.0.0.1`。容器通过 Docker Desktop 的 `host.docker.internal`
 反向到达宿主机,所以**没有任何端口暴露到局域网**。
 
 ---
@@ -133,8 +131,6 @@ Docker daemon —— 一条 `docker run --privileged -v /:/host` 就是宿主 ro
 |---|---|
 | `community.docker.*`(rustdesk / anki-api / deepseek-v4 等 role) | **目标主机**,ansible 走 SSH 过去 |
 | `scripts/deepseek-v4-*-build.sh` | **llm-server**,脚本头写着 "Usage on the guest" |
-| Docker MCP Gateway | 宿主机进程,容器走 HTTP,不碰 docker CLI |
-
 要在容器里看宿主容器的话,在宿主终端上敲就行,不值得为此常开这个口子。
 
 ### 为什么 agent 不用 feature、也不进 Dockerfile
@@ -187,7 +183,7 @@ agent 的缓存和会话、`~/.local/bin` 里的 ansible 全在这里,几个 GB 
 | `~/.claude` | 认证、记忆、会话历史,宿主容器共用一份 |
 | `~/.codex` | 同上 |
 | `.generated/*` | 三个单文件覆盖,见第六节 |
-| `.opencode/auth.json` | opencode 的 provider 凭据 |
+| `~/.local/share/opencode/auth.json` | opencode 的 provider 凭据；使用宿主标准路径以兼容 worktree |
 
 #### 同路径挂载
 
@@ -280,35 +276,19 @@ postAttachCommand   容器   每次接入  (未使用)
 Codex 那一行是这套做法最清楚的例子:整个 `~/.codex` 目录共享,唯独 `config.toml`
 被生成版盖住。auth、history、oauth lock 全都还是宿主那份。
 
-被重写的只有两类:
-
-- **`127.0.0.1:8811` → `host.docker.internal:8811`**,并补一个
-  `Host: 127.0.0.1:8811` 头。Gateway 有 DNS-rebinding 检查,会拒绝陌生 Host;
-  补这个头让它认出这是本机流量。listener 仍然只绑 loopback,安全边界没被削弱。
-- **`127.0.0.1:8931` → `host.docker.internal:8931`**(Playwright)。opencode 宿主侧
+被重写的只有 **`127.0.0.1:8931` → `host.docker.internal:8931`**(Playwright)。
+opencode 宿主侧
   那条是 `type: local` + `npx`,没有 url 可改,整条替换成 remote。
 
 三个 agent 都在**全局配置**层面处理完,新项目不写任何项目级文件也能用。
 
 ---
 
-## 七、Docker MCP Gateway 在哪里配置
+## 七、Playwright MCP 在哪里运行
 
-**全部在宿主机,容器里一点都没有。**
-
-- 配置:`~/.docker/mcp/`(`catalogs/`、`registry.yaml`、`mcp-toolkit.db`),
-  由 Docker Desktop 的 MCP Toolkit 管理。
-- 进程:宿主机上的
-  `docker-mcp gateway run --profile default --transport streaming --host 127.0.0.1 --port 8811`。
-- 容器里:**没有** `~/.docker/mcp`,**没有** `docker-mcp` 二进制。
-
-准确说法不是"配置从宿主继承过来",而是**容器根本没有 gateway 配置,它只是
-gateway 的一个 HTTP 客户端**。`.generated/` 里那几个文件带的是 url + Authorization
-+ Host 三样东西,仅此而已。加 server、改 secret 一律在宿主 Docker Desktop 里做,
-容器下次启动自动跟上。
-
-Playwright 则**故意不注册进 Gateway** —— catalog 版本在容器里跑浏览器,看不见。
-详见 `host-setup.sh` 第 2 节。
+Playwright MCP 运行在宿主机并只监听 `127.0.0.1:8931`，这样它可以驱动可见的
+Chrome。容器内的客户端通过 `host.docker.internal:8931` 访问它；详见
+`host-setup.sh` 第 2 节。
 
 ---
 
@@ -317,7 +297,7 @@ Playwright 则**故意不注册进 Gateway** —— catalog 版本在容器里�
 清单和可粘贴的检查脚本在 [README.md](README.md#1-前置条件),不在这里重复。
 
 这里只说**为什么这些检查是硬失败**:`host-setup.sh` 在宿主缺 `jq`、缺 `codex`、
-或者 MCP_DOCKER 没配好时会直接 `exit 1`,连带让容器起不来。这是有意的 ——
+或者 Playwright 配置不完整时会直接 `exit 1`,连带让容器起不来。这是有意的 ——
 配置派生不出来的话,容器起来了 agent 也是半残的:MCP 全连不上、浏览器驱动不了,
 而这些失败在 agent 那边表现成莫名其妙的工具报错,离根因很远。当场失败便宜得多。
 
@@ -364,20 +344,19 @@ Dockerfile 变了、或者踩了坑 1 需要重新绑 inode。
 ## 十、起来之后逐条验证
 
 ```bash
-# 1. 三个宿主服务在不在（都应该只绑 127.0.0.1）
-lsof -nP -iTCP:8811 -sTCP:LISTEN
+# 1. 两个宿主服务在不在（都应该只绑 127.0.0.1）
 lsof -nP -iTCP:8931 -sTCP:LISTEN
 lsof -nP -iTCP:4096 -sTCP:LISTEN
 
 # 2. 生成的配置是不是真的被改写了
-grep -E 'url = |Host = ' .devcontainer/.generated/codex/config.toml
-jq -c '.mcp.playwright, .mcp.MCP_DOCKER.url' .devcontainer/.generated/opencode/opencode.json
+grep -E 'url = ' .devcontainer/.generated/codex/config.toml
+jq -c '.mcp.playwright' .devcontainer/.generated/opencode/opencode.json
 
 # 3. 容器里看到的是不是同一份（不一致就是踩了坑 1，需要重建容器）
 devcontainer exec --workspace-folder . \
   grep -c host.docker.internal /home/vscode/.codex/config.toml
 
-# 4. 容器能不能回连宿主的两个服务
+# 4. 容器能不能回连宿主的 Playwright 服务
 devcontainer exec --workspace-folder . \
   curl -s -o /dev/null -w '%{http_code}\n' http://host.docker.internal:8931/mcp
 

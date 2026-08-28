@@ -11,9 +11,8 @@
 #   host (macOS)          dev container
 #   ------------          -------------
 #   visible browser  <--  playwright-mcp (HTTP :8931)  <--  agent
-#   Docker MCP Gateway    (HTTP :8811)                 <--  agent
 #
-# Both host services bind loopback only. Docker Desktop routes
+# The host service binds loopback only. Docker Desktop routes
 # host.docker.internal to the host, so the container reaches them without the
 # ports being exposed to the LAN.
 #
@@ -29,9 +28,6 @@ container_opencode_home="${generated_root}/opencode"
 host_codex_config="${HOME}/.codex/config.toml"
 host_claude_config="${HOME}/.claude.json"
 host_opencode_config="${HOME}/.config/opencode/opencode.json"
-host_gateway_url="http://127.0.0.1:8811/mcp"
-container_gateway_url="http://host.docker.internal:8811/mcp"
-gateway_host_header="127.0.0.1:8811"
 host_playwright_url="http://127.0.0.1:8931/mcp"
 container_playwright_url="http://host.docker.internal:8931/mcp"
 
@@ -102,31 +98,14 @@ else
 fi
 
 # The generated file overlays only config.toml; all other Codex data continues
-# to come from the host ~/.codex bind mount. node_repl is host-only. Rewrite
-# both host endpoints for container reachability: Docker services use the
-# shared Gateway, while Playwright bypasses it and drives visible host Chrome.
-# Keep the Gateway HTTP Host header on loopback so its DNS-rebinding check
-# accepts the request without exposing the listener beyond 127.0.0.1.
+# to come from the host ~/.codex bind mount. node_repl is host-only. Rewrite the
+# Playwright endpoint so the container can drive visible host Chrome.
 if CODEX_HOME="${codex_work}" codex mcp get node_repl >/dev/null 2>&1; then
   CODEX_HOME="${codex_work}" codex mcp remove node_repl >/dev/null
 fi
 perl -0pi -e \
-  "s|\\Q${host_gateway_url}\\E|${container_gateway_url}|g" \
-  "${codex_work}/config.toml"
-perl -0pi -e \
   "s|\\Q${host_playwright_url}\\E|${container_playwright_url}|g" \
   "${codex_work}/config.toml"
-perl -0pi -e \
-  "s|(\\[mcp_servers\\.local_mcp_gateway\\.http_headers\\]\\n)|\$1Host = \"${gateway_host_header}\"\\n|g" \
-  "${codex_work}/config.toml"
-perl -0pi -e \
-  "s|(\\[mcp_servers\\.local_mcp_gateway\\]\\n(?:(?!\\n\\[).)*?http_headers = \\{ Authorization = \"Bearer [^\"]+\") \\}|\$1, Host = \"${gateway_host_header}\" }|s" \
-  "${codex_work}/config.toml"
-if ! grep -Fq "Host = \"${gateway_host_header}\"" \
-  "${codex_work}/config.toml"; then
-  echo "host-setup: could not add the loopback Host header to local_mcp_gateway: neither rewrite matched. Host Codex config must give local_mcp_gateway an [mcp_servers.local_mcp_gateway.http_headers] table, or an inline http_headers = { Authorization = \"Bearer ...\" }." >&2
-  exit 1
-fi
 if ! grep -Fq "url = \"${container_playwright_url}\"" \
   "${codex_work}/config.toml"; then
   echo "host-setup: host Codex config must define the direct Playwright MCP endpoint." >&2
@@ -135,22 +114,13 @@ fi
 publish "${codex_work}/config.toml" "${container_codex_home}/config.toml"
 
 # Claude Code stores user-scoped MCP configuration in ~/.claude.json, outside
-# the shared ~/.claude directory. Copy the complete host file and rewrite the
-# Gateway URL. If a user-scoped Playwright entry exists, keep it on the direct
-# host endpoint too; this project normally supplies that entry through
-# .mcp.json instead.
+# the shared ~/.claude directory. Copy the complete host file. If a user-scoped
+# Playwright entry exists, keep it on the direct host endpoint too; this project
+# normally supplies that entry through .mcp.json instead.
 if [[ -f "${host_claude_config}" ]]; then
-  jq --arg from "${host_gateway_url}" --arg to "${container_gateway_url}" \
-    --arg host "${gateway_host_header}" \
-    --arg playwright_from "${host_playwright_url}" \
+  jq --arg playwright_from "${host_playwright_url}" \
     --arg playwright_to "${container_playwright_url}" \
-    'if .mcpServers.local_mcp_gateway.url != $from then
-       error("Host local_mcp_gateway is not configured for the shared Gateway")
-     else
-       .mcpServers.local_mcp_gateway.url = $to
-       | .mcpServers.local_mcp_gateway.headers.Host = $host
-     end
-     | if .mcpServers.playwright?.url == $playwright_from then
+    'if .mcpServers.playwright?.url == $playwright_from then
          .mcpServers.playwright.url = $playwright_to
        else
          .
@@ -162,12 +132,8 @@ fi
 publish "${work}/claude.json" "${container_claude_home}/.claude.json"
 
 # OpenCode Desktop connects to the server running inside the devcontainer, so
-# that server needs its own view of the host's global config. Keep the shared
-# host Gateway as a remote HTTP server; only rewrite the route into macOS and
-# add the loopback Host header required by the Gateway's rebinding check. This
-# does not install or invoke Docker MCP CLI inside the container.
-#
-# Playwright is rewritten here, in the global config, rather than left to a
+# that server needs its own view of the host's global config. Playwright is
+# rewritten here, in the global config, rather than left to a
 # per-project .opencode/opencode.json, so a new project inherits it the way
 # Codex and Claude Code already do. The host entry is a `local` one that spawns
 # npx: left as-is the container would start its own headless browser, which is
@@ -177,17 +143,8 @@ if [[ ! -f "${host_opencode_config}" ]]; then
   echo "host-setup: host OpenCode config is required to prepare the devcontainer config." >&2
   exit 1
 fi
-jq --arg from "${host_gateway_url}" \
-  --arg to "${container_gateway_url}" \
-  --arg host "${gateway_host_header}" \
-  --arg playwright_to "${container_playwright_url}" \
-  'if .mcp.local_mcp_gateway.url != $from then
-     error("Host OpenCode local_mcp_gateway is not configured for the shared Gateway")
-   else
-     .mcp.local_mcp_gateway.url = $to
-     | .mcp.local_mcp_gateway.headers.Host = $host
-   end
-   | if .mcp.playwright == null then
+jq --arg playwright_to "${container_playwright_url}" \
+  'if .mcp.playwright == null then
        error("Host OpenCode config must define an mcp.playwright entry")
      else
        .mcp.playwright = {
@@ -205,10 +162,9 @@ echo "host-setup: agent configs generated in .devcontainer/.generated/"
 # ═══════════════════════════════════════════════════════════════════════════
 #  2. Playwright MCP on the host
 #
-#  Deliberately not registered in Docker MCP Gateway: the catalog version runs
-#  its browser in a container and cannot show host Chrome. Clients reach it
-#  directly -- host Codex through ~/.codex/config.toml, everything inside the
-#  container through the configs generated above, plus .mcp.json for Claude Code.
+#  Clients reach it directly -- host Codex through ~/.codex/config.toml,
+#  everything inside the container through the configs generated above, plus
+#  .mcp.json for Claude Code.
 # ═══════════════════════════════════════════════════════════════════════════
 
 if lsof -nP -iTCP:"${playwright_port}" -sTCP:LISTEN >/dev/null 2>&1; then

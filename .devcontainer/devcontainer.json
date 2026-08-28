@@ -63,7 +63,7 @@
     "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind",
     "source=${localWorkspaceFolder}/.devcontainer/.generated/codex/config.toml,target=/home/vscode/.codex/config.toml,type=bind",
     "source=${localWorkspaceFolder}/.devcontainer/.generated/opencode/opencode.json,target=/home/vscode/.config/opencode/opencode.json,type=bind",
-    "source=${localWorkspaceFolder}/.opencode/auth.json,target=/mnt/opencode-auth.json,type=bind",
+    "source=${localEnv:HOME}/.local/share/opencode/auth.json,target=/mnt/opencode-auth.json,type=bind",
 
     // WORKAROUND — the same checkout mounted a second time at its host path, so
     // the opencode desktop app and the server agree on what to call it. A
