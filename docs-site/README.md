@@ -31,7 +31,7 @@ grep -Fq '本文档描述 Homelab Infrastructure as Code 项目的完整系统�
 grep -Fq "${BASE_URL}docs/designs/homelab-iac-architecture/index.md" public/llms.txt
 grep -Fq '<title>Homelab IaC 系统架构文档 | Homelab IaC Documentation</title>' public/docs/designs/homelab-iac-architecture/index.html
 grep -Fq '<span>Homelab IaC 系统架构文档</span></a>' public/docs/designs/homelab-iac-architecture/index.html
-grep -Fq 'github.com/blue126/IaC/edit/master/docs/designs/homelab-iac-architecture.md' public/docs/designs/homelab-iac-architecture/index.html
+grep -Fq 'github.com/blue126/IaC/edit/main/docs/designs/homelab-iac-architecture.md' public/docs/designs/homelab-iac-architecture/index.html
 grep -Fq 'Homelab IaC Documentation' public/index.html
 grep -Fq 'Browse documentation' public/index.html
 grep -Fq 'td-diagram--mermaid' public/docs/designs/cicd-architecture/index.html

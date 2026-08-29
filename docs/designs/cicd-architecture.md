@@ -564,7 +564,7 @@ triggers {
 
 | 条件 | 是否触发 |
 |------|----------|
-| Push to master | 是 |
+| Push to main | 是 |
 | Push to feature branch | 否 (可配置) |
 | PR merge | 是 |
 | 手动 Build Now | 是 |
@@ -769,13 +769,13 @@ stage('Terraform Plan') {
 |------|----------|------|-------|---------|
 | feature/* | ✓ | ✓ | ✗ | ✗ |
 | develop | ✓ | ✓ | ✓ (自动) | ✓ (staging) |
-| master | ✓ | ✓ | ✓ (审批) | ✓ (production) |
+| main | ✓ | ✓ | ✓ (审批) | ✓ (production) |
 
 ```groovy
 stage('Terraform Apply') {
     when {
         anyOf {
-            branch 'master'
+            branch 'main'
             branch 'develop'
         }
     }
@@ -922,7 +922,7 @@ timeline
         Medium Priority : Plan Output Archival
     section 2026 Q2 (Mid-term)
         Medium Priority : Smart Playbook Selection
-                        : Branch Strategy (feature/develop/master)
+                        : Branch Strategy (feature/develop/main)
         Low Priority : Approval Timeout Handling
                      : Parallel Ansible Execution
     section 2026 Q3-Q4 (Long-term)

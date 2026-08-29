@@ -4,9 +4,9 @@ description: Terraform and Ansible homelab infrastructure documentation / 家庭
 outputs: [HTML, RSS, markdown, LLMS]
 ---
 
-统一浏览、搜索和 Agent-friendly 输出入口。原始 Markdown 仍保存在 GitHub 的 [`docs/`](https://github.com/blue126/IaC/tree/master/docs) 目录。
+统一浏览、搜索和 Agent-friendly 输出入口。原始 Markdown 仍保存在 GitHub 的 [`docs/`](https://github.com/blue126/IaC/tree/main/docs) 目录。
 
-Use this site to browse and search the repository documentation. The original Markdown remains available in the GitHub [`docs/`](https://github.com/blue126/IaC/tree/master/docs) directory.
+Use this site to browse and search the repository documentation. The original Markdown remains available in the GitHub [`docs/`](https://github.com/blue126/IaC/tree/main/docs) directory.
 
 ## 浏览文档 / Browse docs
 

@@ -12,7 +12,7 @@ markup:
 params:
   description: Terraform and Ansible homelab infrastructure documentation / 家庭实验室基础设施文档
   github_repo: https://github.com/blue126/IaC
-  github_branch: master
+  github_branch: main
   offline_search: true
   offline_search_on_serve: true
   ui:
