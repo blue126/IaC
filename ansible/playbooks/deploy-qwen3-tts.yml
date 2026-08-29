@@ -1,0 +1,377 @@
+---
+- name: Deploy Qwen3-TTS OpenAI-compatible API
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  tags: [deploy]
+  vars:
+    qwen3_tts_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+    qwen3_tts_upstream_repository: https://github.com/groxaxo/Qwen3-TTS-Openai-Fastapi.git
+    qwen3_tts_upstream_version: 783bf0e51596f1eb1e70124258f0e1ea4bf3b40a
+    qwen3_tts_backend: optimized
+    qwen3_tts_gpu_ordinal: 1
+    qwen3_tts_bind_address: 192.168.1.247
+    qwen3_tts_port: 8100
+    qwen3_tts_container_port: 8880
+    qwen3_tts_compose_project: qwen3-tts
+    qwen3_tts_install_dir: /opt/qwen3-tts
+    qwen3_tts_source_dir: /opt/qwen3-tts/source
+    qwen3_tts_model_cache_dir: /data/models/qwen3-tts
+    qwen3_tts_max_concurrent: 1
+    qwen3_tts_warmup_on_start: true
+    qwen3_tts_autochunk: true
+    qwen3_tts_service_name: qwen3-tts.service
+  tasks:
+    - name: Validate Qwen3-TTS deployment variables
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice'
+          - qwen3_tts_upstream_repository == 'https://github.com/groxaxo/Qwen3-TTS-Openai-Fastapi.git'
+          - qwen3_tts_upstream_version is match('^[0-9a-f]{40}$')
+          - qwen3_tts_backend == 'optimized'
+          - qwen3_tts_gpu_ordinal | string is match('^[01]$')
+          - qwen3_tts_bind_address == '192.168.1.247'
+          - qwen3_tts_port | int == 8100
+          - qwen3_tts_container_port | int == 8880
+          - qwen3_tts_compose_project == 'qwen3-tts'
+          - qwen3_tts_install_dir == '/opt/qwen3-tts'
+          - qwen3_tts_source_dir == '/opt/qwen3-tts/source'
+          - qwen3_tts_model_cache_dir == '/data/models/qwen3-tts'
+          - qwen3_tts_max_concurrent | int == 1
+          - qwen3_tts_warmup_on_start | bool
+          - qwen3_tts_autochunk | bool
+        fail_msg: Qwen3-TTS PoC variables exceed the fixed deployment boundary
+
+    - name: Check Qwen3.6 service state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - qwen36.service
+      register: qwen3_tts_qwen36_state
+      changed_when: false
+      failed_when: false
+
+    - name: Check DeepSeek mainline service state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - deepseek-v4-mainline.service
+      register: qwen3_tts_deepseek_state
+      changed_when: false
+      failed_when: false
+
+    - name: Validate LLM runtime boundary
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_qwen36_state.rc == 0
+          - qwen3_tts_qwen36_state.stdout == 'active'
+          - qwen3_tts_deepseek_state.stdout != 'active'
+        fail_msg: Qwen3.6 must be active and DeepSeek mainline must be inactive
+
+    - name: Read free memory for each GPU before deployment
+      ansible.builtin.command:
+        argv:
+          - nvidia-smi
+          - --query-gpu=index,memory.free
+          - --format=csv,noheader,nounits
+      register: qwen3_tts_gpu_memory_before
+      changed_when: false
+
+    - name: Display free memory for each GPU before deployment
+      ansible.builtin.debug:
+        var: qwen3_tts_gpu_memory_before.stdout_lines
+
+    - name: Validate the two-GPU deployment boundary
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_gpu_memory_before.stdout_lines | length == 2
+          - qwen3_tts_gpu_memory_before.stdout_lines | select('match', '^' ~ (qwen3_tts_gpu_ordinal | string) ~ ',') | list | length == 1
+        fail_msg: The host must expose GPU ordinals 0 and 1, including the selected ordinal
+
+    - name: Check listeners on the Qwen3-TTS host port
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -H
+          - -ltn
+          - "sport = :{{ qwen3_tts_port }}"
+      register: qwen3_tts_port_listener
+      changed_when: false
+
+    - name: Find an existing Qwen3-TTS container on the host port
+      ansible.builtin.command:
+        argv:
+          - docker
+          - ps
+          - --quiet
+          - --filter
+          - "label=com.docker.compose.project={{ qwen3_tts_compose_project }}"
+          - --filter
+          - "publish={{ qwen3_tts_port }}"
+      register: qwen3_tts_existing_container
+      changed_when: false
+
+    - name: Validate Qwen3-TTS host port ownership
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_port_listener.stdout | trim | length == 0 or qwen3_tts_existing_container.stdout | trim | length > 0
+        fail_msg: Host port 8100 is occupied by a service outside the Qwen3-TTS Compose project
+
+    - name: Create Qwen3-TTS installation directory
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_install_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Qwen3-TTS model cache directory
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_model_cache_dir }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        mode: "0755"
+
+    - name: Check out pinned Qwen3-TTS upstream source
+      ansible.builtin.git:
+        repo: "{{ qwen3_tts_upstream_repository }}"
+        dest: "{{ qwen3_tts_source_dir }}"
+        version: "{{ qwen3_tts_upstream_version }}"
+        force: false
+
+    - name: Deploy optimized backend configuration
+      ansible.builtin.copy:
+        dest: "{{ qwen3_tts_install_dir }}/config.yaml"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          default_model: 1.7B-CustomVoice
+          models:
+            1.7B-CustomVoice:
+              hf_id: {{ qwen3_tts_model_repository }}
+              type: customvoice
+          optimization:
+            attention: flash_attention_2
+            compile_mode: max-autotune
+            use_compile: true
+            use_cuda_graphs: false
+            use_fast_codebook: true
+            compile_codebook_predictor: true
+            streaming:
+              decode_window_frames: 80
+              emit_every_frames: 6
+          server:
+            host: 0.0.0.0
+            port: {{ qwen3_tts_container_port }}
+          voices:
+            - name: Vivian
+              language: Chinese
+            - name: Ryan
+              language: English
+
+    - name: Deploy Qwen3-TTS Docker Compose file
+      ansible.builtin.copy:
+        dest: "{{ qwen3_tts_install_dir }}/compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          ---
+          services:
+            server:
+              image: qwen3-tts-openai-fastapi:{{ qwen3_tts_upstream_version }}
+              build:
+                context: ./source
+                dockerfile: Dockerfile
+                target: production
+              environment:
+                HOST: 0.0.0.0
+                PORT: "{{ qwen3_tts_container_port }}"
+                WORKERS: "1"
+                TTS_BACKEND: {{ qwen3_tts_backend }}
+                TTS_CONFIG: /home/appuser/qwen3-tts/config.yaml
+                TTS_MAX_CONCURRENT: "{{ qwen3_tts_max_concurrent }}"
+                TTS_LAZY_LOAD: "false"
+                TTS_WARMUP_ON_START: "{{ qwen3_tts_warmup_on_start | bool | lower }}"
+                TTS_AUTOCHUNK: "{{ qwen3_tts_autochunk | bool | lower }}"
+                NVIDIA_DRIVER_CAPABILITIES: compute,utility
+              ports:
+                - "{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}:{{ qwen3_tts_container_port }}"
+              volumes:
+                - "{{ qwen3_tts_model_cache_dir }}:/home/appuser/.cache/huggingface"
+                - "{{ qwen3_tts_install_dir }}/config.yaml:/home/appuser/qwen3-tts/config.yaml:ro"
+              devices:
+                - nvidia.com/gpu={{ qwen3_tts_gpu_ordinal }}
+              init: true
+              restart: "no"
+              stop_grace_period: 120s
+
+    - name: Validate Qwen3-TTS Docker Compose file
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+          - config
+          - --quiet
+      changed_when: false
+
+    - name: Deploy Qwen3-TTS systemd service
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ qwen3_tts_service_name }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Qwen3-TTS OpenAI-compatible API Compose owner
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          WorkingDirectory={{ qwen3_tts_install_dir }}
+          ExecStart=/usr/bin/docker compose --project-name {{ qwen3_tts_compose_project }} --file {{ qwen3_tts_install_dir }}/compose.yml up -d --build --force-recreate server
+          ExecStop=/usr/bin/docker compose --project-name {{ qwen3_tts_compose_project }} --file {{ qwen3_tts_install_dir }}/compose.yml down --remove-orphans --timeout 120
+          TimeoutStartSec=1800
+          TimeoutStopSec=180
+
+    - name: Reload systemd configuration
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    - name: Start Qwen3-TTS service without enabling it
+      ansible.builtin.systemd_service:
+        name: "{{ qwen3_tts_service_name }}"
+        state: started
+        enabled: false
+
+    - name: Wait for Qwen3-TTS health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/health"
+        method: GET
+        status_code: 200
+      register: qwen3_tts_deploy_health
+      retries: 60
+      delay: 10
+      until:
+        - qwen3_tts_deploy_health.status == 200
+        - qwen3_tts_deploy_health.json.status == 'healthy'
+
+    - &qwen3_tts_verify_block
+      name: Run read-only Qwen3-TTS verification
+      block:
+        - name: Check Qwen3-TTS systemd service state
+          ansible.builtin.command:
+            argv:
+              - systemctl
+              - is-active
+              - qwen3-tts.service
+          register: qwen3_tts_verify_systemd
+          changed_when: false
+
+        - name: Check running Qwen3-TTS Compose service
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - qwen3-tts
+              - --file
+              - /opt/qwen3-tts/compose.yml
+              - ps
+              - --services
+              - --status
+              - running
+          register: qwen3_tts_verify_compose
+          changed_when: false
+
+        - name: Check Qwen3-TTS health endpoint
+          ansible.builtin.uri:
+            url: http://192.168.1.247:8100/health
+            method: GET
+            status_code: 200
+            return_content: true
+          register: qwen3_tts_verify_health
+
+        - name: Check Qwen3-TTS models endpoint
+          ansible.builtin.uri:
+            url: http://192.168.1.247:8100/v1/models
+            method: GET
+            status_code: 200
+            return_content: true
+          register: qwen3_tts_verify_models
+
+        - name: Generate short Qwen3-TTS WAV response
+          ansible.builtin.uri:
+            url: http://192.168.1.247:8100/v1/audio/speech
+            method: POST
+            body_format: json
+            body:
+              model: tts-1
+              voice: alloy
+              input: Hello.
+              response_format: wav
+            status_code: 200
+            return_content: true
+            timeout: 300
+          register: qwen3_tts_verify_speech
+
+        - name: Validate Qwen3-TTS API responses
+          ansible.builtin.assert:
+            that:
+              - qwen3_tts_verify_systemd.stdout == 'active'
+              - "'server' in qwen3_tts_verify_compose.stdout_lines"
+              - qwen3_tts_verify_health.json.status == 'healthy'
+              - qwen3_tts_verify_models.json.object == 'list'
+              - qwen3_tts_verify_models.json.data | length > 0
+              - qwen3_tts_verify_speech.content | length > 44
+              - qwen3_tts_verify_speech.content[0:4] == 'RIFF'
+              - qwen3_tts_verify_speech.content[8:12] == 'WAVE'
+            fail_msg: Qwen3-TTS read-only verification failed
+
+        - name: Read Qwen3-TTS container restart count
+          ansible.builtin.command:
+            argv:
+              - docker
+              - inspect
+              - --format
+              - "{{ '{{.RestartCount}}' }}"
+              - qwen3-tts-server-1
+          register: qwen3_tts_verify_restart_count
+          changed_when: false
+
+        - name: Validate Qwen3-TTS container restart count
+          ansible.builtin.assert:
+            that:
+              - qwen3_tts_verify_restart_count.stdout | int == 0
+            fail_msg: Qwen3-TTS container has restarted unexpectedly
+
+        - name: Read free memory for each GPU after deployment
+          ansible.builtin.command:
+            argv:
+              - nvidia-smi
+              - --query-gpu=index,memory.free
+              - --format=csv,noheader,nounits
+          register: qwen3_tts_gpu_memory_after
+          changed_when: false
+
+        - name: Display free memory for each GPU after deployment
+          ansible.builtin.debug:
+            var: qwen3_tts_gpu_memory_after.stdout_lines
+
+- name: Verify Qwen3-TTS OpenAI-compatible API
+  hosts: llm-server
+  become: true
+  gather_facts: false
+  tasks:
+    - *qwen3_tts_verify_block
+  tags: [never, verify]
