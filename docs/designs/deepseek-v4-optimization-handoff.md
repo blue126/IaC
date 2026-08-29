@@ -28,8 +28,8 @@ decode **1K 7.58 → 9.46 tok/s（+24.8%）、8K 7.31 → 8.92 tok/s（+22.1%）
 | 机器 | 地址 | 登录 | 说明 |
 |---|---|---|---|
 | **llm-server**（guest，跑推理） | 192.168.1.247 | `ssh ubuntu@192.168.1.247`（默认 key `~/.ssh/id_ed25519`，免密 sudo） | Ubuntu，36 核，334GB RAM，双 RTX 3090（ESXi 直通） |
-| **ESXi 宿主机** | 192.168.1.251 | 从仓库根目录运行 `ssh -i .ssh/id_rsa_esxi_t7910 root@192.168.1.251` | ESXi 8.0.3；**必须用工作区 `.ssh/` 下的 RSA key**（`~/.ssh/id_ed25519` 不被接受） |
-| 本机（开发/管理） | — | — | macOS 路径通常为 `/Users/weierfu/Projects/IaC`，Dev Container 为 `/workspaces/IaC`；Ansible 从 `ansible/` 目录跑 |
+| **ESXi 宿主机** | 192.168.1.251 | 在宿主 SSH 配置中为该主机使用 agent；先执行 `ssh-add ~/.ssh/id_rsa_esxi_t7910`，再执行 `ssh root@192.168.1.251` | ESXi 8.0.3；RSA key 位于宿主 `~/.ssh/id_rsa_esxi_t7910`，不得放入仓库工作区或 sandbox。本文不声明 ed25519 可用于该主机。 |
+| 本机（开发/管理） | — | — | 从仓库根目录执行；Ansible 命令先 `cd ansible`。Docker Sandboxes 的启动和凭据边界见 README。 |
 
 ### 1.2 当前服务形态
 

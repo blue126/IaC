@@ -155,7 +155,7 @@ nvidia-smi --query-gpu=index,memory.used --format=csv
 **在开发机执行**，不是在服务器上：
 
 ```bash
-cd /workspaces/IaC/ansible
+cd ansible
 
 # 切到 Qwen3.6（日常）
 ansible-playbook playbooks/deploy-qwen36.yml
@@ -376,7 +376,7 @@ docker logs --tail 30 qwen36-server-1
 docker logs --tail 30 deepseek-v4-mainline-server-1
 ```
 
-**在开发机的 `/workspaces/IaC/ansible` 目录**（重新部署会做完整校验）：
+**在开发机仓库的 `ansible/` 目录**（重新部署会做完整校验）：
 
 ```bash
 ansible-playbook playbooks/deploy-qwen36.yml
@@ -435,7 +435,7 @@ docker logs --tail 20 qwen36-server-1 | grep slot
 
 模型把工具调用当普通文本输出，而不是结构化的 `tool_calls`。按层排查：
 
-**1. 用 playbook 的 canonical 验证**（开发机 `/workspaces/IaC/ansible`）：
+**1. 用 playbook 的 canonical 验证**（开发机仓库的 `ansible/` 目录）：
 
 ```bash
 ansible-playbook playbooks/deploy-qwen36.yml --tags verify
@@ -483,7 +483,7 @@ docker logs -f deepseek-v4-mainline-server-1
 docker restart open-webui
 ```
 
-**在开发机的 `/workspaces/IaC/ansible` 目录**：
+**在开发机仓库的 `ansible/` 目录**：
 
 ```bash
 ansible-playbook playbooks/deploy-qwen36.yml                  # 切到日常

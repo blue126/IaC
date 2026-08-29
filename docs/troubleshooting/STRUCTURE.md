@@ -87,11 +87,15 @@
    - 原因: Ansible 2.13+ 移除了外部插件
    - 解决: 更新 ansible.cfg，使用 `default` + `callback_result_format = yaml`
 
-2. **DevContainer 环境依赖缺失**
+2. **Docker Sandbox Ansible 依赖缺失**
    - 症状 A: passlib 库缺失
    - 症状 B: ansible.posix 集合缺失
-   - 原因: DevContainer 是干净环境，未自动安装
-   - 解决: 创建 `requirements.txt` + `requirements.yml`
+   - 原因: Kit 创建失败或仍在使用旧 sandbox
+   - 解决: 验证 `.sandbox-kit` 并重新创建 sandbox；依赖声明与 Kit 保持同步
+
+   **独立检查：Docker Sandbox Playwright MCP**
+   - 适用: Playwright MCP 连接异常（不是 Ansible 依赖缺失）
+   - 解决: 只运行当前 agent 对应的 sandbox-local MCP 检查命令
 
 3. **检测命令是否存在**
    - 错误做法: 使用 `command` 模块（会抛异常）
@@ -210,7 +214,7 @@
 - 不要依赖系统"可能"的默认行为
 
 ### 2. 环境隔离与复现
-- 使用 DevContainer 确保可复现
+- 使用 Docker Sandboxes 确保可复现
 - 显式声明依赖 (requirements.txt / requirements.yml)
 
 ### 3. 数据与逻辑分离

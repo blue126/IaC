@@ -849,7 +849,7 @@ bin_ansible_callbacks = True  # 推荐：允许 ad-hoc 命令也使用此回调
 - `default` 插件的配置在 `[defaults]` 节下（特例）
 - 普通插件使用 `[callback_<name>]` 节
 
-### 6.3 DevContainer 依赖缺失
+### 6.3 Docker Sandbox Ansible 依赖缺失
 
 #### 问题：Python 库和 Ansible 集合缺失
 
@@ -871,33 +871,53 @@ ERROR! couldn't resolve module/action 'ansible.posix.sysctl'
 
 #### 解决方案
 
-显式声明依赖：
+显式声明依赖，但不要在本文复制清单：Python 依赖的唯一权威来源是仓库根目录
+[`requirements.txt`](../../requirements.txt)，Ansible collection 的唯一权威来源是
+[`ansible/requirements.yml`](../../ansible/requirements.yml)。`.sandbox-kit/spec.yaml` 中的 Python
+和 collection literal lists 必须与这两份清单同步；修改任一依赖时应同时更新对应 Kit list。
 
-**requirements.txt** (Python 库):
-```
-ansible>=2.13
-passlib>=1.7.4
-pyyaml>=5.4
-```
+当前 Docker Sandbox Kit 会在创建时安装这些依赖；不要在宿主机或工作区临时执行
+`pip install` 或 `ansible-galaxy collection install`。先从仓库根目录验证 Kit：
 
-**requirements.yml** (Ansible 集合):
-```yaml
----
-collections:
-  - name: ansible.posix
-  - name: community.general
-  - name: community.docker
-```
-
-安装依赖：
 ```bash
-pip install -r requirements.txt
-ansible-galaxy collection install -r requirements.yml
+sbx kit validate .sandbox-kit
 ```
+
+随后使用 [README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境)
+中的对应 `sbx run` 命令创建新的 sandbox。进入 sandbox 后验证依赖和 Ansible：
+
+```bash
+python3 -c 'import passlib'
+ansible-galaxy collection list | grep ansible.posix
+cd ansible
+ansible-playbook playbooks/<service>.yml --syntax-check
+```
+
+需要增加软件包或系统依赖时，先获得明确授权，再同步更新依赖清单和 Kit 的 literal
+package/collection list，并重新创建 sandbox。
 
 **关键教训**: Infrastructure as Code 必须可复制。不能依赖"环境里正好有"某个包。
 
-### 6.4 命令存在检测
+### 6.4 Docker Sandbox Playwright MCP
+
+本节只用于 Playwright MCP 连接异常，不是 Ansible 依赖缺失的诊断步骤。进入当前
+agent 对应的 sandbox 后，**只运行下列一条匹配的命令**：
+
+```bash
+# Codex sandbox
+codex -c 'mcp_servers.playwright.command="iac-playwright-mcp"' mcp list
+
+# Claude sandbox
+claude mcp list
+
+# OpenCode sandbox
+opencode mcp list
+```
+
+Codex 检查与启动都必须保留 `-c 'mcp_servers.playwright.command="iac-playwright-mcp"'`
+override。该命令检查的是 sandbox-local adapter，不检查宿主机 Playwright。
+
+### 6.5 命令存在检测
 
 #### 问题：检测命令是否存在的错误方式
 
@@ -934,7 +954,7 @@ ansible-galaxy collection install -r requirements.yml
 - 添加 `ignore_errors: true` 处理不存在的情况
 - 添加 `changed_when: false` 因为这是只读检查
 
-### 6.5 验证步骤中的最佳实践
+### 6.6 验证步骤中的最佳实践
 
 #### 关键 1：`changed_when: false`
 

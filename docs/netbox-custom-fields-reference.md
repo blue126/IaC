@@ -320,7 +320,7 @@ curl -H "Authorization: Token ${NETBOX_API_TOKEN}" \
 
 ## 相关文档
 
-- **Story 1.1**: `/workspaces/IaC/_bmad-output/implementation-artifacts/1-1-定义核心-custom-fields.md`
+- **Story 1.1（历史来源，非当前运行指引）**: `_bmad-output/implementation-artifacts/1-1-定义核心-custom-fields.md`
 - **Architecture ADR-005**: NetBox 数据建模策略
 - **PRD**: FR3, FR4, FR5 - Custom Fields 功能性需求
 

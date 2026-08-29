@@ -74,9 +74,8 @@ resource "ansible_host" "llm_server" {
   name   = "llm-server"
   groups = ["esxi_vms"]
   variables = {
-    ansible_user                 = "ubuntu"
-    ansible_host                 = var.llm_server_ip_address
-    ansible_ssh_private_key_file = "~/.ssh/id_ed25519"
+    ansible_user = "ubuntu"
+    ansible_host = var.llm_server_ip_address
   }
   depends_on = [module.llm_server]
 }
@@ -442,7 +441,7 @@ Ansible verify play（`--tags verify`）覆盖了自动化验证，但以下手�
 
 | 编号 | 审核意见 | 理由 |
 |------|---------|------|
-| P0-1 | postCreateCommand 并行执行有顺序依赖 | devcontainer 配置不在 llm-server 范围内 |
+| P0-1 | postCreateCommand 并行执行有顺序依赖 | **历史记录**：当时的 devcontainer 配置不在 llm-server 范围内；该环境现已由 Docker Sandboxes 取代。 |
 | P1-1 | resize2fs 硬编码对 XFS 不兼容 | Ubuntu 24.04 模板使用 ext4，过度工程 |
 | P1-2 | llm 用户改 /bin/bash 扩大登录面 | become_user + async + hf CLI 必须要可用 shell |
 | P1-4 | ~/.claude 挂载 + rm -rf 数据风险 | 有意为之的设计（host/container 共享 Claude memory） |

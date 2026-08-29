@@ -144,7 +144,7 @@ services:
 ## 验证方式
 
 ```bash
-cd /workspaces/IaC/ansible
+cd ansible
 ansible-playbook playbooks/deploy-anki.yml --tags verify
 ```
 

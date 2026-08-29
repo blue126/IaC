@@ -23,12 +23,10 @@ ansible/collections/
 .opencode/
 _bmad/
 _bmad-output/
-.mcp.json
 .claude/
 .agents/
 .playwright*.json
 .playwright-mcp/
-.devcontainer/.generated/
 
 #########
 node_modules/

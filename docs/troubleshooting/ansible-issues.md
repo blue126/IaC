@@ -65,7 +65,7 @@ callback_result_format = yaml  # 直接在 defaults 下
 
 ---
 
-## 问题 2: DevContainer 环境依赖缺失
+## 问题 2: Docker Sandbox Ansible 依赖缺失
 
 ### 症状 A: Passlib 缺失
 ```
@@ -97,7 +97,7 @@ fatal: [target]: FAILED! => {
 3. 查看项目的依赖文件：
    ```bash
    cat requirements.txt
-   cat requirements.yml
+   cat ansible/requirements.yml
    ```
 
 ### 原因分析
@@ -106,56 +106,82 @@ Ansible 依赖分为三层：
 
 | 依赖类型 | 安装命令 | 典型文件 |
 |---------|---------|--------|
-| Python 库 | `pip install` | `requirements.txt` |
-| Ansible 集合 | `ansible-galaxy collection install` | `requirements.yml` |
-| System 包 | `apt-get install` | Dockerfile 或 cloud-init |
+| Python 库 | 由 Kit 安装 | `requirements.txt` + `.sandbox-kit/spec.yaml` |
+| Ansible 集合 | 由 Kit 安装 | `ansible/requirements.yml` + `.sandbox-kit/spec.yaml` |
+| System 包 | 由 Kit 安装 | `.sandbox-kit/spec.yaml` |
 
-**DevContainer 问题**: DevContainer 基于 Docker 的干净环境，不会自动安装这些依赖。
+**Docker Sandbox 原因**：当前项目由 `.sandbox-kit` 在 sandbox 创建时安装 Python
+依赖和 Ansible collections。若 Kit 创建失败或仍在使用旧 sandbox，就可能出现上述
+缺失。
 
 ### 解决方案
 
-#### 方案 A: 创建 `requirements.txt`
+#### 方案 A: 核对权威依赖清单
 
-```txt
-# Python 依赖
-passlib>=1.7.4
-cryptography>=3.0
-PyYAML>=5.4
+Python 依赖以仓库根目录的 [`requirements.txt`](../../requirements.txt) 为准，Ansible collections 以
+[`ansible/requirements.yml`](../../ansible/requirements.yml) 为准。不要从本文复制依赖列表；列表会随
+项目演进而变化。
+
+`.sandbox-kit/spec.yaml` 的 Python 与 collection literal lists 是上述两个清单的安装期镜像（Kit hook
+运行时工作区文件尚不可用），因此增删或升级依赖时必须同步更新相应 Kit list。
+
+#### 方案 B: 验证 Docker Sandbox Kit 并重新创建 sandbox
+
+从仓库根目录验证 Kit；不要在宿主机或工作区中临时安装依赖。
+
+```bash
+sbx kit validate .sandbox-kit
 ```
 
-#### 方案 B: 创建 `requirements.yml`
+使用 README 中对应 agent 的 `sbx run ... --kit ./.sandbox-kit` 命令创建新的
+sandbox。进入 sandbox 后检查依赖并运行 Ansible syntax check：
 
-```yaml
-# Ansible 集合依赖
-collections:
-  - name: ansible.posix
-    version: ">=1.1.0"
-  - name: community.general
-    version: ">=1.0.0"
+```bash
+python3 -c 'import passlib'
+ansible-galaxy collection list | grep ansible.posix
+cd ansible
+ansible-playbook playbooks/<service>.yml --syntax-check
 ```
 
-#### 方案 C: 更新 DevContainer 配置
-
-在 `.devcontainer/devcontainer.json` 或 `Dockerfile` 中自动安装：
-
-```json
-{
-  "postCreateCommand": "pip install -r requirements.txt && ansible-galaxy collection install -r requirements.yml"
-}
-```
+若 Kit 需要新增软件包或系统依赖，先获得明确授权后，同步更新依赖清单和 Kit 的
+literal package/collection list，再重新创建 sandbox。
 
 ### 最佳实践
 
 **Infrastructure as Code 必须可复现**:
 
 ```bash
-# 任何人克隆项目后，应该能一键启动
-git clone <repo>
-cd <repo>
-pip install -r requirements.txt
-ansible-galaxy collection install -r requirements.yml
-# 立即可用，无需手动安装
+# 任何人克隆项目后，先从仓库根目录启动对应的 Docker Sandbox
+sbx run --name iac-claude claude . --kit ./.sandbox-kit
+# 依赖由 Kit 安装，避免污染宿主机或工作区
 ```
+
+---
+
+## Docker Sandbox Playwright MCP
+
+本节只处理 Playwright MCP 连接异常，与缺少 `passlib` 或 `ansible.posix` 无关。
+进入当前 agent 对应的 sandbox 后，先检查 sandbox-local wrapper：
+
+```bash
+command -v iac-playwright-mcp
+```
+
+然后**只运行下列一条与当前 agent 匹配的命令**：
+
+```bash
+# Codex sandbox
+codex -c 'mcp_servers.playwright.command="iac-playwright-mcp"' mcp list
+
+# Claude sandbox
+claude mcp list
+
+# OpenCode sandbox
+opencode mcp list
+```
+
+Codex 的启动和检查必须带 `-c 'mcp_servers.playwright.command="iac-playwright-mcp"'`
+override。以上命令只验证 sandbox-local adapter，不检查宿主机 Playwright。
 
 ---
 
@@ -540,7 +566,7 @@ ansible-playbook playbooks/deploy-netbox.yml
 ### 记住这些要点
 
 1. **Callback 插件** - 使用 `default` + `callback_result_format = yaml`
-2. **依赖管理** - 使用 `requirements.txt` 和 `requirements.yml` 显式声明
+2. **依赖管理** - 以 `requirements.txt` 和 `ansible/requirements.yml` 为权威清单
 3. **命令检测** - 用 `shell: command -v` 代替 `command` 模块
 4. **Inventory 迁移** - 先迁移变量到 `host_vars`，再删除旧文件
 5. **Role 设计** - Role 定义"怎么做"，Inventory 定义"做什么"
@@ -552,10 +578,9 @@ ansible-playbook playbooks/deploy-netbox.yml
 | 问题 | 快速修复 |
 |------|---------|
 | Callback 报错 | 更新 ansible.cfg，使用 `default` + `callback_result_format = yaml` |
-| Passlib 缺失 | 添加 `requirements.txt`，包含 `passlib>=1.7.4` |
-| Collection 缺失 | 添加 `requirements.yml`，声明 `ansible.posix` 等 |
+| Passlib 缺失 | 检查或更新 `requirements.txt`，并同步 Kit literal Python list |
+| Collection 缺失 | 检查或更新 `ansible/requirements.yml`，并同步 Kit literal collection list |
 | 命令检测出错 | 用 `shell: command -v <cmd>` + `ignore_errors: true` |
 | 配置丢失 | 迁移变量到 `host_vars/<hostname>.yml` |
 | Role 不通用 | 参数化模板，使用 Jinja2 变量替换硬编码值 |
 | 修改不生效 | 重新运行 Playbook（`ansible-playbook playbooks/*.yml`） |
-

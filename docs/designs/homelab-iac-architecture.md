@@ -919,21 +919,19 @@ ss -tlnp | grep <port>                # 端口监听
 ### 开发环境
 
 ```
-Devcontainer (Ubuntu 24.04)
-├── Terraform 1.14.0
-├── Python 3.12
-│   └── venv (.venv/)
-│        ├── ansible 2.16+
-│        ├── ansible-lint
-│        └── netaddr
-├── Git
-└── SSH Client
+Docker Sandboxes（隔离 microVM）
+├── .sandbox-kit（Terraform、Python/Ansible、Playwright MCP、Chromium）
+├── Codex / Claude Code / OpenCode agent template
+├── SSH agent forwarding（私钥不复制进 sandbox）
+└── sandbox-local iac-playwright-mcp
 ```
 
-**自动化设置**:
+**启动入口**：从仓库根目录启动。Codex 必须传递 CLI MCP override；完整的
+direct/clone mode、OCI 只读挂载和端口发布规则见
+[README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境)。
+
 ```bash
-# .devcontainer/postCreateCommand.sh
-./scripts/setup-env.sh
+sbx run --name iac-codex codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
 ```
 
 ### Terraform Providers

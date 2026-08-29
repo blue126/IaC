@@ -49,7 +49,7 @@ ansible/
 | Role | 职责 | 使用方 |
 |------|------|--------|
 | `common` | 安装基础包、部署 SSH 公钥、配置 sudo | 所有主机（via `site.yml`） |
-| `docker` | 安装 Docker Engine + Compose 插件 | immich, netbox, rustdesk, devcontainer |
+| `docker` | 安装 Docker Engine + Compose 插件 | immich, netbox, rustdesk |
 | `tailscale` | 安装 Tailscale VPN，处理 LXC 特殊配置 | 所有 tailscale 组成员 |
 | `cloudflared` | 默认安装 cloudflared；当 `cloudflared_configure_tunnel` 为 true 时，可选地管理本机 Cloudflare Tunnel 配置、凭据和 systemd 服务 | 需要由 Cloudflare Tunnel 暴露的主机 |
 
@@ -283,12 +283,12 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
                     └─────────┘
 
                     ┌─────────┐
-         ┌─────────│ docker  │─────────┐──────────┐
-         │         └─────────┘         │          │
-         ▼              ▼              ▼          ▼
-    ┌─────────┐   ┌──────────┐   ┌─────────┐ ┌──────────┐
-    │ immich  │   │  netbox  │   │rustdesk │ │devcontainer│
-    └─────────┘   └──────────┘   └─────────┘ └──────────┘
+         ┌─────────│ docker  │─────────┐
+         │         └─────────┘         │
+         ▼              ▼              ▼
+    ┌─────────┐   ┌──────────┐   ┌─────────┐
+    │ immich  │   │  netbox  │   │rustdesk │
+    └─────────┘   └──────────┘   └─────────┘
 
     ┌───────────┐
     │ tailscale │──────┐

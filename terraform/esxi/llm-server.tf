@@ -68,9 +68,8 @@ resource "ansible_host" "llm_server" {
   groups = ["esxi_vms"]
 
   variables = {
-    ansible_user                 = "ubuntu"
-    ansible_host                 = var.llm_server_ip_address
-    ansible_ssh_private_key_file = "~/.ssh/id_ed25519"
+    ansible_user = "ubuntu"
+    ansible_host = var.llm_server_ip_address
   }
 
   depends_on = [module.llm_server]

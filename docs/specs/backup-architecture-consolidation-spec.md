@@ -1108,7 +1108,7 @@ export SSH_ASKPASS_REQUIRE=force
 setsid ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no root@192.168.1.51
 ```
 
-**Ansible**：先 `cd /workspaces/IaC/ansible`。`llm-server` 的静态重复定义已删除，Terraform 动态 inventory 可正常解析 `llm-server`、`pbs` 与 `windows-server`。当前仍有 `jenkins` 同时作为 group 和 host 的非阻塞警告。
+**Ansible**：从仓库根目录先 `cd ansible`。`llm-server` 的静态重复定义已删除，Terraform 动态 inventory 可正常解析 `llm-server`、`pbs` 与 `windows-server`。当前仍有 `jenkins` 同时作为 group 和 host 的非阻塞警告。
 
 ### 12.5 优先处理事项
 

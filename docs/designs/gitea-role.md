@@ -241,7 +241,7 @@ vault_gitea_admin_password: "<strong-password>"
 ## 验证命令
 
 ```bash
-cd /workspaces/IaC/ansible
+cd ansible
 ansible-playbook playbooks/deploy-gitea.yml --tags verify
 ```
 

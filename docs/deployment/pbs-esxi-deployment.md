@@ -634,15 +634,17 @@ proxmox-backup-server_3.1-1.iso
 - [ ] Netbox URL: `http://192.168.1.104:8080`
 - [ ] API Token: (存储在 Terraform 变量)
 
-#### 3.3.2. SSH Key Setup
+#### 3.3.2. SSH Agent Setup
+
+在宿主机将已批准的 SSH 私钥加载到 SSH agent，并确认 public identity 已加载：
 
 ```bash
-# 生成 SSH 密钥（如果没有）
-ssh-keygen -t ed25519 -C "your_email@example.com"
-
-# 复制公钥（稍后用于 PBS）
-cat ~/.ssh/id_ed25519.pub
+ssh-add /path/to/host-managed-key
+ssh-add -L
 ```
+
+不要在仓库工作区或 sandbox 中创建、复制或配置私钥路径。启动 sandbox 后再次运行 `ssh-add -L`；Ansible
+通过转发的 agent 连接 PBS。
 
 #### 3.3.3. Ansible Vault Setup
 
@@ -867,9 +869,8 @@ resource "ansible_host" "pbs" {
   groups = ["esxi_vms"]
   
   variables = {
-    ansible_user       = "root"
-    ansible_host       = var.pbs_ip_address
-    ansible_ssh_private_key_file = "~/.ssh/id_ed25519"
+    ansible_user = "root"
+    ansible_host = var.pbs_ip_address
     
     # PBS 特定变量（传递给 Ansible）
     pbs_datastore_path = "/mnt/backup-pool/datastore"
@@ -1011,20 +1012,18 @@ pbs_gc_schedule: "daily"
 ```yaml
 # ansible/inventory/terraform.yml
 plugin: cloud.terraform.terraform_provider
-project_path: /workspaces/IaC/terraform/proxmox
-state_file: /workspaces/IaC/terraform/proxmox/terraform.tfstate
+project_path: ../terraform/proxmox
 ```
 
 **ESXi 环境（新建）**：
 ```yaml
 # ansible/inventory/terraform-esxi.yml
 plugin: cloud.terraform.terraform_provider
-project_path: /workspaces/IaC/terraform/esxi
-state_file: /workspaces/IaC/terraform/esxi/terraform.tfstate
+project_path: ../terraform/esxi
 ```
 
 **关键点**：
-- ✅ `state_file` 路径根据 Terraform backend 配置（本地或 Terraform Cloud）
+- ✅ 从 `ansible/` 运行 Ansible 时，`project_path` 使用相对于该目录的 `../terraform/...`；当前 inventory 由 Terraform Cloud state 提供数据
 - ✅ Ansible 自动发现所有 `ansible_host` 资源
 - ✅ 无需手动维护 `hosts.yml` 文件
 - ❌ 不要在 `ansible/inventory/esxi_vms/hosts.yml` 中硬编码主机
@@ -1085,7 +1084,6 @@ ansible-inventory --host pbs --yaml
 
 # 输出示例：
 # ansible_host: 192.168.1.249
-# ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 # ansible_user: root
 # pbs_datastore_path: /mnt/backup-pool/datastore
 # pbs_zfs_pool: backup-pool
@@ -1440,11 +1438,10 @@ resource "ansible_host" "pbs" {
   groups = ["esxi_vms"]
   
   variables = {
-    ansible_user                 = "root"
-    ansible_host                 = var.pbs_ip_address
-    ansible_ssh_private_key_file = "~/.ssh/id_ed25519"
-    pbs_datastore_path           = "/mnt/backup-pool/datastore"
-    pbs_zfs_pool                 = "backup-pool"
+    ansible_user       = "root"
+    ansible_host       = var.pbs_ip_address
+    pbs_datastore_path = "/mnt/backup-pool/datastore"
+    pbs_zfs_pool       = "backup-pool"
   }
   
   depends_on = [module.pbs]
@@ -1657,8 +1654,7 @@ systemctl status proxmox-backup
 
 ```yaml
 plugin: cloud.terraform.terraform_provider
-project_path: /workspaces/IaC/terraform/esxi
-state_file: /workspaces/IaC/terraform/esxi/terraform.tfstate
+project_path: ../terraform/esxi
 ```
 
 **更新**: `ansible/inventory/groups.yml`

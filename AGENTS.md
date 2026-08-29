@@ -109,13 +109,19 @@ When working on specific areas, read the relevant design doc for detailed patter
 9. **Learning notes**: Place in `docs/learningnotes/`, follow `YYYY-MM-DD-topic.md` naming, Chinese markdown, define key concepts, include Q&A summaries
 10. **Subagents allowed**: Agents may delegate independent, clearly scoped tasks to subagents, including when an applicable skill workflow requires an independent review. The primary agent remains responsible for integrating findings and verifying the final result
 11. **Minimize deployment scope**: For configuration-only changes, run local validation first, then deploy only the relevant tags (for example `--tags config`) and run the corresponding verification tags. Use a full deployment only when the requested change requires application, dependency, or infrastructure lifecycle tasks; inspect the playbook's task scope before doing so
+12. **Package and system dependencies**: Never install packages or system dependencies without explicit user permission. This applies to Docker Sandboxes and the host system.
+13. **Ansible inventory recovery**: If Ansible reports "no hosts matched" or a Terraform dynamic inventory parse failure, run `./scripts/refresh-terraform-state.sh` from the repository root. Inventory uses `cloud.terraform.terraform_provider`.
 
-## OpenCode Container Environment
+## Docker Sandboxes Environment
 
-- This project uses OpenCode, not Claude Code.
-- When OpenCode Server runs in a container, it must listen on an address reachable from the host and publish its port to macOS. Do not expose an unauthenticated server to untrusted networks.
-- A successful Desktop GUI connection does not prove that the project path is valid. Desktop may send a macOS path such as `/Users/...`, while the container workspace is under `/workspaces/...`.
-- If a message appears but the model does not reply, inspect both the session record and OpenCode service logs. `FileSystem.realPath ... ENOENT` usually means the client supplied a project path that does not exist in the container.
-- Prefer consistent host and container workspace path mappings. If that is not possible, use a host-path-to-container-path symlink as a compatibility measure.
-- Persist required symlinks in the Dev Container initialization configuration because container rebuilds may remove them.
-- For remote or container environments, prefer the OpenCode Web GUI when the Desktop native project selector cannot resolve container paths reliably.
+- Use `sbx run codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'`, `sbx run claude . --kit ./.sandbox-kit`, or `sbx run opencode . --kit ./.sandbox-kit`; do not recreate `.devcontainer/`.
+- Claude Code and OpenCode use repository-scoped Playwright MCP adapters. Codex must receive the shown CLI override because an untrusted Codex 0.149.1 project skips `.codex/config.toml`. `iac-playwright-mcp` and Chromium run inside the sandbox microVM.
+- Use unique sandbox names for parallel work. Select direct mode or `--clone` deliberately for each task.
+- Direct mode from the main checkout supports Git inside the sandbox and mounts the whole workspace, including gitignored files. From a host linked worktree, the agent can edit files but sandbox Git is unavailable because Docker mounts only that worktree and cannot resolve its external `.git` pointer; manage Git on the host and do not mount the common Git directory automatically. Create `--clone` sandboxes only from the main checkout; Git is available in the private clone. The linked-worktree `No Git` smoke result is expected, not a migration defect. See https://docs.docker.com/ai/sandboxes/workflows/git/ and https://docs.docker.com/ai/sandboxes/usage/.
+- Verify `ssh-add -L` before Ansible operations and confirm it shows loaded SSH public identities for Ansible authentication. Repository-local `.ssh` private keys are prohibited: SSH private keys stay in the host SSH agent and must not be copied into the repository or sandbox.
+- In clone mode, gitignored Vault and Terraform secret files are absent from the private clone. Copy only the required files from `/run/sandbox/source` and never print their contents.
+- Before an OCI command, run `test -d "${HOME}/.oci"`. If the directory is missing, stop or skip OCI sandbox creation and ask the user to restore or provide approved OCI credentials; never create an empty directory or search alternate private-key locations. Only when it exists, mount the quoted path `"${HOME}/.oci:ro"`; the read-only mount prevents writes but exposes the OCI API private key to processes in that sandbox.
+- OpenCode Desktop connects to a dedicated server sandbox published only on `127.0.0.1:4096`.
+- Keep `sbx run ... -- serve ...` for the OpenCode Desktop server in a long-lived attached terminal/session. Do not use `--detached`: it creates/starts only the microVM and does not start the agent server.
+- Frontend services must listen on `0.0.0.0` inside the sandbox and publish only the required port to host loopback.
+- Recreate a sandbox after Kit changes unless the change is explicitly supported by `sbx kit add`.

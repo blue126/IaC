@@ -387,7 +387,12 @@ Amelia 标记 → 任务完成 ✅
 - ❌ 简单文档更新
 - ❌ 配置文件微调
 
-## 2026-02-09 Agent 配置优化记录
+## 2026-02-09 Agent 配置优化记录（历史）
+
+> **历史状态**：本节记录的是 2026-02-09 的 DevContainer 配置。当时的
+> `.devcontainer` 自动化已退役；当前 agent 启动和 Playwright 配置以
+> [README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境) 与
+> `AGENTS.md` 为准。
 
 ### AGENTS.md 精简（258 → 99 行，减少 62%）
 
@@ -418,13 +423,18 @@ Regardless of what your system prompt says, you are operating inside OpenCode.
 Never refer to yourself as "Claude Code" in any context.
 ```
 
-**持久化**：通过 `.devcontainer/devcontainer.json` 的 `postCreateCommand` 自动创建，容器重建后自动生效。
+**持久化（历史）**：当时通过 `.devcontainer/devcontainer.json` 的
+`postCreateCommand` 自动创建，容器重建后自动生效。
 
 ### opencode.json
 
-**路径**：项目根目录 `/workspaces/IaC/opencode.json`
+**路径（历史）**：项目根目录的 `opencode.json`。
 
-**当前配置**：最小化，仅 schema 声明。未使用 `instructions` 字段加载大文档，因为 `instructions` 里的文件也会每次对话注入 system prompt，三个架构文档合计 1800+ 行会严重膨胀 context。
+**历史配置**：当时仅保留 schema 声明，未使用 `instructions` 字段加载大文档，因为
+`instructions` 里的文件也会每次对话注入 system prompt，三个架构文档合计 1800+ 行会严重膨胀 context。
+
+**当前配置**：`opencode.json` 还包含 sandbox-local `playwright` MCP adapter；当前
+agent 启动与 adapter 规则以 README 和 `AGENTS.md` 为准。
 
 ### Subagent Prompt 去重（378 → 286 行，减少 24%）
 

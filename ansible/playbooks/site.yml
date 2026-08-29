@@ -4,7 +4,3 @@
   become: true
   roles:
     - common
-
-- name: Deploy DevContainer
-  import_playbook: deploy-devcontainer.yml
-  when: "'devcontainer' in groups['pve_vms']"

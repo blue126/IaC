@@ -329,24 +329,20 @@ UNREACHABLE! => {
 
 ### 解决方案
 
-#### 方案 A: 使用密钥认证
+#### 方案 A: 使用宿主 SSH agent 认证
 
-```ini
-# ansible.cfg
-[defaults]
-private_key_file = ~/.ssh/id_rsa
-
-[ssh_connection]
-ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o StrictHostKeyChecking=accept-new
-```
-
-**生成密钥** (如果还没有):
+不要在 sandbox 内生成密钥，也不要在 `ansible.cfg` 固定私钥文件路径。 在宿主机恢复或使用
+已批准的 host-managed 私钥后，将它加载到 agent：
 
 ```bash
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-# 复制公钥到目标服务器
-ssh-copy-id root@192.168.1.50
+# 在宿主机执行；替换为已批准的宿主私钥路径
+ssh-add /path/to/host-managed-key
+ssh-add -L
 ```
+
+启动 sandbox 后，在 sandbox 内再次执行 `ssh-add -L`，确认转发的 public identity 可见。Ansible
+通过转发的 SSH agent 认证，不依赖 sandbox 或仓库工作区中的私钥文件。若没有已批准的宿主密钥，停止并
+请求恢复或提供该密钥；不要在 sandbox 中创建新密钥。
 
 #### 方案 B: 使用密码认证
 
@@ -439,4 +435,3 @@ ip route show
 | Ansible 连接失败 | `ssh -v <host>` | 在 Inventory 中使用内网 IP |
 | Caddy 指令报错 | `caddy validate` | 用 `route` 块包裹 `webdav` + `file_server` |
 | DNS 解析问题 | `nslookup <hostname>` / `dig <hostname>` | 使用 IP 直连测试，隔离 DNS 问题 |
-

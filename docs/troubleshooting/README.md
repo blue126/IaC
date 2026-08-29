@@ -12,7 +12,7 @@
 |---------|---------|-------|
 | Terraform 命令崩溃或报权限错误 | [terraform-issues.md](./terraform-issues.md) | Provider版本、Proxmox兼容性、API Token |
 | 虚拟机无法启动或进入UEFI Shell | [terraform-issues.md](./terraform-issues.md) | 磁盘调整、Cloud-Init、QEMU Agent |
-| Ansible连接失败或依赖缺失 | [ansible-issues.md](./ansible-issues.md) | Callback插件、环境依赖、模块导入 |
+| Ansible连接失败或依赖缺失 | [ansible-issues.md](./ansible-issues.md) | Callback插件、Docker Sandbox Kit、模块导入 |
 | Inventory变更导致配置丢失 | [ansible-issues.md](./ansible-issues.md) | 动态Inventory、变量迁移、数据分离 |
 | SMB/文件传输速度异常慢 | [network-connectivity.md](./network-connectivity.md) | Tailscale路由、网络延迟、MTU碎片 |
 | Caddy WebDAV或反代配置出错 | [network-connectivity.md](./network-connectivity.md) | Caddyfile语法、指令顺序、ACL限制 |
@@ -43,7 +43,8 @@
 ### 2. [ansible-issues.md](./ansible-issues.md) - Ansible故障排查
 **包含内容**:
 - Ansible 输出格式 (Callback 插件) 演变
-- DevContainer 环境依赖缺失：passlib、ansible.posix
+- Docker Sandbox Ansible 依赖缺失：passlib、ansible.posix
+- Docker Sandbox Playwright MCP 连接异常：按当前 agent 检查 sandbox-local adapter
 - 优雅地检测命令是否存在
 - 从静态到动态Inventory的数据丢失风险
 - 寻址 (Addressing) 与配置 (Configuration) 分离
@@ -129,7 +130,7 @@
 ## 最佳实践建议 (Best Practices)
 
 1. **显式定义，不相信默认值** - 磁盘大小、引导顺序、重启策略、权限、版本
-2. **环境隔离与复现** - 使用DevContainer或虚拟环境确保可复现性
+2. **环境隔离与复现** - 使用 Docker Sandboxes 或虚拟环境确保可复现性
 3. **数据分离** - 基础设施数据(Terraform)、应用配置(Ansible host_vars)、业务数据(环境变量/Vault)
 4. **版本锁定** - 避免使用 `latest` tag，始终显式指定版本
 5. **异步处理** - 长时间运行的任务使用 `async/poll`，避免超时
