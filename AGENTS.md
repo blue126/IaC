@@ -91,8 +91,8 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 
 ### Default Branch and Source of Truth
 
-- During the default-branch migration, the authoritative baseline remains the GitHub remote's actual default branch, currently `origin/master`. After a human completes the GitHub default-branch rename, `origin/main` becomes the source of truth.
-- Determine the remote default branch from the GitHub remote before starting work. Do not infer it from the current local branch name or assume that `origin/main` already exists.
+- `origin/main` is the authoritative source of truth for repository code and the baseline for new task branches.
+- Determine the remote default branch from the GitHub remote before starting work. Do not infer it from the current local branch name; if the remote default no longer resolves to `origin/main`, stop and report the mismatch.
 - Local `main` and `master` branches are read-only mirrors of the remote default branch. Never develop, edit, commit, or push directly on either branch.
 
 ### Task Isolation
