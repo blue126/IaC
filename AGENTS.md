@@ -41,7 +41,7 @@ ansible-playbook playbooks/<service>.yml --tags verify     # health check
 ./scripts/get-secrets.sh
 ```
 
-There are **no CI pipelines, Makefiles, or automated test frameworks**. Validation is manual.
+The repository has Jenkins deployment pipelines and a GitHub Pages documentation workflow, but no general-purpose PR validation workflow, Makefile, or automated test framework. Validation is primarily manual. Never treat a deploy, publish, apply, release, image-push, or other external-write pipeline as PR validation.
 
 ## Code Style Guidelines
 
@@ -86,6 +86,32 @@ There are **no CI pipelines, Makefiles, or automated test frameworks**. Validati
 - **Commit messages**: Conventional Commits — `feat(scope):`, `fix:`, `chore:`, `docs:` in English
 - **Line endings**: LF enforced via `.gitattributes`
 - **Shell scripts**: `#!/bin/bash`, quote variables, use `[[ ]]`
+
+## Git and Pull Request Workflow
+
+### Default Branch and Source of Truth
+
+- During the default-branch migration, the authoritative baseline remains the GitHub remote's actual default branch, currently `origin/master`. After a human completes the GitHub default-branch rename, `origin/main` becomes the source of truth.
+- Determine the remote default branch from the GitHub remote before starting work. Do not infer it from the current local branch name or assume that `origin/main` already exists.
+- Local `main` and `master` branches are read-only mirrors of the remote default branch. Never develop, edit, commit, or push directly on either branch.
+
+### Task Isolation
+
+- Use one uniquely named branch and one independent worktree per task, created from the latest commit on the verified remote default branch. Do not switch or modify the user's existing checkout.
+- Before editing, verify the current branch or detached HEAD, working-tree status, upstream, remotes, remote default branch, existing worktrees, and branch/worktree name conflicts.
+- Never stash, reset, clean, overwrite, copy, commit, or otherwise absorb a user's existing uncommitted changes. A dirty checkout may only be bypassed by creating an independent worktree from a verified remote commit.
+
+### Validation and Delivery
+
+- Complete task work in this order: edit, run safe local validation, review the final diff, request any confirmation required by these project rules, commit on the task branch, push the current task branch normally, then create or update a Draft PR against the actual remote default branch.
+- Run only repository-defined validation that does not deploy, publish, apply infrastructure, push images, release artifacts, use production secrets, or write to external systems. Report checks that were not run and why; never create an always-successful placeholder check.
+- Use Conventional Commits and include the current state, changes, checks run, checks not run, manual migration steps, risks, and rollback method in the Draft PR description.
+
+### Prohibited Git and GitHub Actions
+
+- Agents must never merge or close a PR, force push (including `--force-with-lease`), rewrite history, or directly push `main` or `master`.
+- Agents must never delete or rename branches, tags, remotes, or worktrees, and must never clean up user changes.
+- Changing the GitHub default branch, Rulesets, branch protection, repository permissions, Actions secrets, Environments, or deploy/publish branch triggers requires separate explicit authorization. Such changes are not implied by ordinary code or documentation work.
 
 ### Reference Documents (load on demand)
 
