@@ -905,7 +905,7 @@ agent 对应的 sandbox 后，**只运行下列一条匹配的命令**：
 
 ```bash
 # Codex sandbox
-codex -c 'mcp_servers.playwright.command="iac-playwright-mcp"' mcp list
+codex mcp list
 
 # Claude sandbox
 claude mcp list
@@ -914,8 +914,9 @@ claude mcp list
 opencode mcp list
 ```
 
-Codex 检查与启动都必须保留 `-c 'mcp_servers.playwright.command="iac-playwright-mcp"'`
-override。该命令检查的是 sandbox-local adapter，不检查宿主机 Playwright。
+Codex 从 trusted project 的 `.codex/config.toml` 加载 required local Playwright adapter。
+若列表缺少 `playwright`，先修复 project trust；不要用 CLI override 掩盖配置问题。
+该命令检查的是 sandbox-local adapter，不检查宿主机 Playwright。
 
 ### 6.5 命令存在检测
 

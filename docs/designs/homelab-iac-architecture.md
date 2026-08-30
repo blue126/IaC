@@ -926,12 +926,13 @@ Docker Sandboxes（隔离 microVM）
 └── sandbox-local iac-playwright-mcp
 ```
 
-**启动入口**：从仓库根目录启动。Codex 必须传递 CLI MCP override；完整的
-direct/clone mode、OCI 只读挂载和端口发布规则见
+**启动入口**：从仓库根目录启动。Codex 使用 trusted project 的 `.codex/config.toml`
+加载 sandbox-local Playwright MCP，并以 `--no-share-skills` 排除宿主共享 skills；完整的
+direct/clone mode、OCI 只读挂载、trust 和端口发布规则见
 [README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境)。
 
 ```bash
-sbx run --name iac-codex codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit
 ```
 
 ### Terraform Providers

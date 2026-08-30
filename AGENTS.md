@@ -87,33 +87,15 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 - **Line endings**: LF enforced via `.gitattributes`
 - **Shell scripts**: `#!/bin/bash`, quote variables, use `[[ ]]`
 
-## Git and Pull Request Workflow
+## Version Control and External-Write Boundaries
 
-### Default Branch and Source of Truth
+- `origin/main` is authoritative; local `main` and `master` are read-only mirrors.
+- Never absorb, overwrite, clean, stash, reset, or otherwise modify unrelated user changes.
+- Commit, push, merge, PR close, history rewrite, force-push, and branch/tag/remote/worktree deletion or rename require explicit user authorization.
+- Changes to GitHub defaults, Rulesets, protection, permissions, Actions secrets, Environments, deploy/publish triggers, infrastructure, deployments, releases, or other external systems require separate explicit authorization.
+- Repository validation must not deploy, publish, apply infrastructure, push images, release artifacts, use production secrets, or write to external systems.
 
-- `origin/main` is the authoritative source of truth for repository code and the baseline for new task branches.
-- Determine the remote default branch from the GitHub remote before starting work. Do not infer it from the current local branch name; if the remote default no longer resolves to `origin/main`, stop and report the mismatch.
-- Local `main` and `master` branches are read-only mirrors of the remote default branch. Never develop, edit, commit, or push directly on either branch.
-
-### Task Isolation
-
-- Use one uniquely named branch and one independent worktree per task, created from the latest commit on the verified remote default branch. Do not switch or modify the user's existing checkout.
-- Before editing, verify the current branch or detached HEAD, working-tree status, upstream, remotes, remote default branch, existing worktrees, and branch/worktree name conflicts.
-- Never stash, reset, clean, overwrite, copy, commit, or otherwise absorb a user's existing uncommitted changes. A dirty checkout may only be bypassed by creating an independent worktree from a verified remote commit.
-
-### Validation and Delivery
-
-- Complete task work in this order: edit, run safe local validation, review the final diff, request any confirmation required by these project rules, commit on the task branch, push the current task branch normally, then create or update a Draft PR against the actual remote default branch.
-- Run only repository-defined validation that does not deploy, publish, apply infrastructure, push images, release artifacts, use production secrets, or write to external systems. Report checks that were not run and why; never create an always-successful placeholder check.
-- Use Conventional Commits and include the current state, changes, checks run, checks not run, manual migration steps, risks, and rollback method in the Draft PR description.
-
-### Prohibited Git and GitHub Actions
-
-- Agents must never merge or close a PR, force push (including `--force-with-lease`), rewrite history, or directly push `main` or `master`.
-- Agents must never delete or rename branches, tags, remotes, or worktrees, and must never clean up user changes.
-- Changing the GitHub default branch, Rulesets, branch protection, repository permissions, Actions secrets, Environments, or deploy/publish branch triggers requires separate explicit authorization. Such changes are not implied by ordinary code or documentation work.
-
-### Reference Documents (load on demand)
+## Reference Documents (load on demand)
 
 When working on specific areas, read the relevant design doc for detailed patterns:
 
@@ -121,29 +103,28 @@ When working on specific areas, read the relevant design doc for detailed patter
 - **Ansible Role patterns**: `docs/designs/ansible-role-architecture.md`
 - **CI/CD pipeline design**: `docs/designs/cicd-architecture.md`
 
-## AI Agent Rules
+## Workflow Ownership
 
-0. **CRITICAL: NO AUTOMATIC COMMITS** — Never commit without explicit user authorization. Always ask: "Ready to commit?"
-1. **Explain CLI commands** briefly before executing
-2. **Incremental changes**: Split large modifications into logical units, one at a time
-3. **Multi-step operations**: Present 1–2 steps, then **stop and wait for user confirmation**
-4. **Verify after every step**: Use `--syntax-check`, `terraform validate`, etc. Never assume — prove it
-5. **Reply in Chinese**, code comments in English
-6. **State reasoning and sources** when making judgments
-7. **Admit uncertainty** rather than fabricate — investigate first
-8. **Ask for info incrementally** — don't request everything at once
-9. **Learning notes**: Place in `docs/learningnotes/`, follow `YYYY-MM-DD-topic.md` naming, Chinese markdown, define key concepts, include Q&A summaries
-10. **Subagents allowed**: Agents may delegate independent, clearly scoped tasks to subagents, including when an applicable skill workflow requires an independent review. The primary agent remains responsible for integrating findings and verifying the final result
-11. **Minimize deployment scope**: For configuration-only changes, run local validation first, then deploy only the relevant tags (for example `--tags config`) and run the corresponding verification tags. Use a full deployment only when the requested change requires application, dependency, or infrastructure lifecycle tasks; inspect the playbook's task scope before doing so
-12. **Package and system dependencies**: Never install packages or system dependencies without explicit user permission. This applies to Docker Sandboxes and the host system.
-13. **Ansible inventory recovery**: If Ansible reports "no hosts matched" or a Terraform dynamic inventory parse failure, run `./scripts/refresh-terraform-state.sh` from the repository root. Inventory uses `cloud.terraform.terraform_provider`.
+- BMad skills own planning, task decomposition, checkpoints, implementation sequencing, validation strategy, Git/PR lifecycle, and completion criteria.
+- `AGENTS.md` provides repository facts, technical conventions, environment capabilities, and non-negotiable safety boundaries only.
+- Workflow ownership does not grant authorization: BMad must stop at any commit, push, merge, deployment, or other external-write boundary that has not been explicitly approved.
+- Do not layer an additional generic agent workflow on top of an active BMad workflow.
 
-## Docker Sandboxes Environment
+## Repository Interaction Constraints
 
-- Use `sbx run codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'`, `sbx run claude . --kit ./.sandbox-kit`, or `sbx run opencode . --kit ./.sandbox-kit`; do not recreate `.devcontainer/`.
-- Claude Code and OpenCode use repository-scoped Playwright MCP adapters. Codex must receive the shown CLI override because an untrusted Codex 0.149.1 project skips `.codex/config.toml`. `iac-playwright-mcp` and Chromium run inside the sandbox microVM.
-- Use unique sandbox names for parallel work. Select direct mode or `--clone` deliberately for each task.
-- Direct mode from the main checkout supports Git inside the sandbox and mounts the whole workspace, including gitignored files. From a host linked worktree, the agent can edit files but sandbox Git is unavailable because Docker mounts only that worktree and cannot resolve its external `.git` pointer; manage Git on the host and do not mount the common Git directory automatically. Create `--clone` sandboxes only from the main checkout; Git is available in the private clone. The linked-worktree `No Git` smoke result is expected, not a migration defect. See https://docs.docker.com/ai/sandboxes/workflows/git/ and https://docs.docker.com/ai/sandboxes/usage/.
+- Reply in Chinese; write code comments in English.
+- State reasoning and sources when making judgments, and investigate uncertainty instead of fabricating.
+- Place learning notes in `docs/learningnotes/` using `YYYY-MM-DD-topic.md`; write Chinese Markdown, define key concepts, and include Q&A summaries.
+- Never install packages or system dependencies without explicit user permission. This applies to Docker Sandboxes and the host system.
+- If Ansible reports "no hosts matched" or a Terraform dynamic inventory parse failure, run `./scripts/refresh-terraform-state.sh` from the repository root. Inventory uses `cloud.terraform.terraform_provider`.
+
+## Docker Sandbox Environment
+
+- Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
+- The standard Codex entry is `sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit`. `--no-share-skills` is fixed at sandbox creation, keeps Codex system skills and project BMad skills, and excludes Docker's host-shared skills store.
+- Codex reads the sandbox-local Playwright adapter from `.codex/config.toml`. Project configuration loads only after the IaC project is trusted; verify trust and `codex mcp list` in each new sandbox.
+- Claude Code and OpenCode use repository-scoped Playwright MCP adapters. `iac-playwright-mcp` and Chromium run inside the sandbox microVM.
+- Direct mode from the main checkout has Git and mounts the full workspace, including gitignored files. Direct mode from a host linked worktree can edit and validate files but may lack Git because Docker cannot resolve the external common Git directory. Clone mode has private Git state but excludes gitignored files. See https://docs.docker.com/ai/sandboxes/workflows/git/ and https://docs.docker.com/ai/sandboxes/usage/.
 - Verify `ssh-add -L` before Ansible operations and confirm it shows loaded SSH public identities for Ansible authentication. Repository-local `.ssh` private keys are prohibited: SSH private keys stay in the host SSH agent and must not be copied into the repository or sandbox.
 - In clone mode, gitignored Vault and Terraform secret files are absent from the private clone. Copy only the required files from `/run/sandbox/source` and never print their contents.
 - Before an OCI command, run `test -d "${HOME}/.oci"`. If the directory is missing, stop or skip OCI sandbox creation and ask the user to restore or provide approved OCI credentials; never create an empty directory or search alternate private-key locations. Only when it exists, mount the quoted path `"${HOME}/.oci:ro"`; the read-only mount prevents writes but exposes the OCI API private key to processes in that sandbox.

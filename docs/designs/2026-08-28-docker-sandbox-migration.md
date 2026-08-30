@@ -1,5 +1,8 @@
 # Docker Sandboxes 迁移设计
 
+> 本文记录迁移决策与历史实施边界。当前职责模型见
+> [Docker Sandbox Agent Architecture](docker-sandbox-agent-architecture.md)。
+
 ## 1. 背景与目标
 
 本项目当前使用根目录 `.devcontainer/` 提供 Terraform、Ansible、Python、Codex、Claude Code、OpenCode 和 Playwright 工具链。该方案依赖 devcontainer CLI、Docker Desktop bind mount、宿主机 MCP Gateway、宿主机可见 Chrome，以及为 OpenCode Desktop 维护的同路径双重挂载。
@@ -25,7 +28,7 @@
 标准入口为：
 
 ```bash
-sbx run --name iac-codex codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit
 sbx run --name iac-claude claude . --kit ./.sandbox-kit
 sbx run --name iac-opencode opencode . --kit ./.sandbox-kit
 ```
@@ -68,7 +71,7 @@ Kit 使用 schema v2 和 `kind: mixin`，负责：
 - 安装项目需要的系统工具，例如 `jq`。
 - 安装固定版本的 `@playwright/mcp` 和对应 Chromium。
 - 定义 `PLAYWRIGHT_BROWSERS_PATH` 等必要环境变量。
-- 通过统一包装命令 `iac-playwright-mcp` 启动 `playwright-mcp --headless --isolated`。
+- Kit 安装时查询 Playwright package 的 `chromium.executablePath()` 并创建稳定的 `/usr/local/bin/iac-chromium` symlink；统一包装命令 `iac-playwright-mcp` 使用该入口启动 `playwright-mcp --headless --isolated --executable-path <chromium>`。
 - 声明安装和运行所需的网络权限。
 
 Kit 不安装 Codex、Claude Code 或 OpenCode；三种 agent 继续使用 Docker 内置 agent template 和原生认证。
@@ -83,23 +86,23 @@ Ansible collections 安装到 sandbox 的持久化 HOME，不写入项目 `ansib
 
 不使用宿主 `sbx mcp add playwright --command ...` 作为 Playwright 实现，因为该方式会在宿主机运行 MCP server 和浏览器，不属于 sandbox microVM 隔离边界。
 
-Claude Code 和 OpenCode 通过两个项目级配置启动同一个 sandbox-local stdio MCP 命令；Codex 通过启动时的 CLI override 注入同一配置：
+三个 agent 都通过项目级配置启动同一个 sandbox-local stdio MCP 命令：
 
 ```text
 .mcp.json              # Claude Code adapter
 opencode.json          # OpenCode adapter
-sbx run ... codex ... -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'  # Codex CLI override
+.codex/config.toml     # Codex adapter (trusted projects only)
 ```
 
-两个项目配置与 Codex CLI override 都只负责将 `playwright` MCP 指向 `iac-playwright-mcp`。Playwright 版本、Chromium、参数和网络权限只在 `.sandbox-kit` 中维护。
+三个项目配置都只负责将 `playwright` MCP 指向 `iac-playwright-mcp`。Playwright 版本、Chromium、参数和网络权限只在 `.sandbox-kit` 中维护。
 
-已在 Codex 0.149.1 验证：项目没有持久 trust entry 时，Codex 会跳过项目 `.codex/config.toml`；因此该文件不能作为可靠的运行时适配器，已删除。`codex -c 'mcp_servers.playwright.command="iac-playwright-mcp"' mcp list` 同时列出本地 `playwright` 和 Docker `mcp-gateway`，故采用每个 Codex `sbx run` 都传递该 agent argument 的方式。
+Codex 会跳过 untrusted project 的 `.codex/config.toml`。当前设计保留项目 adapter，并把建立 project trust 与 `codex mcp list` 纳入每个新 Sandbox 的验收；不再为每次启动传递 CLI override。Codex Sandbox 同时使用 `--no-share-skills`，排除 Docker host-shared skills store。
 
 运行时数据流为：
 
 ```text
 Agent in sandbox
-  → Claude/OpenCode project MCP adapter or Codex CLI override
+  → agent-specific project MCP adapter
   → iac-playwright-mcp (stdio)
   → headless Chromium in the same microVM
   → public web or sandbox-local service
@@ -118,9 +121,9 @@ Sandbox 内 Chromium 使用 headless mode，用户不能直接看到 agent 操�
 
 ```bash
 sbx run --name iac-frontend codex . \
+  --no-share-skills \
   --kit ./.sandbox-kit \
-  --publish 127.0.0.1:3000:3000 \
-  -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+  --publish 127.0.0.1:3000:3000
 ```
 
 开发服务必须在 sandbox 内监听 `0.0.0.0:3000`。用户在 macOS 打开 `http://127.0.0.1:3000`。
@@ -190,7 +193,7 @@ OCI Terraform provider 需要在每个 API 请求发出前使用 RSA 私钥生�
 
 ```bash
 test -d "${HOME}/.oci" || { echo 'OCI credentials directory is missing; stop and ask the user to restore or provide approved OCI credentials.' >&2; exit 1; }
-sbx run --name iac-oci codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+sbx run --name iac-oci --no-share-skills codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
 ```
 
 执行 OCI 命令前必须先确认 `test -d "${HOME}/.oci"` 成功；目录不存在时停止或跳过 OCI sandbox 创建，并请求用户恢复或提供已批准的 OCI credentials。不得自动创建空目录，也不得搜索替代私钥位置；目录存在后才使用带引号的 `"${HOME}/.oci:ro"`。Docker Sandboxes 在 microVM 中保留额外 workspace 的宿主绝对路径，因此 Terraform `private_key_path` 可以继续指向该文件。只读挂载可防止 sandbox 修改私钥，但 sandbox 内进程在该次运行中仍可以读取它；`README.md` 和 `AGENTS.md` 必须明确说明这一边界。
@@ -243,13 +246,13 @@ Docker Sandbox 验证通过后删除：
 - **OCI key 未挂载**：OCI provider 在计划前失败；不尝试从其他位置搜索或复制私钥。
 - **OpenCode 4096 端口冲突**：sandbox 创建失败，不默认换用不可预测端口。
 - **Playwright profile 竞争**：统一使用 `--isolated`。
-- **自动提交**：禁止。完成实现与验证后询问 `Ready to commit?`。
+- **Workflow ownership**：BMad 控制 planning、checkpoint、验证与 Git/PR lifecycle；`AGENTS.md` 只保留不可协商的安全边界。
 
 ## 8. 验证设计
 
 ### 8.1 阶段一：建立新环境，保留回退
 
-在 `.devcontainer/` 仍然存在时完成新 Kit、Claude/OpenCode MCP adapters、Codex CLI override、SSH 路径修改和文档草案。
+在 `.devcontainer/` 仍然存在时完成新 Kit、三个 agent 的项目 MCP adapters、SSH 路径修改和文档草案。
 
 静态验证：
 
@@ -259,7 +262,7 @@ terraform fmt -check -recursive
 git diff --check
 ```
 
-验证 `.codex/config.toml` 不存在，解析 `.mcp.json` 和 `opencode.json`；在 Codex sandbox 内以 `codex -c 'mcp_servers.playwright.command="iac-playwright-mcp"' mcp list` 验证 CLI override。
+解析 `.codex/config.toml`、`.mcp.json` 和 `opencode.json`；在 trusted Codex Sandbox 内以 `codex mcp list` 验证 required local Playwright adapter。
 
 为三种 agent 分别创建名称唯一的临时 smoke sandbox，验证：
 
