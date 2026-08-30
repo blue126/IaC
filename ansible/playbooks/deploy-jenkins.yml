@@ -50,6 +50,61 @@
       register: ansible_check
       changed_when: false
 
+    - name: Load CI toolchain BOM for verification
+      include_vars:
+        file: "{{ playbook_dir }}/../../ci/toolchain-bom.yml"
+        name: ci_toolchain_bom
+      when: jenkins_manage_casc | bool
+
+    - name: Check JCasC-managed Jenkins node files
+      stat:
+        path: "/var/lib/jenkins/nodes/{{ item }}/config.xml"
+      loop:
+        - iac-plan
+        - iac-deploy
+      register: jenkins_casc_node_files
+      when: jenkins_manage_casc | bool
+
+    - name: Assert JCasC-managed Jenkins nodes exist
+      assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+      loop: "{{ jenkins_casc_node_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: jenkins_manage_casc | bool
+
+    - name: Verify JCasC-managed Jenkins node boundaries
+      shell: |
+        set -o pipefail
+        grep -F '<numExecutors>1</numExecutors>' "{{ item.config }}" >/dev/null
+        grep -F '<mode>EXCLUSIVE</mode>' "{{ item.config }}" >/dev/null
+        grep -F '<remoteFS>{{ item.remote_fs }}</remoteFS>' "{{ item.config }}" >/dev/null
+      args:
+        executable: /bin/bash
+      loop:
+        - name: iac-plan
+          config: /var/lib/jenkins/nodes/iac-plan/config.xml
+          remote_fs: /var/lib/jenkins-agent/iac-plan
+        - name: iac-deploy
+          config: /var/lib/jenkins/nodes/iac-deploy/config.xml
+          remote_fs: /var/lib/jenkins-agent/iac-deploy
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: false
+      when: jenkins_manage_casc | bool
+
+    - name: Verify controller executor bootstrap count
+      command:
+        argv:
+          - grep
+          - -F
+          - "<numExecutors>{{ ci_toolchain_bom.jenkins.controller_executors_bootstrap }}</numExecutors>"
+          - /var/lib/jenkins/config.xml
+      changed_when: false
+      when: jenkins_manage_casc | bool
+
     - name: Display deployment info
       debug:
         msg: |

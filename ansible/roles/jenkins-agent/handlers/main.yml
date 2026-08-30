@@ -1,0 +1,9 @@
+---
+- name: Restart Jenkins agent services
+  systemd:
+    name: "jenkins-agent@{{ item.name }}"
+    state: restarted
+    daemon_reload: true
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"

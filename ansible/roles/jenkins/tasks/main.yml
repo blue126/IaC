@@ -139,14 +139,7 @@
   debug:
     msg: "{{ ansible_version_output.stdout_lines[0] }}"
 
-# === Get Initial Admin Password ===
-- name: Get Jenkins initial admin password
-  slurp:
-    src: "{{ jenkins_home }}/secrets/initialAdminPassword"
-  register: jenkins_initial_password
-  ignore_errors: yes
-
-- name: Display Jenkins initial admin password
-  debug:
-    msg: "Jenkins initial admin password: {{ jenkins_initial_password.content | b64decode | trim }}"
-  when: jenkins_initial_password is succeeded
+- name: Configure Jenkins controller from code
+  import_tasks: config.yml
+  when: jenkins_manage_casc | bool
+  tags: [jenkins_config]

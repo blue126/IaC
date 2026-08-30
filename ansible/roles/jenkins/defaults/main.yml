@@ -4,12 +4,37 @@
 # Jenkins configuration
 jenkins_http_port: 8080
 jenkins_home: /var/lib/jenkins
+jenkins_casc_dir: "{{ jenkins_home }}/casc"
+jenkins_casc_config_path: "{{ jenkins_casc_dir }}/jenkins.yaml"
+jenkins_systemd_override_dir: /etc/systemd/system/jenkins.service.d
+
+# Controller lifecycle gates. All must be explicitly enabled for a planned
+# JCasC/plugin change after backup and peer-watchdog preparation.
+jenkins_manage_casc: false
+jenkins_controller_change_authorized: false
+jenkins_controller_watchdog_ready: false
+jenkins_controller_restore_tested_backup_ready: false
+jenkins_controller_change_authorization_id: ""
+jenkins_controller_watchdog_bundle_sha256: ""
+jenkins_controller_restore_test_evidence_id: ""
+
+jenkins_casc_nodes:
+  - name: iac-plan
+    description: Isolated read-only planning executor
+    labels: iac-plan
+    remote_fs: /var/lib/jenkins-agent/iac-plan
+    executors: 1
+  - name: iac-deploy
+    description: Isolated trusted mutation executor
+    labels: iac-deploy
+    remote_fs: /var/lib/jenkins-agent/iac-deploy
+    executors: 1
 
 # Java version (Jenkins LTS requires Java 17+)
 jenkins_java_package: openjdk-17-jdk
 
 # Terraform version to install
-jenkins_terraform_version: "1.7.5"
+jenkins_terraform_version: "1.14.4"
 
 # Additional packages needed for CI/CD operations
 jenkins_packages:

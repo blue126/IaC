@@ -1,0 +1,53 @@
+---
+# CI control-plane and executor compatibility baseline.
+# Update only after compatibility and restore testing.
+jenkins:
+  core:
+    version: "2.541.1"
+    package_version: "2.541.1"
+  java:
+    runtime_version: "17.0.18"
+    package_version: "17.0.18+8-1~deb12u1"
+  controller_executors_bootstrap: 2
+  agent_jar:
+    sha256: "2a814594ae8df13fe6b490f7a802f3befcf14483ff3cdb778b771e0582ecd726"
+  managed_plugins:
+    - id: caffeine-api
+      version: "3.2.3-194.v31a_b_f7a_b_5a_81"
+      required_core: "2.479.1"
+      sha256: "93e218637e99ab794efe666387195af0f12b1bd7bef35c7e40e91ec0cf6c43ef"
+    - id: commons-lang3-api
+      version: "3.20.0-109.ve43756e2d2b_4"
+      required_core: "2.479.3"
+      sha256: "aa0908e0002c23c329df1f5e36d2ea9af6dfbd7c7f71fcf413cc471f335c2052"
+    - id: commons-text-api
+      version: "1.15.0-218.va_61573470393"
+      required_core: "2.479.3"
+      sha256: "ae2abdf957694f4aa39b9ba0b539edabc384f3da277551879e34ffb22fb13764"
+    - id: json-api
+      version: "20251224-185.v0cc18490c62c"
+      required_core: "2.492.1"
+      sha256: "9170a4c55cd949e57bf897057041886aaab3a1a59ba8a3a1842f094c683d4e2b"
+    - id: prism-api
+      version: "1.30.0-717.vb_f8360844b_53"
+      required_core: "2.516.3"
+      sha256: "d4952357d9f5c27a655df218ae923ce4a6597310aaf136ae1ab2bcffeee25409"
+    - id: snakeyaml-api
+      version: "2.5-149.v72471e9c6371"
+      required_core: "2.479.3"
+      sha256: "80edbeec15b9afbca18d000cf367d9e26456aa83100dcdd09ee0ed6a4b98a9c2"
+    - id: configuration-as-code
+      version: "2117.vc05a_0b_e6b_f4e"
+      required_core: "2.541.1"
+      sha256: "4acc06b40ab85db772b004860c4d729ea0bd132ac5b9bf883e254e426fb2b34f"
+
+terraform:
+  version: "1.14.4"
+  package_version: "1.14.4-1"
+
+ansible:
+  core:
+    version: "2.19.12"
+    wheel_sha256: "b6bbdf05952852ad908861d652a9009c8474f1fe9c63a77ec202979a329d7d99"
+  collections:
+    community_general: "13.3.0"

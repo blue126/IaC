@@ -1,0 +1,29 @@
+[Unit]
+Description=Jenkins inbound agent (%i)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory={{ jenkins_agent_base_dir }}/%i
+Environment=HOME={{ jenkins_agent_base_dir }}/%i
+Environment=TMPDIR={{ jenkins_agent_base_dir }}/%i/tmp
+UMask=0077
+ExecStart=/usr/bin/java -jar {{ jenkins_agent_jar_path }} -url {{ jenkins_agent_controller_url }} -secret @{{ jenkins_agent_config_dir }}/%i/secret -name %i -webSocket -workDir {{ jenkins_agent_base_dir }}/%i
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths={{ jenkins_agent_base_dir }}/%i
+
+[Install]
+WantedBy=multi-user.target

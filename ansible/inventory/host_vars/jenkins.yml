@@ -2,6 +2,10 @@
 proxmox_node: pve0
 proxmox_vmid: 107
 
+# JCasC remains disabled until the peer-agent watchdog and the exact-version
+# restore-tested backup are ready for the first controller restart.
+jenkins_manage_casc: false
+
 cloudflared_configure_tunnel: true
 cloudflared_tunnel_name: jenkins-webhook
 cloudflared_tunnel_id: "{{ vault_cloudflared_tunnel_id }}"

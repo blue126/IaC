@@ -1,0 +1,21 @@
+---
+# Default variables for Jenkins agent role
+
+jenkins_agent_controller_url: "http://192.168.1.107:8080"
+jenkins_agent_jar_url: "{{ jenkins_agent_controller_url }}/jnlpJars/agent.jar"
+jenkins_agent_jar_checksum: ""
+jenkins_agent_jar_path: /opt/jenkins-agent/agent.jar
+jenkins_agent_java_package: openjdk-17-jre-headless
+
+jenkins_agent_base_dir: /var/lib/jenkins-agent
+jenkins_agent_config_dir: /etc/jenkins-agent
+
+# Secrets must be supplied through Vault indirection before deployment.
+jenkins_agent_plan_secret: ""
+jenkins_agent_deploy_secret: ""
+
+jenkins_agent_instances:
+  - name: iac-plan
+    secret: "{{ jenkins_agent_plan_secret }}"
+  - name: iac-deploy
+    secret: "{{ jenkins_agent_deploy_secret }}"

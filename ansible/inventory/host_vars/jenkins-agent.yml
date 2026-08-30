@@ -1,0 +1,10 @@
+---
+proxmox_node: pve0
+proxmox_vmid: 110
+
+jenkins_agent_controller_url: "http://192.168.1.107:8080"
+jenkins_agent_jar_checksum: "sha256:2a814594ae8df13fe6b490f7a802f3befcf14483ff3cdb778b771e0582ecd726"
+
+# Add these values to the single Vault file before the first bootstrap run.
+jenkins_agent_plan_secret: "{{ vault_jenkins_agent_plan_secret }}"
+jenkins_agent_deploy_secret: "{{ vault_jenkins_agent_deploy_secret }}"
