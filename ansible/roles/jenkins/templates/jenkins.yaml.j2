@@ -1,0 +1,20 @@
+jenkins:
+  numExecutors: {{ ci_toolchain_bom.jenkins.controller_executors_bootstrap }}
+  nodes:
+{% for node in jenkins_casc_nodes %}
+    - permanent:
+        name: "{{ node.name }}"
+        description: "{{ node.description }}"
+        remoteFS: "{{ node.remote_fs }}"
+        numExecutors: {{ node.executors }}
+        mode: EXCLUSIVE
+        labelString: "{{ node.labels }}"
+        launcher:
+          inbound:
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: true
+              internalDir: remoting
+              workDirPath: "{{ node.remote_fs }}"
+        retentionStrategy: always
+{% endfor %}

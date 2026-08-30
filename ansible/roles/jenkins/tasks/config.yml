@@ -1,0 +1,104 @@
+---
+- name: Validate Jenkins controller lifecycle gates
+  assert:
+    that:
+      - jenkins_controller_change_authorized | bool
+      - jenkins_controller_watchdog_ready | bool
+      - jenkins_controller_restore_tested_backup_ready | bool
+      - jenkins_controller_change_authorization_id | length > 0
+      - jenkins_controller_watchdog_bundle_sha256 is match('^[0-9a-f]{64}$')
+      - jenkins_controller_restore_test_evidence_id | length > 0
+    fail_msg: >-
+      Planned Jenkins controller changes require explicit authorization, a
+      dispatched peer-agent watchdog, an exact-version restore-tested backup,
+      and their non-secret audit evidence identifiers.
+
+- name: Load CI toolchain BOM
+  include_vars:
+    file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
+    name: ci_toolchain_bom
+
+- name: Read installed Jenkins package version
+  command:
+    argv:
+      - dpkg-query
+      - -W
+      - "-f=${Version}"
+      - jenkins
+  register: jenkins_installed_package_version
+  changed_when: false
+
+- name: Assert Jenkins core matches the BOM
+  assert:
+    that:
+      - jenkins_installed_package_version.stdout == ci_toolchain_bom.jenkins.core.package_version
+    fail_msg: >-
+      Installed Jenkins core does not match the BOM; upgrade and restore testing
+      must be handled as a separate controller lifecycle change.
+
+- name: Install BOM-pinned Jenkins plugins
+  community.general.jenkins_plugin:
+    name: "{{ item.id }}"
+    version: "{{ item.version }}"
+    state: present
+    with_dependencies: true
+    jenkins_home: "{{ jenkins_home }}"
+    owner: jenkins
+    group: jenkins
+  loop: "{{ ci_toolchain_bom.jenkins.managed_plugins }}"
+  loop_control:
+    label: "{{ item.id }}:{{ item.version }}"
+  notify: Restart Jenkins
+
+- name: Read managed Jenkins plugin checksums
+  stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
+    checksum_algorithm: sha256
+  loop: "{{ ci_toolchain_bom.jenkins.managed_plugins }}"
+  loop_control:
+    label: "{{ item.id }}"
+  register: jenkins_managed_plugin_files
+
+- name: Assert managed Jenkins plugins match the BOM
+  assert:
+    that:
+      - item.stat.exists
+      - item.stat.checksum == item.item.sha256
+    fail_msg: "Installed Jenkins plugin does not match the BOM checksum."
+  loop: "{{ jenkins_managed_plugin_files.results }}"
+  loop_control:
+    label: "{{ item.item.id }}"
+
+- name: Create Jenkins JCasC configuration directory
+  file:
+    path: "{{ jenkins_casc_dir }}"
+    state: directory
+    owner: root
+    group: jenkins
+    mode: "0750"
+
+- name: Deploy Jenkins JCasC configuration
+  template:
+    src: jenkins.yaml.j2
+    dest: "{{ jenkins_casc_config_path }}"
+    owner: root
+    group: jenkins
+    mode: "0640"
+  notify: Restart Jenkins
+
+- name: Create Jenkins systemd override directory
+  file:
+    path: "{{ jenkins_systemd_override_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Jenkins JCasC environment
+  template:
+    src: jenkins.service.override.conf.j2
+    dest: "{{ jenkins_systemd_override_dir }}/10-casc.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Jenkins
