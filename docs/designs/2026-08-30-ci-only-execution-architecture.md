@@ -32,7 +32,7 @@ companions: []
 
 ## Design Paradigm
 
-**Policy-gated pipeline control plane with CI-exclusive mutation.** Pull request and `main` are the two code-change lanes. Maintenance and NetBox events are restricted auxiliary lanes. Jenkins is the only normal execution plane, and HCP Terraform stores state while Terraform continues to execute on isolated Jenkins agents.
+**Policy-gated pipeline control plane with CI-exclusive mutation.** Pull request and `main` are the two code-change lanes. Maintenance and NetBox events are restricted auxiliary lanes. Gitea, Jenkins controller, and Jenkins agent occupy separate peer Proxmox LXCs; Jenkins is the only normal execution plane, and HCP Terraform stores state while Terraform executes on the agent LXC.
 
 ```mermaid
 flowchart LR
@@ -68,13 +68,13 @@ flowchart LR
 
 - **Binds:** Gitea branch protection and all Jenkins jobs.
 - **Prevents:** Applying unmerged code, applying a different configuration than the reviewed plan, and exposing mutation credentials to pull-request jobs.
-- **Rule:** Only allow-listed Gitea infrastructure-operator accounts may open buildable PRs; fork/untrusted PR builds are disabled. The PR pipeline definition comes from protected Gitea `main`/code-owned Jenkins configuration, never from the PR branch; the PR SHA is checked out only as input data. Each PR runs in a disposable `iac-plan` environment with no controller filesystem, SSH identity, or mutation credential, then destroys its workspace. Separately scoped read-only plan credentials are issued only to this trusted-author lane. The main lane runs on `iac-deploy`, checks out an immutable SHA, creates a saved plan and plan manifest for that SHA, pauses for explicit Terraform approval, and applies only that saved plan. After inventory refresh it pauses for a separate approval of the exact Ansible scope.
+- **Rule:** Only allow-listed Gitea infrastructure-operator accounts may open buildable PRs; fork/untrusted PR builds are disabled. The PR pipeline definition comes from protected Gitea `main`/code-owned Jenkins configuration, never from the PR branch; the PR SHA is checked out only as input data. Each PR runs under the separately permissioned `iac-plan` agent identity in a disposable workspace on the peer agent LXC, with no controller filesystem, SSH identity, or mutation credential. Separately scoped read-only plan credentials are issued only to this trusted-author lane. The main lane runs under the `iac-deploy` identity, checks out an immutable SHA, creates a saved plan and plan manifest for that SHA, pauses for explicit Terraform approval, and applies only that saved plan. After inventory refresh it pauses for a separate approval of the exact Ansible scope.
 
 ### AD-3 — Gitea is authoritative; GitHub is a downstream mirror [ADOPTED]
 
 - **Binds:** Git remotes, Jenkins SCM, webhooks, branch protection, and GitHub Pages.
 - **Prevents:** Split-brain merges and public ingress to Jenkins for code changes.
-- **Rule:** Gitea `main` is the sole writable code source of truth and sole code-change webhook source. Jenkins clones only Gitea and authenticates internal webhook deliveries before dispatch. Gitea push-mirrors branches and tags to GitHub; the mirror automation is GitHub's sole writer, GitHub never triggers infrastructure jobs, and no reverse synchronization exists. The NetBox event exception is governed only by AD-12.
+- **Rule:** Gitea `main` is the sole writable code source of truth and sole code-change webhook source. During cutover, compare current Gitea and GitHub commit graphs and stop on divergence; freeze direct GitHub writes, synchronize the selected authoritative graph, verify protected `main` and Jenkins jobs, then make Gitea writable and enable one-way GitHub mirroring. Jenkins thereafter clones only Gitea and authenticates internal webhook deliveries before dispatch. The mirror automation is GitHub's sole writer, GitHub never triggers infrastructure jobs, and no reverse synchronization exists. The NetBox event exception is governed only by AD-12.
 
 ### AD-4 — One Terraform root owns one remote state and mutation lock
 
@@ -117,19 +117,19 @@ flowchart LR
 
 - **Binds:** Jenkins/Gitea installation, controller outage, and lost CI credentials or state access.
 - **Prevents:** Pretending CI can repair itself when unavailable and allowing the exception to become routine deployment practice.
-- **Rule:** Local Terraform or Ansible execution is allowed only for documented first bootstrap or declared disaster recovery. Record operator, command, target, reason, and result; restore CI promptly; then reconcile with a normal Jenkins plan. No feature or configuration change qualifies.
+- **Rule:** Local Terraform or Ansible execution is allowed only for documented first bootstrap or declared disaster recovery. The first peer agent is preferably bootstrapped from the healthy existing Jenkins Web UI/controller executor; after verification, controller execution is disabled and a normal Jenkins plan reconciles the result. Record operator, command, target, reason, and result; restore CI promptly; then reconcile with a normal Jenkins plan. No later feature or configuration change qualifies.
 
 ### AD-10 — Executor capability is provisioned and pinned
 
 - **Binds:** Jenkins controller/agent, Terraform CLI, Ansible, collections, Jenkins plugins, and helper runtimes.
 - **Prevents:** Runtime dependency downloads producing non-reproducible or incompatible executions.
-- **Rule:** PR jobs run only on isolated `iac-plan` agents and trusted mutation jobs only on `iac-deploy`; neither runs arbitrary shell work on the controller. Required Java, Jenkins LTS, tools, plugins, and collections are version-pinned and provisioned through code; pipelines verify them and fail on mismatch rather than silently upgrading. Pin selection must pass the published Jenkins core/Java/plugin compatibility requirements and an integration test before rollout.
+- **Rule:** The first implementation provisions one peer Jenkins agent LXC with separate non-root `iac-plan` and `iac-deploy` Unix accounts, agent services, 0700 homes, and 0700 workspaces, with no shared writable path. `iac-plan` has no sudo, Docker socket, deployment SSH identity, mutation credential, or mutation network access; `iac-deploy` receives only stage-scoped privileges. All `iac-deploy` jobs are globally serialized, use a private 0700 `TMPDIR`, and must prove workspace/temp/credential cleanup before the next deploy begins. Neither identity runs arbitrary shell work on the controller, and no Docker-in-Docker is introduced. Required Java, Jenkins LTS, tools, plugins, and collections are version-pinned and provisioned through code; pipelines verify them and fail on mismatch rather than silently upgrading. Pin selection must pass the published Jenkins core/Java/plugin compatibility requirements and an integration test before rollout.
 
 ### AD-11 — The CI control plane has a separate lifecycle
 
-- **Binds:** Jenkins controller, Gitea service, their shared LXC, jobs, webhooks, branch rules, plugin configuration, and credential metadata.
+- **Binds:** Peer Gitea, Jenkins controller, and Jenkins agent LXCs; jobs, webhooks, branch rules, plugin configuration, backups, and credential metadata.
 - **Prevents:** A routine pipeline restarting its own controller, manual UI drift, and loss of both Git and CI without a recovery path.
-- **Rule:** Repository code is the configuration owner: Ansible owns host services, Jenkins Configuration as Code/Job DSL owns Jenkins metadata, and versioned Gitea automation owns repository hooks, branch rules, mirror, and CI identity. Secret values remain only in their credential stores. Planned Jenkins/Gitea changes run from an executor outside the target controller process and require configuration/database backups plus post-restart health checks. If no safe executor exists, the planned change is blocked; AD-9 applies only after a declared bootstrap or disaster condition.
+- **Rule:** Repository code is the configuration owner: Ansible owns host services, Jenkins Configuration as Code/Job DSL owns Jenkins metadata, and versioned Gitea automation owns repository hooks, branch rules, mirror, and CI identity. Secret values remain only in their credential stores. Before a planned controller restart, Jenkins dispatches a signed watchdog/rollback bundle to the peer agent; it runs independently, captures diagnostics, and may restore only a quiesced application-consistent backup that passed restore-and-boot validation for the exact Jenkins core/plugin/config version tuple. For Gitea, establish one code-owned stable HTTP/SSH endpoint; inventory repositories, SQLite, LFS/attachments, `app.ini` secrets, SSH host keys, TLS/OAuth material, webhook secrets, and mirror identity; then write-freeze, checksum a consistent backup, fence the old instance, restore the same pinned version, validate before writes, and switch DNS/routing. A versioned identity-transition matrix classifies every identity as preserve or rotate and records owner, consumers, update order, overlap window, validation, revocation, and rollback-compatible version. During soak the old instance remains fenced. After new writes, rollback freezes and backs up the new instance, restores that latest data to the old instance, fences the new instance, switches the stable endpoint back, and only then resumes writes. If no safe watchdog/executor exists, planned change is blocked; AD-9 applies only after declared bootstrap or disaster.
 
 ### AD-12 — NetBox events may request execution but never select code
 
@@ -150,6 +150,9 @@ flowchart LR
 | Failure behavior | Unknown scope, missing credential, stale plan, failed refresh, or failed verification blocks downstream mutation and reports failure. |
 | Git remotes | Developer clones use Gitea as `origin`; GitHub is named `github` when a direct read-only remote is needed. |
 | GitHub mirror | A least-privilege mirror identity is the only GitHub writer. GitHub Actions holds no infrastructure secret and may run only mirror-safe documentation checks/Pages. Mirror drift is monitored. |
+| Gitea cutover | One stable HTTP/SSH endpoint and one writable instance. Every cutover or rollback fences the old writer before the replacement accepts writes and transfers the latest consistent data in the rollback direction. |
+| Control-plane restart | A signed, versioned watchdog/rollback bundle runs independently on the peer agent before Jenkins controller restart begins. |
+| Identity transition | Preserve stable endpoint/host/encryption identities for continuity unless a planned rotation updates and validates every consumer through an explicit dual-valid window before old material is revoked. |
 
 ## Structural Seed
 
@@ -160,9 +163,13 @@ Jenkinsfile-webhook-router   # Restricted NetBox event entry
 ci/
   execution-map.yml          # Changed path -> Terraform root / Ansible playbook ownership
   managed-netbox.yml         # Terraform-owned NetBox object identities
+  identity-transition.yml    # Preserve/rotate order, consumers, overlap, and rollback versions
 scripts/jenkins/             # Deterministic scope, plan, cleanup, and audit helpers
 terraform/
   proxmox/                   # iac-proxmox-lab
+    jenkins.tf               # Jenkins controller LXC
+    jenkins-agent.tf         # Peer execution LXC with iac-plan/iac-deploy identities
+    gitea.tf                 # Peer Git authority LXC after staged cutover
   esxi/                      # iac-esxi-lab
   oci/                       # iac-oci
   netbox-integration/        # iac-netbox-integration; initially apply-disabled
@@ -173,7 +180,7 @@ ansible/
 
 ## Deferred
 
-- Separating Gitea and Jenkins from their current shared LXC; revisit after CI-only migration, external control-plane execution, and verified independent backups.
+- Cross-Proxmox-node placement and HA for Gitea, Jenkins controller, and Jenkins agent; revisit after peer-LXC separation and independent restore tests, because same-node placement still shares physical-host failure.
 - Moving Terraform execution from Jenkins-local to HCP remote/agent execution; revisit only if Jenkins-local networking or executor reproducibility becomes inadequate.
 - Exact Jenkins, Gitea plugin, Gitea Checks, Terraform, Ansible, and collection pins; choose them after probing the installed controller and validating supported upgrade paths.
 - Removing the Cloudflare GitHub webhook tunnel; perform only after Gitea webhook, PR checks, GitHub mirroring, and rollback have been verified.
