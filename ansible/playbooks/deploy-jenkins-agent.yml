@@ -1,0 +1,78 @@
+---
+- name: Deploy Jenkins Agent
+  hosts: jenkins_agent
+  gather_facts: true
+  become: true
+  roles:
+    - common
+    - jenkins-agent
+
+- name: Verify Jenkins Agent Deployment
+  hosts: jenkins_agent
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Read Jenkins agent account IDs
+      command: "id -u {{ item }}"
+      loop:
+        - iac-plan
+        - iac-deploy
+      register: jenkins_agent_account_ids
+      changed_when: false
+
+    - name: Assert Jenkins agent accounts are non-root
+      assert:
+        that:
+          - item.stdout | int > 0
+      loop: "{{ jenkins_agent_account_ids.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Check Jenkins agent private directories
+      stat:
+        path: >-
+          /var/lib/jenkins-agent/{{ item.0 }}{{ '/' + item.1 if item.1 else '' }}
+      loop: "{{ ['iac-plan', 'iac-deploy'] | product(['', 'workspace', 'tmp']) | list }}"
+      loop_control:
+        label: "{{ item.0 }}:{{ item.1 | default('home', true) }}"
+      register: jenkins_agent_directory_stats
+
+    - name: Assert Jenkins agent directories are private
+      assert:
+        that:
+          - item.stat.isdir
+          - item.stat.mode == "0700"
+          - item.stat.pw_name == item.item.0
+          - item.stat.gr_name == item.item.0
+      loop: "{{ jenkins_agent_directory_stats.results }}"
+      loop_control:
+        label: "{{ item.item.0 }}:{{ item.item.1 }}"
+
+    - name: Check Jenkins agent service status
+      systemd:
+        name: "jenkins-agent@{{ item }}"
+      loop:
+        - iac-plan
+        - iac-deploy
+      register: jenkins_agent_service_status
+
+    - name: Assert Jenkins agent services are active
+      assert:
+        that:
+          - item.status.ActiveState == "active"
+          - item.status.User == item.item
+      loop: "{{ jenkins_agent_service_status.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Check plan identity privilege boundaries
+      shell: |
+        set -o pipefail
+        ! id -nG | tr ' ' '\n' | grep -Eq '^(sudo|docker)$'
+        [[ ! -r /var/run/docker.sock && ! -w /var/run/docker.sock ]]
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: iac-plan
+      changed_when: false

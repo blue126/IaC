@@ -1,0 +1,145 @@
+---
+- name: Validate Jenkins agent configuration
+  assert:
+    that:
+      - jenkins_agent_controller_url | length > 0
+      - jenkins_agent_jar_checksum is match('^sha256:[0-9a-f]{64}$')
+      - jenkins_agent_instances | map(attribute='name') | list | sort == ['iac-deploy', 'iac-plan']
+      - jenkins_agent_instances | map(attribute='name') | list | unique | length == 2
+    fail_msg: >-
+      Jenkins agent URL, pinned agent.jar checksum, and the exact plan/deploy
+      identities are required.
+
+- name: Validate Jenkins agent connection secrets
+  assert:
+    that:
+      - item.secret | length > 0
+    fail_msg: "A Vault-backed connection secret is required for each Jenkins agent."
+  loop: "{{ jenkins_agent_instances }}"
+  no_log: true
+
+- name: Install Jenkins agent runtime packages
+  apt:
+    name:
+      - ca-certificates
+      - "{{ jenkins_agent_java_package }}"
+    state: present
+    update_cache: true
+
+- name: Create Jenkins agent groups
+  group:
+    name: "{{ item.name }}"
+    system: true
+    state: present
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create Jenkins agent base directory
+  file:
+    path: "{{ jenkins_agent_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Jenkins agent accounts
+  user:
+    name: "{{ item.name }}"
+    group: "{{ item.name }}"
+    groups: ""
+    append: false
+    home: "{{ jenkins_agent_base_dir }}/{{ item.name }}"
+    shell: /bin/bash
+    system: true
+    create_home: true
+    state: present
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create Jenkins agent installation directory
+  file:
+    path: "{{ jenkins_agent_jar_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download pinned Jenkins agent runtime
+  get_url:
+    url: "{{ jenkins_agent_jar_url }}"
+    dest: "{{ jenkins_agent_jar_path }}"
+    checksum: "{{ jenkins_agent_jar_checksum }}"
+    owner: root
+    group: root
+    mode: "0555"
+  notify: Restart Jenkins agent services
+
+- name: Create private Jenkins agent directories
+  file:
+    path: >-
+      {{ jenkins_agent_base_dir }}/{{ item.0.name }}{{ '/' + item.1 if item.1 else '' }}
+    state: directory
+    owner: "{{ item.0.name }}"
+    group: "{{ item.0.name }}"
+    mode: "0700"
+  loop: "{{ jenkins_agent_instances | product(jenkins_agent_private_directory_suffixes) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}:{{ item.1 | default('home', true) }}"
+  vars:
+    jenkins_agent_private_directory_suffixes:
+      - ""
+      - workspace
+      - tmp
+
+- name: Create Jenkins agent configuration directory
+  file:
+    path: "{{ jenkins_agent_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Jenkins agent secret directories
+  file:
+    path: "{{ jenkins_agent_config_dir }}/{{ item.name }}"
+    state: directory
+    owner: root
+    group: "{{ item.name }}"
+    mode: "0750"
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Deploy Jenkins agent connection secrets
+  copy:
+    content: "{{ item.secret }}\n"
+    dest: "{{ jenkins_agent_config_dir }}/{{ item.name }}/secret"
+    owner: root
+    group: "{{ item.name }}"
+    mode: "0440"
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  notify: Restart Jenkins agent services
+
+- name: Deploy Jenkins agent systemd service template
+  template:
+    src: jenkins-agent.service.j2
+    dest: /etc/systemd/system/jenkins-agent@.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Jenkins agent services
+
+- name: Enable and start Jenkins agent services
+  systemd:
+    name: "jenkins-agent@{{ item.name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
