@@ -1,0 +1,34 @@
+name: Documentation Accuracy
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Run fixture suite
+        run: python3 tests/doc-claims/doc-claims-test.py
+      - name: Check repository documentation claims
+        if: always()
+        run: python3 tools/check-doc-claims.py --root . --output tmp/doc-accuracy/report.json
+      - name: Upload documentation accuracy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-accuracy-report
+          path: tmp/doc-accuracy/report.json
+          if-no-files-found: warn
+          retention-days: 14
