@@ -248,10 +248,10 @@
       ansible.builtin.systemd_service:
         daemon_reload: true
 
-    - name: Start Qwen3-TTS service without enabling it
+    - name: Restart Qwen3-TTS service without enabling it
       ansible.builtin.systemd_service:
         name: "{{ qwen3_tts_service_name }}"
-        state: started
+        state: restarted
         enabled: false
 
     - name: Wait for Qwen3-TTS health endpoint
@@ -310,20 +310,77 @@
             return_content: true
           register: qwen3_tts_verify_models
 
-        - name: Generate short Qwen3-TTS WAV response
-          ansible.builtin.uri:
-            url: http://192.168.1.247:8100/v1/audio/speech
-            method: POST
-            body_format: json
-            body:
-              model: tts-1
-              voice: alloy
-              input: Hello.
-              response_format: wav
-            status_code: 200
-            return_content: true
-            timeout: 300
-          register: qwen3_tts_verify_speech
+        - name: Create temporary file for Qwen3-TTS WAV response
+          ansible.builtin.tempfile:
+            state: file
+            suffix: .wav
+          register: qwen3_tts_verify_wav_file
+
+        - name: Validate short Qwen3-TTS WAV response
+          block:
+            - name: Generate short Qwen3-TTS WAV response
+              ansible.builtin.uri:
+                url: http://192.168.1.247:8100/v1/audio/speech
+                method: POST
+                body_format: json
+                body:
+                  model: tts-1
+                  voice: alloy
+                  input: Hello.
+                  response_format: wav
+                status_code: 200
+                dest: "{{ qwen3_tts_verify_wav_file.path }}"
+                timeout: 300
+
+            - name: Read Qwen3-TTS WAV response metadata
+              ansible.builtin.stat:
+                path: "{{ qwen3_tts_verify_wav_file.path }}"
+              register: qwen3_tts_verify_wav_stat
+
+            - name: Read Qwen3-TTS WAV response header
+              ansible.builtin.command:
+                argv:
+                  - od
+                  - -An
+                  - -tx1
+                  - -N12
+                  - "{{ qwen3_tts_verify_wav_file.path }}"
+              register: qwen3_tts_verify_wav_header
+              changed_when: false
+
+            - name: Validate Qwen3-TTS WAV response file
+              ansible.builtin.assert:
+                that:
+                  - qwen3_tts_verify_wav_stat.stat.size | int > 44
+                  - qwen3_tts_verify_wav_header.stdout | regex_replace('\\s+', '') is match('^52494646[0-9a-f]{8}57415645$')
+                fail_msg: Qwen3-TTS WAV response is empty or has an invalid RIFF/WAVE header
+          always:
+            - name: Remove temporary Qwen3-TTS WAV response
+              ansible.builtin.file:
+                path: "{{ qwen3_tts_verify_wav_file.path }}"
+                state: absent
+
+        - name: Generate streaming Qwen3-TTS PCM response
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --fail
+              - --silent
+              - --show-error
+              - --no-buffer
+              - --dump-header
+              - "-"
+              - --output
+              - /dev/null
+              - --write-out
+              - "qwen3_tts_download_size=%{size_download}"
+              - --header
+              - "Content-Type: application/json"
+              - --data
+              - '{"model":"tts-1","voice":"alloy","input":"Hello.","response_format":"pcm","stream":true}'
+              - http://192.168.1.247:8100/v1/audio/speech
+          register: qwen3_tts_verify_streaming_speech
+          changed_when: false
 
         - name: Validate Qwen3-TTS API responses
           ansible.builtin.assert:
@@ -333,9 +390,9 @@
               - qwen3_tts_verify_health.json.status == 'healthy'
               - qwen3_tts_verify_models.json.object == 'list'
               - qwen3_tts_verify_models.json.data | length > 0
-              - qwen3_tts_verify_speech.content | length > 44
-              - qwen3_tts_verify_speech.content[0:4] == 'RIFF'
-              - qwen3_tts_verify_speech.content[8:12] == 'WAVE'
+              - qwen3_tts_verify_streaming_speech.stdout is search('(?im)^content-type: audio/pcm\\s*$')
+              - qwen3_tts_verify_streaming_speech.stdout is search('(?im)^transfer-encoding: chunked\\s*$')
+              - qwen3_tts_verify_streaming_speech.stdout is search('(?m)^qwen3_tts_download_size=[1-9][0-9]*$')
             fail_msg: Qwen3-TTS read-only verification failed
 
         - name: Read Qwen3-TTS container restart count
