@@ -125,16 +125,16 @@ Pipeline stages: **Change Detection → Terraform Lint → Terraform Plan → An
 
 ```bash
 # Direct mode
-sbx run --name iac-codex codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit
 sbx run --name iac-claude claude . --kit ./.sandbox-kit
 sbx run --name iac-opencode opencode . --kit ./.sandbox-kit
 
 # Clone mode: add --clone when the sandbox is first created
-sbx run --clone --name iac-codex-clone codex . --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+sbx run --clone --name iac-codex-clone --no-share-skills codex . --kit ./.sandbox-kit
 
 # OCI: expose the API signing-key directory only for OCI work
 test -d "${HOME}/.oci" || { echo 'OCI credentials directory is missing; stop and ask the user to restore or provide approved OCI credentials.' >&2; exit 1; }
-sbx run --name iac-oci codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit -- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'
+sbx run --name iac-oci --no-share-skills codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
 
 # OpenCode Desktop server
 sbx run --name iac-opencode-desktop \
@@ -144,6 +144,17 @@ sbx run --name iac-opencode-desktop \
 ```
 
 Direct mode 直接挂载整个主机工作区，因此也会读取被 Git 忽略的 `ansible/.vault_pass` 和已生成的 Terraform tfvars。仓库工作区中严禁存放 `.ssh` 私钥：它们会随 direct mode 暴露给 sandbox。SSH 私钥只能由宿主 SSH agent 管理，并通过转发供 sandbox 使用。Clone mode 使用私有 clone；如需上述未追踪文件，必须从 `/run/sandbox/source` 手动复制所需文件，且不得输出其内容。
+
+Codex 的 sandbox-local Playwright MCP 由项目 `.codex/config.toml` 配置。首次进入新 sandbox 时，先将 IaC 项目标记为 trusted，再运行 `codex mcp list`，确认本地 `playwright` 使用 `iac-playwright-mcp` 且初始化成功。Untrusted project 会跳过 `.codex/config.toml`，此时不得假定 Playwright MCP 已加载。`--no-share-skills` 是 sandbox 创建级配置，现有 sandbox 不能原地切换；需要新建或在单独授权后重建。
+
+如果首次启动没有出现 trust 提示，在 Sandbox 的 `$CODEX_HOME/config.toml` 中加入当前绝对工作区路径：
+
+```toml
+[projects."/absolute/path/to/IaC"]
+trust_level = "trusted"
+```
+
+重建 Sandbox 后该 engine-managed 配置可能被重写，因此每次创建都要重新检查 trust。先运行 `sbx ls`；如果固定名称 `iac-codex` 已指向旧实例，使用新名称（例如 `iac-codex-bmad`）完成验证，除非用户另行授权替换旧实例。
 
 ### Git 与 host worktree 边界
 
@@ -155,7 +166,7 @@ Direct mode 直接挂载整个主机工作区，因此也会读取被 Git 忽略
 
 仅在 OCI 工作中挂载 `"${HOME}/.oci:ro"`，且运行命令前必须先执行 `test -d "${HOME}/.oci"`。目录不存在时必须停止或跳过 OCI sandbox 创建，并请求用户恢复或提供已批准的 OCI credentials；不得自动创建空目录，也不得搜索替代私钥位置。目录存在后只使用带引号的挂载路径。只读挂载禁止修改，但允许 sandbox 内的进程读取 OCI API 私钥。修改 Kit 后需要重新创建 sandbox；只有 `sbx kit add` 明确支持的变更例外。
 
-前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。OpenCode Desktop server 命令必须保持在长期 attached terminal/session 中运行；`--detached` 只会创建/启动 microVM，不会启动 agent server。Playwright MCP 与 headless Chromium 均在 microVM 内运行。Codex 0.149.1 在项目未持久受信任时会跳过项目 `.codex/config.toml`，因此 Codex 命令必须保留上述 `-- -c 'mcp_servers.playwright.command="iac-playwright-mcp"'` 覆盖；Claude Code 和 OpenCode 继续使用各自的项目配置。
+前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。OpenCode Desktop server 命令必须保持在长期 attached terminal/session 中运行；`--detached` 只会创建/启动 microVM，不会启动 agent server。Playwright MCP 与 headless Chromium 均在 microVM 内运行。Claude Code 和 OpenCode 继续使用各自的项目配置。
 
 ### 2. Provision Infrastructure
 

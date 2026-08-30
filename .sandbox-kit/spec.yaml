@@ -1,7 +1,7 @@
 schemaVersion: "2"
 kind: mixin
 name: iac-toolchain
-version: "1.0.0"
+version: "1.1.0"
 displayName: IaC Toolchain
 description: >-
   Terraform, Ansible, Python, and sandbox-local Playwright MCP for the IaC repository.
@@ -91,5 +91,9 @@ setup:
         test -f "$playwright_cli";
         install -d -m 0755 /opt/ms-playwright;
         PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright node "$playwright_cli" install --with-deps chromium;
+        playwright_package="$(npm root --global)/@playwright/mcp/node_modules/playwright";
+        chromium_path="$(PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright node -e 'const { chromium } = require(process.argv[1]); process.stdout.write(chromium.executablePath())' "$playwright_package")";
+        test -x "$chromium_path";
+        ln -sfn "$chromium_path" /usr/local/bin/iac-chromium;
         chmod -R a+rX /opt/ms-playwright;
         install -m 0755 /home/agent/.local/bin/iac-playwright-mcp /usr/local/bin/iac-playwright-mcp

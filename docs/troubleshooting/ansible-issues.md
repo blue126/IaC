@@ -171,7 +171,7 @@ command -v iac-playwright-mcp
 
 ```bash
 # Codex sandbox
-codex -c 'mcp_servers.playwright.command="iac-playwright-mcp"' mcp list
+codex mcp list
 
 # Claude sandbox
 claude mcp list
@@ -180,8 +180,9 @@ claude mcp list
 opencode mcp list
 ```
 
-Codex 的启动和检查必须带 `-c 'mcp_servers.playwright.command="iac-playwright-mcp"'`
-override。以上命令只验证 sandbox-local adapter，不检查宿主机 Playwright。
+Codex 从 trusted project 的 `.codex/config.toml` 加载 required local Playwright adapter。
+如果列表缺少 `playwright`，先修复 project trust；不要用 CLI override 掩盖配置问题。
+以上命令只验证 sandbox-local adapter，不检查宿主机 Playwright。
 
 ---
 
