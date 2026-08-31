@@ -121,23 +121,21 @@ Pipeline stages: **Change Detection → Terraform Lint → Terraform Plan → An
 
 ### 1. Docker Sandboxes 环境
 
-在仓库根目录使用 Docker Sandboxes 启动对应的 agent。开始任何 Ansible SSH 操作前，先运行 `ssh-add -L`，确认输出中包含用于 Ansible 认证的已加载 SSH 公钥身份（public identity）。
+先选择执行拓扑，并将 `TASK` 替换为唯一的 kebab-case 任务名。Direct mode 必须从已分配的 host task worktree 启动；clone mode 必须从 verified main checkout 启动。开始任何 Ansible SSH 操作前，先运行 `ssh-add -L`，确认输出中包含用于 Ansible 认证的已加载 SSH 公钥身份（public identity）。
 
 ```bash
 # Direct mode
-sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit
-sbx run --name iac-claude claude . --kit ./.sandbox-kit
-sbx run --name iac-opencode opencode . --kit ./.sandbox-kit
+sbx run --name iac-codex-TASK-direct-v120 --no-share-skills codex . --kit ./.sandbox-kit
+sbx run --name iac-claude-TASK-direct-v120 claude . --kit ./.sandbox-kit
+sbx run --name iac-opencode-TASK-direct-v120 opencode . --kit ./.sandbox-kit
 
-# Clone mode: add --clone when the sandbox is first created
-sbx run --clone --name iac-codex-clone --no-share-skills codex . --kit ./.sandbox-kit
-
-# OCI: expose the API signing-key directory only for OCI work
-test -d "${HOME}/.oci" || { echo 'OCI credentials directory is missing; stop and ask the user to restore or provide approved OCI credentials.' >&2; exit 1; }
-sbx run --name iac-oci --no-share-skills codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
+# Clone mode: --clone is fixed when the sandbox is first created
+sbx run --clone --name iac-codex-TASK-clone-v120 --no-share-skills codex . --kit ./.sandbox-kit
+sbx run --clone --name iac-claude-TASK-clone-v120 claude . --kit ./.sandbox-kit
+sbx run --clone --name iac-opencode-TASK-clone-v120 opencode . --kit ./.sandbox-kit
 
 # OpenCode Desktop server
-sbx run --name iac-opencode-desktop \
+sbx run --name iac-opencode-desktop-TASK-v120 \
   --publish 127.0.0.1:4096:4096 \
   opencode . --kit ./.sandbox-kit \
   -- serve --hostname 0.0.0.0 --port 4096
@@ -154,7 +152,7 @@ Codex 的 sandbox-local Playwright MCP 由项目 `.codex/config.toml` 配置。�
 trust_level = "trusted"
 ```
 
-重建 Sandbox 后该 engine-managed 配置可能被重写，因此每次创建都要重新检查 trust。先运行 `sbx ls`；如果固定名称 `iac-codex` 已指向旧实例，使用新名称（例如 `iac-codex-bmad`）完成验证，除非用户另行授权替换旧实例。
+重建 Sandbox 后该 engine-managed 配置可能被重写，因此每次创建都要重新检查 trust。先运行 `sbx ls`；如果目标名称已指向旧实例，使用包含任务名和 Kit 版本的新名称完成验证，除非用户另行授权替换旧实例。
 
 ### Git 与 host worktree 边界
 
@@ -164,9 +162,18 @@ trust_level = "trusted"
 
 因此，当前 linked-worktree smoke 中的 `No Git` 是 Docker 的预期 host-worktree 限制，不是迁移缺陷；正式验收在 main checkout 中进行即可。参见 [Docker host worktree Git 边界](https://docs.docker.com/ai/sandboxes/workflows/git/) 与 [Docker Sandboxes clone mode 限制](https://docs.docker.com/ai/sandboxes/usage/)。
 
-仅在 OCI 工作中挂载 `"${HOME}/.oci:ro"`，且运行命令前必须先执行 `test -d "${HOME}/.oci"`。目录不存在时必须停止或跳过 OCI sandbox 创建，并请求用户恢复或提供已批准的 OCI credentials；不得自动创建空目录，也不得搜索替代私钥位置。目录存在后只使用带引号的挂载路径。只读挂载禁止修改，但允许 sandbox 内的进程读取 OCI API 私钥。修改 Kit 后需要重新创建 sandbox；只有 `sbx kit add` 明确支持的变更例外。
-
 前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。OpenCode Desktop server 命令必须保持在长期 attached terminal/session 中运行；`--detached` 只会创建/启动 microVM，不会启动 agent server。Playwright MCP 与 headless Chromium 均在 microVM 内运行。Claude Code 和 OpenCode 继续使用各自的项目配置。
+
+### Project-Specific Credential Handling
+
+OCI 凭据注入是 IaC 项目要求，不是 Docker Sandbox 的 topology 或 Agent runtime。仅在 OCI 任务中执行以下宿主侧预检和只读挂载：
+
+```bash
+test -d "${HOME}/.oci" || { echo 'OCI credentials directory is missing; stop and ask the user to restore or provide approved OCI credentials.' >&2; exit 1; }
+sbx run --name iac-codex-TASK-oci-v120 --no-share-skills codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
+```
+
+目录不存在时必须停止或跳过 OCI Sandbox 创建，并请求用户恢复或提供已批准的 OCI credentials。不得创建空目录、搜索替代私钥位置或使用可写挂载。只读挂载允许 Sandbox 进程读取 OCI API 私钥，但禁止修改。修改 Kit 后需要重新创建 Sandbox；只有 `sbx kit add` 明确支持的变更例外。
 
 ### 2. Provision Infrastructure
 

@@ -92,6 +92,7 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 - `origin/main` is authoritative; local `main` and `master` are read-only mirrors.
 - Never absorb, overwrite, clean, stash, reset, or otherwise modify unrelated user changes.
 - Commit, push, merge, PR close, history rewrite, force-push, and branch/tag/remote/worktree deletion or rename require explicit user authorization.
+- After reviewing the final diff, ask exactly `Ready to commit?` before committing. Commit authorization does not authorize push, Draft PR creation, local integration, merge, deployment, or any later external write; obtain separate authorization for each requested boundary.
 - Changes to GitHub defaults, Rulesets, protection, permissions, Actions secrets, Environments, deploy/publish triggers, infrastructure, deployments, releases, or other external systems require separate explicit authorization.
 - Repository validation must not deploy, publish, apply infrastructure, push images, release artifacts, use production secrets, or write to external systems.
 
@@ -102,6 +103,7 @@ When working on specific areas, read the relevant design doc for detailed patter
 - **Ansible Vault details**: `docs/designs/ansible-vault-architecture.md`
 - **Ansible Role patterns**: `docs/designs/ansible-role-architecture.md`
 - **CI/CD pipeline design**: `docs/designs/cicd-architecture.md`
+- **Docker Sandbox agent architecture**: `docs/designs/docker-sandbox-agent-architecture.md`
 
 ## Workflow Ownership
 
@@ -118,17 +120,28 @@ When working on specific areas, read the relevant design doc for detailed patter
 - Never install packages or system dependencies without explicit user permission. This applies to Docker Sandboxes and the host system.
 - If Ansible reports "no hosts matched" or a Terraform dynamic inventory parse failure, run `./scripts/refresh-terraform-state.sh` from the repository root. Inventory uses `cloud.terraform.terraform_provider`.
 
+## Project-Specific Credential Handling
+
+- OCI credential injection is an IaC project requirement, not a Docker Sandbox topology or Agent runtime.
+- Only for tasks that require OCI, run `test -d "${HOME}/.oci"` on the host before launching the Sandbox. If it fails, stop and ask the user to restore or provide approved credentials.
+- After the check succeeds, pass `"${HOME}/.oci:ro"` as an additional read-only workspace. Never create an empty replacement, search alternate private-key locations, or use a writable mount.
+
 ## Docker Sandbox Environment
 
 - Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
-- The standard Codex entry is `sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit`. `--no-share-skills` is fixed at sandbox creation, keeps Codex system skills and project BMad skills, and excludes Docker's host-shared skills store.
-- Codex reads the sandbox-local Playwright adapter from `.codex/config.toml`. Project configuration loads only after the IaC project is trusted; verify trust and `codex mcp list` in each new sandbox.
-- Claude Code and OpenCode use repository-scoped Playwright MCP adapters. `iac-playwright-mcp` and Chromium run inside the sandbox microVM.
-- Direct mode from the main checkout has Git and mounts the full workspace, including gitignored files. Direct mode from a host linked worktree can edit and validate files but may lack Git because Docker cannot resolve the external common Git directory. Clone mode has private Git state but excludes gitignored files. See https://docs.docker.com/ai/sandboxes/workflows/git/ and https://docs.docker.com/ai/sandboxes/usage/.
-- Verify `ssh-add -L` before Ansible operations and confirm it shows loaded SSH public identities for Ansible authentication. Repository-local `.ssh` private keys are prohibited: SSH private keys stay in the host SSH agent and must not be copied into the repository or sandbox.
-- In clone mode, gitignored Vault and Terraform secret files are absent from the private clone. Copy only the required files from `/run/sandbox/source` and never print their contents.
-- Before an OCI command, run `test -d "${HOME}/.oci"`. If the directory is missing, stop or skip OCI sandbox creation and ask the user to restore or provide approved OCI credentials; never create an empty directory or search alternate private-key locations. Only when it exists, mount the quoted path `"${HOME}/.oci:ro"`; the read-only mount prevents writes but exposes the OCI API private key to processes in that sandbox.
-- OpenCode Desktop connects to a dedicated server sandbox published only on `127.0.0.1:4096`.
-- Keep `sbx run ... -- serve ...` for the OpenCode Desktop server in a long-lived attached terminal/session. Do not use `--detached`: it creates/starts only the microVM and does not start the agent server.
-- Frontend services must listen on `0.0.0.0` inside the sandbox and publish only the required port to host loopback.
-- Recreate a sandbox after Kit changes unless the change is explicitly supported by `sbx kit add`.
+- Choose the topology before running an entry command. Treat the main checkout as coordination-only; direct-mode commands must run from an assigned host task worktree. Create clone-mode Sandboxes only from the verified main checkout when Git will be managed inside the Sandbox. Never create a clone-mode Sandbox from a host linked worktree.
+- Replace `TASK` with a unique kebab-case task name. Use versioned, task-specific Sandbox names so parallel work and Kit-upgrade testing never reconnect to an unrelated or stale Sandbox.
+- Direct mode from an assigned host task worktree:
+  - Codex: `sbx run --name iac-codex-TASK-direct-v120 --no-share-skills codex . --kit ./.sandbox-kit`
+  - Claude Code: `sbx run --name iac-claude-TASK-direct-v120 claude . --kit ./.sandbox-kit`
+  - OpenCode: `sbx run --name iac-opencode-TASK-direct-v120 opencode . --kit ./.sandbox-kit`
+- Clone mode from the verified main checkout:
+  - Codex: `sbx run --clone --name iac-codex-TASK-clone-v120 --no-share-skills codex . --kit ./.sandbox-kit`
+  - Claude Code: `sbx run --clone --name iac-claude-TASK-clone-v120 claude . --kit ./.sandbox-kit`
+  - OpenCode: `sbx run --clone --name iac-opencode-TASK-clone-v120 opencode . --kit ./.sandbox-kit`
+- OpenCode Desktop must run in a long-lived attached session: `sbx run --name iac-opencode-desktop-TASK-v120 --publish 127.0.0.1:4096:4096 opencode . --kit ./.sandbox-kit -- serve --hostname 0.0.0.0 --port 4096`. Do not use `--detached`; publish the server only through host loopback.
+- Each task must use one independent worktree and one unique branch. When multiple tasks share one clone-mode Sandbox, each task also needs its own agent session and runtime namespace. Use separate, uniquely named Sandboxes when tasks require runtime isolation.
+- Worktrees isolate files and Git state, not Docker, networking, ports, volumes, `/tmp`, or service state. Shared-Sandbox tasks must use distinct Compose project names, ports, volumes, and temporary paths.
+- Worker agents must not modify another task's worktree or merge other task branches. Local integration is allowed only when explicitly assigned and must use a dedicated integration worktree. No agent may merge or close a pull request without explicit authorization.
+- The Kit installs a managed Sandbox-only instruction block into the global instruction locations for Codex, Claude Code, and OpenCode while preserving existing non-managed content. Repository rules remain authoritative for project policy and external-write boundaries.
+- Recreate a Sandbox after Kit changes unless the change is explicitly supported by `sbx kit add`.

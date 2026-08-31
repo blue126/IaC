@@ -1,0 +1,102 @@
+#!/bin/bash
+set -euo pipefail
+
+agent_home="${IAC_AGENT_HOME:-/home/agent}"
+agent_user="${IAC_AGENT_USER:-agent}"
+source_file="${IAC_SANDBOX_RULES_SOURCE:-/home/agent/.local/share/iac-agent/sandbox-rules.md}"
+begin_marker='<!-- BEGIN IAC SANDBOX RULES -->'
+end_marker='<!-- END IAC SANDBOX RULES -->'
+
+[[ -f "$source_file" ]] || {
+  echo "Sandbox rules source not found: $source_file" >&2
+  exit 1
+}
+
+agent_uid="${IAC_AGENT_UID:-$(id -u "$agent_user")}"
+agent_gid="${IAC_AGENT_GID:-$(id -g "$agent_user")}"
+
+targets=(
+  "$agent_home/.codex/AGENTS.md"
+  "$agent_home/.claude/CLAUDE.md"
+  "$agent_home/.config/opencode/AGENTS.md"
+)
+
+validate_target() {
+  local target="$1"
+
+  if [[ -f "$target" ]]; then
+    if ! awk -v begin="$begin_marker" -v end="$end_marker" '
+      BEGIN { state = 0; begin_count = 0; end_count = 0 }
+      $0 == begin {
+        begin_count++
+        if (state != 0 || begin_count > 1) exit 1
+        state = 1
+      }
+      $0 == end {
+        end_count++
+        if (state != 1 || end_count > 1) exit 1
+        state = 0
+      }
+      END {
+        if (state != 0 || begin_count != end_count) exit 1
+      }
+    ' "$target"; then
+      echo "Malformed managed instruction block: $target" >&2
+      exit 1
+    fi
+  fi
+}
+
+for target in "${targets[@]}"; do
+  validate_target "$target"
+done
+
+temporary_files=()
+cleanup() {
+  local temporary_file
+  for temporary_file in "${temporary_files[@]}"; do
+    if [[ -n "$temporary_file" && -e "$temporary_file" ]]; then
+      rm -f "$temporary_file"
+    fi
+  done
+}
+trap cleanup EXIT
+
+for target in "${targets[@]}"; do
+  target_directory="$(dirname "$target")"
+  install -d -o "$agent_uid" -g "$agent_gid" "$target_directory"
+  temporary_file="$(mktemp "${target}.tmp.XXXXXX")"
+  temporary_files+=("$temporary_file")
+
+  if [[ -f "$target" ]]; then
+    awk -v begin="$begin_marker" -v end="$end_marker" '
+      $0 == begin { skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip && $0 == "" { blank_lines++; next }
+      !skip {
+        for (blank_index = 0; blank_index < blank_lines; blank_index++) print ""
+        blank_lines = 0
+        print
+      }
+    ' "$target" > "$temporary_file"
+  fi
+
+  if [[ -s "$temporary_file" ]]; then
+    printf '\n' >> "$temporary_file"
+  fi
+  {
+    printf '%s\n' "$begin_marker"
+    cat "$source_file"
+    if [[ -n "$(tail -c 1 "$source_file")" ]]; then
+      printf '\n'
+    fi
+    printf '%s\n' "$end_marker"
+  } >> "$temporary_file"
+  chown "$agent_uid:$agent_gid" "$temporary_file"
+  chmod 0644 "$temporary_file"
+done
+
+for index in "${!targets[@]}"; do
+  mv -f "${temporary_files[$index]}" "${targets[$index]}"
+  temporary_files[index]=""
+done

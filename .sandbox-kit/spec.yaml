@@ -1,7 +1,7 @@
 schemaVersion: "2"
 kind: mixin
 name: iac-toolchain
-version: "1.1.0"
+version: "1.2.0"
 displayName: IaC Toolchain
 description: >-
   Terraform, Ansible, Python, and sandbox-local Playwright MCP for the IaC repository.
@@ -97,3 +97,11 @@ setup:
         ln -sfn "$chromium_path" /usr/local/bin/iac-chromium;
         chmod -R a+rX /opt/ms-playwright;
         install -m 0755 /home/agent/.local/bin/iac-playwright-mcp /usr/local/bin/iac-playwright-mcp
+
+    - description: Install shared Sandbox instructions for supported agents
+      command: >-
+        set -eu;
+        installer=/home/agent/.local/bin/install-iac-agent-instructions;
+        test -f "$installer";
+        install -m 0755 "$installer" /usr/local/bin/install-iac-agent-instructions;
+        /usr/local/bin/install-iac-agent-instructions
