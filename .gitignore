@@ -21,8 +21,6 @@ ansible/collections/
 .vault_pass
 #AI coding related
 .opencode/
-_bmad-output/
-_bmad/render/
 _bmad/config.user.toml
 _bmad/**/config.user.yaml
 .claude/

@@ -1,0 +1,16 @@
+[Unit]
+Description=Qwen3-TTS OpenAI-compatible API and local shim
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ qwen3_tts_install_dir }}
+ExecStart=/usr/bin/docker compose --project-name {{ qwen3_tts_compose_project }} --file {{ qwen3_tts_install_dir }}/compose.yml up -d --pull missing --force-recreate server shim
+ExecStop=/usr/bin/docker compose --project-name {{ qwen3_tts_compose_project }} --file {{ qwen3_tts_install_dir }}/compose.yml down --remove-orphans --timeout 120
+TimeoutStartSec=3600
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target
