@@ -1,0 +1,30 @@
+---
+qwen3_tts_model_repository: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+qwen3_tts_backend: vllm_omni
+qwen3_tts_gpu_ordinal: 1
+qwen3_tts_bind_address: 192.168.1.247
+qwen3_tts_port: 8100
+qwen3_tts_container_port: 8880
+qwen3_tts_shim_container_port: 8090
+qwen3_tts_compose_project: qwen3-tts
+qwen3_tts_install_dir: /opt/qwen3-tts
+qwen3_tts_model_cache_dir: /data/models/qwen3-tts
+qwen3_tts_vllm_cache_dir: /data/models/qwen3-tts/vllm-cache
+qwen3_tts_vllm_deploy_config_path: /opt/qwen3-tts/vllm-deploy-config.yaml
+qwen3_tts_service_name: qwen3-tts.service
+qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
+qwen3_tts_shim_image: python:3.12-slim
+qwen3_tts_voice_map:
+  alloy: Uncle_Fu
+  echo: Dylan
+  fable: Eric
+  onyx: Uncle_Fu
+  ash: Dylan
+  ballad: Eric
+  cedar: Uncle_Fu
+  verse: Dylan
+  coral: Vivian
+  marin: Serena
+  nova: Vivian
+  sage: Serena
+  shimmer: Vivian
