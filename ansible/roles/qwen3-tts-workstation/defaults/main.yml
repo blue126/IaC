@@ -1,0 +1,62 @@
+---
+# Host-decoupled variant of ansible/roles/qwen3-tts for llm-workstation.
+# That role (and the unmerged codex/qwen3-tts-speech-central-shim draft this
+# is based on) is pinned to llm-server (192.168.1.247) and asserts
+# qwen36.service coexistence -- neither applies to this fresh host.
+qwen3_tts_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+qwen3_tts_base_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+qwen3_tts_mode: base
+qwen3_tts_voice_design_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+qwen3_tts_backend: vllm_omni
+# GPU1, same ordinal as llm-server uses.
+#
+# This host's first SFF-8654 cable to GPU1 was faulty: the card reported PCIe
+# non-fatal errors (GPU0 did not) and under load stage 0 wedged inside a CUDA
+# stream synchronize with the GPU at 0% utilisation, starving stage 1 so every
+# later request hung until the container restarted. The same config on GPU0 ran
+# clean, which isolated it to that link rather than the card or the software.
+# After the cable was replaced GPU1 reports no PCIe errors at all, even under
+# load, and passes the same burst. Keep an eye on `lspci -vv` DevSta for that
+# device if the hang symptom ever returns.
+qwen3_tts_gpu_ordinal: 1
+qwen3_tts_exclusive_gpu: true
+qwen3_tts_bind_address: 192.168.1.191
+qwen3_tts_port: 8100
+qwen3_tts_container_port: 8880
+qwen3_tts_shim_container_port: 8090
+qwen3_tts_compose_project: qwen3-tts
+qwen3_tts_install_dir: /opt/qwen3-tts
+qwen3_tts_model_cache_dir: /data/models/qwen3-tts
+qwen3_tts_vllm_cache_dir: /data/models/qwen3-tts/vllm-cache
+qwen3_tts_profile_dir: /data/models/qwen3-tts/profiles
+qwen3_tts_profile_name: audiobook_narrator_zh
+qwen3_tts_profile_reference_file: /data/models/qwen3-tts/profiles/audiobook_narrator_zh-reference.wav
+qwen3_tts_profile_reference_text: 这是一次平静而自然的中文有声书朗读。清晨的阳光穿过窗帘，房间里很安静，故事正从这里开始。
+qwen3_tts_voice_design_instructions: 成熟、年长、沉稳、低起伏、自然的中文有声书旁白。声音应带有温和阅历感，避免年轻、明亮或活泼的质感。
+qwen3_tts_candidate_probe_text: 这是一段固定的中文旁白试听文本，用于比较参考声音与 Base 克隆声音是否属于同一人。
+qwen3_tts_candidate_local_dir: "{{ playbook_dir }}/../../qwen3-tts-candidate-pairing"
+qwen3_tts_candidate_profiles:
+  - name: audiobook_narrator_candidate_low_resonance
+    description: 成熟、沉稳、低沉共鸣、自然的中文有声书旁白。
+  - name: audiobook_narrator_candidate_rich_texture
+    description: 成熟、沉稳、厚实质感、自然的中文有声书旁白。
+  - name: audiobook_narrator_candidate_natural_hoarseness
+    description: 成熟、沉稳、轻微自然沙哑、自然的中文有声书旁白。
+qwen3_tts_vllm_deploy_config_path: /opt/qwen3-tts/vllm-deploy-config.yaml
+qwen3_tts_service_name: qwen3-tts.service
+qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
+qwen3_tts_shim_image: python:3.12-slim
+qwen3_tts_voice_aliases:
+  alloy: Uncle_Fu
+  echo: Dylan
+  fable: Aiden
+  onyx: Uncle_Fu
+  ash: Eric
+  ballad: Dylan
+  cedar: Uncle_Fu
+  verse: Ryan
+  coral: Vivian
+  marin: Serena
+  nova: Sohee
+  sage: Serena
+  shimmer: Ono_Anna
