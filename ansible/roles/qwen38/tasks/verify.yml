@@ -37,7 +37,13 @@
       model: "{{ qwen38_model_name }}"
       temperature: 0
       seed: 42
-      max_tokens: 16
+      max_tokens: 32
+      # Qwen3.8 thinks by default and puts that in reasoning_content, leaving
+      # content empty until it finishes; a short smoke probe would otherwise
+      # spend its whole budget reasoning. Turning thinking off also asserts
+      # the chat template still honours the switch, same as qwen36 does.
+      chat_template_kwargs:
+        enable_thinking: false
       messages:
         - role: user
           content: "{{ qwen38_chat_prompt }}"
@@ -81,7 +87,8 @@
       - qwen38_verify_chat.json.choices | length > 0
       - >-
         qwen38_verify_chat.json.choices[0].message.content
-        | trim | length > 0
+        | default('') | trim | length > 0
+      - qwen38_verify_chat.json.choices[0].finish_reason == 'stop'
       - qwen38_verify_restart_count.stdout | int == 0
       # Weights are split across both cards, so both must be carrying the model.
       - >-
