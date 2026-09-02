@@ -1,0 +1,4 @@
+---
+nvidia_driver_package: nvidia-driver-580
+nvidia_driver_expected_gpu_count: 2
+nvidia_driver_expected_gpu_name: "NVIDIA GeForce RTX 3090"

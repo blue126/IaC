@@ -5,6 +5,7 @@ all:
     oci:
     esxi_hosts:
     esxi_vms:
+    bare_metal:
     tailscale:
       children:
         proxmox_cluster:
@@ -12,6 +13,7 @@ all:
         pve_lxc:
         pve_vms:
         esxi_vms:
+        bare_metal:
 
     pve_lxc:
     pve_vms:
