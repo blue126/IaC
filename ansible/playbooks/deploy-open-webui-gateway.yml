@@ -1,0 +1,22 @@
+---
+# Deploy Open WebUI on the gateway (iStoreOS/OpenWrt, 192.168.1.1). See
+# ansible/roles/open-webui-gateway/defaults/main.yml for why every task in
+# the role uses ansible.builtin.raw instead of Python-backed modules: this
+# host has no Python interpreter and none is installed without explicit
+# authorization. No become is used either -- ansible_user is already root.
+- name: Deploy Open WebUI on the gateway
+  hosts: gateway
+  gather_facts: false
+  tags: [deploy]
+  roles:
+    - open-webui-gateway
+
+- name: Verify Open WebUI on the gateway
+  hosts: gateway
+  gather_facts: false
+  tags: [never, verify]
+  tasks:
+    - name: Load read-only Open WebUI gateway verification
+      ansible.builtin.import_role:
+        name: open-webui-gateway
+        tasks_from: verify

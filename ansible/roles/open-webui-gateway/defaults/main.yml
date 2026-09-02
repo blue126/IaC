@@ -1,0 +1,43 @@
+---
+# Open WebUI on the OpenWrt-derived gateway (iStoreOS 24.10.8, 192.168.1.1).
+#
+# This host has no Python interpreter: opkg has a python3 package available
+# but it is not installed, and installing packages on any host requires
+# explicit user authorization that has not been given. Every task in this
+# role therefore uses ansible.builtin.raw (which only needs a POSIX shell
+# over SSH) instead of Python-backed modules such as file, copy, template,
+# command, or the docker_compose collection modules. Compose content is
+# rendered locally on the controller with the `template` lookup and written
+# to the target with a base64-piped `raw` command so YAML/Jinja quoting can
+# never be mangled by shell interpretation on the target.
+
+open_webui_gateway_image_repository: ghcr.io/open-webui/open-webui
+# Digest pinned from tag v0.8.2 on 2026-09-03. To refresh: on a host with
+# internet access, `docker pull <repository>:<new-tag>` then
+# `docker inspect <repository>:<new-tag> --format '{{index .RepoDigests 0}}'`
+# and update both values below together.
+open_webui_gateway_image_digest: sha256:7b7d324724ea4aa95d206362d8e9332544f11be167cd254ff83af9ab75734db8
+open_webui_gateway_image_tag_reference: v0.8.2
+
+# Border-device safety boundary: the gateway routes WAN traffic. The
+# published port must bind to the LAN interface address only, never
+# 0.0.0.0. See the assert block in tasks/main.yml.
+open_webui_gateway_bind_address: 192.168.1.1
+open_webui_gateway_port: 8080
+open_webui_gateway_container_port: 8080
+
+# /overlay is the 1.9GB OpenWrt squashfs overlay; container data must never
+# live there. /mnt/data (dev/nvme0n1p4, 223GB free) is where the Docker
+# data-root and all other container state already lives on this host.
+open_webui_gateway_install_dir: /mnt/data/open-webui
+open_webui_gateway_data_dir: "{{ open_webui_gateway_install_dir }}/data"
+open_webui_gateway_compose_project: open-webui-gateway
+open_webui_gateway_container_name: open-webui
+
+# Backends on llm-workstation (192.168.1.191). The LLM backend may not be
+# reachable yet at deploy time (it is being brought up independently);
+# Open WebUI is configured to point at it regardless of current health.
+open_webui_gateway_llm_base_url: http://192.168.1.191:8081/v1
+open_webui_gateway_tts_base_url: http://192.168.1.191:8100/v1
+open_webui_gateway_tts_model: tts-1
+open_webui_gateway_tts_voice: alloy

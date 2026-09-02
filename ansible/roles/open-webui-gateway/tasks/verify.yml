@@ -1,0 +1,58 @@
+---
+- name: Check running Open WebUI gateway Compose services
+  ansible.builtin.raw: >-
+    docker compose --project-name {{ open_webui_gateway_compose_project }}
+    --file {{ open_webui_gateway_install_dir }}/compose.yml ps --services --status running
+  register: open_webui_gateway_verify_compose
+  changed_when: false
+
+- name: Check the Open WebUI gateway health endpoint
+  ansible.builtin.raw: >-
+    curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}'
+    http://{{ open_webui_gateway_bind_address }}:{{ open_webui_gateway_port }}/health
+  register: open_webui_gateway_verify_health
+  changed_when: false
+
+- name: Check the Open WebUI gateway root page
+  ansible.builtin.raw: >-
+    curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}'
+    http://{{ open_webui_gateway_bind_address }}:{{ open_webui_gateway_port }}/
+  register: open_webui_gateway_verify_root
+  changed_when: false
+
+- name: Check the Open WebUI gateway container restart count
+  ansible.builtin.raw: >-
+    docker inspect --format "{{ '{{.RestartCount}}' }}" {{ open_webui_gateway_container_name }}
+  register: open_webui_gateway_verify_restart_count
+  changed_when: false
+
+- name: Check the Open WebUI gateway container health state
+  ansible.builtin.raw: >-
+    docker inspect --format "{{ '{{.State.Health.Status}}' }}" {{ open_webui_gateway_container_name }}
+  register: open_webui_gateway_verify_health_state
+  changed_when: false
+  failed_when: false
+
+- name: Check which interface the Open WebUI gateway port listens on
+  ansible.builtin.raw: >-
+    netstat -tln 2>/dev/null | awk '{print $4}' | grep -E ":{{ open_webui_gateway_port }}$"
+  register: open_webui_gateway_verify_listener
+  changed_when: false
+
+- name: Validate Open WebUI gateway read-only checks
+  ansible.builtin.assert:
+    that:
+      - "'open-webui' in open_webui_gateway_verify_compose.stdout_lines"
+      - (open_webui_gateway_verify_health.stdout | trim) == '200'
+      - (open_webui_gateway_verify_root.stdout | trim) in ['200', '302']
+      - (open_webui_gateway_verify_restart_count.stdout | trim) == '0'
+      - >-
+        open_webui_gateway_verify_listener.stdout | trim ==
+        (open_webui_gateway_bind_address ~ ':' ~ open_webui_gateway_port)
+    fail_msg: Open WebUI gateway read-only verification failed
+
+- name: Report the Open WebUI gateway container health state
+  ansible.builtin.debug:
+    msg: >-
+      Container health state: '{{ open_webui_gateway_verify_health_state.stdout | default('') | trim }}'
+      (empty means no HEALTHCHECK is defined on the image).
