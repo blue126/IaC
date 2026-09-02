@@ -1,0 +1,210 @@
+---
+- name: Validate Jenkins upgrade authorization gates
+  ansible.builtin.include_tasks: upgrade-validate-gates.yml
+
+- name: Load exact CI toolchain BOM
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
+    name: ci_toolchain_bom
+
+- name: Validate the canonical Jenkins upgrade lock
+  ansible.builtin.include_tasks: upgrade-validate-lock.yml
+
+- name: Select exact post-upgrade reconciliation plugins
+  ansible.builtin.set_fact:
+    jenkins_upgrade_reconcile_plugins: >-
+      {{ ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+         selectattr('id', 'in',
+           ci_toolchain_bom.jenkins.plugin_upgrade.reconcile_ids) | list }}
+
+- name: Read post-upgrade Jenkins Core version
+  ansible.builtin.command:
+    argv: [dpkg-query, -W, "-f=${Version}", jenkins]
+  register: jenkins_upgrade_reconcile_core
+  changed_when: false
+
+- name: Read post-upgrade Java runtime
+  ansible.builtin.command:
+    argv: ["{{ jenkins_upgrade_java_command }}", -version]
+  register: jenkins_upgrade_reconcile_java
+  changed_when: false
+
+- name: Read post-upgrade Jenkins service state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, jenkins]
+  register: jenkins_upgrade_reconcile_service
+  changed_when: false
+
+- name: Assert exact post-upgrade reconciliation source
+  ansible.builtin.assert:
+    that:
+      - jenkins_upgrade_reconcile_plugins | length == 3
+      - >-
+        jenkins_upgrade_reconcile_core.stdout ==
+        ci_toolchain_bom.jenkins.core.upgrade_path[-1].package_version
+      - >-
+        ci_toolchain_bom.jenkins.java.upgrade.runtime_version in
+        jenkins_upgrade_reconcile_java.stderr
+      - jenkins_upgrade_reconcile_service.stdout == 'active'
+    fail_msg: >-
+      Reconciliation requires the exact upgraded Core, Java runtime, service,
+      and three-plugin dependency repair lock.
+
+- name: Check current reconciliation JPI artifacts
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
+  loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+  loop_control:
+    label: "{{ item.id }}"
+  register: jenkins_upgrade_reconcile_source_jpi
+
+- name: Check current reconciliation HPI artifacts
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.id }}.hpi"
+  loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+  loop_control:
+    label: "{{ item.id }}"
+  register: jenkins_upgrade_reconcile_source_hpi
+
+- name: Require one current JPI artifact for each reconciliation plugin
+  ansible.builtin.assert:
+    that:
+      - item.0.stat.exists
+      - not item.1.stat.exists
+    fail_msg: >-
+      Reconciliation source {{ item.0.item.id }} must have exactly one JPI
+      artifact and no HPI duplicate.
+  loop: >-
+    {{ jenkins_upgrade_reconcile_source_jpi.results |
+       zip(jenkins_upgrade_reconcile_source_hpi.results) | list }}
+  loop_control:
+    label: "{{ item.0.item.id }}"
+
+- name: Check that the reconciliation staging path is unused
+  ansible.builtin.stat:
+    path: "{{ jenkins_upgrade_reconcile_staging_dir }}"
+  register: jenkins_upgrade_reconcile_existing_staging
+
+- name: Reject a pre-existing reconciliation staging path
+  ansible.builtin.assert:
+    that: not jenkins_upgrade_reconcile_existing_staging.stat.exists
+    fail_msg: "Refusing to reuse or delete pre-existing reconciliation staging data."
+
+- name: Reconcile and verify exact post-upgrade plugin dependencies
+  block:
+    - name: Create root-owned reconciliation staging directory
+      ansible.builtin.file:
+        path: "{{ jenkins_upgrade_reconcile_staging_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Download exact reconciliation plugin artifacts
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "{{ jenkins_upgrade_reconcile_staging_dir }}/{{ item.id }}.jpi"
+        checksum: "sha256:{{ item.sha256 }}"
+        mode: "0600"
+      loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+      loop_control:
+        label: "{{ item.id }}={{ item.version }}"
+
+    - name: Read reconciliation plugin checksums
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_reconcile_staging_dir }}/{{ item.id }}.jpi"
+        checksum_algorithm: sha256
+      loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+      loop_control:
+        label: "{{ item.id }}"
+      register: jenkins_upgrade_reconcile_staged
+
+    - name: Validate exact reconciliation artifacts
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.checksum == item.item.sha256
+        fail_msg: >-
+          Reconciliation artifact {{ item.item.id }} is missing or has an
+          unexpected SHA-256; no live plugin mutation is permitted.
+      loop: "{{ jenkins_upgrade_reconcile_staged.results }}"
+      loop_control:
+        label: "{{ item.item.id }}"
+
+    - name: Create reconciliation rollback directory
+      ansible.builtin.file:
+        path: "{{ jenkins_upgrade_reconcile_staging_dir }}/rollback"
+        state: directory
+        mode: "0700"
+
+    - name: Back up current reconciliation plugins
+      ansible.builtin.copy:
+        src: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
+        dest: "{{ jenkins_upgrade_reconcile_staging_dir }}/rollback/{{ item.id }}.jpi"
+        remote_src: true
+        mode: preserve
+      loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+      loop_control:
+        label: "{{ item.id }}"
+
+    - name: Activate reconciliation plugins with rollback
+      block:
+        - name: Stop Jenkins for reconciliation plugin activation
+          ansible.builtin.systemd:
+            name: jenkins
+            state: stopped
+
+        - name: Install exact reconciliation plugins
+          ansible.builtin.copy:
+            src: "{{ jenkins_upgrade_reconcile_staging_dir }}/{{ item.id }}.jpi"
+            dest: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
+            remote_src: true
+            owner: jenkins
+            group: jenkins
+            mode: "0644"
+          loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+          loop_control:
+            label: "{{ item.id }}={{ item.version }} (with_dependencies=false)"
+
+        - name: Start Jenkins after reconciliation
+          ansible.builtin.systemd:
+            name: jenkins
+            state: started
+            daemon_reload: true
+
+        - name: Wait for Jenkins after reconciliation
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+            status_code: 200
+            timeout: 10
+          register: jenkins_upgrade_reconcile_http
+          retries: 30
+          delay: 2
+          until: jenkins_upgrade_reconcile_http.status == 200
+      rescue:
+        - name: Restore reconciliation plugins after failure
+          ansible.builtin.copy:
+            src: "{{ jenkins_upgrade_reconcile_staging_dir }}/rollback/{{ item.id }}.jpi"
+            dest: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
+            remote_src: true
+            owner: jenkins
+            group: jenkins
+            mode: "0644"
+          loop: "{{ jenkins_upgrade_reconcile_plugins }}"
+          loop_control:
+            label: "{{ item.id }}"
+
+        - name: Restart Jenkins after reconciliation rollback
+          ansible.builtin.systemd:
+            name: jenkins
+            state: restarted
+            daemon_reload: true
+
+        - name: Fail after reconciliation rollback
+          ansible.builtin.fail:
+            msg: "Post-upgrade plugin reconciliation failed and was rolled back."
+  always:
+    - name: Remove this run reconciliation staging data
+      ansible.builtin.file:
+        path: "{{ jenkins_upgrade_reconcile_staging_dir }}"
+        state: absent

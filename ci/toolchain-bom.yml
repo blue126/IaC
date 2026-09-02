@@ -3,14 +3,841 @@
 # Update only after compatibility and restore testing.
 jenkins:
   core:
-    version: "2.541.1"
-    package_version: "2.541.1"
+    version: "2.568.2"
+    package_version: "2.568.2"
+    upgrade_source:
+      version: "2.541.1"
+      package_version: "2.541.1"
+      url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.541.1_all.deb
+      sha256: "9442a93d54d3eb9969579ef46aa4e19ed02f3b6be3ab5c404c1854c04bcc1984"
+    upgrade_path:
+      - version: "2.541.3"
+        package_version: "2.541.3"
+        url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.541.3_all.deb
+        sha256: "38836b389b3a953e16ba2d2df07802c8a351be8b97129d54bc4086ade64b2c42"
+      - version: "2.555.3"
+        package_version: "2.555.3"
+        url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.555.3_all.deb
+        sha256: "14c0692281e650666bd56f89ff98c5afac34b28a409ff5b964e219a0d09215d5"
+      - version: "2.568.2"
+        package_version: "2.568.2"
+        url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.568.2_all.deb
+        sha256: "abaa015c3a39a8182eed136333d6d0ba055564df37584e699cc9693ad64ad7d5"
   java:
     runtime_version: "17.0.18"
     package_version: "17.0.18+8-1~deb12u1"
+    upgrade:
+      runtime_version: "21.0.12"
+      package_name: temurin-21-jre
+      package_version: "21.0.12.1.0+1-0"
+      package_url: https://packages.adoptium.net/artifactory/deb/pool/main/t/temurin-21/temurin-21-jre_21.0.12.1.0+1-0_amd64.deb
+      package_sha256: "6c36c5cae76391a558926db5b8df2114dc41ed2ba889edf962370083944588b3"
+      package_dependencies:
+        - name: p11-kit-modules
+          version: "0.24.1-2"
+          url: https://deb.debian.org/debian/pool/main/p/p11-kit/p11-kit-modules_0.24.1-2_amd64.deb
+          sha256: "cabb6903a2ec765216643b43de04e0d5fb687b10f8e9032cde7d48640fdde80f"
+        - name: p11-kit
+          version: "0.24.1-2"
+          url: https://deb.debian.org/debian/pool/main/p/p11-kit/p11-kit_0.24.1-2_amd64.deb
+          sha256: "ee45a531fe3b48fbeabaa21f724a8cd6cfd69703aaa9d1c8f73975710f3310e5"
+        - name: adoptium-ca-certificates
+          version: "1.0.6-1"
+          url: https://packages.adoptium.net/artifactory/deb/pool/main/a/adoptium-ca-certificates/adoptium-ca-certificates_1.0.6-1_all.deb
+          sha256: "bd146cae76f600fedcaf0ca1776cf099b48bcd01fdaa42479c3b1f3dc0d5f2f0"
+      repository_key_url: https://packages.adoptium.net/artifactory/api/gpg/key/public
+      repository_key_path: /etc/apt/keyrings/adoptium.asc
+      repository_key_fingerprint: "3B04D753C9050D9A5D343F39843C48A565F8F04B"
+      repository: >-
+        deb [signed-by=/etc/apt/keyrings/adoptium.asc]
+        https://packages.adoptium.net/artifactory/deb bookworm main
   controller_executors_bootstrap: 2
   agent_jar:
     sha256: "2a814594ae8df13fe6b490f7a802f3befcf14483ff3cdb778b771e0582ecd726"
+  plugin_upgrade:
+    canonical_lock_sha256: "2b5440ede8e3bc5a75ab57e88ececd5a16c5dddba743600fb31d1565569011b6"
+    reconcile_ids:
+      - cloudbees-folder
+      - json-path-api
+      - snakeyaml-api
+    core_managed_detached:
+      - id: jquery3-api
+        version: "3.7.1-619.vdb_10e002501a_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jquery3-api/3.7.1-619.vdb_10e002501a_/jquery3-api-3.7.1-619.vdb_10e002501a_.hpi
+        sha256: "92f36b5b605c37d1518e2bb2166eac729cb0a18e5a89a320e82d0691cdd76cab"
+        required_core: "2.516.3"
+      - id: junit
+        version: "1403.vd9d1413fd205"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/junit/1403.vd9d1413fd205/junit-1403.vd9d1413fd205.hpi
+        sha256: "716d2f706bd8238076e0b408bf3adeb07eae20d81e256a7fd40340c24f9d9d48"
+        required_core: "2.533"
+      - id: plugin-util-api
+        version: "6.1192.v30fe6e2837ff"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/plugin-util-api/6.1192.v30fe6e2837ff/plugin-util-api-6.1192.v30fe6e2837ff.hpi
+        sha256: "d0e687857a78a77d6e023844d5d4f06c3df37512a176cf4f646f0aea3a498e7e"
+        required_core: "2.516.3"
+      - id: prism-api
+        version: "1.30.0-703.v116fb_3b_5b_b_a_a_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/prism-api/1.30.0-703.v116fb_3b_5b_b_a_a_/prism-api-1.30.0-703.v116fb_3b_5b_b_a_a_.hpi
+        sha256: "93fd4ebb761d525863c3b08b5274c7e58b7f94c41846f47253d1969a12ed1cbb"
+        required_core: "2.516.3"
+      - id: jackson3-api
+        version: "3.1.0-64.v37e742c35905"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jackson3-api/3.1.0-64.v37e742c35905/jackson3-api-3.1.0-64.v37e742c35905.hpi
+        sha256: "07a8b6c31021c13c9cf3a2b5d1441c829ab44369927fdfd0ee47236d007ff0a0"
+        required_core: "2.504.1"
+      - id: sshd
+        version: "3.384.vc89b_5e138cf9"
+        url: https://updates.jenkins.io/download/plugins/sshd/3.384.vc89b_5e138cf9/sshd.hpi
+        sha256: "aae61f39df9bfd46b24ad6b9f8cef10b3c23d85e7ab9cc7b3a5b7a02dea35c3c"
+        required_core: "2.479.3"
+      - id: snakeyaml-engine-api
+        version: "3.0.1-5.vd98ea_ff3b_92e"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/snakeyaml-engine-api/3.0.1-5.vd98ea_ff3b_92e/snakeyaml-engine-api-3.0.1-5.vd98ea_ff3b_92e.hpi
+        sha256: "dafc5fa060c9589d7b7e85aa8fc49239ad20841cba855e14a7bf7f064a257b0d"
+        required_core: "2.504.1"
+      - id: command-launcher
+        version: "134.v025a_5fcf9dea_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/command-launcher/134.v025a_5fcf9dea_/command-launcher-134.v025a_5fcf9dea_.hpi
+        sha256: "12bc6863fa3d2ce11c9f5d3f603d8c2eaf610d5d01950c94c2455fdd3fefdab8"
+        required_core: "2.479.3"
+      - id: bootstrap5-api
+        version: "5.3.8-895.v4d0d8e47fea_d"
+        url: https://updates.jenkins.io/download/plugins/bootstrap5-api/5.3.8-895.v4d0d8e47fea_d/bootstrap5-api.hpi
+        sha256: "6b1ebd8dc1c4107a71e7f552faea6ff3501304df90a53076fb4c44b7b76179c7"
+        required_core: "2.516.3"
+      - id: bouncycastle-api
+        version: "2.30.1.84-291.v9f17b_21896e2"
+        url: https://updates.jenkins.io/download/plugins/bouncycastle-api/2.30.1.84-291.v9f17b_21896e2/bouncycastle-api.hpi
+        sha256: "a31099c54d9b1ac6f88b1336088a73124831532313bf3280e3eb1610300382e1"
+        required_core: "2.479.1"
+      - id: checks-api
+        version: "402.vca_263b_f200e3"
+        url: https://updates.jenkins.io/download/plugins/checks-api/402.vca_263b_f200e3/checks-api.hpi
+        sha256: "27e2728fcc5f1da82923e1b1cc65d14df075dc36f1e22de963432e3d8c0e537e"
+        required_core: "2.492.3"
+      - id: echarts-api
+        version: "6.0.0-1165.vd1283a_3e37d4"
+        url: https://updates.jenkins.io/download/plugins/echarts-api/6.0.0-1165.vd1283a_3e37d4/echarts-api.hpi
+        sha256: "9ba462eb770da36074a56bd1bd195c59b0b50c9eb5920b4f29c008c0da24b4ee"
+        required_core: "2.516.3"
+      - id: font-awesome-api
+        version: "7.2.0-965.ve3840b_696418"
+        url: https://updates.jenkins.io/download/plugins/font-awesome-api/7.2.0-965.ve3840b_696418/font-awesome-api.hpi
+        sha256: "64f769361df546d878363e705a855171cb1e79bd85320f009c94138faf28b6bc"
+        required_core: "2.516.3"
+      - id: javax-activation-api
+        version: "1.2.0-8"
+        url: https://updates.jenkins.io/download/plugins/javax-activation-api/1.2.0-8/javax-activation-api.hpi
+        sha256: "e96e88c52edf07ba00fb45b26cc411a7a95fa3d4491aaa1a5d36637665880560"
+        required_core: "2.479.1"
+      - id: jaxb
+        version: "2.3.9-143.v5979df3304e6"
+        url: https://updates.jenkins.io/download/plugins/jaxb/2.3.9-143.v5979df3304e6/jaxb.hpi
+        sha256: "38ddf4cf5db61a591044130c2f7ccb2b7aa9abebc8fcd8a6953f8da550d002ed"
+        required_core: "2.479.1"
+    roots:
+      - credentials-binding
+      - email-ext
+      - git-client
+      - github
+      - github-branch-source
+      - ldap
+      - matrix-auth
+      - pipeline-groovy-lib
+      - script-security
+      - workflow-cps
+    lock:
+      - id: antisamy-markup-formatter
+        version: "173.v680e3a_b_69ff3"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/antisamy-markup-formatter/173.v680e3a_b_69ff3/antisamy-markup-formatter-173.v680e3a_b_69ff3.hpi
+        sha256: "29b4765797f26c44574a2732ddf9d7d98ea0283295352497dd9eef84aed0102f"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: apache-httpcomponents-client-4-api
+        version: "4.5.14-269.vfa_2321039a_83"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/apache-httpcomponents-client-4-api/4.5.14-269.vfa_2321039a_83/apache-httpcomponents-client-4-api-4.5.14-269.vfa_2321039a_83.hpi
+        sha256: "cea2f61cc72890b962fd4b767c31778c6cb30015b4a8758b4c26b62e51ca9533"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: asm-api
+        version: "9.9-185.va_6c6b_3348b_c3"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/asm-api/9.9-185.va_6c6b_3348b_c3/asm-api-9.9-185.va_6c6b_3348b_c3.hpi
+        sha256: "b3232967d8a2074d65b1f8edfee089a3e2fb0e402801cdff74df19e40dfcf3b3"
+        required_core: "2.492.3"
+        dependencies: []
+      - id: bootstrap5-api
+        version: "5.3.8-890.v1c5cf4fa_178e"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/bootstrap5-api/5.3.8-890.v1c5cf4fa_178e/bootstrap5-api-5.3.8-890.v1c5cf4fa_178e.hpi
+        sha256: "3f641babc6df7c6c084a6389d33aa3da2f78780f4b3f68cbafb2299f901460f7"
+        required_core: "2.496"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+          - id: commons-text-api
+            minimum_version: "1.13.1-176.v74d88f22034b_"
+          - id: font-awesome-api
+            minimum_version: "6.7.2-1"
+      - id: bouncycastle-api
+        version: "2.30.1.82-277.v70ca_0b_877184"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/bouncycastle-api/2.30.1.82-277.v70ca_0b_877184/bouncycastle-api-2.30.1.82-277.v70ca_0b_877184.hpi
+        sha256: "6642617242f539671c46502b008a2dae4f06fd39bd86fc1d4f8aa7850e70611f"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: caffeine-api
+        version: "3.2.3-194.v31a_b_f7a_b_5a_81"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/caffeine-api/3.2.3-194.v31a_b_f7a_b_5a_81/caffeine-api-3.2.3-194.v31a_b_f7a_b_5a_81.hpi
+        sha256: "93e218637e99ab794efe666387195af0f12b1bd7bef35c7e40e91ec0cf6c43ef"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: checks-api
+        version: "373.vfe7645102093"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/checks-api/373.vfe7645102093/checks-api-373.vfe7645102093.hpi
+        sha256: "0900dd6c71a7d09668188f5a507cc245314a105917ff418306b6f717bd276254"
+        required_core: "2.492.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.17.0-87.v5cf526e63b_8b_"
+          - id: commons-text-api
+            minimum_version: "1.13.1-176.v74d88f22034b_"
+          - id: plugin-util-api
+            minimum_version: "6.1.0"
+          - id: workflow-step-api
+            minimum_version: "700.v6e45cb_a_5a_a_21"
+          - id: workflow-support
+            minimum_version: "968.v8f17397e87b_8"
+          - id: display-url-api
+            minimum_version: "2.209.v582ed814ff2f"
+      - id: cloudbees-folder
+        version: "6.1100.ve9eed61d16c4"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/cloudbees-folder/6.1100.ve9eed61d16c4/cloudbees-folder-6.1100.ve9eed61d16c4.hpi
+        sha256: "796f2ce5169f09c943743f056616759e9f51988d6b83140ec4b353cc8d6af3a0"
+        required_core: "2.528.1"
+        dependencies:
+          - id: ionicons-api
+            minimum_version: "94.vcc3065403257"
+          - id: credentials
+            minimum_version: "1447.v4cb_b_539b_5321"
+      - id: commons-lang3-api
+        version: "3.20.0-109.ve43756e2d2b_4"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/commons-lang3-api/3.20.0-109.ve43756e2d2b_4/commons-lang3-api-3.20.0-109.ve43756e2d2b_4.hpi
+        sha256: "aa0908e0002c23c329df1f5e36d2ea9af6dfbd7c7f71fcf413cc471f335c2052"
+        required_core: "2.479.3"
+        dependencies: []
+      - id: commons-text-api
+        version: "1.15.0-218.va_61573470393"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/commons-text-api/1.15.0-218.va_61573470393/commons-text-api-1.15.0-218.va_61573470393.hpi
+        sha256: "ae2abdf957694f4aa39b9ba0b539edabc384f3da277551879e34ffb22fb13764"
+        required_core: "2.479.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+      - id: credentials
+        version: "1487.va_d001ede2c31"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/credentials/1487.va_d001ede2c31/credentials-1487.va_d001ede2c31.hpi
+        sha256: "dab90fdfe8a94eb35d2a15f3d8a685744dfd8a9df00b59487a22e785851dcb4b"
+        required_core: "2.504.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.20.0-109.ve43756e2d2b_4"
+          - id: commons-text-api
+            minimum_version: "1.15.0-210.v7480a_da_70b_9e"
+          - id: ionicons-api
+            minimum_version: "94.vcc3065403257"
+          - id: bouncycastle-api
+            minimum_version: "2.30.1.82-277.v70ca_0b_877184"
+          - id: structs
+            minimum_version: "362.va_b_695ef4fdf9"
+      - id: credentials-binding
+        version: "728.v902a_273b_8947"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/credentials-binding/728.v902a_273b_8947/credentials-binding-728.v902a_273b_8947.hpi
+        sha256: "bd7d1a187e35c8e2b6619cd50f2f8c5d28aafc4ef8fd9de572fb2cfa464f466d"
+        required_core: "2.479.3"
+        dependencies:
+          - id: workflow-step-api
+            minimum_version: "704.ve4f0967e98fa_"
+          - id: credentials
+            minimum_version: "1415.v831096eb_5534"
+          - id: plain-credentials
+            minimum_version: "199.v9f8e1f741799"
+          - id: ssh-credentials
+            minimum_version: "359.v2191c4cf635f"
+          - id: structs
+            minimum_version: "350.v3b_30f09f2363"
+      - id: display-url-api
+        version: "2.217.va_6b_de84cc74b_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/display-url-api/2.217.va_6b_de84cc74b_/display-url-api-2.217.va_6b_de84cc74b_.hpi
+        sha256: "07eeaae738b451bade4756900b48561c6c493a42c7ba07a45b22a2dce71ac0ca"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: echarts-api
+        version: "6.0.0-1146.v5c8f3b_8f0573"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/echarts-api/6.0.0-1146.v5c8f3b_8f0573/echarts-api-6.0.0-1146.v5c8f3b_8f0573.hpi
+        sha256: "b3b1a7a10bd61b9df4b3599009f72e35745fd26e65971a593183648069e4b1ce"
+        required_core: "2.479.3"
+        dependencies:
+          - id: bootstrap5-api
+            minimum_version: "5.3.3-2"
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+          - id: commons-text-api
+            minimum_version: "1.13.1-176.v74d88f22034b_"
+          - id: font-awesome-api
+            minimum_version: "6.7.2-1"
+          - id: jquery3-api
+            minimum_version: "3.7.1-3"
+          - id: plugin-util-api
+            minimum_version: "6.1167.v022176c7e0ca_"
+          - id: jackson2-api
+            minimum_version: "2.18.3-402.v74c4eb_f122b_2"
+      - id: email-ext
+        version: "2038.v7b_8817a_499d9"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/email-ext/2038.v7b_8817a_499d9/email-ext-2038.v7b_8817a_499d9.hpi
+        sha256: "058d49a24537bc1366b5855662861d7f11f3a482430ec7a5792aa9bbbe2bd47d"
+        required_core: "2.516.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.20.0-109.ve43756e2d2b_4"
+          - id: commons-text-api
+            minimum_version: "1.15.0-218.va_61573470393"
+          - id: jakarta-mail-api
+            minimum_version: "2.1.5-1"
+          - id: credentials
+            minimum_version: "1487.va_d001ede2c31"
+          - id: jackson2-api
+            minimum_version: "2.21.1-428.vf8dd988fa_d8d"
+          - id: jsoup
+            minimum_version: "1.22.1-76.v9cdb_2456c0e3"
+          - id: junit
+            minimum_version: "1369.v15da_00283f06"
+          - id: mailer
+            minimum_version: "534.v1b_36f5864073"
+          - id: scm-api
+            minimum_version: "728.vc30dcf7a_0df5"
+          - id: script-security
+            minimum_version: "1399.ve6a_66547f6e1"
+          - id: structs
+            minimum_version: "362.va_b_695ef4fdf9"
+          - id: token-macro
+            minimum_version: "477.vd4f0dc3cb_cf1"
+      - id: font-awesome-api
+        version: "6.7.2-1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/font-awesome-api/6.7.2-1/font-awesome-api-6.7.2-1.hpi
+        sha256: "039c676c61f45cc256e7759abdc5c3c8d46533895e403cf1128895ad4b19dd3f"
+        required_core: "2.479.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.17.0-84.vb_b_938040b_078"
+          - id: commons-text-api
+            minimum_version: "1.13.0-153.v91dcd89e2a_22"
+          - id: plugin-util-api
+            minimum_version: "6.0.0"
+      - id: git
+        version: "5.8.1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/git/5.8.1/git-5.8.1.hpi
+        sha256: "2db5e8b7701f742f9c5feb7c7c33dba71c8a3ea7c7d346eabfd95495406084cc"
+        required_core: "2.504.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.19.0-104.v12125f33a_255"
+          - id: workflow-scm-step
+            minimum_version: "466.va_d69e602552b_"
+          - id: workflow-step-api
+            minimum_version: "710.v3e456cc85233"
+          - id: credentials-binding
+            minimum_version: "702.vfe613e537e88"
+          - id: credentials
+            minimum_version: "1453.v9b_a_29777a_b_fd"
+          - id: git-client
+            minimum_version: "6.4.0"
+          - id: mailer
+            minimum_version: "522.va_995fa_cfb_8b_d"
+          - id: scm-api
+            minimum_version: "724.v7d839074eb_5c"
+          - id: script-security
+            minimum_version: "1385.v7d2d9ec4d909"
+          - id: ssh-credentials
+            minimum_version: "361.vb_f6760818e8c"
+          - id: structs
+            minimum_version: "362.va_b_695ef4fdf9"
+      - id: git-client
+        version: "6.6.1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/git-client/6.6.1/git-client-6.6.1.hpi
+        sha256: "69ab80e3bd51e2e4e676a18722c02c7b163eb11a758b52ecf179d58e1ca1738f"
+        required_core: "2.516.3"
+        dependencies:
+          - id: mina-sshd-api-common
+            minimum_version: "2.16.0-167.va_269f38cc024"
+          - id: mina-sshd-api-core
+            minimum_version: "2.16.0-167.va_269f38cc024"
+          - id: commons-lang3-api
+            minimum_version: "3.20.0-109.ve43756e2d2b_4"
+          - id: gson-api
+            minimum_version: "2.13.2-173.va_a_092315913c"
+          - id: apache-httpcomponents-client-4-api
+            minimum_version: "4.5.14-269.vfa_2321039a_83"
+          - id: credentials
+            minimum_version: "1487.va_d001ede2c31"
+          - id: script-security
+            minimum_version: "1399.ve6a_66547f6e1"
+          - id: ssh-credentials
+            minimum_version: "361.vb_f6760818e8c"
+          - id: structs
+            minimum_version: "362.va_b_695ef4fdf9"
+      - id: github
+        version: "1.47.0"
+        url: https://repo.jenkins-ci.org/artifactory/releases/com/coravy/hudson/plugins/github/github/1.47.0/github-1.47.0.hpi
+        sha256: "b9f040a3280977f2012c0057b48db712959c665e685b74e79fa1cf43833878da"
+        required_core: "2.504.3"
+        dependencies:
+          - id: caffeine-api
+            minimum_version: "3.2.3-194.v31a_b_f7a_b_5a_81"
+          - id: commons-lang3-api
+            minimum_version: "3.20.0-109.ve43756e2d2b_4"
+          - id: okhttp-api
+            minimum_version: "4.12.0-195.vc02552c04ffd"
+          - id: instance-identity
+            minimum_version: "203.v15e81a_1b_7a_38"
+          - id: credentials
+            minimum_version: "1480.v2246fd131e83"
+          - id: display-url-api
+            minimum_version: "2.217.va_6b_de84cc74b_"
+          - id: git
+            minimum_version: "5.8.1"
+          - id: github-api
+            minimum_version: "1.330-492.v3941a_032db_2a_"
+          - id: plain-credentials
+            minimum_version: "199.v9f8e1f741799"
+          - id: scm-api
+            minimum_version: "724.v7d839074eb_5c"
+          - id: token-macro
+            minimum_version: "477.vd4f0dc3cb_cf1"
+      - id: github-api
+        version: "1.330-492.v3941a_032db_2a_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/github-api/1.330-492.v3941a_032db_2a_/github-api-1.330-492.v3941a_032db_2a_.hpi
+        sha256: "1f815342410006bbfc65adb4a027be91bfb4d7ea7460d59ac3278f67819261ba"
+        required_core: "2.479.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+          - id: okhttp-api
+            minimum_version: "4.11.0-189.v976fa_d3379d6"
+          - id: jackson2-api
+            minimum_version: "2.18.3-402.v74c4eb_f122b_2"
+      - id: github-branch-source
+        version: "1983.vfa_27ed961853"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/github-branch-source/1983.vfa_27ed961853/github-branch-source-1983.vfa_27ed961853.hpi
+        sha256: "1cc2bad72a461c70d00d068d1be7bb0b794d8c81fbc2139b33ecd3468c317aa1"
+        required_core: "2.541.1"
+        dependencies:
+          - id: github
+            minimum_version: "1.45.0"
+          - id: caffeine-api
+            minimum_version: "3.2.3-194.v31a_b_f7a_b_5a_81"
+          - id: commons-lang3-api
+            minimum_version: "3.20.0-109.ve43756e2d2b_4"
+          - id: ionicons-api
+            minimum_version: "94.vcc3065403257"
+          - id: jjwt-api
+            minimum_version: "0.11.5-120.v0268cf544b_89"
+          - id: okhttp-api
+            minimum_version: "4.12.0-195.vc02552c04ffd"
+          - id: workflow-support
+            minimum_version: "1010.vb_b_39488a_9841"
+          - id: credentials
+            minimum_version: "1480.v2246fd131e83"
+          - id: github-api
+            minimum_version: "1.330-492.v3941a_032db_2a_"
+          - id: jackson2-api
+            minimum_version: "2.20.1-423.v13951f6b_6532"
+      - id: gson-api
+        version: "2.13.2-173.va_a_092315913c"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/gson-api/2.13.2-173.va_a_092315913c/gson-api-2.13.2-173.va_a_092315913c.hpi
+        sha256: "5a5f1559838750eac8951e4ad28fcad241c72c4c8430f1920b555bfac95065a7"
+        required_core: "2.492.3"
+        dependencies: []
+      - id: instance-identity
+        version: "203.v15e81a_1b_7a_38"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/modules/instance-identity/203.v15e81a_1b_7a_38/instance-identity-203.v15e81a_1b_7a_38.hpi
+        sha256: "df2b3205a6177248f12b294650a60405f65ba2cd503ca9599b2dcb72c1de5018"
+        required_core: "2.479.3"
+        dependencies:
+          - id: bouncycastle-api
+            minimum_version: "2.30.1.80-256.vf98926042a_9b_"
+      - id: ionicons-api
+        version: "94.vcc3065403257"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/ionicons-api/94.vcc3065403257/ionicons-api-94.vcc3065403257.hpi
+        sha256: "95f3504375d628d887425ccdf32d5606a230261ee42dc683f13958d8e973ac3f"
+        required_core: "2.504.1"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+      - id: jackson2-api
+        version: "2.21.1-428.vf8dd988fa_d8d"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/jackson2-api/2.21.1-428.vf8dd988fa_d8d/jackson2-api-2.21.1-428.vf8dd988fa_d8d.hpi
+        sha256: "631c03bd845a5c4bc4b2bac276c773d3f130f0d6f85ebfff02f8211bcad17792"
+        required_core: "2.479.1"
+        dependencies:
+          - id: jakarta-activation-api
+            minimum_version: "2.1.3-1"
+          - id: jakarta-xml-bind-api
+            minimum_version: "4.0.5-3.v3d5b_a_73965b_9"
+          - id: javax-activation-api
+            minimum_version: "1.2.0-7"
+          - id: jaxb
+            minimum_version: "2.3.9-1"
+          - id: json-api
+            minimum_version: "20250107-125.v28b_a_ffa_eb_f01"
+          - id: snakeyaml-api
+            minimum_version: "2.3-123.v13484c65210a_"
+      - id: jakarta-activation-api
+        version: "2.1.4-1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jakarta-activation-api/2.1.4-1/jakarta-activation-api-2.1.4-1.hpi
+        sha256: "e62298341742f14b374045387ba641ad8a19376793c76bdafebb4a05b5099712"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: jakarta-mail-api
+        version: "2.1.5-1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jakarta-mail-api/2.1.5-1/jakarta-mail-api-2.1.5-1.hpi
+        sha256: "244735ea85a51332c079d235a5713e70d3810bea62332894002acc39914ce11b"
+        required_core: "2.479.1"
+        dependencies:
+          - id: jakarta-activation-api
+            minimum_version: "2.1.4-1"
+      - id: jakarta-xml-bind-api
+        version: "4.0.5-3.v3d5b_a_73965b_9"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jakarta-xml-bind-api/4.0.5-3.v3d5b_a_73965b_9/jakarta-xml-bind-api-4.0.5-3.v3d5b_a_73965b_9.hpi
+        sha256: "1d4c54b38a106f3967906891c1be44d183d8cf6927d6bee0d67d9cca4b503765"
+        required_core: "2.479.1"
+        dependencies:
+          - id: jakarta-activation-api
+            minimum_version: "2.1.3-1"
+      - id: javax-activation-api
+        version: "1.2.0-7"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/javax-activation-api/1.2.0-7/javax-activation-api-1.2.0-7.hpi
+        sha256: "c60ab7240dded219e2cd3002b30579dd993832c5d4683dca710f0f426776b063"
+        required_core: "2.361.4"
+        dependencies: []
+      - id: jaxb
+        version: "2.3.9-1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jaxb/2.3.9-1/jaxb-2.3.9-1.hpi
+        sha256: "8c9f7f98d996ade98b7a5dd0cd9d0aba661acea1b99a33f75778bacf39a64659"
+        required_core: "2.387.3"
+        dependencies:
+          - id: javax-activation-api
+            minimum_version: "1.2.0-6"
+      - id: jjwt-api
+        version: "0.11.5-120.v0268cf544b_89"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jjwt-api/0.11.5-120.v0268cf544b_89/jjwt-api-0.11.5-120.v0268cf544b_89.hpi
+        sha256: "c88bcbd7573ccb31ed9d819ee2611eb019d733a9d51cd1b70ad53a61aaf52489"
+        required_core: "2.479.1"
+        dependencies:
+          - id: jackson2-api
+            minimum_version: "2.17.0-379.v02de8ec9f64c"
+      - id: jquery3-api
+        version: "3.7.1-3"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/jquery3-api/3.7.1-3/jquery3-api-3.7.1-3.hpi
+        sha256: "1823f32895013b8c75adfa975265482968a12aad768c71c66b69960a96e52a34"
+        required_core: "2.479.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.17.0-84.vb_b_938040b_078"
+          - id: commons-text-api
+            minimum_version: "1.13.0-153.v91dcd89e2a_22"
+      - id: json-api
+        version: "20250107-125.v28b_a_ffa_eb_f01"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/json-api/20250107-125.v28b_a_ffa_eb_f01/json-api-20250107-125.v28b_a_ffa_eb_f01.hpi
+        sha256: "71ac9158623ca2703cf408f90cc3d8c5aa1806facab0964220148d127886ea38"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: json-path-api
+        version: "2.9.0-190.veefca_05d5477"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/json-path-api/2.9.0-190.veefca_05d5477/json-path-api-2.9.0-190.veefca_05d5477.hpi
+        sha256: "9922a6486cda1a9371e951d96e67118d84107db6bd1e844251bdc662c62dc314"
+        required_core: "2.492.3"
+        dependencies:
+          - id: asm-api
+            minimum_version: "9.8-163.vb_2a_96d3f9c3c"
+      - id: jsoup
+        version: "1.22.1-76.v9cdb_2456c0e3"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/jsoup/1.22.1-76.v9cdb_2456c0e3/jsoup-1.22.1-76.v9cdb_2456c0e3.hpi
+        sha256: "b512a59108ccd2785887c29d18be239303ea5704de1d5ec565f32b4e5281bdb5"
+        required_core: "2.492.3"
+        dependencies: []
+      - id: junit
+        version: "1369.v15da_00283f06"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/junit/1369.v15da_00283f06/junit-1369.v15da_00283f06.hpi
+        sha256: "39742d23231b156ffd5b536187ebb7114c4ee9664fab32558e8284debd810afe"
+        required_core: "2.504.3"
+        dependencies:
+          - id: bootstrap5-api
+            minimum_version: "5.3.8-890.v1c5cf4fa_178e"
+          - id: checks-api
+            minimum_version: "373.vfe7645102093"
+          - id: echarts-api
+            minimum_version: "6.0.0-1146.v5c8f3b_8f0573"
+          - id: ionicons-api
+            minimum_version: "94.vcc3065403257"
+          - id: plugin-util-api
+            minimum_version: "6.1167.v022176c7e0ca_"
+          - id: prism-api
+            minimum_version: "1.30.0-609.vf0a_df102d9a_f"
+          - id: workflow-api
+            minimum_version: "1384.vdc05a_48f535f"
+          - id: workflow-step-api
+            minimum_version: "710.v3e456cc85233"
+          - id: display-url-api
+            minimum_version: "2.217.va_6b_de84cc74b_"
+          - id: jackson2-api
+            minimum_version: "2.20.0-420.v8a_08b_d57ca_05"
+          - id: script-security
+            minimum_version: "1378.vf25626395f49"
+      - id: ldap
+        version: "807.809.vd3a_4e5e4ec98"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/ldap/807.809.vd3a_4e5e4ec98/ldap-807.809.vd3a_4e5e4ec98.hpi
+        sha256: "6d624999de7e30a36a9f4015ac056f02c8270e4e20172deb0f1dbe3a042b6f93"
+        required_core: "2.504.3"
+        dependencies:
+          - id: mailer
+            minimum_version: "525.v2458b_d8a_1a_71"
+      - id: mailer
+        version: "534.v1b_36f5864073"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/mailer/534.v1b_36f5864073/mailer-534.v1b_36f5864073.hpi
+        sha256: "5426a66a3f879d25fcb4baff678a28422afbabff22cd6e4f0f998fc67a3dc3fa"
+        required_core: "2.504.3"
+        dependencies:
+          - id: jakarta-mail-api
+            minimum_version: "2.1.3-2"
+          - id: instance-identity
+            minimum_version: "203.v15e81a_1b_7a_38"
+          - id: display-url-api
+            minimum_version: "2.217.va_6b_de84cc74b_"
+      - id: matrix-auth
+        version: "3.3"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/matrix-auth/3.3/matrix-auth-3.3.hpi
+        sha256: "b8f7a916f1de0872d4c16264bcf9604fdb5b2da1827764745946c7ac5f613948"
+        required_core: "2.528.3"
+        dependencies:
+          - id: ionicons-api
+            minimum_version: "94.vcc3065403257"
+      - id: mina-sshd-api-common
+        version: "2.16.0-167.va_269f38cc024"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/mina-sshd-api/mina-sshd-api-common/2.16.0-167.va_269f38cc024/mina-sshd-api-common-2.16.0-167.va_269f38cc024.hpi
+        sha256: "89a212ff6b4150327a0a06e95a2e85c0b5d00d44ce65800d7d0a5b223d67bddd"
+        required_core: "2.479.3"
+        dependencies: []
+      - id: mina-sshd-api-core
+        version: "2.16.0-167.va_269f38cc024"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/mina-sshd-api/mina-sshd-api-core/2.16.0-167.va_269f38cc024/mina-sshd-api-core-2.16.0-167.va_269f38cc024.hpi
+        sha256: "720375c6ca20afb8b9afe394b8222e98940d258314b7eefdb4dc4fda3995a7d8"
+        required_core: "2.479.3"
+        dependencies:
+          - id: mina-sshd-api-common
+            minimum_version: "2.16.0-167.va_269f38cc024"
+      - id: okhttp-api
+        version: "4.12.0-195.vc02552c04ffd"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/okhttp-api/4.12.0-195.vc02552c04ffd/okhttp-api-4.12.0-195.vc02552c04ffd.hpi
+        sha256: "ad46368282ce882967edde6c69c636b2e368dbdb90a68254f4c349d5989a5097"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: pipeline-groovy-lib
+        version: "798.v5cc688825312"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/pipeline-groovy-lib/798.v5cc688825312/pipeline-groovy-lib-798.v5cc688825312.hpi
+        sha256: "4024fc14cb537bb0fef7dfde6e90d9bf8d91d18aef5467e44f3b41cfb179360e"
+        required_core: "2.504.3"
+        dependencies:
+          - id: workflow-api
+            minimum_version: "1384.vdc05a_48f535f"
+          - id: workflow-cps
+            minimum_version: "4209.v83c4e257f1e9"
+          - id: workflow-scm-step
+            minimum_version: "452.vdf1ca_c8d3a_87"
+          - id: workflow-step-api
+            minimum_version: "710.v3e456cc85233"
+          - id: cloudbees-folder
+            minimum_version: "6.1053.vd62fb_b_f7367b_"
+          - id: scm-api
+            minimum_version: "712.v8846fdd68c88"
+          - id: script-security
+            minimum_version: "1378.vf25626395f49"
+          - id: structs
+            minimum_version: "362.va_b_695ef4fdf9"
+          - id: variant
+            minimum_version: "70.va_d9f17f859e0"
+      - id: plain-credentials
+        version: "199.v9f8e1f741799"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/plain-credentials/199.v9f8e1f741799/plain-credentials-199.v9f8e1f741799.hpi
+        sha256: "b5e5e35cf93ad3b818a983916cbcdf3f7866699410a4df923e6a2968ecc3a448"
+        required_core: "2.479.3"
+        dependencies:
+          - id: credentials
+            minimum_version: "1408.va_622a_b_f5b_1b_1"
+      - id: plugin-util-api
+        version: "6.1167.v022176c7e0ca_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/plugin-util-api/6.1167.v022176c7e0ca_/plugin-util-api-6.1167.v022176c7e0ca_.hpi
+        sha256: "4087489a4429c133ed53927b44a59ddf96ebd3078876d3ff33923eadb44422f9"
+        required_core: "2.479.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+          - id: commons-text-api
+            minimum_version: "1.13.1-176.v74d88f22034b_"
+          - id: workflow-api
+            minimum_version: "1373.v7b_813f10efa_b_"
+          - id: workflow-step-api
+            minimum_version: "704.ve4f0967e98fa_"
+          - id: workflow-support
+            minimum_version: "968.v8f17397e87b_8"
+      - id: prism-api
+        version: "1.30.0-609.vf0a_df102d9a_f"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/prism-api/1.30.0-609.vf0a_df102d9a_f/prism-api-1.30.0-609.vf0a_df102d9a_f.hpi
+        sha256: "4d6825b681103333cc3dc5c78cf1a6f1532f23e1030bf6b9a213c21d3d6cd353"
+        required_core: "2.479.3"
+        dependencies:
+          - id: bootstrap5-api
+            minimum_version: "5.3.3-2"
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+          - id: commons-text-api
+            minimum_version: "1.13.1-176.v74d88f22034b_"
+          - id: font-awesome-api
+            minimum_version: "6.7.2-1"
+          - id: plugin-util-api
+            minimum_version: "6.1167.v022176c7e0ca_"
+          - id: antisamy-markup-formatter
+            minimum_version: "173.v680e3a_b_69ff3"
+      - id: scm-api
+        version: "728.vc30dcf7a_0df5"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/scm-api/728.vc30dcf7a_0df5/scm-api-728.vc30dcf7a_0df5.hpi
+        sha256: "1336472987daa2fa912210aba00e1e37b739ce03f75c973a6794d1a0f55c0326"
+        required_core: "2.504.3"
+        dependencies:
+          - id: asm-api
+            minimum_version: "9.9-185.va_6c6b_3348b_c3"
+          - id: commons-lang3-api
+            minimum_version: "3.19.0-104.v12125f33a_255"
+          - id: structs
+            minimum_version: "353.v261ea_40a_80fb_"
+      - id: script-security
+        version: "1412.v7737b_3405f86"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/script-security/1412.v7737b_3405f86/script-security-1412.v7737b_3405f86.hpi
+        sha256: "5f2fa5222fdfaf09f090418a67c77e0342071630d69442bae7314975b674d288"
+        required_core: "2.479.3"
+        dependencies:
+          - id: caffeine-api
+            minimum_version: "3.1.8-133.v17b_1ff2e0599"
+      - id: snakeyaml-api
+        version: "2.3-125.v4d77857a_b_402"
+        url: https://repo.jenkins-ci.org/artifactory/releases/io/jenkins/plugins/snakeyaml-api/2.3-125.v4d77857a_b_402/snakeyaml-api-2.3-125.v4d77857a_b_402.hpi
+        sha256: "8995f229e7e1558fd8482229ed132353cbb3258009f3b9f1845d617f0ac17e42"
+        required_core: "2.479.3"
+        dependencies: []
+      - id: ssh-credentials
+        version: "361.vb_f6760818e8c"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/ssh-credentials/361.vb_f6760818e8c/ssh-credentials-361.vb_f6760818e8c.hpi
+        sha256: "1e80c754fffde097e0bb1ac436c44e377aca281eb1133a22deca05dd8453345a"
+        required_core: "2.479.1"
+        dependencies:
+          - id: bouncycastle-api
+            minimum_version: "2.30.1.79-254.vfdb_814e7791e"
+          - id: credentials
+            minimum_version: "1405.vb_cda_74a_f8974"
+          - id: variant
+            minimum_version: "60.v7290fc0eb_b_cd"
+      - id: structs
+        version: "362.va_b_695ef4fdf9"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/structs/362.va_b_695ef4fdf9/structs-362.va_b_695ef4fdf9.hpi
+        sha256: "a0a5db44f2cb082a9ec6572c088340521f033fff8c351fc7eba9ef7f07dbbf8d"
+        required_core: "2.479.3"
+        dependencies: []
+      - id: token-macro
+        version: "477.vd4f0dc3cb_cf1"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/token-macro/477.vd4f0dc3cb_cf1/token-macro-477.vd4f0dc3cb_cf1.hpi
+        sha256: "ef98e47b467571e7968925ace1c40d1103baefe230f5d4cf44250769b7b6b42b"
+        required_core: "2.492.3"
+        dependencies:
+          - id: commons-lang3-api
+            minimum_version: "3.18.0-98.v3a_674c06072d"
+          - id: commons-text-api
+            minimum_version: "1.13.1-176.v74d88f22034b_"
+          - id: json-path-api
+            minimum_version: "2.9.0-148.v22a_7ffe323ce"
+          - id: workflow-step-api
+            minimum_version: "704.ve4f0967e98fa_"
+          - id: structs
+            minimum_version: "350.v3b_30f09f2363"
+      - id: variant
+        version: "70.va_d9f17f859e0"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/variant/70.va_d9f17f859e0/variant-70.va_d9f17f859e0.hpi
+        sha256: "12e214ea694469a4461b55881ecb4074ae5dfb04797dbc0dad390f6f4bc75aaf"
+        required_core: "2.479.1"
+        dependencies: []
+      - id: workflow-api
+        version: "1384.vdc05a_48f535f"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/workflow/workflow-api/1384.vdc05a_48f535f/workflow-api-1384.vdc05a_48f535f.hpi
+        sha256: "d287875b797c0a05a99cc14732c0cb80b395306923789c24ac5640e8fe870e82"
+        required_core: "2.504.1"
+        dependencies:
+          - id: workflow-step-api
+            minimum_version: "700.v6e45cb_a_5a_a_21"
+          - id: scm-api
+            minimum_version: "704.v3ce5c542825a_"
+      - id: workflow-cps
+        version: "4370.v49a_6937566b_6"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/workflow/workflow-cps/4370.v49a_6937566b_6/workflow-cps-4370.v49a_6937566b_6.hpi
+        sha256: "2e754ea53ee6cfe964ce7e589c33c1e6508446b3ddad252b586cea4f2b8ae8a7"
+        required_core: "2.528.3"
+        dependencies:
+          - id: ionicons-api
+            minimum_version: "94.vcc3065403257"
+          - id: workflow-api
+            minimum_version: "1384.vdc05a_48f535f"
+          - id: workflow-scm-step
+            minimum_version: "466.va_d69e602552b_"
+          - id: workflow-step-api
+            minimum_version: "724.v538c2362b_dfb_"
+          - id: workflow-support
+            minimum_version: "1015.v785e5a_b_b_8b_22"
+          - id: scm-api
+            minimum_version: "728.vc30dcf7a_0df5"
+          - id: script-security
+            minimum_version: "1402.v94c9ce464861"
+          - id: structs
+            minimum_version: "362.va_b_695ef4fdf9"
+      - id: workflow-scm-step
+        version: "466.va_d69e602552b_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/workflow/workflow-scm-step/466.va_d69e602552b_/workflow-scm-step-466.va_d69e602552b_.hpi
+        sha256: "8f35b68153ee8a671d01dcdc3d86dd47837bd2d5fcf9df8d674ff8aeecfba16a"
+        required_core: "2.504.3"
+        dependencies:
+          - id: workflow-step-api
+            minimum_version: "710.v3e456cc85233"
+          - id: scm-api
+            minimum_version: "712.v8846fdd68c88"
+      - id: workflow-step-api
+        version: "724.v538c2362b_dfb_"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/workflow/workflow-step-api/724.v538c2362b_dfb_/workflow-step-api-724.v538c2362b_dfb_.hpi
+        sha256: "887491de444174228471993b0b2db958db2e7fb577857c8516c58e9618049896"
+        required_core: "2.479.3"
+        dependencies:
+          - id: structs
+            minimum_version: "338.v848422169819"
+      - id: workflow-support
+        version: "1015.v785e5a_b_b_8b_22"
+        url: https://repo.jenkins-ci.org/artifactory/releases/org/jenkins-ci/plugins/workflow/workflow-support/1015.v785e5a_b_b_8b_22/workflow-support-1015.v785e5a_b_b_8b_22.hpi
+        sha256: "914ee717ab8c1d60d0d3ea49a1af11e4ea65c1e74c0b44dc3522f9a2fe5b2a8e"
+        required_core: "2.504.3"
+        dependencies:
+          - id: caffeine-api
+            minimum_version: "3.2.2-178.v353b_8428ed56"
+          - id: workflow-api
+            minimum_version: "1384.vdc05a_48f535f"
+          - id: workflow-step-api
+            minimum_version: "706.v518c5dcb_24c0"
+          - id: scm-api
+            minimum_version: "707.v749f968369d4"
+          - id: script-security
+            minimum_version: "1378.vf25626395f49"
   managed_plugins:
     - id: caffeine-api
       version: "3.2.3-194.v31a_b_f7a_b_5a_81"

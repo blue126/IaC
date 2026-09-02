@@ -1,0 +1,19 @@
+---
+- name: Require explicit Jenkins upgrade authorization
+  ansible.builtin.assert:
+    that:
+      - jenkins_upgrade_authorized | bool
+      - jenkins_upgrade_authorization_id | trim | length > 0
+      - jenkins_upgrade_authorization_id is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    fail_msg: >-
+      authorization gate failed: jenkins_upgrade_authorized and
+      jenkins_upgrade_authorization_id require approved evidence.
+
+- name: Require explicit Jenkins restore evidence
+  ansible.builtin.assert:
+    that:
+      - jenkins_upgrade_restore_evidence_id | trim | length > 0
+      - jenkins_upgrade_restore_evidence_id is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    fail_msg: >-
+      restore gate failed: jenkins_upgrade_restore_evidence_id requires
+      approved restore evidence.

@@ -1,0 +1,63 @@
+---
+- name: Install exact Jenkins Core phase
+  ansible.builtin.apt:
+    deb: >-
+      {{ jenkins_upgrade_staging_dir }}/jenkins-{{
+         jenkins_upgrade_phase.package_version }}.deb
+    state: present
+
+- name: Restart Jenkins after exact Core phase
+  ansible.builtin.systemd:
+    name: jenkins
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Wait for Jenkins after exact Core phase
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+    status_code: 200
+    timeout: 10
+  register: jenkins_upgrade_phase_http
+  retries: 24
+  delay: 5
+  until: jenkins_upgrade_phase_http.status == 200
+
+- name: Read installed Jenkins Core phase version
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - "-f=${Version}"
+      - jenkins
+  register: jenkins_upgrade_phase_package
+  changed_when: false
+
+- name: Read selected Java runtime after Core phase
+  ansible.builtin.command:
+    argv:
+      - "{{ jenkins_upgrade_java_command }}"
+      - -version
+  register: jenkins_upgrade_phase_java
+  changed_when: false
+
+- name: Read Jenkins service state after Core phase
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - jenkins
+  register: jenkins_upgrade_phase_service
+  changed_when: false
+
+- name: Assert exact state after Core phase
+  ansible.builtin.assert:
+    that:
+      - jenkins_upgrade_phase_package.stdout == jenkins_upgrade_phase.package_version
+      - ci_toolchain_bom.jenkins.java.upgrade.runtime_version in jenkins_upgrade_phase_java.stderr
+      - jenkins_upgrade_phase_service.stdout == 'active'
+      - jenkins_upgrade_phase_http.status == 200
+      - jenkins_upgrade_phase_http.x_jenkins == jenkins_upgrade_phase.version
+    fail_msg: >-
+      Jenkins failed exact package, Java, service, or HTTP verification at Core
+      phase {{ jenkins_upgrade_phase.version }}.

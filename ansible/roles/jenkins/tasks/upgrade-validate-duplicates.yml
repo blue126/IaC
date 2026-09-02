@@ -1,0 +1,9 @@
+---
+- name: Reject duplicate live Jenkins plugin artifacts
+  ansible.builtin.assert:
+    that:
+      - jenkins_upgrade_live_jpi_ids | intersect(jenkins_upgrade_live_hpi_ids) | length == 0
+    fail_msg: >-
+      duplicate artifact: both .jpi and .hpi exist for
+      {{ jenkins_upgrade_live_jpi_ids | intersect(jenkins_upgrade_live_hpi_ids) |
+         sort | join(', ') }}; no artifact is deleted automatically.

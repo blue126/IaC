@@ -1,0 +1,17 @@
+---
+- name: Assert exact Jenkins Core and process Java source tuple
+  ansible.builtin.assert:
+    that:
+      - jenkins_upgrade_observed_source_core == jenkins_upgrade_expected_source_core_version
+      - jenkins_upgrade_expected_source_java_version in jenkins_upgrade_observed_source_java_version
+      - jenkins_upgrade_observed_source_java_executable | length > 0
+    fail_msg: "source drift: installed Jenkins Core or process Java differs from the approved source tuple."
+
+- name: Assert exact Jenkins source plugin tuple
+  ansible.builtin.assert:
+    that:
+      - item.observed == item.expected
+    fail_msg: "source drift: plugin {{ item.id }} is {{ item.observed }}, expected {{ item.expected }}."
+  loop: "{{ jenkins_upgrade_observed_source_plugins }}"
+  loop_control:
+    label: "{{ item.id }}"

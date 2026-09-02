@@ -1,0 +1,200 @@
+---
+- name: Exercise production Jenkins upgrade validation task units offline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    protected_live_path: /tmp/jenkins-upgrade-live-sentinel
+  tasks:
+    - name: Inspect protected live fixture before validation cases
+      ansible.builtin.stat:
+        path: "{{ protected_live_path }}"
+      register: protected_live_before
+
+    - name: Exercise missing authorization gate
+      block:
+        - name: Run production authorization task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-gates
+        - name: Mark unexpected authorization success
+          ansible.builtin.set_fact:
+            authorization_failure: ""
+      rescue:
+        - name: Capture authorization failure
+          ansible.builtin.set_fact:
+            authorization_failure: "{{ ansible_failed_result.msg }}"
+
+    - name: Assert expected authorization failure
+      ansible.builtin.assert:
+        that: "'authorization gate failed' in authorization_failure"
+
+    - name: Exercise missing restore evidence gate
+      vars:
+        jenkins_upgrade_authorized: true
+        jenkins_upgrade_authorization_id: TEST-CHANGE-1
+        jenkins_upgrade_restore_evidence_id: "   "
+      block:
+        - name: Run production restore gate task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-gates
+        - name: Mark unexpected restore success
+          ansible.builtin.set_fact:
+            restore_failure: ""
+      rescue:
+        - name: Capture restore failure
+          ansible.builtin.set_fact:
+            restore_failure: "{{ ansible_failed_result.msg }}"
+
+    - name: Assert expected restore failure
+      ansible.builtin.assert:
+        that: "'restore gate failed' in restore_failure"
+
+    - name: Exercise source drift validation
+      vars:
+        jenkins_upgrade_observed_source_core: "2.000.0"
+        jenkins_upgrade_expected_source_core_version: "2.541.1"
+        jenkins_upgrade_observed_source_java_executable: /fixture/java
+        jenkins_upgrade_observed_source_java_version: "17.0.18"
+        jenkins_upgrade_expected_source_java_version: "17.0.18"
+        jenkins_upgrade_observed_source_plugins: []
+      block:
+        - name: Run production source tuple task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-source
+        - name: Mark unexpected source success
+          ansible.builtin.set_fact:
+            source_failure: ""
+      rescue:
+        - name: Capture source drift failure
+          ansible.builtin.set_fact:
+            source_failure: "{{ ansible_failed_result.msg }}"
+
+    - name: Assert expected source drift failure
+      ansible.builtin.assert:
+        that: "'source drift' in source_failure"
+
+    - name: Exercise duplicate artifact validation
+      vars:
+        jenkins_upgrade_live_jpi_ids: [generic-webhook-trigger]
+        jenkins_upgrade_live_hpi_ids: [generic-webhook-trigger]
+      block:
+        - name: Run production duplicate task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-duplicates
+        - name: Mark unexpected duplicate success
+          ansible.builtin.set_fact:
+            duplicate_failure: ""
+      rescue:
+        - name: Capture duplicate artifact failure
+          ansible.builtin.set_fact:
+            duplicate_failure: "{{ ansible_failed_result.msg }}"
+
+    - name: Assert expected duplicate artifact failure
+      ansible.builtin.assert:
+        that:
+          - "'duplicate artifact' in duplicate_failure"
+          - "'generic-webhook-trigger' in duplicate_failure"
+
+    - name: Load canonical BOM for lock fixtures
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../../../ci/toolchain-bom.yml"
+        name: canonical_bom
+
+    - name: Build incomplete lock fixture
+      ansible.builtin.set_fact:
+        incomplete_plugin_upgrade: >-
+          {{ canonical_bom.jenkins.plugin_upgrade |
+             combine({'lock': canonical_bom.jenkins.plugin_upgrade.lock[:-1]}) }}
+
+    - name: Build incomplete BOM fixture
+      ansible.builtin.set_fact:
+        ci_toolchain_bom: >-
+          {{ canonical_bom | combine({'jenkins': canonical_bom.jenkins |
+             combine({'plugin_upgrade': incomplete_plugin_upgrade})}) }}
+        jenkins_upgrade_expected_source_core_version: "2.541.1"
+
+    - name: Exercise incomplete lock validation
+      block:
+        - name: Run production canonical lock task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-lock
+        - name: Mark unexpected incomplete lock success
+          ansible.builtin.set_fact:
+            lock_failure: ""
+      rescue:
+        - name: Capture incomplete lock failure
+          ansible.builtin.set_fact:
+            lock_failure: "{{ ansible_failed_result.msg }}"
+
+    - name: Assert expected incomplete lock failure
+      ansible.builtin.assert:
+        that: "'incomplete lock' in lock_failure"
+
+    - name: Exercise checksum mismatch validation
+      vars:
+        jenkins_upgrade_staged_validation_items:
+          - id: fixture-plugin
+            matched: 1
+            checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+            expected_sha256: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      block:
+        - name: Run production staged checksum task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-staged
+        - name: Mark unexpected checksum success
+          ansible.builtin.set_fact:
+            checksum_failure_message: ""
+      rescue:
+        - name: Capture checksum mismatch failure
+          ansible.builtin.set_fact:
+            checksum_failure_message: >-
+              {{ (ansible_failed_result.results[0].msg
+                  if ansible_failed_result.results is defined
+                  else ansible_failed_result.msg) }}
+
+    - name: Assert expected checksum mismatch failure
+      ansible.builtin.assert:
+        that: "'checksum mismatch' in checksum_failure_message"
+
+    - name: Restore canonical BOM for valid fixture
+      ansible.builtin.set_fact:
+        ci_toolchain_bom: "{{ canonical_bom }}"
+
+    - name: Exercise valid canonical lock and staged checksum
+      vars:
+        jenkins_upgrade_expected_source_core_version: "2.541.1"
+        jenkins_upgrade_staged_validation_items:
+          - id: fixture-plugin
+            matched: 1
+            checksum: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            expected_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      block:
+        - name: Run valid production canonical lock task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-lock
+        - name: Run valid production staged checksum task unit
+          ansible.builtin.include_role:
+            name: jenkins
+            tasks_from: upgrade-validate-staged
+        - name: Record valid fixture success
+          ansible.builtin.set_fact:
+            valid_fixture_passed: true
+
+    - name: Inspect protected live fixture after validation cases
+      ansible.builtin.stat:
+        path: "{{ protected_live_path }}"
+      register: protected_live_after
+
+    - name: Assert every matrix validation preserved live state
+      ansible.builtin.assert:
+        that:
+          - not protected_live_before.stat.exists
+          - not protected_live_after.stat.exists
+          - valid_fixture_passed | bool

@@ -33,6 +33,31 @@ jenkins_casc_nodes:
 # Java version (Jenkins LTS requires Java 17+)
 jenkins_java_package: openjdk-17-jdk
 
+# Dedicated controller upgrade lifecycle. The upgrade entry point remains
+# inert until both human authorization and restore evidence are supplied.
+jenkins_upgrade_authorized: false
+jenkins_upgrade_authorization_id: ""
+jenkins_upgrade_restore_evidence_id: ""
+jenkins_upgrade_staging_dir: /var/lib/jenkins-upgrade-staging
+jenkins_upgrade_reconcile_staging_dir: /var/lib/jenkins-upgrade-reconcile-staging
+jenkins_upgrade_java_home: /usr/lib/jvm/temurin-21-jre-amd64
+jenkins_upgrade_java_command: "{{ jenkins_upgrade_java_home }}/bin/java"
+jenkins_upgrade_java_override_path: >-
+  {{ jenkins_systemd_override_dir }}/20-java.conf
+jenkins_upgrade_expected_source_core_version: "2.541.1"
+jenkins_upgrade_expected_source_java_version: "17.0.18"
+jenkins_upgrade_expected_source_plugins:
+  credentials-binding: "702.vfe613e537e88"
+  email-ext: "1933.v45cec755423f"
+  git-client: "6.5.0"
+  github: "1.45.0"
+  github-branch-source: "1936.vfa_a_5c2cef4e7"
+  ldap: "807.v7d7de30930cf"
+  matrix-auth: "3.2.9"
+  pipeline-groovy-lib: "787.ve2fef0efdca_6"
+  script-security: "1385.v7d2d9ec4d909"
+  workflow-cps: "4255.vd9c37f80fd8a_"
+
 # Terraform version to install
 jenkins_terraform_version: "1.14.4"
 
