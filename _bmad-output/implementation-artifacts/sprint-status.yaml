@@ -1,0 +1,129 @@
+# generated: 2026-02-08
+# project: IaC
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /workspaces/IaC/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-08
+project: IaC
+project_key: NOKEY
+tracking_system: file-system
+story_location: /workspaces/IaC/_bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: NetBox 数据建模与 Webhook 基础设施
+  epic-1: done
+  1-1-定义核心-custom-fields: done
+  1-2-配置-netbox-webhook-到-jenkins: done
+  1-3-在-netbox-中创建虚拟机配置: done
+  1-4-netbox-api-集成验证: done
+  epic-1-retrospective: done
+  
+  # Epic 2: 智能路由与平台隔离
+  epic-2: in-progress
+  2-1-创建-jenkins-router-pipeline: in-progress
+  2-2-实现平台类型验证和错误处理: backlog
+  2-3-proxmox-平台路由逻辑验证: backlog
+  2-4-physical-服务器路由逻辑验证: backlog
+  2-5-平台隔离和并行处理验证: backlog
+  epic-2-retrospective: optional
+  
+  # Epic 3: Proxmox 资源自动化供给
+  epic-3: backlog
+  3-1-terraform-provider-netbox-poc-验证: backlog
+  3-2-动态资源生成配置: backlog
+  3-3-proxmox-provisioning-pipeline-实现: backlog
+  3-4-人工审批-gate-实现: backlog
+  3-5-netbox-状态回写机制: backlog
+  3-6-配置变更触发-terraform-plan: backlog
+  epic-3-retrospective: optional
+  
+  # Epic 4: Ansible 服务部署与配置管理
+  epic-4: backlog
+  4-1-terraform-state-到-ansible-dynamic-inventory-自动生成: backlog
+  4-2-基于-netbox-custom-fields-的-playbook-自动选择: backlog
+  4-3-ansible-playbook-执行与日志输出: backlog
+  4-4-内置健康检查验证-verify-tagged-tasks: backlog
+  4-5-ansible-部署结果反馈到-netbox: backlog
+  4-6-配置变更的幂等性验证: backlog
+  epic-4-retrospective: optional
+  
+  # Epic 5: Pipeline 编排与自动化工作流
+  epic-5: backlog
+  5-1-端到端-pipeline-集成测试: backlog
+  5-2-jenkins-ui-日志和状态展示: backlog
+  5-3-git-push-事件触发-pipeline: backlog
+  5-4-pipeline-失败通知机制: backlog
+  5-5-手动重新运行失败的-pipeline: backlog
+  5-6-pipeline-审计追踪和历史记录: backlog
+  epic-5-retrospective: optional
+  
+  # Epic 6: 错误处理与恢复机制
+  epic-6: backlog
+  6-1-terraform-失败时标记-netbox-状态: backlog
+  6-2-ansible-失败时标记降级状态: backlog
+  6-3-失败资源自动重试机制: backlog
+  6-4-手动重置状态触发重试: backlog
+  6-5-错误日志关联到-netbox-虚拟机对象: backlog
+  6-6-连续失败告警机制: backlog
+  6-7-jenkins-详细错误堆栈展示: backlog
+  epic-6-retrospective: optional
+  
+  # Epic 7: 可观测性与审计追踪
+  epic-7: backlog
+  7-1-netbox-change-log-配置历史追踪: backlog
+  7-2-jenkins-pipeline-执行历史关联: backlog
+  7-3-terraform-plan-diff-记录: backlog
+  7-4-ansible-playbook-diff-输出记录: backlog
+  7-5-虚拟机当前运行状态展示: backlog
+  7-6-变更触发来源追踪: backlog
+  7-7-基础设施变更审计日志生成: backlog
+  epic-7-retrospective: optional
+  
+  # Epic 8: 物理服务器配置管理
+  epic-8: backlog
+  8-1-创建-physical-device-sync-pipeline: backlog
+  8-2-从-netbox-生成物理服务器-inventory: backlog
+  8-3-物理服务器-ssh-连接验证: backlog
+  8-4-物理服务器-ansible-配置管理: backlog
+  8-5-物理服务器状态更新: backlog
+  8-6-物理和虚拟资源统一管理验证: backlog
+  epic-8-retrospective: optional
+  
+  # Epic 9: ESXi 平台支持（Post-MVP）
+  epic-9: backlog
+  9-1-esxi-custom-fields-定义: backlog
+  9-2-esxi-provisioning-pipeline-实现: backlog
+  9-3-terraform-provider-vsphere-集成: backlog
+  9-4-多平台并行处理验证: backlog
+  9-5-esxi-平台端到端验证: backlog
+  epic-9-retrospective: optional

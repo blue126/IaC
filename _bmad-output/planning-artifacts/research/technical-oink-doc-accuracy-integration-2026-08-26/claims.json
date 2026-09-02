@@ -1,0 +1,54 @@
+{
+  "claims": [
+    {
+      "claim": "OINK v0.7.0 and Hugo Extended compatibility boundary",
+      "class": "version_compatibility",
+      "pub_date": "2026-08-25"
+    },
+    {
+      "claim": "OINK page Markdown and llms.txt outputs",
+      "class": "version_compatibility",
+      "pub_date": "2026-08-25"
+    },
+    {
+      "claim": "Hugo page outputs replace kind-level outputs",
+      "class": "version_compatibility",
+      "pub_date": "2026-08-23"
+    },
+    {
+      "claim": "Privileged generation and static site build require a credential boundary",
+      "class": "architecture_pattern",
+      "pub_date": "2026-08-26"
+    },
+    {
+      "claim": "Periodic reconciliation is the completeness path and webhooks accelerate it",
+      "class": "architecture_pattern",
+      "pub_date": "2026-08-26"
+    },
+    {
+      "claim": "Evidence must bind source or collector-owned observation revisions",
+      "class": "integration_pattern",
+      "pub_date": "2026-08-26"
+    },
+    {
+      "claim": "LLMs can extract and draft but cannot prove open-world completeness",
+      "class": "ai_pattern",
+      "pub_date": "2026-08-26"
+    },
+    {
+      "claim": "Human-reviewed PR is the default, with evidence-gated limited autonomy later",
+      "class": "ai_pattern",
+      "pub_date": "2026-08-26"
+    },
+    {
+      "claim": "Documentation accuracy requires claim-specific oracles",
+      "class": "verification_pattern",
+      "pub_date": "2026-08-26"
+    },
+    {
+      "claim": "Five separate quality dimensions are preferable to a composite score",
+      "class": "verification_pattern",
+      "pub_date": "2026-08-26"
+    }
+  ]
+}
