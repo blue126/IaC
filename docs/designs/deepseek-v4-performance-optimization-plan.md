@@ -307,7 +307,7 @@ prefill 改善 ────── 当前拓扑基线已完成 ──► P4 overr
 
 - **Pin**：`ggml-org/llama.cpp@10bf611e533d81f739128304991c5e133c6aebd8`（2026-08-16 master HEAD，≥ `596a579`/PR #25784，含 `draft-dspark`）。
 - 目录：guest `/opt/deepseek-v4-mainline/{src,build}`（隔离，不动 `/opt/deepseek-v4-ik`）。
-- 脚本：`scripts/deepseek-v4-mainline-build.sh`（固定在 pinned runtime image 内编译并校验 binary SHA-256）。
+- 脚本：`scripts/llama-cpp-mainline-build.sh`（固定在 pinned runtime image 内编译并校验 binary SHA-256）。
 - 构建参数：`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86`，target `llama-server`。
 - 状态：**已完成**（容器内编译，git HEAD = pin 一致）；二进制 `/opt/deepseek-v4-mainline/src/build/bin/llama-server`，容器内 `--gpus all` 运行验证通过。注意：构建 rpath 为容器路径，部署须在容器内运行或显式 `LD_LIBRARY_PATH`；mainline 默认启用 NCCL（本机 layer split 用不到，可选 `-DGGML_NCCL=OFF` 重建消除依赖）。
 - 备注：rohitraj 提到多卡 graph split 可能需调高 `GGML_SCHED_MAX_SPLIT_INPUTS`；本机使用 layer split，且 graph 路线已关闭，因此不调整。

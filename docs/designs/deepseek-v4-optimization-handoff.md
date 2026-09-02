@@ -116,7 +116,7 @@ Open WebUI → host.docker.internal:8081（稳定 API，CIDR 白名单）→ ope
 - Pin：`ggml-org/llama.cpp@10bf611e533d81f739128304991c5e133c6aebd8`（2026-08-16 master，含 DSpark，≥ #25784/`596a579`）
 - 二进制：`/opt/deepseek-v4-mainline/src/build/bin/llama-server`
 - 构建：容器内（`approachingai/ktransformers@sha256:5e8f614b...`），`-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86`
-- **运行要点**：二进制 rpath 是容器路径，且依赖 `libnccl.so.2`（宿主机没有）→ **必须在容器内运行**。当前 Compose 用 CDI 映射 `nvidia.com/gpu=0/1`，并设置 `LD_LIBRARY_PATH=/build`；构建验证脚本使用 `--gpus all`。构建脚本：`scripts/deepseek-v4-mainline-build.sh`。
+- **运行要点**：二进制 rpath 是容器路径，且依赖 `libnccl.so.2`（宿主机没有）→ **必须在容器内运行**。当前 Compose 用 CDI 映射 `nvidia.com/gpu=0/1`，并设置 `LD_LIBRARY_PATH=/build`；构建验证脚本使用 `--gpus all`。构建脚本：`scripts/llama-cpp-mainline-build.sh`（该二进制也是 Qwen 系列 role 复用的共享 runtime）。
 - 可选优化：`-DGGML_NCCL=OFF` 重建可消除 NCCL 依赖（本机 layer split 用不到 NCCL）；多卡如需可调 `GGML_SCHED_MAX_SPLIT_INPUTS`（当前不用）。
 
 ### 3.5 mainline + DSpark 快速基准（2026-08-17）
@@ -547,7 +547,7 @@ ansible-playbook playbooks/deploy-deepseek-v4-mainline.yml --tags verify
 - 学习笔记：`docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`
 - 实验规范：`_bmad-output/implementation-artifacts/spec-deepseek-v4-memory-prefill-experiments.md`
 - 研究：`_bmad-output/planning-artifacts/research/technical-deepseek-v4-gguf-memory-and-prefill-optimization-research-2026-08-14.md`
-- 构建脚本：`scripts/deepseek-v4-mainline-build.sh`
+- 构建脚本：`scripts/llama-cpp-mainline-build.sh`
 - GGUF 张量名检查（校验 `-ot` 正则用）：`scripts/gguf-tensor-names.py`
 - DSpark/MTP 合并 PR：https://github.com/ggml-org/llama.cpp/pull/25784
 - DSpark 实测文章：https://rohitraj.tech/ar/notes/deepseek-dspark-speculative-decoding-llamacpp-2026

@@ -1,24 +1,33 @@
 #!/bin/bash
 # Build mainline llama.cpp (DeepSeek V4 MTP+DSpark support) in an isolated dir.
+# Shared by every runtime that serves via this binary (DeepSeek, Qwen, ...).
 # Target: llm-server (ubuntu user, passwordless sudo). This does NOT touch the
 # current ik_llama.cpp build under /opt/deepseek-v4-ik.
 #
 # Usage on the guest (detached, resumable-ish):
-#   nohup ./deepseek-v4-mainline-build.sh > /tmp/mainline-build.log 2>&1 &
+#   nohup ./llama-cpp-mainline-build.sh > /tmp/mainline-build.log 2>&1 &
+#
+# Takes an optional install root. Defaults to the path llm-server has always
+# used, so existing callers are unaffected; llm-workstation passes
+# /opt/llama-cpp-mainline because it never ran DeepSeek. The path does not
+# affect the compiled binary, so EXPECTED_BINARY_SHA256 holds either way.
+#   nohup ./llama-cpp-mainline-build.sh /opt/llama-cpp-mainline > /tmp/mainline-build.log 2>&1 &
 #
 # Pinned runtime: ggml-org/llama.cpp @ 10bf611e533d81f739128304991c5e133c6aebd8
 # (2026-08-16 master HEAD; >= 596a579 which merged DeepSeek V4 MTP+DSpark #25784).
 set -euo pipefail
 
 PIN=10bf611e533d81f739128304991c5e133c6aebd8
-ROOT=/opt/deepseek-v4-mainline
+ROOT="${1:-/opt/deepseek-v4-mainline}"
 SRC="$ROOT/src"
 BUILD="$SRC/build"
 RUNTIME_IMAGE=approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8
 EXPECTED_BINARY_SHA256=2e63f6a8aa2508d129aaef1d59769754e2ae37558b9eec3dbe8d0307ea4d7074
 
 sudo mkdir -p "$ROOT" "$SRC"
-sudo chown -R ubuntu:ubuntu "$ROOT"
+# Not hardcoded to ubuntu: llm-server's login user is ubuntu, llm-workstation's
+# is will, and the build runs unprivileged after this point either way.
+sudo chown -R "$(id -un):$(id -gn)" "$ROOT"
 
 if [ ! -d "$SRC/.git" ]; then
     echo "[clone] partial clone of ggml-org/llama.cpp"
