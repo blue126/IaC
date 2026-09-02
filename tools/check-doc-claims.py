@@ -305,24 +305,6 @@ CLAIMS = (
         "netboxcommunity/netbox:v4.1.11",
         _table_value,
     ),
-    Claim(
-        "service.llm-server.engine-version",
-        "docs/deployment/llm-server-deployment.md",
-        "defaults/main.yml — 关键变量::llm_server_engine_version",
-        "ansible/roles/llm-server/defaults/main.yml",
-        "llm_server_engine_version",
-        "f7923739",
-        _fenced_yaml_value,
-    ),
-    Claim(
-        "service.llm-server.webui-port",
-        "docs/deployment/llm-server-deployment.md",
-        "defaults/main.yml — 关键变量::llm_server_webui_port",
-        "ansible/roles/llm-server/defaults/main.yml",
-        "llm_server_webui_port",
-        3000,
-        _fenced_yaml_value,
-    ),
 )
 
 

@@ -32,24 +32,28 @@ NETBOX_DOCUMENT = """# Netbox
 | `netbox_port` | `8080` | Port |
 """
 
-LLM_DOCUMENT = """# LLM Server
-
-### `defaults/main.yml` — 关键变量
-
-```yaml
-llm_server_engine_version: "f7923739"
-llm_server_webui_port: 3000
-```
-"""
-
 NETBOX_DEFAULTS = """---
 netbox_port: 8080
 netbox_image: "netboxcommunity/netbox:v4.1.11"
 """
 
-LLM_DEFAULTS = """---
-llm_server_engine_version: "f7923739"
-llm_server_webui_port: 3000
+# Synthetic fixture for exercising the fenced-yaml locator in isolation, via a
+# hand-built Claim rather than a real CLAIMS entry. The real-world example
+# this used to piggyback on (the llm-server role) was deleted; the locator
+# behavior it verifies is unrelated to that role's lifecycle.
+FENCED_DOCUMENT = """# Fenced Sample
+
+### `defaults/main.yml` — 关键变量
+
+```yaml
+fenced_sample_engine_version: "f7923739"
+fenced_sample_webui_port: 3000
+```
+"""
+
+FENCED_DEFAULTS = """---
+fenced_sample_engine_version: "f7923739"
+fenced_sample_webui_port: 3000
 """
 
 
@@ -58,9 +62,7 @@ class Fixture:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT)
-        self.write("docs/deployment/llm-server-deployment.md", LLM_DOCUMENT)
         self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
-        self.write("ansible/roles/llm-server/defaults/main.yml", LLM_DEFAULTS)
 
     def write(self, relative_path: str, content: str) -> None:
         path = self.root / relative_path
@@ -93,7 +95,7 @@ class DocClaimsTest(unittest.TestCase):
         self.assertEqual(claim["status"], status)
         self.assertEqual(claim["reason"], reason)
 
-    def test_repository_fixture_has_four_verified_claims(self) -> None:
+    def test_repository_fixture_has_verified_claims(self) -> None:
         report = CHECKER.build_report(REPOSITORY_ROOT)
         self.assertEqual(report["schema_version"], 1)
         self.assertRegex(report["revision"], r"^[0-9a-f]{40}$")
@@ -101,7 +103,10 @@ class DocClaimsTest(unittest.TestCase):
             [claim["id"] for claim in report["claims"]],
             [claim.claim_id for claim in CHECKER.CLAIMS],
         )
-        self.assertEqual([claim["status"] for claim in report["claims"]], ["verified"] * 4)
+        self.assertEqual(
+            [claim["status"] for claim in report["claims"]],
+            ["verified"] * len(CHECKER.CLAIMS),
+        )
         for claim in report["claims"]:
             self.assertRegex(claim["document"]["sha256"], r"^[0-9a-f]{64}$")
             self.assertRegex(claim["oracle"]["sha256"], r"^[0-9a-f]{64}$")
@@ -223,47 +228,63 @@ Image | "netboxcommunity/netbox:v4.1.11" | `netbox_image`
         self.fixture.replace("ansible/roles/netbox/defaults/main.yml", "netbox_port: 8080", "netbox_port:\n  value: 8080")
         self.assert_reason("service.netbox.port", "indeterminate", "oracle_non_scalar")
 
+    def fenced_claim(self, oracle_key: str, registry_value: object = "f7923739") -> dict[str, object]:
+        claim = CHECKER.Claim(
+            "test.fenced-sample",
+            "docs/fenced-sample.md",
+            f"defaults/main.yml — 关键变量::{oracle_key}",
+            "ansible/fenced-sample/defaults/main.yml",
+            oracle_key,
+            registry_value,
+            CHECKER._fenced_yaml_value,
+        )
+        return CHECKER._result_for_claim(self.fixture.root, claim)
+
     def test_fenced_yaml_locator_is_section_scoped_and_unique(self) -> None:
+        self.fixture.write("ansible/fenced-sample/defaults/main.yml", FENCED_DEFAULTS)
         self.fixture.write(
-            "docs/deployment/llm-server-deployment.md",
-            """# LLM Server
+            "docs/fenced-sample.md",
+            """# Fenced Sample
 
 ```yaml
-llm_server_webui_port: 9999
+fenced_sample_webui_port: 9999
 ```
 
 ### `defaults/main.yml` — 关键变量
 
 ```yaml
-llm_server_engine_version: "f7923739"
-llm_server_webui_port: 3000
-llm_server_webui_port: 3000
+fenced_sample_engine_version: "f7923739"
+fenced_sample_webui_port: 3000
+fenced_sample_webui_port: 3000
 ```
 """,
         )
-        self.assert_reason("service.llm-server.webui-port", "indeterminate", "locator_multiple")
+        result = self.fenced_claim("fenced_sample_webui_port", 3000)
+        self.assertEqual(result["status"], "indeterminate")
+        self.assertEqual(result["reason"], "locator_multiple")
 
     def test_heading_and_fenced_yaml_markdown_variants(self) -> None:
+        self.fixture.write("ansible/fenced-sample/defaults/main.yml", FENCED_DEFAULTS)
         for opener, inner_non_closer, closer in (
             ("~~~~yaml", "~~~", "~~~~"),
             ("````yaml", "~~~", "````"),
         ):
             with self.subTest(opener=opener):
                 self.fixture.write(
-                    "docs/deployment/llm-server-deployment.md",
-                    f"""# LLM Server
+                    "docs/fenced-sample.md",
+                    f"""# Fenced Sample
 
    ### `defaults/main.yml` — 关键变量
 
 {opener}
-llm_server_engine_version: "f7923739"
+fenced_sample_engine_version: "f7923739"
 {inner_non_closer}
-llm_server_webui_port: 3000
+fenced_sample_webui_port: 3000
 {closer}
 """,
                 )
-                report = CHECKER.build_report(self.fixture.root)
-                self.assertEqual([claim["status"] for claim in report["claims"][2:]], ["verified", "verified"])
+                self.assertEqual(self.fenced_claim("fenced_sample_engine_version")["status"], "verified")
+                self.assertEqual(self.fenced_claim("fenced_sample_webui_port", 3000)["status"], "verified")
 
     def test_source_symlink_cannot_escape_repository_root(self) -> None:
         sentinel = "OUTSIDE_SECRET_SENTINEL"

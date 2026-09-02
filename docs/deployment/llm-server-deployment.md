@@ -1,5 +1,11 @@
 # MiniMax M2.5 LLM Server IaC 部署方案
 
+> **状态：历史参考，代码已删除。** 本文档描述的 `ansible/roles/llm-server` 和
+> `ansible/playbooks/deploy-llm-server.yml` 已于多模型自由切换架构退役后实际删除
+> （退役原因见 [2026-02-16-llm-server-deployment-lessons.md](../learningnotes/2026-02-16-llm-server-deployment-lessons.md)
+> 及 `deepseek-v4` role 的受控发布框架）。文中命令和文件路径不可执行，仅保留作为
+> 架构演进的历史记录。
+
 ## Context
 
 将 `minimax-llama.md` 中的手动部署方案转化为符合本 repo 约定的 Terraform + Ansible 自动化部署。目标：一条 `terraform apply` 创建 VM，一条 `ansible-playbook` 完成从裸机到可用推理服务的全部配置。
