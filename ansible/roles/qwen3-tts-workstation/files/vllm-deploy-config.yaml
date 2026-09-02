@@ -32,7 +32,17 @@ stages:
       temperature: 0.6
       top_k: 50
       seed: 42
-      max_tokens: 512
+      # Upstream ships 512, which caps a request at roughly 55 seconds of
+      # audio: measured on this host, 220 Chinese characters synthesise fine
+      # and 264 fail after 14.2s with "did not emit codec EOS before its token
+      # budget (512/512)". A reader client sending whole paragraphs hits that
+      # constantly and retries, which looks like a slow service rather than a
+      # failing one. stage 0's max_model_len is 4096 and the ICL prompt takes
+      # ~181, so 2048 is comfortably inside the window and lifts the ceiling to
+      # roughly 3.5 minutes of audio per request. The cost of raising it is
+      # that a degenerate no-EOS generation now burns ~57s instead of ~14s
+      # before it is rejected.
+      max_tokens: 2048
       min_tokens: 2
       repetition_penalty: 1.05
     silence_ban_frames: 0
