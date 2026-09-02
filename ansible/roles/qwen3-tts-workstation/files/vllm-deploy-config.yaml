@@ -45,6 +45,15 @@ stages:
       max_tokens: 2048
       min_tokens: 2
       repetition_penalty: 1.05
+    # Left off deliberately. Clips come back with ~400ms of leading and ~350ms
+    # of trailing near-silence, so back-to-back sentence playback has ~775ms of
+    # dead air at each seam. This knob looks like the fix and is not: it bans
+    # the 12 codec tokens that encode true digital silence, but what the model
+    # actually emits at the head of a clip is low-level noise around 0.2-0.7%
+    # of peak, which uses other tokens. Measured 15 samples per arm: seam median
+    # 775ms at 0 and 806ms at 10, i.e. no effect. Trimming on an energy
+    # threshold is the approach that would work -- speech sits 10x above that
+    # noise floor -- but it needs a decoder in the shim for non-PCM formats.
     silence_ban_frames: 0
     subtalker_sampling_params:
       do_sample: true
