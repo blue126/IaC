@@ -1,0 +1,174 @@
+---
+- name: Load CI toolchain BOM for upgrade verification
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
+    name: ci_toolchain_bom
+
+- name: Derive exact final plugin collection
+  ansible.builtin.set_fact:
+    jenkins_upgrade_core_managed_ids: >-
+      {{ ci_toolchain_bom.jenkins.plugin_upgrade.core_managed_detached |
+         map(attribute='id') | list }}
+    jenkins_upgrade_final_plugin_lock: >-
+      {{ (ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+          rejectattr('id', 'in',
+            ci_toolchain_bom.jenkins.plugin_upgrade.core_managed_detached |
+            map(attribute='id') | list) | list) +
+         ci_toolchain_bom.jenkins.plugin_upgrade.core_managed_detached }}
+
+- name: Read final Jenkins package version
+  ansible.builtin.command:
+    argv: [dpkg-query, -W, "-f=${Version}", jenkins]
+  register: jenkins_upgrade_final_package
+  changed_when: false
+
+- name: Read final Jenkins Java runtime
+  ansible.builtin.command:
+    argv: ["{{ jenkins_upgrade_java_command }}", -version]
+  register: jenkins_upgrade_final_java
+  changed_when: false
+
+- name: Read final Temurin dependency package versions
+  ansible.builtin.command:
+    argv: [dpkg-query, -W, "-f=${Version}", "{{ item.name }}"]
+  loop: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_dependencies }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: jenkins_upgrade_final_java_dependencies
+  changed_when: false
+
+- name: Read final Jenkins service state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, jenkins]
+  register: jenkins_upgrade_final_service
+  changed_when: false
+
+- name: Check final Jenkins HTTP state
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+    status_code: 200
+    timeout: 10
+  register: jenkins_upgrade_final_http
+
+- name: Read the Jenkins service process identifier
+  ansible.builtin.command:
+    argv: [systemctl, show, --property=MainPID, --value, jenkins]
+  register: jenkins_upgrade_final_pid
+  changed_when: false
+
+- name: Read the Jenkins service Java executable
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - -f
+      - "/proc/{{ jenkins_upgrade_final_pid.stdout }}/exe"
+  register: jenkins_upgrade_final_java_executable
+  changed_when: false
+
+- name: Count failed plugins in the current Jenkins service invocation
+  ansible.builtin.shell: >-
+    journalctl -u jenkins
+    --since "$(systemctl show --property=ActiveEnterTimestamp --value jenkins)"
+    --no-pager | awk '/Failed Loading plugin/{count++} END{print count+0}'
+  args:
+    executable: /bin/bash
+  register: jenkins_upgrade_final_failed_plugins
+  changed_when: false
+
+- name: Check final locked JPI artifacts
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
+    checksum_algorithm: sha256
+  loop: "{{ jenkins_upgrade_final_plugin_lock }}"
+  loop_control:
+    label: "{{ item.id }}"
+  register: jenkins_upgrade_final_jpi
+
+- name: Check final locked HPI artifacts
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.id }}.hpi"
+    checksum_algorithm: sha256
+  loop: "{{ jenkins_upgrade_final_plugin_lock }}"
+  loop_control:
+    label: "{{ item.id }}"
+  register: jenkins_upgrade_final_hpi
+
+- name: Check final locked plugin disabled markers
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.0.id }}.{{ item.1 }}.disabled"
+  loop: >-
+    {{ jenkins_upgrade_final_plugin_lock |
+       product(['jpi', 'hpi']) | list }}
+  loop_control:
+    label: "{{ item.0.id }}.{{ item.1 }}.disabled"
+  register: jenkins_upgrade_final_disabled
+
+- name: Assert exact active plugin artifacts and checksums
+  ansible.builtin.assert:
+    that:
+      - item.0.stat.exists or item.1.stat.exists
+      - not (item.0.stat.exists and item.1.stat.exists)
+      - >-
+        ((item.0.stat.checksum if item.0.stat.exists else item.1.stat.checksum)
+         == item.0.item.sha256)
+    fail_msg: >-
+      Locked plugin {{ item.0.item.id }} is missing, duplicated, or does not
+      match its exact SHA-256 after activation.
+  loop: "{{ jenkins_upgrade_final_jpi.results | zip(jenkins_upgrade_final_hpi.results) | list }}"
+  loop_control:
+    label: "{{ item.0.item.id }}"
+
+- name: Assert locked plugins are not disabled
+  ansible.builtin.assert:
+    that:
+      - not item.stat.exists
+    fail_msg: "Locked plugin {{ item.item.0.id }} is disabled by {{ item.item.1 }} marker."
+  loop: "{{ jenkins_upgrade_final_disabled.results }}"
+  loop_control:
+    label: "{{ item.item.0.id }}.{{ item.item.1 }}.disabled"
+
+- name: Read built-in executor count
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -F
+      - "<numExecutors>{{ ci_toolchain_bom.jenkins.controller_executors_bootstrap }}</numExecutors>"
+      - "{{ jenkins_home }}/config.xml"
+  register: jenkins_upgrade_final_executors
+  changed_when: false
+
+- name: Find final Jenkins node configuration files
+  ansible.builtin.find:
+    paths: "{{ jenkins_home }}/nodes"
+    patterns: config.xml
+    recurse: true
+    file_type: file
+  register: jenkins_upgrade_final_nodes
+
+- name: Assert exact final Jenkins state and unchanged topology
+  ansible.builtin.assert:
+    that:
+      - >-
+        jenkins_upgrade_final_package.stdout ==
+        ci_toolchain_bom.jenkins.core.upgrade_path[-1].package_version
+      - ci_toolchain_bom.jenkins.java.upgrade.runtime_version in jenkins_upgrade_final_java.stderr
+      - >-
+        jenkins_upgrade_final_java_dependencies.results |
+        map(attribute='stdout') | list ==
+        ci_toolchain_bom.jenkins.java.upgrade.package_dependencies |
+        map(attribute='version') | list
+      - jenkins_upgrade_final_service.stdout == 'active'
+      - jenkins_upgrade_final_http.status == 200
+      - jenkins_upgrade_final_pid.stdout | int > 0
+      - jenkins_upgrade_final_failed_plugins.stdout == '0'
+      - >-
+        jenkins_upgrade_final_java_executable.stdout ==
+        jenkins_upgrade_java_command
+      - jenkins_upgrade_final_executors.rc == 0
+      - >-
+        (jenkins_upgrade_final_nodes.files | map(attribute='path') | sort | list) ==
+        (jenkins_upgrade_initial_node_paths | default([]) | sort | list)
+      - not jenkins_manage_casc | bool
+    fail_msg: >-
+      Final Jenkins package, Java, service, HTTP, built-in executor, or node
+      topology state differs from the approved upgrade contract.

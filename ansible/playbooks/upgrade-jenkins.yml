@@ -1,0 +1,33 @@
+---
+- name: Upgrade Jenkins controller through the approved LTS path
+  hosts: jenkins
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Run the isolated Jenkins upgrade lifecycle
+      ansible.builtin.include_role:
+        name: jenkins
+        tasks_from: upgrade
+  tags: [jenkins_upgrade]
+
+- name: Verify the upgraded Jenkins controller
+  hosts: jenkins
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Run exact Jenkins upgrade verification
+      ansible.builtin.include_role:
+        name: jenkins
+        tasks_from: upgrade-verify
+  tags: [verify]
+
+- name: Reconcile target Core plugin dependencies after upgrade
+  hosts: jenkins
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Reconcile exact post-upgrade plugin dependencies
+      ansible.builtin.include_role:
+        name: jenkins
+        tasks_from: upgrade-reconcile
+  tags: [never, reconcile]

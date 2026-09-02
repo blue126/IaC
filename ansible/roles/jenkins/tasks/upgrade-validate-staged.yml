@@ -1,0 +1,12 @@
+---
+- name: Assert staged artifacts are unique and checksummed
+  ansible.builtin.assert:
+    that:
+      - item.matched | int == 1
+      - item.checksum == item.expected_sha256
+    fail_msg: >-
+      checksum mismatch: staged {{ item.id }} is missing, duplicated, or does
+      not match its canonical SHA-256; no live mutation is permitted.
+  loop: "{{ jenkins_upgrade_staged_validation_items }}"
+  loop_control:
+    label: "{{ item.id }}"

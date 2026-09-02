@@ -1,0 +1,481 @@
+---
+- name: Validate Jenkins upgrade authorization gates
+  ansible.builtin.include_tasks: upgrade-validate-gates.yml
+
+- name: Load exact CI toolchain BOM
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
+    name: ci_toolchain_bom
+
+- name: Validate the canonical Jenkins upgrade lock
+  ansible.builtin.include_tasks: upgrade-validate-lock.yml
+
+- name: Validate controller platform before upgrade mutation
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Debian'
+      - ansible_distribution_release == 'bookworm'
+      - ansible_architecture == 'x86_64'
+    fail_msg: "The approved Jenkins upgrade supports only Debian bookworm on x86_64."
+
+- name: Read installed Jenkins source package
+  ansible.builtin.command:
+    argv: [dpkg-query, -W, "-f=${Version}", jenkins]
+  register: jenkins_upgrade_source_package
+  changed_when: false
+
+- name: Read Jenkins source service process identifier
+  ansible.builtin.command:
+    argv: [systemctl, show, --property=MainPID, --value, jenkins]
+  register: jenkins_upgrade_source_pid
+  changed_when: false
+
+- name: Read Jenkins source process Java executable
+  ansible.builtin.command:
+    argv: [readlink, -f, "/proc/{{ jenkins_upgrade_source_pid.stdout }}/exe"]
+  register: jenkins_upgrade_source_java_executable
+  changed_when: false
+
+- name: Read Jenkins source process Java version
+  ansible.builtin.command:
+    argv: ["{{ jenkins_upgrade_source_java_executable.stdout }}", -version]
+  register: jenkins_upgrade_source_java
+  changed_when: false
+
+- name: Find all live Jenkins plugin artifacts
+  ansible.builtin.find:
+    paths: "{{ jenkins_home }}/plugins"
+    patterns: ["*.jpi", "*.hpi"]
+    recurse: false
+    file_type: file
+  register: jenkins_upgrade_live_plugin_artifacts
+
+- name: Collect live JPI and HPI plugin identifiers
+  ansible.builtin.set_fact:
+    jenkins_upgrade_live_jpi_ids: >-
+      {{ jenkins_upgrade_live_plugin_artifacts.files | map(attribute='path') |
+         map('basename') | select('match', '.*[.]jpi$') |
+         map('regex_replace', '[.]jpi$', '') | sort | list }}
+    jenkins_upgrade_live_hpi_ids: >-
+      {{ jenkins_upgrade_live_plugin_artifacts.files | map(attribute='path') |
+         map('basename') | select('match', '.*[.]hpi$') |
+         map('regex_replace', '[.]hpi$', '') | sort | list }}
+
+- name: Validate duplicate plugin artifacts
+  ansible.builtin.include_tasks: upgrade-validate-duplicates.yml
+
+- name: Check source plugin JPI artifacts
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.key }}.jpi"
+  loop: "{{ jenkins_upgrade_expected_source_plugins | dict2items }}"
+  register: jenkins_upgrade_source_jpi
+
+- name: Check source plugin HPI artifacts
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/plugins/{{ item.key }}.hpi"
+  loop: "{{ jenkins_upgrade_expected_source_plugins | dict2items }}"
+  register: jenkins_upgrade_source_hpi
+
+- name: Reject missing source plugin artifacts
+  ansible.builtin.assert:
+    that: item.0.stat.exists or item.1.stat.exists
+    fail_msg: "source drift: plugin {{ item.0.item.key }} is missing."
+  loop: "{{ jenkins_upgrade_source_jpi.results | zip(jenkins_upgrade_source_hpi.results) | list }}"
+
+- name: Read exact source plugin versions
+  ansible.builtin.shell: >-
+    set -o pipefail; unzip -p {{ ((item.0.stat.exists | bool) |
+    ternary(item.0.stat.path, item.1.stat.path)) | quote }}
+    META-INF/MANIFEST.MF | sed -n 's/^Plugin-Version: //p' | tr -d '\r'
+  args:
+    executable: /bin/bash
+  loop: "{{ jenkins_upgrade_source_jpi.results | zip(jenkins_upgrade_source_hpi.results) | list }}"
+  register: jenkins_upgrade_source_plugin_versions
+  changed_when: false
+
+- name: Initialize observed Jenkins source tuple
+  ansible.builtin.set_fact:
+    jenkins_upgrade_observed_source_core: "{{ jenkins_upgrade_source_package.stdout }}"
+    jenkins_upgrade_observed_source_java_executable: "{{ jenkins_upgrade_source_java_executable.stdout }}"
+    jenkins_upgrade_observed_source_java_version: "{{ jenkins_upgrade_source_java.stderr }}"
+    jenkins_upgrade_observed_source_plugins: []
+
+- name: Collect observed Jenkins source plugin tuple
+  ansible.builtin.set_fact:
+    jenkins_upgrade_observed_source_plugins: >-
+      {{ jenkins_upgrade_observed_source_plugins + [{
+        'id': item.item.0.item.key, 'observed': item.stdout,
+        'expected': item.item.0.item.value }] }}
+  loop: "{{ jenkins_upgrade_source_plugin_versions.results }}"
+
+- name: Validate exact Jenkins source tuple
+  ansible.builtin.include_tasks: upgrade-validate-source.yml
+
+- name: Find initial Jenkins node configuration files
+  ansible.builtin.find:
+    paths: "{{ jenkins_home }}/nodes"
+    patterns: config.xml
+    recurse: true
+    file_type: file
+  register: jenkins_upgrade_initial_nodes
+
+- name: Record initial Jenkins topology
+  ansible.builtin.set_fact:
+    jenkins_upgrade_initial_node_paths: >-
+      {{ jenkins_upgrade_initial_nodes.files | map(attribute='path') | sort | list }}
+
+- name: Check that the Jenkins upgrade staging path is unused
+  ansible.builtin.stat:
+    path: "{{ jenkins_upgrade_staging_dir }}"
+  register: jenkins_upgrade_existing_staging
+
+- name: Reject a pre-existing Jenkins upgrade staging path
+  ansible.builtin.assert:
+    that: not jenkins_upgrade_existing_staging.stat.exists
+    fail_msg: "Refusing to reuse or delete pre-existing staging data."
+
+- name: Stage, activate, and verify the exact Jenkins upgrade
+  block:
+    - name: Create root-owned Jenkins upgrade staging directory
+      ansible.builtin.file:
+        path: "{{ jenkins_upgrade_staging_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Download exact Jenkins plugin closure
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/{{ item.id }}.jpi"
+        checksum: "sha256:{{ item.sha256 }}"
+        mode: "0600"
+      loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+
+    - name: Download exact Temurin package
+      ansible.builtin.get_url:
+        url: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_url }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/temurin-21-jre.deb"
+        checksum: "sha256:{{ ci_toolchain_bom.jenkins.java.upgrade.package_sha256 }}"
+        mode: "0600"
+
+    - name: Download exact Temurin package dependencies
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/{{ item.name }}.deb"
+        checksum: "sha256:{{ item.sha256 }}"
+        mode: "0600"
+      loop: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_dependencies }}"
+      loop_control:
+        label: "{{ item.name }}={{ item.version }}"
+
+    - name: Download exact Jenkins Core source package for rollback
+      ansible.builtin.get_url:
+        url: "{{ ci_toolchain_bom.jenkins.core.upgrade_source.url }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/jenkins-source.deb"
+        checksum: "sha256:{{ ci_toolchain_bom.jenkins.core.upgrade_source.sha256 }}"
+        mode: "0600"
+
+    - name: Download every exact Jenkins Core phase
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/jenkins-{{ item.version }}.deb"
+        checksum: "sha256:{{ item.sha256 }}"
+        mode: "0600"
+      loop: "{{ ci_toolchain_bom.jenkins.core.upgrade_path }}"
+
+    - name: Download Adoptium signing key to staging
+      ansible.builtin.get_url:
+        url: "{{ ci_toolchain_bom.jenkins.java.upgrade.repository_key_url }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/adoptium.asc"
+        mode: "0600"
+
+    - name: Read the staged Adoptium key fingerprints
+      ansible.builtin.shell: >-
+        gpg --batch --show-keys --with-colons
+        {{ (jenkins_upgrade_staging_dir + '/adoptium.asc') | quote }} |
+        sed -n '0,/^fpr:/{s/^fpr:::::::::\([0-9A-F]*\):$/\1/p}'
+      args:
+        executable: /bin/bash
+      register: jenkins_upgrade_adoptium_fingerprints
+      changed_when: false
+
+    - name: Assert one exact Adoptium signing key fingerprint
+      ansible.builtin.assert:
+        that:
+          - >-
+            jenkins_upgrade_adoptium_fingerprints.stdout_lines ==
+            [ci_toolchain_bom.jenkins.java.upgrade.repository_key_fingerprint]
+
+    - name: Read staged plugin checksums
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_staging_dir }}/{{ item.id }}.jpi"
+        checksum_algorithm: sha256
+      loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+      register: jenkins_upgrade_staged_plugins
+
+    - name: Read staged Temurin checksum
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_staging_dir }}/temurin-21-jre.deb"
+        checksum_algorithm: sha256
+      register: jenkins_upgrade_staged_temurin
+
+    - name: Read staged Temurin dependency checksums
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_staging_dir }}/{{ item.name }}.deb"
+        checksum_algorithm: sha256
+      loop: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_dependencies }}"
+      loop_control:
+        label: "{{ item.name }}={{ item.version }}"
+      register: jenkins_upgrade_staged_temurin_dependencies
+
+    - name: Read staged source Core checksum
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_staging_dir }}/jenkins-source.deb"
+        checksum_algorithm: sha256
+      register: jenkins_upgrade_staged_source_core
+
+    - name: Read staged Core phase checksums
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_staging_dir }}/jenkins-{{ item.version }}.deb"
+        checksum_algorithm: sha256
+      loop: "{{ ci_toolchain_bom.jenkins.core.upgrade_path }}"
+      register: jenkins_upgrade_staged_core_phases
+
+    - name: Initialize staged validation input
+      ansible.builtin.set_fact:
+        jenkins_upgrade_staged_validation_items: []
+
+    - name: Add staged plugins to validation input
+      ansible.builtin.set_fact:
+        jenkins_upgrade_staged_validation_items: >-
+          {{ jenkins_upgrade_staged_validation_items + [{
+            'id': item.item.id, 'matched': (item.stat.exists | ternary(1, 0)),
+            'checksum': item.stat.checksum | default(''),
+            'expected_sha256': item.item.sha256 }] }}
+      loop: "{{ jenkins_upgrade_staged_plugins.results }}"
+
+    - name: Add staged Temurin dependencies to validation input
+      ansible.builtin.set_fact:
+        jenkins_upgrade_staged_validation_items: >-
+          {{ jenkins_upgrade_staged_validation_items + [{
+            'id': item.item.name,
+            'matched': (item.stat.exists | ternary(1, 0)),
+            'checksum': item.stat.checksum | default(''),
+            'expected_sha256': item.item.sha256 }] }}
+      loop: "{{ jenkins_upgrade_staged_temurin_dependencies.results }}"
+      loop_control:
+        label: "{{ item.item.name }}={{ item.item.version }}"
+
+    - name: Add staged Temurin and source Core to validation input
+      ansible.builtin.set_fact:
+        jenkins_upgrade_staged_validation_items: >-
+          {{ jenkins_upgrade_staged_validation_items + [
+            {'id': 'temurin',
+             'matched': (jenkins_upgrade_staged_temurin.stat.exists | ternary(1, 0)),
+             'checksum': jenkins_upgrade_staged_temurin.stat.checksum | default(''),
+             'expected_sha256': ci_toolchain_bom.jenkins.java.upgrade.package_sha256},
+            {'id': 'jenkins-source',
+             'matched': (jenkins_upgrade_staged_source_core.stat.exists | ternary(1, 0)),
+             'checksum': jenkins_upgrade_staged_source_core.stat.checksum | default(''),
+             'expected_sha256': ci_toolchain_bom.jenkins.core.upgrade_source.sha256}
+          ] }}
+
+    - name: Add staged Core phases to validation input
+      ansible.builtin.set_fact:
+        jenkins_upgrade_staged_validation_items: >-
+          {{ jenkins_upgrade_staged_validation_items + [{
+            'id': item.item.version,
+            'matched': (item.stat.exists | ternary(1, 0)),
+            'checksum': item.stat.checksum | default(''),
+            'expected_sha256': item.item.sha256 }] }}
+      loop: "{{ jenkins_upgrade_staged_core_phases.results }}"
+
+    - name: Validate every staged artifact before system mutation
+      ansible.builtin.include_tasks: upgrade-validate-staged.yml
+
+    - name: Create plugin rollback backup directory
+      ansible.builtin.file:
+        path: "{{ jenkins_upgrade_staging_dir }}/plugin-backup"
+        state: directory
+        mode: "0700"
+
+    - name: Back up original locked plugin collection
+      ansible.builtin.copy:
+        src: >-
+          {{ jenkins_home }}/plugins/{{ item.id }}.{{
+             (item.id in jenkins_upgrade_live_hpi_ids) | ternary('hpi', 'jpi') }}
+        dest: >-
+          {{ jenkins_upgrade_staging_dir }}/plugin-backup/{{ item.id }}.{{
+             (item.id in jenkins_upgrade_live_hpi_ids) | ternary('hpi', 'jpi') }}
+        remote_src: true
+        mode: preserve
+      loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+      when: item.id in (jenkins_upgrade_live_jpi_ids + jenkins_upgrade_live_hpi_ids)
+
+    - name: Check original Jenkins Java override
+      ansible.builtin.stat:
+        path: "{{ jenkins_upgrade_java_override_path }}"
+      register: jenkins_upgrade_original_java_override
+
+    - name: Back up original Jenkins Java override
+      ansible.builtin.copy:
+        src: "{{ jenkins_upgrade_java_override_path }}"
+        dest: "{{ jenkins_upgrade_staging_dir }}/java-override.conf"
+        remote_src: true
+        mode: preserve
+      when: jenkins_upgrade_original_java_override.stat.exists
+
+    - name: Configure verified Java package source and runtime
+      block:
+        - name: Create apt keyring directory
+          ansible.builtin.file:
+            path: "{{ ci_toolchain_bom.jenkins.java.upgrade.repository_key_path | dirname }}"
+            state: directory
+            mode: "0755"
+        - name: Install verified Adoptium signing key
+          ansible.builtin.copy:
+            src: "{{ jenkins_upgrade_staging_dir }}/adoptium.asc"
+            dest: "{{ ci_toolchain_bom.jenkins.java.upgrade.repository_key_path }}"
+            remote_src: true
+            mode: "0644"
+        - name: Configure signed Adoptium apt repository
+          ansible.builtin.apt_repository:
+            repo: "{{ ci_toolchain_bom.jenkins.java.upgrade.repository }}"
+            filename: adoptium
+            state: present
+            update_cache: false
+        - name: Install checksummed Temurin package dependencies
+          ansible.builtin.apt:
+            deb: "{{ jenkins_upgrade_staging_dir }}/{{ item.name }}.deb"
+            state: present
+          loop: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_dependencies }}"
+          loop_control:
+            label: "{{ item.name }}={{ item.version }}"
+        - name: Install checksummed Temurin runtime
+          ansible.builtin.apt:
+            deb: "{{ jenkins_upgrade_staging_dir }}/temurin-21-jre.deb"
+            state: present
+        - name: Create Jenkins systemd override directory
+          ansible.builtin.file:
+            path: "{{ jenkins_systemd_override_dir }}"
+            state: directory
+            mode: "0755"
+        - name: Select exact Temurin runtime for Jenkins
+          ansible.builtin.template:
+            src: jenkins.service.java.conf.j2
+            dest: "{{ jenkins_upgrade_java_override_path }}"
+            mode: "0644"
+
+    - name: Activate plugins and complete first Core phase with rollback
+      block:
+        - name: Stop Jenkins before plugin activation
+          ansible.builtin.systemd:
+            name: jenkins
+            state: stopped
+        - name: Copy locked plugins to live temporary paths
+          ansible.builtin.copy:
+            src: "{{ jenkins_upgrade_staging_dir }}/{{ item.id }}.jpi"
+            dest: >-
+              {{ jenkins_home }}/plugins/.{{ item.id }}.{{
+                 (item.id in jenkins_upgrade_live_hpi_ids) | ternary('hpi', 'jpi') }}.upgrade
+            remote_src: true
+            owner: jenkins
+            group: jenkins
+            mode: "0644"
+          loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+        - name: Atomically activate locked plugins without dependency resolution
+          ansible.builtin.command:
+            argv:
+              - mv
+              - -f
+              - >-
+                {{ jenkins_home }}/plugins/.{{ item.id }}.{{
+                   (item.id in jenkins_upgrade_live_hpi_ids) | ternary('hpi', 'jpi') }}.upgrade
+              - >-
+                {{ jenkins_home }}/plugins/{{ item.id }}.{{
+                   (item.id in jenkins_upgrade_live_hpi_ids) | ternary('hpi', 'jpi') }}
+          loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+          loop_control:
+            label: "{{ item.id }} (with_dependencies=false)"
+        - name: Apply and verify first Jenkins Core phase
+          ansible.builtin.include_tasks: upgrade-phase.yml
+          vars:
+            jenkins_upgrade_phase: "{{ ci_toolchain_bom.jenkins.core.upgrade_path[0] }}"
+      rescue:
+        - name: Remove partially activated locked plugin files
+          ansible.builtin.file:
+            path: "{{ jenkins_home }}/plugins/{{ item.0.id }}.{{ item.1 }}"
+            state: absent
+          loop: >-
+            {{ ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+               product(['jpi', 'hpi']) | list }}
+        - name: Remove partial live plugin temporary files
+          ansible.builtin.file:
+            path: "{{ jenkins_home }}/plugins/.{{ item.0.id }}.{{ item.1 }}.upgrade"
+            state: absent
+          loop: >-
+            {{ ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+               product(['jpi', 'hpi']) | list }}
+        - name: Find original plugin backup files
+          ansible.builtin.find:
+            paths: "{{ jenkins_upgrade_staging_dir }}/plugin-backup"
+            recurse: false
+            file_type: file
+          register: jenkins_upgrade_plugin_backups
+        - name: Restore complete original plugin collection
+          ansible.builtin.copy:
+            src: "{{ item.path }}"
+            dest: "{{ jenkins_home }}/plugins/{{ item.path | basename }}"
+            remote_src: true
+            owner: jenkins
+            group: jenkins
+            mode: "0644"
+          loop: "{{ jenkins_upgrade_plugin_backups.files }}"
+        - name: Restore exact source Jenkins Core package
+          ansible.builtin.apt:
+            deb: "{{ jenkins_upgrade_staging_dir }}/jenkins-source.deb"
+            state: present
+            allow_downgrade: true
+        - name: Remove failed-upgrade Java override
+          ansible.builtin.file:
+            path: "{{ jenkins_upgrade_java_override_path }}"
+            state: absent
+        - name: Restore original Jenkins Java override
+          ansible.builtin.copy:
+            src: "{{ jenkins_upgrade_staging_dir }}/java-override.conf"
+            dest: "{{ jenkins_upgrade_java_override_path }}"
+            remote_src: true
+            mode: "0644"
+          when: jenkins_upgrade_original_java_override.stat.exists
+        - name: Pin restored Jenkins to its original Java executable
+          ansible.builtin.copy:
+            content: |
+              [Service]
+              Environment="JENKINS_JAVA_CMD={{ jenkins_upgrade_observed_source_java_executable }}"
+            dest: "{{ jenkins_upgrade_java_override_path }}"
+            mode: "0644"
+          when: not jenkins_upgrade_original_java_override.stat.exists
+        - name: Restart restored source Jenkins controller
+          ansible.builtin.systemd:
+            name: jenkins
+            state: restarted
+            daemon_reload: true
+        - name: Stop after restoring source Jenkins controller
+          ansible.builtin.fail:
+            msg: "First-phase upgrade failed; original plugins, Core, and Java override were restored."
+
+    - name: Apply and verify remaining Jenkins Core phases
+      ansible.builtin.include_tasks: upgrade-phase.yml
+      loop: "{{ ci_toolchain_bom.jenkins.core.upgrade_path[1:] }}"
+      loop_control:
+        loop_var: jenkins_upgrade_phase
+        label: "{{ jenkins_upgrade_phase.version }}"
+
+    - name: Run exact final Jenkins upgrade verification
+      ansible.builtin.include_tasks: upgrade-verify.yml
+  always:
+    - name: Remove this run Jenkins staging data
+      ansible.builtin.file:
+        path: "{{ jenkins_upgrade_staging_dir }}"
+        state: absent

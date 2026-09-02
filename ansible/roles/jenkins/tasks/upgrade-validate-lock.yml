@@ -1,0 +1,88 @@
+---
+- name: Derive canonical Jenkins plugin lock facts
+  ansible.builtin.set_fact:
+    jenkins_upgrade_lock_ids: >-
+      {{ ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+         map(attribute='id') | list }}
+    jenkins_upgrade_lock_urls: >-
+      {{ ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+         map(attribute='url') | list }}
+    jenkins_upgrade_lock_dependency_ids: []
+    jenkins_upgrade_core_managed_ids: >-
+      {{ ci_toolchain_bom.jenkins.plugin_upgrade.core_managed_detached |
+         map(attribute='id') | list }}
+
+- name: Collect canonical Jenkins lock dependency identifiers
+  ansible.builtin.set_fact:
+    jenkins_upgrade_lock_dependency_ids: >-
+      {{ jenkins_upgrade_lock_dependency_ids +
+         (item.dependencies | map(attribute='id') | list) }}
+  loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+  loop_control:
+    label: "{{ item.id }}"
+
+- name: Validate canonical Jenkins Core and plugin lock
+  ansible.builtin.assert:
+    that:
+      - ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='version') | list == ['2.541.3', '2.555.3', '2.568.2']
+      - ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='package_version') | list == ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='version') | list
+      - jenkins_upgrade_lock_ids | length == jenkins_upgrade_lock_ids | unique | length
+      - jenkins_upgrade_lock_urls | length == jenkins_upgrade_lock_urls | unique | length
+      - jenkins_upgrade_lock_dependency_ids | difference(jenkins_upgrade_lock_ids) | length == 0
+      - ci_toolchain_bom.jenkins.plugin_upgrade.roots | difference(jenkins_upgrade_lock_ids) | length == 0
+      - >-
+        (ci_toolchain_bom.jenkins.plugin_upgrade.lock |
+         to_json(sort_keys=true) | hash('sha256')) ==
+        ci_toolchain_bom.jenkins.plugin_upgrade.canonical_lock_sha256
+      - ci_toolchain_bom.jenkins.controller_executors_bootstrap == 2
+      - >-
+        jenkins_upgrade_core_managed_ids ==
+        ['jquery3-api', 'junit', 'plugin-util-api', 'prism-api',
+         'jackson3-api', 'sshd', 'snakeyaml-engine-api', 'command-launcher',
+         'bootstrap5-api', 'bouncycastle-api', 'checks-api', 'echarts-api',
+         'font-awesome-api', 'javax-activation-api', 'jaxb']
+      - jenkins_upgrade_core_managed_ids | length == jenkins_upgrade_core_managed_ids | unique | length
+      - ci_toolchain_bom.jenkins.plugin_upgrade.reconcile_ids == ['cloudbees-folder', 'json-path-api', 'snakeyaml-api']
+      - ci_toolchain_bom.jenkins.java.upgrade.package_dependencies | map(attribute='name') | list == ['p11-kit-modules', 'p11-kit', 'adoptium-ca-certificates']
+    fail_msg: >-
+      incomplete lock: canonical Core/plugin ordering, uniqueness, dependency
+      closure, or approved lock hash validation failed.
+
+- name: Validate every canonical Jenkins plugin artifact entry
+  ansible.builtin.assert:
+    that:
+      - item.id is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - item.version | length > 0
+      - item.url is match('^https://repo[.]jenkins-ci[.]org/artifactory/releases/.+[.]hpi$')
+      - item.sha256 is match('^[0-9a-f]{64}$')
+      - item.required_core is match('^[0-9]+[.][0-9]+([.][0-9]+)?$')
+      - jenkins_upgrade_expected_source_core_version is version(item.required_core, '>=')
+    fail_msg: "incomplete lock entry: {{ item.id | default('unknown') }}"
+  loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
+  loop_control:
+    label: "{{ item.id | default('unknown') }}"
+
+- name: Validate every Core-managed detached plugin entry
+  ansible.builtin.assert:
+    that:
+      - item.id is match('^[A-Za-z0-9][A-Za-z0-9._-]*$')
+      - item.version | length > 0
+      - item.url is match('^https://(repo[.]jenkins-ci[.]org/artifactory/releases|updates[.]jenkins[.]io/download/plugins)/.+[.]hpi$')
+      - item.sha256 is match('^[0-9a-f]{64}$')
+      - item.required_core is match('^[0-9]+[.][0-9]+([.][0-9]+)?$')
+    fail_msg: "incomplete Core-managed detached plugin entry: {{ item.id | default('unknown') }}"
+  loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.core_managed_detached }}"
+  loop_control:
+    label: "{{ item.id | default('unknown') }}"
+
+- name: Validate every Temurin dependency artifact entry
+  ansible.builtin.assert:
+    that:
+      - item.name is match('^[a-z0-9][a-z0-9+.-]*$')
+      - item.version | length > 0
+      - item.url is match('^https://.+[.]deb$')
+      - item.sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: "incomplete Temurin dependency lock entry: {{ item.name | default('unknown') }}"
+  loop: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_dependencies }}"
+  loop_control:
+    label: "{{ item.name | default('unknown') }}"
