@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Map Speech Central voice aliases and proxy Qwen3-TTS responses."""
+"""Proxy Speech Central to the fixed persistent Base profile."""
 
 from __future__ import annotations
 
@@ -7,24 +7,26 @@ import http.client
 import json
 import logging
 import os
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import SplitResult, urlsplit
 
 
-DEFAULT_VOICE_MAP = {
+DEFAULT_VOICE_ALIASES = {
     "alloy": "Uncle_Fu",
     "echo": "Dylan",
-    "fable": "Eric",
+    "fable": "Aiden",
     "onyx": "Uncle_Fu",
-    "ash": "Dylan",
-    "ballad": "Eric",
+    "ash": "Eric",
+    "ballad": "Dylan",
     "cedar": "Uncle_Fu",
-    "verse": "Dylan",
+    "verse": "Ryan",
     "coral": "Vivian",
     "marin": "Serena",
-    "nova": "Vivian",
+    "nova": "Sohee",
     "sage": "Serena",
-    "shimmer": "Vivian",
+    "shimmer": "Ono_Anna",
 }
 
 HOP_BY_HOP_HEADERS = {
@@ -43,11 +45,11 @@ RESPONSE_HEADER_DENYLIST = HOP_BY_HOP_HEADERS | {"date", "server"}
 LOGGER = logging.getLogger("qwen3-tts-shim")
 
 
-def load_voice_map(raw_json: str | None) -> dict[str, str]:
-    """Load an optional full or partial alias override."""
-    voice_map = dict(DEFAULT_VOICE_MAP)
+def load_voice_aliases(raw_json: str | None) -> set[str]:
+    """Load the accepted client aliases without exposing Base speakers."""
+    aliases = set(DEFAULT_VOICE_ALIASES)
     if not raw_json:
-        return voice_map
+        return aliases
 
     parsed = json.loads(raw_json)
     if not isinstance(parsed, dict):
@@ -58,24 +60,18 @@ def load_voice_map(raw_json: str | None) -> dict[str, str]:
             raise ValueError("VOICE_MAP_JSON aliases must be non-empty strings")
         if not isinstance(speaker, str) or not speaker.strip():
             raise ValueError("VOICE_MAP_JSON speakers must be non-empty strings")
-        voice_map[alias.casefold()] = speaker.strip()
-    return voice_map
+        aliases.add(alias.casefold())
+    return aliases
 
 
-VOICE_MAP = load_voice_map(os.getenv("VOICE_MAP_JSON"))
-NATIVE_VOICES = {speaker.casefold(): speaker for speaker in set(VOICE_MAP.values())}
+VOICE_ALIASES = load_voice_aliases(os.getenv("VOICE_ALIASES_JSON"))
 RESPONSE_FORMAT_ALIASES = {"aac": "mp3"}
-
-
-def resolve_voice(value: object) -> str:
-    """Resolve an alias or native speaker and fall back to alloy."""
-    requested = "" if value is None else str(value).strip()
-    normalized = requested.casefold()
-    if normalized in VOICE_MAP:
-        return VOICE_MAP[normalized]
-    if normalized in NATIVE_VOICES:
-        return NATIVE_VOICES[normalized]
-    return VOICE_MAP["alloy"]
+BASE_PROFILE = os.getenv("BASE_PROFILE", "audiobook_narrator_zh").strip()
+if not BASE_PROFILE:
+    raise ValueError("BASE_PROFILE must be a non-empty profile name")
+TTS_MODE = os.getenv("TTS_MODE", "base").casefold()
+if TTS_MODE not in {"customvoice", "base"}:
+    raise ValueError("TTS_MODE must be customvoice or base")
 
 
 def parse_upstream(raw_url: str) -> SplitResult:
@@ -89,13 +85,23 @@ def parse_upstream(raw_url: str) -> SplitResult:
 
 
 UPSTREAM = parse_upstream(os.getenv("UPSTREAM_URL", "http://server:8880"))
-UPSTREAM_MODEL = os.getenv(
-    "UPSTREAM_MODEL", "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
-).strip()
+UPSTREAM_MODEL = os.getenv("UPSTREAM_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-Base").strip()
 if not UPSTREAM_MODEL:
     raise ValueError("UPSTREAM_MODEL must be a non-empty model identifier")
 MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", str(1024 * 1024)))
 READ_CHUNK_BYTES = 64 * 1024
+PROFILE_READY_CACHE_SECONDS = float(os.getenv("PROFILE_READY_CACHE_SECONDS", "30"))
+if PROFILE_READY_CACHE_SECONDS < 0:
+    raise ValueError("PROFILE_READY_CACHE_SECONDS must not be negative")
+_PROFILE_READY_UNTIL = 0.0
+_PROFILE_READY_LOCK = threading.Lock()
+
+
+def reset_profile_ready_cache() -> None:
+    """Clear positive readiness state, primarily for tests and explicit recovery."""
+    global _PROFILE_READY_UNTIL
+    with _PROFILE_READY_LOCK:
+        _PROFILE_READY_UNTIL = 0.0
 
 
 class ShimHTTPServer(ThreadingHTTPServer):
@@ -104,7 +110,7 @@ class ShimHTTPServer(ThreadingHTTPServer):
 
 
 class ShimHandler(BaseHTTPRequestHandler):
-    """Minimal HTTP/1.1 reverse proxy that rewrites only the voice field."""
+    """Minimal HTTP/1.1 reverse proxy for the fixed local Speech API."""
 
     protocol_version = "HTTP/1.1"
     server_version = "qwen3-tts-shim"
@@ -112,6 +118,9 @@ class ShimHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self._path_only() not in {"/health", "/v1/models"}:
             self._json_error(404, "not_found", "Endpoint not found")
+            return
+        if self._path_only() == "/health" and TTS_MODE == "base" and not self._profile_is_ready():
+            self._json_error(503, "profile_unavailable", f"Base profile '{BASE_PROFILE}' is not ready")
             return
         self._proxy_request("GET", None)
 
@@ -129,9 +138,19 @@ class ShimHandler(BaseHTTPRequestHandler):
         if not isinstance(body.get("input"), str) or not body["input"].strip():
             self._json_error(400, "invalid_input", "input must be a non-empty string")
             return
+        if TTS_MODE == "base" and not self._profile_is_ready():
+            self._json_error(503, "profile_unavailable", f"Base profile '{BASE_PROFILE}' is not ready")
+            return
 
         body["model"] = UPSTREAM_MODEL
-        body["voice"] = resolve_voice(body.get("voice"))
+        if TTS_MODE == "base":
+            body["task_type"] = "Base"
+            body["voice"] = BASE_PROFILE
+            body["language"] = "Chinese"
+            body.pop("instructions", None)
+        else:
+            requested = "" if body.get("voice") is None else str(body.get("voice")).strip()
+            body["voice"] = DEFAULT_VOICE_ALIASES.get(requested.casefold(), DEFAULT_VOICE_ALIASES["alloy"])
         response_format = body.get("response_format")
         if isinstance(response_format, str):
             body["response_format"] = RESPONSE_FORMAT_ALIASES.get(
@@ -173,6 +192,43 @@ class ShimHandler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._json_error(400, "invalid_json", "Request body must be valid UTF-8 JSON")
             return None
+
+    def _profile_is_ready(self) -> bool:
+        """Require the persistent uploaded profile; never fall back to a preset."""
+        global _PROFILE_READY_UNTIL
+        now = time.monotonic()
+        with _PROFILE_READY_LOCK:
+            if now < _PROFILE_READY_UNTIL:
+                return True
+
+        connection_class = (
+            http.client.HTTPSConnection if UPSTREAM.scheme == "https" else http.client.HTTPConnection
+        )
+        default_port = 443 if UPSTREAM.scheme == "https" else 80
+        connection = connection_class(UPSTREAM.hostname, UPSTREAM.port or default_port, timeout=10)
+        try:
+            connection.request("GET", f"{UPSTREAM.path.rstrip('/')}/v1/audio/voices")
+            response = connection.getresponse()
+            if response.status != 200:
+                return False
+            payload = json.loads(response.read())
+            if not isinstance(payload, dict):
+                return False
+            uploaded_voices = payload.get("uploaded_voices")
+            if not isinstance(uploaded_voices, list):
+                return False
+            ready = any(
+                isinstance(voice, dict) and str(voice.get("name", "")).casefold() == BASE_PROFILE.casefold()
+                for voice in uploaded_voices
+            )
+            if ready:
+                with _PROFILE_READY_LOCK:
+                    _PROFILE_READY_UNTIL = time.monotonic() + PROFILE_READY_CACHE_SECONDS
+            return ready
+        except (OSError, http.client.HTTPException, json.JSONDecodeError):
+            return False
+        finally:
+            connection.close()
 
     def _proxy_request(self, method: str, body: bytes | None) -> None:
         connection_class = (

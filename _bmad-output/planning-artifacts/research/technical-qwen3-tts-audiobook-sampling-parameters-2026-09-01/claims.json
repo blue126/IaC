@@ -1,0 +1,67 @@
+[
+  {
+    "claim": "Qwen3-TTS has optional Gradio demos, but the speech serving endpoint does not automatically publish them.",
+    "class": "version-compatibility",
+    "pub_date": "2026-08-19"
+  },
+  {
+    "claim": "Qwen and vLLM-Omni defaults use temperature 0.9 and top_k 50 for both Talker and Subtalker.",
+    "class": "version-compatibility",
+    "pub_date": "2026-08-31"
+  },
+  {
+    "claim": "Very low sampling settings do not reliably eliminate short-utterance onset or perceived timbre instability.",
+    "class": "implementation-experience",
+    "pub_date": "2026-07-10"
+  },
+  {
+    "claim": "Qwen3-TTS 1.7B CustomVoice supports instruction control while the official 0.6B CustomVoice path ignores instruct.",
+    "class": "version-compatibility",
+    "pub_date": "2026-03-17"
+  },
+  {
+    "claim": "vLLM-Omni v0.28.0 maps OpenAI Speech instructions to Qwen instruct.",
+    "class": "version-compatibility",
+    "pub_date": "2026-08-31"
+  },
+  {
+    "claim": "vLLM-Omni v0.28.0 propagates seed to Talker and residual MTP, but FULL CUDA Graph does not preserve reproducible per-request tts_local_seed.",
+    "class": "version-compatibility",
+    "pub_date": "2026-08-31"
+  },
+  {
+    "claim": "Speech extra_params directly override Talker sampling while Subtalker sampling remains deploy-level in vLLM-Omni v0.28.0.",
+    "class": "version-compatibility",
+    "pub_date": "2026-08-31"
+  },
+  {
+    "claim": "Preset speaker identity and text instruction are separate conditioning paths in Qwen3-TTS CustomVoice.",
+    "class": "architecture-pattern",
+    "pub_date": "2026-03-17"
+  },
+  {
+    "claim": "Qwen CustomVoice and vLLM Speech expose no cross-request acoustic, codec, KV, or prosody continuation state.",
+    "class": "architecture-pattern",
+    "pub_date": "2026-08-31"
+  },
+  {
+    "claim": "A paragraph-sized Qwen request may improve text-level prosodic continuity, but this is not verified for Qwen3-TTS.",
+    "class": "architecture-pattern",
+    "pub_date": "2024-09-01"
+  },
+  {
+    "claim": "VoiceDesign to reusable Base clone prompt is Qwen's documented stronger multi-line identity workflow, not a CustomVoice parameter.",
+    "class": "architecture-pattern",
+    "pub_date": "2026-03-17"
+  },
+  {
+    "claim": "Preset descriptions make Serena, Uncle_Fu, and Dylan more plausible restrained narration candidates than brighter or livelier presets, without guaranteeing listening outcomes.",
+    "class": "implementation-experience",
+    "pub_date": "2026-03-17"
+  },
+  {
+    "claim": "FFmpeg crossfade and loudness normalization cannot reconstruct speaker identity or generated prosody.",
+    "class": "architecture-pattern",
+    "pub_date": "2026-08-01"
+  }
+]

@@ -37,6 +37,26 @@
     return_content: true
   register: qwen3_tts_verify_models
 
+- name: Check persistent Base profile directly on the private server endpoint
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen3_tts_compose_project }}"
+      - --file
+      - "{{ qwen3_tts_install_dir }}/compose.yml"
+      - exec
+      - --no-TTY
+      - server
+      - python3
+      - -c
+      - >-
+        import json, urllib.request; payload = json.load(urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/v1/audio/voices', timeout=10)); assert any(item.get('name') == '{{ qwen3_tts_profile_name }}' for item in payload.get('uploaded_voices', []))
+  register: qwen3_tts_verify_voices
+  changed_when: false
+  no_log: true
+
 - name: Create temporary file for Qwen3-TTS WAV response
   ansible.builtin.tempfile:
     state: file
@@ -87,15 +107,15 @@
         path: "{{ qwen3_tts_verify_wav_file.path }}"
         state: absent
 
-- name: Create temporary file for female Qwen3-TTS WAV response
+- name: Create temporary file for second alias Qwen3-TTS WAV response
   ansible.builtin.tempfile:
     state: file
     suffix: .wav
-  register: qwen3_tts_verify_female_wav_file
+  register: qwen3_tts_verify_second_alias_wav_file
 
-- name: Validate female Qwen3-TTS voice mapping
+- name: Validate second alias uses the fixed Base profile
   block:
-    - name: Generate female Qwen3-TTS WAV response
+    - name: Generate second alias Qwen3-TTS WAV response
       ansible.builtin.uri:
         url: >-
           http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port
@@ -104,42 +124,42 @@
         body_format: json
         body:
           model: tts-1
-          voice: coral
+          voice: marin
           input: 你好。
           response_format: wav
         status_code: 200
-        dest: "{{ qwen3_tts_verify_female_wav_file.path }}"
+        dest: "{{ qwen3_tts_verify_second_alias_wav_file.path }}"
         timeout: 300
 
-    - name: Read female Qwen3-TTS WAV response metadata
+    - name: Read second alias Qwen3-TTS WAV response metadata
       ansible.builtin.stat:
-        path: "{{ qwen3_tts_verify_female_wav_file.path }}"
-      register: qwen3_tts_verify_female_wav_stat
+        path: "{{ qwen3_tts_verify_second_alias_wav_file.path }}"
+      register: qwen3_tts_verify_second_alias_wav_stat
 
-    - name: Read female Qwen3-TTS WAV response header
+    - name: Read second alias Qwen3-TTS WAV response header
       ansible.builtin.command:
         argv:
           - od
           - -An
           - -tx1
           - -N12
-          - "{{ qwen3_tts_verify_female_wav_file.path }}"
-      register: qwen3_tts_verify_female_wav_header
+          - "{{ qwen3_tts_verify_second_alias_wav_file.path }}"
+      register: qwen3_tts_verify_second_alias_wav_header
       changed_when: false
 
-    - name: Validate female Qwen3-TTS WAV response file
+    - name: Validate second alias Qwen3-TTS WAV response file
       ansible.builtin.assert:
         that:
-          - qwen3_tts_verify_female_wav_stat.stat.size | int > 44
+          - qwen3_tts_verify_second_alias_wav_stat.stat.size | int > 44
           - >-
-            qwen3_tts_verify_female_wav_header.stdout |
+            qwen3_tts_verify_second_alias_wav_header.stdout |
             regex_replace('\s+', '') is
             match('^52494646[0-9a-f]{8}57415645$')
-        fail_msg: Female Qwen3-TTS WAV response has an invalid header
+        fail_msg: Second alias Qwen3-TTS WAV response has an invalid header
   always:
-    - name: Remove temporary female Qwen3-TTS WAV response
+    - name: Remove temporary second alias Qwen3-TTS WAV response
       ansible.builtin.file:
-        path: "{{ qwen3_tts_verify_female_wav_file.path }}"
+        path: "{{ qwen3_tts_verify_second_alias_wav_file.path }}"
         state: absent
 
 - name: Generate stream-compatible Qwen3-TTS PCM response
@@ -205,6 +225,7 @@
       - >-
         qwen3_tts_model_repository in
         (qwen3_tts_verify_models.json.data | map(attribute='id') | list)
+      - qwen3_tts_verify_voices.rc == 0
       - >-
         qwen3_tts_verify_streaming_speech.stdout is
         search('(?im)^content-type: audio/pcm\s*$')
@@ -218,6 +239,82 @@
         qwen3_tts_verify_aac_compatibility.stdout is
         search('(?m)^qwen3_tts_download_size=[1-9][0-9]*$')
     fail_msg: Qwen3-TTS read-only verification failed
+
+- name: Restart Base backend to verify persistent profile restoration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen3_tts_compose_project }}"
+      - --file
+      - "{{ qwen3_tts_install_dir }}/compose.yml"
+      - restart
+      - server
+  changed_when: false
+
+- name: Wait for Base profile after backend restart on its private endpoint
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen3_tts_compose_project }}"
+      - --file
+      - "{{ qwen3_tts_install_dir }}/compose.yml"
+      - exec
+      - --no-TTY
+      - server
+      - python3
+      - -c
+      - >-
+        import json, urllib.request; payload = json.load(urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/v1/audio/voices', timeout=10)); assert any(item.get('name') == '{{ qwen3_tts_profile_name }}' for item in payload.get('uploaded_voices', []))
+  register: qwen3_tts_verify_restored_voices
+  changed_when: false
+  retries: 120
+  delay: 10
+  until: qwen3_tts_verify_restored_voices.rc == 0
+  no_log: true
+
+- name: Create temporary file for restored Base WAV response
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .wav
+  register: qwen3_tts_verify_restored_wav_file
+
+- name: Verify restored Base profile through the public shim
+  block:
+    - name: Generate restored Base WAV response through shim
+      ansible.builtin.uri:
+        url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/v1/audio/speech"
+        method: POST
+        body_format: json
+        body:
+          model: tts-1
+          voice: unknown-alias
+          input: 重启后 profile 仍应可用。
+          response_format: wav
+        status_code: 200
+        dest: "{{ qwen3_tts_verify_restored_wav_file.path }}"
+        timeout: 300
+
+    - name: Read restored Base WAV header
+      ansible.builtin.command:
+        argv: [od, -An, -tx1, -N12, "{{ qwen3_tts_verify_restored_wav_file.path }}"]
+      register: qwen3_tts_verify_restored_wav_header
+      changed_when: false
+
+    - name: Validate restored Base WAV response
+      ansible.builtin.assert:
+        that:
+          - >-
+            qwen3_tts_verify_restored_wav_header.stdout |
+            regex_replace('\s+', '') is match('^52494646[0-9a-f]{8}57415645$')
+  always:
+    - name: Remove restored Base WAV response
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_verify_restored_wav_file.path }}"
+        state: absent
 
 - name: Read Qwen3-TTS container restart counts
   ansible.builtin.command:

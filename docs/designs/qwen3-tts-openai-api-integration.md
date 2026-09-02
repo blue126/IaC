@@ -8,7 +8,9 @@
 
 在现有 VM 中部署 Qwen3-TTS 和一个轻量本地 shim，使 Speech Central 能使用其硬编码的 OpenAI voice 名称访问 Qwen3-TTS 原生音色。Open WebUI 也可以继续使用同一个 OpenAI-compatible API 地址。
 
-首期只做快速 PoC：
+当前旁白 profile 使用受控的一次性流程：VoiceDesign 只生成非真人的中文参考 WAV，随后由 Base 的公开 `/v1/audio/voices` 接口以准确转写注册 `audiobook_narrator_zh`。参考 WAV 与持久化 profile 仅保存在 `/data/models/qwen3-tts/profiles`，不得提交、公开或写入日志。所有 Speech Central voice alias 都会被 shim 忽略并固定到该 profile；profile 缺失时 shim 返回 503，不会退回预设 speaker。
+
+切换 VoiceDesign 和 Base 必须分别获准，并使用 `--tags bootstrap`。该流程先停止现有服务、仅启动临时 VoiceDesign 生成参考，再停止 VoiceDesign 后启动 Base 注册 profile，因此同一 GPU 不会并行运行两种模型。0.6B 仅在连续试听仍不可接受时作为最后回退选择，不是当前模型。
 
 - Qwen3.6 与 TTS 并存；
 - DeepSeek 运行前手工停止 TTS；
@@ -32,7 +34,7 @@ Cloudflare Worker `tts-shim` 只作为 OpenAI voice alias 映射行为的参考�
 
 | 项目 | 选择 |
 |---|---|
-| 模型 | `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` |
+| 模型 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` + 一次性 `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` bootstrap |
 | API 服务 | `vllm/vllm-omni:v0.28.0` |
 | pipeline | 官方 Talker → Code2Wav 两阶段 `--deploy-config` |
 | backend | `vllm_omni` |
@@ -43,23 +45,29 @@ Cloudflare Worker `tts-shim` 只作为 OpenAI voice alias 映射行为的参考�
 | GPU | 宿主 ordinal `1`，容器内 device `0` |
 | 并发 | `1` |
 
-CustomVoice 适合两个客户端使用固定 voice 名称。Base、VoiceDesign 留到 PoC 之后。
+Base profile 保留两个客户端的固定 OpenAI voice 名称兼容性；VoiceDesign 仅作为一次性合成参考声 bootstrap，不是常驻 backend。
 
 ## 3. 本地 shim
 
 shim 以当前 Cloudflare Worker 的映射目的为基准，但使用 `python:3.12-slim` 和 Python 标准库在本地 Compose 中运行。它把客户端模型 `tts-1` 改写为实际 Qwen 模型，并转换 `POST /v1/audio/speech` JSON 的 `voice` 字段；其他 OpenAI-compatible 字段透明转发。Speech Central 请求 vLLM-Omni 不支持的 `response_format=aac` 时，shim 改为请求兼容性更好的 MP3，并将上游的 `audio/mpeg` 响应原样返回。`stream=true` 时若客户端没有提供格式，shim 补充 `response_format=pcm` 和 `stream_format=audio`。普通音频和 streaming PCM 响应均增量转发，不完整缓冲。
 
-初始映射如下：
+所有 alias 都固定到同一 Base ICL profile `audiobook_narrator_zh`；不再选择 CustomVoice preset，也不再区分男声或女声 alias。alias 仅为 Speech Central 的兼容输入，空值和未知值也使用同一个 profile。
 
-| OpenAI voice | Qwen3 speaker |
+| OpenAI voice | Base profile |
 |---|---|
-| `alloy`, `onyx`, `cedar` | `Uncle_Fu` |
-| `echo`, `ash`, `verse` | `Dylan` |
-| `fable`, `ballad` | `Eric` |
-| `coral`, `nova`, `shimmer` | `Vivian` |
-| `marin`, `sage` | `Serena` |
+| all 13 supported aliases | `audiobook_narrator_zh` |
 
-匹配不区分大小写。已启用的原生 Qwen speaker 名可直接透传；voice 为空或未知时回退到 `alloy`，即 `Uncle_Fu`。
+Base request 固定为 `task_type=Base`、`voice=audiobook_narrator_zh`、`language=Chinese`。客户端 `instructions` 会删除，而不是沿用 CustomVoice instruction；profile 不存在时 shim 返回明确 503，绝不静默改用 preset。
+
+VoiceDesign 只在经单独授权的 `--tags bootstrap` 流程中生成描述为“成熟、沉稳、低起伏、自然的中文有声书旁白”的合成参考 WAV。它停止后才启动 Base，并通过公开 `/v1/audio/voices` 持久注册含准确转写的 ICL profile。Talker/Subtalker 采样仍为 `0.6/50`。
+
+### 候选配对试听
+
+若当前 `audiobook_narrator_zh` 的 Base clone 与 VoiceDesign 参考声不像同一人，可在获得单独授权后运行 `--tags candidate-pairing`。该路径依次生成三种非真人中文旁白候选（只变化低沉共鸣、厚实质感或轻微自然沙哑），每一种都使用同一段准确参考转写注册独立的临时 Base profile，并用同一固定探针文本生成 clone WAV。
+
+流程不会覆盖 `audiobook_narrator_zh`、不会修改 Speech Central 映射，也不会并行运行 VoiceDesign 与 Base。参考 WAV、临时 profile 和 clone WAV 留在 `/data/models/qwen3-tts/profiles`；成功生成的 WAV 会拉取到控制端 `qwen3-tts-candidate-pairing/` 试听。请逐组比较同名 `*-reference.wav` 与 `*-clone.wav` 的身份相似性，而非只比较 reference 本身。某一候选失败会保留其诊断结果并继续处理其余候选，流程结束时会恢复并检查现有 Base + shim 的 `/health`。
+
+只有用户明确选定某个候选后，才可以另行授权将其提升为生产 profile、替换生产 reference WAV，或让 Speech Central 指向它；未选择时不得清理候选资产或改变生产配置。
 
 shim 不实现 Worker 的 `url_override`、`model_override`、`/admin/clone`，客户端不能改变固定的 upstream 路由。
 
@@ -90,7 +98,7 @@ playbook 沿用 `qwen36` 的薄编排模式：Deploy play 调用 `qwen3-tts` rol
 - 独立 `qwen3-tts.service` 同时启动 `server` 和 `shim`，但不开机自启；
 - Hugging Face 模型缓存持久化到 `/data/models/qwen3-tts`，vLLM 编译缓存持久化到 `/data/models/qwen3-tts/vllm-cache`。
 
-部署边界固定为 0.6B CustomVoice、GPU ordinal 1、单 worker 和单并发。playbook 在更改前要求 Qwen3.6 为 active、DeepSeek mainline 为 inactive。
+部署边界固定为 1.7B Base、GPU ordinal 1、单 worker 和单并发。TTS 独占 GPU 时，playbook 会停止 Qwen3.6（保留其开机所有权）；DeepSeek mainline 必须保持 inactive。首次 profile 缺失时，常规启动会失败并要求单独获授权的 `--tags bootstrap`，不会启动一个只能返回 503 的表面健康服务。
 
 ## 5. 本地验证与部署验证
 
@@ -102,13 +110,13 @@ cd ansible
 ansible-playbook playbooks/deploy-qwen3-tts.yml --syntax-check
 ```
 
-标准库测试覆盖全部 13 个 alias、原生 speaker 透传、未知/空 voice 回退、普通 WAV、chunked PCM、health/models 代理，以及无效 input 在到达 upstream 前被拒绝。
+标准库测试覆盖全部 13 个 alias 和未知 alias 的同一 Base 请求载荷、profile 缺失时的 speech/health 503、普通 WAV、chunked PCM、AAC 兼容、health/models 代理，以及无效 input 在到达 upstream 前被拒绝。
 
 部署后的 `verify` play 检查：
 
 - systemd active，Compose 的 `server` 与 `shim` 均运行；
 - `/health` 和 `/v1/models` 可用；
-- 男声 alias `alloy` 与女声 alias `coral` 均返回有效 WAV；
+- `alloy`、`marin` 和未知 alias 都以同一 Base profile 返回有效 WAV；
 - Speech Central 的 `response_format=aac` 请求被兼容转换并返回有效 MP3；
 - `stream=true` 返回有效的 chunked PCM 音频；
 - 两个容器均为 healthy，且无异常 restart。
