@@ -1,0 +1,91 @@
+---
+- name: Check the Qwen3.8 systemd service state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ qwen38_service_unit }}"]
+  register: qwen38_verify_systemd
+  changed_when: false
+
+- name: Check the running Qwen3.8 Compose service
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen38_compose_project }}"
+      - --file
+      - "{{ qwen38_install_dir }}/docker-compose.yml"
+      - ps
+      - --services
+      - --status
+      - running
+  register: qwen38_verify_compose
+  changed_when: false
+
+- name: Read the served model identity
+  ansible.builtin.uri:
+    url: "http://{{ qwen38_bind_address }}:{{ qwen38_api_port }}/v1/models"
+    status_code: 200
+    return_content: true
+  register: qwen38_verify_models
+
+- name: Send a deterministic chat completion
+  ansible.builtin.uri:
+    url: "http://{{ qwen38_bind_address }}:{{ qwen38_api_port }}/v1/chat/completions"
+    method: POST
+    body_format: json
+    body:
+      model: "{{ qwen38_model_name }}"
+      temperature: 0
+      seed: 42
+      max_tokens: 16
+      messages:
+        - role: user
+          content: "{{ qwen38_chat_prompt }}"
+    status_code: 200
+    timeout: 300
+    return_content: true
+  register: qwen38_verify_chat
+
+- name: Read the Qwen3.8 container restart count
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.RestartCount}}' }}"
+      - "{{ qwen38_compose_project }}-server-1"
+  register: qwen38_verify_restart_count
+  changed_when: false
+
+- name: Read GPU memory in use after deployment
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+      - --query-gpu=index,memory.used
+      - --format=csv,noheader,nounits
+  register: qwen38_verify_gpu_memory
+  changed_when: false
+
+- name: Display GPU memory in use after deployment
+  ansible.builtin.debug:
+    var: qwen38_verify_gpu_memory.stdout_lines
+
+- name: Validate the Qwen3.8 deployment
+  ansible.builtin.assert:
+    that:
+      - qwen38_verify_systemd.stdout == 'active'
+      - "'server' in qwen38_verify_compose.stdout_lines"
+      - >-
+        qwen38_verify_models.json.data | map(attribute='id') | list
+        is search(qwen38_model_name)
+      - qwen38_verify_chat.json.choices | length > 0
+      - >-
+        qwen38_verify_chat.json.choices[0].message.content
+        | trim | length > 0
+      - qwen38_verify_restart_count.stdout | int == 0
+      # Weights are split across both cards, so both must be carrying the model.
+      - >-
+        qwen38_verify_gpu_memory.stdout_lines
+        | map('regex_replace', '^\d+,\s*', '')
+        | map('int') | select('gt', 4096) | list | length == 2
+    fail_msg: Qwen3.8 read-only verification failed

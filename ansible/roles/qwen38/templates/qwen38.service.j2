@@ -1,0 +1,16 @@
+[Unit]
+Description=Qwen3.8-27B llama.cpp Compose owner
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ qwen38_install_dir }}
+ExecStart=/usr/bin/docker compose --project-name {{ qwen38_compose_project }} up -d --no-build --pull never --force-recreate server
+ExecStop=/usr/bin/docker compose --project-name {{ qwen38_compose_project }} down --remove-orphans --timeout 120
+TimeoutStartSec=900
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target
