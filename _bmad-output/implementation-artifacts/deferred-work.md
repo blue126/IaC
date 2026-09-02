@@ -13,3 +13,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-oink-doc-accuracy-integration-phase-1.md`
   summary: 保留 Ansible Vault 到私有 Notion Credentials DB 的单向密码同步，并以显式 credential allowlist、全量日志脱敏和 OINK/detector 隔离加固这个人类可读 GUI。
   evidence: 用户明确 Notion 是弥补 Ansible Vault 无 GUI 的授权 secret sink；该目标与只读仓库文件的 deterministic detector 可独立交付，且同 PR 会混合 secret 存储与文档验证两种 blast radius。
+- source_spec: `ansible/roles/qwen3-tts-workstation`
+  summary: 为每个 OpenAI voice 槽位分别建立并部署独立的 Base 参考 profile，让 llm-workstation 上可用的音色不止一个。
+  evidence: 当前 `TTS_MODE=base` 下 shim 把 13 个 alias 全部改写成同一个 `audiobook_narrator_zh` profile，`voice` 参数实际不起作用；role 已经具备生成候选参考音频的 `candidate-pairing` 流程，缺的是把多个 profile 同时注册并按 alias 路由。
