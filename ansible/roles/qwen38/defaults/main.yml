@@ -58,6 +58,20 @@ qwen38_top_k: 20
 qwen38_min_p: 0.0
 qwen38_presence_penalty: 1.5
 
+# Speculative decoding. This GGUF keeps the model's native MTP head
+# (blk.64.nextn.*), so draft-mtp needs no separate drafter and no extra VRAM.
+#
+# Measured on this host, same prompts either way: a 614-token generation went
+# 37.2 -> 65.5 tok/s (17.6s -> 9.4s) and a 27-token tool call 37.1 -> 75.2.
+# Prefill pays for it, 1698 -> 1486 tok/s on a cold 20K prompt, which is the
+# right trade for agent traffic: every turn waits on decode, while prefill is
+# mostly served from the prompt cache after the first turn.
+#
+# n_max is untuned beyond this. The DeepSeek work on llm-server found its
+# optimum at 2 and a regression at 3, so that is where this starts.
+qwen38_spec_type: draft-mtp
+qwen38_spec_draft_n_max: 2
+
 qwen38_start_retries: 60
 qwen38_start_delay_seconds: 10
 qwen38_chat_prompt: Reply with exactly OK.

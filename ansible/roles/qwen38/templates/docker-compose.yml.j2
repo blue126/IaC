@@ -37,6 +37,12 @@ services:
       - "{{ qwen38_min_p }}"
       - --presence-penalty
       - "{{ qwen38_presence_penalty }}"
+{% if qwen38_spec_type | string | length > 0 %}
+      - --spec-type
+      - {{ qwen38_spec_type }}
+      - --spec-draft-n-max
+      - "{{ qwen38_spec_draft_n_max }}"
+{% endif %}
     environment:
       CUDA_VISIBLE_DEVICES: "{{ qwen38_gpu_ordinals | join(',') }}"
       LD_LIBRARY_PATH: /build
