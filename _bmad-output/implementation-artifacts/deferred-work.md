@@ -2,14 +2,20 @@
   summary: 将 Proxmox 节点和 VMID 直接传入动态 inventory，消除 Terraform 与 host_vars 的重复元数据。
   evidence: n8n 本次必须手工新增 `proxmox_node: pve0` 和 `proxmox_vmid: 106`；迁移或重建后容易失配并操作错误容器。
 - source_spec: `_bmad-output/implementation-artifacts/spec-enable-tailscale-on-n8n.md`
-  summary: 建立所有新节点都会执行 common、Tailscale 和服务 role 的统一部署入口。
-  evidence: `deploy-n8n.yml` 只执行 n8n role，新增 host_vars 本身不会触发 `install-tailscale.yml`；同类遗漏会影响其他新节点。
+  summary: 把 llm-workstation 已有的"主机基线 + 服务部署"两层结构推广到其余节点。
+  evidence: 19 个 deploy playbook 中 13 个开头手抄同一段 `common + tailscale + docker + <服务>`；新增 host_vars 本身不会触发 `install-tailscale.yml`，忘记补这几行不会报错，只是静默不做。`deploy-llm-workstation.yml`（主机基线）与 `deploy-qwen38.yml`/`deploy-qwen3-tts.yml`（服务）已是正确形态：Tailscale 属于主机，模型只是主机上的服务，两者不应混在一个 playbook 里。
+  note: 原条目表述为"统一入口同时执行 common、Tailscale 和服务 role"，方向相反——那会把已分对的层次重新搅浑。另：先前统计"6 个 playbook 缺 common、8 个缺 tailscale"不可直接当作遗漏清单，其中 open-webui-gateway（网关无 Python）、anki-oci 与 unified-proxy（OCI 静态 inventory）、jenkins-agent（与 jenkins 同机）都是有意为之。可选做法：把基线并入 `site.yml`（爆炸半径从 16 台升到 16+15 台，且引入可能重启 LXC 的逻辑），或维持约定并在新节点检查中断言"在 tailscale 组却未连上"。
+- source_spec: `terraform/README.md`
+  summary: 把 pve1 上的 Proxmox Backup Server import 进 Terraform，使其重新进入动态 inventory。
+  evidence: `a0e5692` 把 PBS 从 ESXi 迁到 pve1 并删除了 `terraform/esxi/pbs.tf`，提交信息明确记录"The backup server on pve1 has no Terraform definition yet"。因此 `ansible pbs --list-hosts` 匹配不到任何主机，而 `ansible/roles/pbs`、`roles/pbs-client`、`deploy-pbs.yml`、`setup-pbs-backup.yml` 四者仍在仓库中，目前是指向不存在目标的孤儿。补主机基线（common/tailscale）在 import 之前没有意义。
+  note: import 的是一台在跑的生产备份机，plan 写错可能提议重建，需谨慎并单独授权。
 - source_spec: `_bmad-output/implementation-artifacts/spec-enable-tailscale-on-n8n.md`
   summary: 为包含 Proxmox snapshot 区段的 LXC 设计安全的 TUN 配置管理和重复执行验证。
   evidence: 当前简化的 `lineinfile` 适用于没有 snapshot 的 VMID 106，但不理解配置文件中的 snapshot 区段；缺少连续执行与重启后的自动验证。
 - source_spec: `_bmad-output/implementation-artifacts/spec-oink-documentation-site.md`
-  summary: 单独清理现有 Markdown 的断链、坏锚点和过期仓库文件引用。
-  evidence: OINK 审查确认 `llm-server-deployment.md` 等既有文档含错误目标；本试点按人类确认保持 `docs/` byte-for-byte 不变，因此不在展示层变更中修复。
+  summary: 建立自动的 Markdown 断链检查，纳入 doc-accuracy 工作流。
+  evidence: 一次性清理已完成：扫描 `docs/**/*.md` 得 68 处失效目标，逐条分类后实修 5 处真错误（minimax 两篇的互链写错目录、jenkins 学习笔记指向从未提交的 spec），另给 minimax 两篇补历史横幅。其余不应修改——历史文档指向已正当删除的代码（正文本身即记录）、未实现工作的 spec、以及把 Terraform provider 名 `ansible/ansible` 误判为路径这类扫描噪声。
+  note: 缺的是防止再次发生的机制。手工扫描既会漏（第一次用较窄的正则只得 46 处）又会误报，需要能区分“真断链”与“历史记录中的已删路径”的检查，后者的判据大致是文档是否带历史横幅。
 - source_spec: `_bmad-output/implementation-artifacts/spec-oink-doc-accuracy-integration-phase-1.md`
   summary: 保留 Ansible Vault 到私有 Notion Credentials DB 的单向密码同步，并以显式 credential allowlist、全量日志脱敏和 OINK/detector 隔离加固这个人类可读 GUI。
   evidence: 用户明确 Notion 是弥补 Ansible Vault 无 GUI 的授权 secret sink；该目标与只读仓库文件的 deterministic detector 可独立交付，且同 PR 会混合 secret 存储与文档验证两种 blast radius。

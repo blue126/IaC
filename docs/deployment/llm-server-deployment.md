@@ -344,7 +344,7 @@ ansible-playbook playbooks/deploy-llm-server.yml --tags verify
 
 ## 8. 性能验证与基准测试
 
-Ansible verify play（`--tags verify`）覆盖了自动化验证，但以下手动测试和基准方法用于人工验收和版本升级前后对比。详细命令和记录模板见 [`minimax-llama.md` 6.4-6.5 节](../guides/minimax-llama.md)。
+Ansible verify play（`--tags verify`）覆盖了自动化验证，但以下手动测试和基准方法用于人工验收和版本升级前后对比。详细命令和记录模板见 [`minimax-llama.md` 6.4-6.5 节](../designs/minimax-llama.md)。
 
 ### 自动化验证（Verify Play 覆盖范围）
 
@@ -379,7 +379,7 @@ Ansible verify play（`--tags verify`）覆盖了自动化验证，但以下手�
 | 长 prompt (~4K tokens) | Prompt Processing | 需实测 |
 | GPU VRAM 峰值 | 每卡占用 | ~9.7 GB |
 
-标准测试命令、长 prompt 生成脚本、测试记录模板见 [`minimax-llama.md` 6.5 节](../guides/minimax-llama.md)。
+标准测试命令、长 prompt 生成脚本、测试记录模板见 [`minimax-llama.md` 6.5 节](../designs/minimax-llama.md)。
 
 ---
 
