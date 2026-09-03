@@ -17,8 +17,9 @@
   summary: 为每个 OpenAI voice 槽位分别建立并部署独立的 Base 参考 profile，让 llm-workstation 上可用的音色不止一个。
   evidence: 当前 `TTS_MODE=base` 下 shim 把 13 个 alias 全部改写成同一个 `audiobook_narrator_zh` profile，`voice` 参数实际不起作用；role 已经具备生成候选参考音频的 `candidate-pairing` 流程，缺的是把多个 profile 同时注册并按 alias 路由。
 - source_spec: `_bmad-output/implementation-artifacts/spec-qwen3-tts-restrained-voice-mapping.md`
-  summary: 为既有 1.7B Talker/Subtalker 采样及固定 seed 配置增加渲染级验证。
-  evidence: 当前音频冒烟只验证响应可用，无法证明部署后的 sampling 字段未被误改；采样和 seed 属于本规格 Ask First 边界。原规格针对 llm-server 上已删除的同名 role，同样适用于当前的 `ansible/roles/qwen3-tts`。
+  summary: 为既有 1.7B Talker/Subtalker 采样配置增加渲染级验证。
+  evidence: 当前音频冒烟只断言返回字节是合法 WAV（`fail_msg: ... invalid RIFF/WAVE header`），证明不了部署后 `temperature`/`top_k`/`repetition_penalty` 及 subtalker 采样字段未被误改或被新版 vLLM-Omni 静默忽略——服务照常 200、WAV 头合法、verify 全绿，而音色开始漂移。原规格针对 llm-server 上已删除的同名 role，同样适用于当前的 `ansible/roles/qwen3-tts`。
+  note: 原条目设想用固定 seed 的确定性做验证（合成两次断言字节一致），该前提已被实测推翻：同一文本三次渲染为 6.16s/6.56s/6.80s（10.4% 跨度），显式传相同 per-request seed 两次同样不一致。配置中的 `seed` 键已因此删除，详见 `files/vllm-deploy-config.yaml` 的注释。可行的替代路径是断言渲染音频的统计特征（时长落在实测区间内、RMS 包络、基频中位数），而非字节相等。
 - source_spec: `tools/check-doc-claims.py`
   summary: 让 claim 的 oracle 读取支持嵌套与按索引定位的 YAML 键，使 vLLM deploy-config 中的每 stage 取值可被校验。
   evidence: `_yaml_key_values` 只匹配顶层键（第 110 行显式跳过缩进行），且同名键出现多次会被判 `oracle_key_duplicate`；而 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 全部位于 `stages:` 之下且每 stage 各一份。设计文档曾把 Talker 的 `gpu_memory_utilization` 写成 `0.17` 而配置早已是 `0.3`，正是该工具应当拦截却拦不到的一类漂移。改动会变更工具契约并影响既有 oracle 语义，需独立交付。

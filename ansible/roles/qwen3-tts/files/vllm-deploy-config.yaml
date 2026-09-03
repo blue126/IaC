@@ -52,7 +52,22 @@ stages:
     default_sampling_params:
       temperature: 0.6
       top_k: 50
-      seed: 42
+      # No seed. The seed: 42 that used to sit here did nothing, and neither
+      # does an explicit per-request one: the same sentence rendered three
+      # times came back 6.16s / 6.56s / 6.80s -- a 10.4% spread in duration,
+      # audible as pacing, not dither -- and two requests carrying an
+      # identical seed: 777 differed just as much. A knob with no effect at
+      # any value reads as a control over reproducibility that does not exist.
+      #
+      # Candidates for why, none confirmed: both stages log engine seed=0;
+      # subtalker_sampling_params below runs do_sample with no seed of its own,
+      # and it generates every codebook after the first; async_scheduling is on.
+      # Do not re-add a seed expecting reproducible output without measuring.
+      #
+      # Timbre stability does not depend on this. That comes from the Base ICL
+      # profile pinning the voice to a fixed reference WAV, and from
+      # temperature 0.6 above (upstream ships 0.9).
+
       # Upstream ships 512, which caps a request at roughly 55 seconds of
       # audio: measured on this host, 220 Chinese characters synthesise fine
       # and 264 fail after 14.2s with "did not emit codec EOS before its token
