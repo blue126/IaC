@@ -16,3 +16,12 @@
 - source_spec: `ansible/roles/qwen3-tts-workstation`
   summary: 为每个 OpenAI voice 槽位分别建立并部署独立的 Base 参考 profile，让 llm-workstation 上可用的音色不止一个。
   evidence: 当前 `TTS_MODE=base` 下 shim 把 13 个 alias 全部改写成同一个 `audiobook_narrator_zh` profile，`voice` 参数实际不起作用；role 已经具备生成候选参考音频的 `candidate-pairing` 流程，缺的是把多个 profile 同时注册并按 alias 路由。
+- source_spec: `_bmad-output/implementation-artifacts/spec-qwen3-tts-restrained-voice-mapping.md`
+  summary: 为既有 1.7B Talker/Subtalker 采样及固定 seed 配置增加渲染级验证。
+  evidence: 当前音频冒烟只验证响应可用，无法证明部署后的 sampling 字段未被误改；采样和 seed 属于本规格 Ask First 边界。原规格针对 llm-server 上的 `qwen3-tts`，同样适用于 `qwen3-tts-workstation`。
+- source_spec: `tools/check-doc-claims.py`
+  summary: 让 claim 的 oracle 读取支持嵌套与按索引定位的 YAML 键，使 vLLM deploy-config 中的每 stage 取值可被校验。
+  evidence: `_yaml_key_values` 只匹配顶层键（第 110 行显式跳过缩进行），且同名键出现多次会被判 `oracle_key_duplicate`；而 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 全部位于 `stages:` 之下且每 stage 各一份。设计文档曾把 Talker 的 `gpu_memory_utilization` 写成 `0.17` 而配置早已是 `0.3`，正是该工具应当拦截却拦不到的一类漂移。改动会变更工具契约并影响既有 oracle 语义，需独立交付。
+- source_spec: `docs/designs/qwen3-tts-openai-api-integration.md`
+  summary: 在 shim 内按能量阈值裁剪 clip 首尾静音，消除连续朗读时每个接缝约 775 毫秒的死区。
+  evidence: 实测 clip 头部约 400 毫秒、尾部约 350 毫秒为 RMS 仅峰值 0.13%–0.68% 的近似静音，语音段为 6%–23%，阈值分离干净；`silence_ban_frames` 经每组 15 样本对比证明无效（775 对 806 毫秒）。非 PCM 格式需要 shim 具备解码能力，属于新增依赖，需单独授权。
