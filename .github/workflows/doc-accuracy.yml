@@ -21,6 +21,12 @@ jobs:
           python-version: '3.13'
       - name: Run fixture suite
         run: python3 tests/doc-claims/doc-claims-test.py
+      - name: Run doc-gardening fixture suite
+        if: always()
+        run: python3 tests/doc-gardening/doc-gardening-test.py
+      - name: Check doc-gardening golden metrics
+        if: always()
+        run: python3 tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures
       - name: Check repository documentation claims
         if: always()
         run: python3 tools/check-doc-claims.py --root . --output tmp/doc-accuracy/report.json

@@ -2,7 +2,7 @@
 title: 'AI doc-gardening candidate analysis / AI 文档治理候选分析'
 type: 'feature'
 created: '2026-08-30'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 1
 baseline_commit: '40852fa2d8abb7a2bef8b93305871c98def0865c'
 context: []
@@ -74,3 +74,68 @@ context: []
 - `python3 -m py_compile tools/doc-gardening/*.py tests/doc-gardening/doc-gardening-test.py` -- syntax passes without new packages.
 - `python3 tests/doc-claims/doc-claims-test.py` -- Phase 1 regression remains 22/22.
 - `git diff --check` -- no whitespace errors.
+
+## Suggested Review Order
+
+**单文档封闭边界 / Single-document containment**
+
+- 入口：manifest 只承载一个文档，多传即拒，不再静默 last-wins。
+  [`build-candidate.py:235`](../../tools/doc-gardening/build-candidate.py#L235)
+
+- 允许路径的唯一判定处；测试现在钉住的是这里而非文件是否存在。
+  [`contract.py:83`](../../tools/doc-gardening/contract.py#L83)
+
+- hunk header 声称从第 0 行开始时不再反向切片取到文末内容。
+  [`build-candidate.py:67`](../../tools/doc-gardening/build-candidate.py#L67)
+
+**密钥脱敏 / Secret redaction**
+
+- base 侧被删除的密钥行仍在 hunk text 里，这道检查是唯一拦截点。
+  [`build-candidate.py:214`](../../tools/doc-gardening/build-candidate.py#L214)
+
+**审计记录可信度 / Audit-record truthfulness**
+
+- 进入 live 前先认领 provenance，失败的 live run 不再记成离线回放。
+  [`run-analysis.py:229`](../../tools/doc-gardening/run-analysis.py#L229)
+
+- 只要 manifest 已知就欠一条记录，不再因 prompt/schema 未加载而无记录。
+  [`run-analysis.py:264`](../../tools/doc-gardening/run-analysis.py#L264)
+
+- 模型输出泄密与输入污染在记录里分开。
+  [`run-analysis.py:270`](../../tools/doc-gardening/run-analysis.py#L270)
+
+- 空候选列表是干净的"没发现"，不再等同于"无法判定"。
+  [`run-analysis.py:245`](../../tools/doc-gardening/run-analysis.py#L245)
+
+**Fail-closed 一致性 / Fail-closed consistency**
+
+- 非 UTF-8 文档走 blocked exit 2，不再抛 traceback 出 exit 1。
+  [`validate-contract.py:167`](../../tools/doc-gardening/validate-contract.py#L167)
+
+- fixture 文件缺失不再被算作一次正确拒绝。
+  [`evaluate.py:49`](../../tools/doc-gardening/evaluate.py#L49)
+
+**契约双写对齐 / Contract duplication pinned**
+
+- 新增的 reason 同时进入验证器常量与模型可见 schema。
+  [`contract.py:39`](../../tools/doc-gardening/contract.py#L39)
+
+- schema 侧对应项。
+  [`run-record-v1.json:43`](../../tools/doc-gardening/schemas/run-record-v1.json#L43)
+
+**测试 / Tests**
+
+- 断言拒绝的具体原因；两个 mutation 现在都会被抓到。
+  [`doc-gardening-test.py:221`](../../tests/doc-gardening/doc-gardening-test.py#L221)
+
+- 新增：密钥只存在于 base 侧时的拦截。
+  [`doc-gardening-test.py:256`](../../tests/doc-gardening/doc-gardening-test.py#L256)
+
+- schema 枚举与 contract.py 常量的等价性断言。
+  [`doc-gardening-test.py:633`](../../tests/doc-gardening/doc-gardening-test.py#L633)
+
+- fixture 跟随 main 的 claim 集改为 qwen3-tts；llm-server 已退役。
+  [`doc-gardening-test.py:51`](../../tests/doc-gardening/doc-gardening-test.py#L51)
+
+- 隔离宿主 git 配置，避免 commit.gpgsign 之类影响 fixture。
+  [`doc-gardening-test.py:119`](../../tests/doc-gardening/doc-gardening-test.py#L119)
