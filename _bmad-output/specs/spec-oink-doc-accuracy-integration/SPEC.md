@@ -32,7 +32,7 @@ IaC 文档中的错误端口、版本或配置会误导维护者和 coding agent
 ## Constraints
 
 - CAP-1 是阻塞前置条件：claim report、OINK-facing manifest、docs build、测试 fixture、日志和 Notion payload 都不得包含 Vault 值、Terraform secret 值、密码、API token、integration token 或其掩码/截断派生值。
-- Claim registry 仅包含 `netbox_port`、`netbox_image`、`llm_server_engine_version` 与 `llm_server_webui_port` 四个标量 claim；每条只映射一个稳定 Markdown locator 与一个已提交 Ansible defaults key。
+- Claim registry 是封闭集，成员以 `tools/check-doc-claims.py` 的 `CLAIMS` 为权威，[claim-registry.md](claim-registry.md) 是其投影，必须随之重新导出；每条只映射一个稳定 Markdown locator 与一个已提交 Ansible defaults key，文档侧覆盖 `docs/deployment/` 与 `docs/designs/`。
 - Oracle 只能通过确定性解析和标量比较获得；缺失、歧义或不可解析的证据一律为 indeterminate，不得推断为 verified 或 contradiction。
 - OINK/Hugo、GitHub Pages 和 detector 均是无特权展示/验证面：只能消费非敏感报告或 manifest，不能接收生产凭据、调用 runtime 系统或触发 Notion/Vault/Terraform/HCP/NetBox/Proxmox/ESXi 访问。
 - Provenance 必须绑定 checkout revision 或输入文件 digest；页面构建时间和报告生成时间不能作为事实正确性的证据。
