@@ -1,0 +1,602 @@
+---
+- name: Validate the fixed Qwen3-TTS deployment boundary
+  ansible.builtin.assert:
+    that:
+      - qwen3_tts_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-Base'
+      - qwen3_tts_base_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-Base'
+      - qwen3_tts_mode == 'base'
+      - qwen3_tts_voice_design_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign'
+      - qwen3_tts_backend == 'vllm_omni'
+      - qwen3_tts_gpu_ordinal | string is match('^[01]$')
+      - qwen3_tts_bind_address == '192.168.1.191'
+      - qwen3_tts_port | int == 8100
+      - qwen3_tts_container_port | int == 8880
+      - qwen3_tts_shim_container_port | int == 8090
+      - qwen3_tts_compose_project == 'qwen3-tts'
+      - qwen3_tts_install_dir == '/opt/qwen3-tts'
+      - qwen3_tts_model_cache_dir == '/data/models/qwen3-tts'
+      - qwen3_tts_vllm_cache_dir == '/data/models/qwen3-tts/vllm-cache'
+      - qwen3_tts_vllm_deploy_config_path == '/opt/qwen3-tts/vllm-deploy-config.yaml'
+      - qwen3_tts_vllm_image == 'vllm/vllm-omni:v0.28.0'
+      - qwen3_tts_shim_image == 'python:3.12-slim'
+      - >-
+        qwen3_tts_voice_aliases.keys() | sort ==
+        ['alloy', 'ash', 'ballad', 'cedar', 'coral', 'echo', 'fable',
+         'marin', 'nova', 'onyx', 'sage', 'shimmer', 'verse']
+      - qwen3_tts_profile_name == 'audiobook_narrator_zh'
+      - qwen3_tts_profile_dir == '/data/models/qwen3-tts/profiles'
+      - qwen3_tts_profile_reference_file == '/data/models/qwen3-tts/profiles/audiobook_narrator_zh-reference.wav'
+      - qwen3_tts_profile_reference_text == '这是一次平静而自然的中文有声书朗读。清晨的阳光穿过窗帘，房间里很安静，故事正从这里开始。'
+      - qwen3_tts_voice_design_instructions == '成熟、年长、沉稳、低起伏、自然的中文有声书旁白。声音应带有温和阅历感，避免年轻、明亮或活泼的质感。'
+    # These speaker values are pinned for change detection, not because the
+    # running service reads them. In base mode the shim rewrites every request
+    # to the single Base profile and never consults the map's values, and its
+    # customvoice branch uses its own built-in table rather than
+    # VOICE_ALIASES_JSON -- so editing this mapping does not currently change
+    # any timbre. Kept pinned because it is the recorded intent for the
+    # per-slot Base profiles in deferred-work.md, at which point these values
+    # do become live, and an unnoticed edit before then would be silent.
+      - qwen3_tts_voice_aliases.alloy == 'Uncle_Fu'
+      - qwen3_tts_voice_aliases.echo == 'Dylan'
+      - qwen3_tts_voice_aliases.fable == 'Aiden'
+      - qwen3_tts_voice_aliases.onyx == 'Uncle_Fu'
+      - qwen3_tts_voice_aliases.ash == 'Eric'
+      - qwen3_tts_voice_aliases.ballad == 'Dylan'
+      - qwen3_tts_voice_aliases.cedar == 'Uncle_Fu'
+      - qwen3_tts_voice_aliases.verse == 'Ryan'
+      - qwen3_tts_voice_aliases.coral == 'Vivian'
+      - qwen3_tts_voice_aliases.marin == 'Serena'
+      - qwen3_tts_voice_aliases.nova == 'Sohee'
+      - qwen3_tts_voice_aliases.sage == 'Serena'
+      - qwen3_tts_voice_aliases.shimmer == 'Ono_Anna'
+    fail_msg: Qwen3-TTS variables exceed the fixed deployment boundary
+
+- name: Read free memory for each GPU before deployment
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+      - --query-gpu=index,memory.free
+      - --format=csv,noheader,nounits
+  register: qwen3_tts_gpu_memory_before
+  changed_when: false
+
+- name: Display free memory for each GPU before deployment
+  ansible.builtin.debug:
+    var: qwen3_tts_gpu_memory_before.stdout_lines
+
+- name: Validate the two-GPU deployment boundary
+  ansible.builtin.assert:
+    that:
+      - qwen3_tts_gpu_memory_before.stdout_lines | length == 2
+      - >-
+        qwen3_tts_gpu_memory_before.stdout_lines |
+        select('match', '^' ~ (qwen3_tts_gpu_ordinal | string) ~ ',') |
+        list | length == 1
+    fail_msg: The host must expose both GPUs, including the selected ordinal
+
+- name: Check listeners on the Qwen3-TTS host port
+  ansible.builtin.command:
+    argv: [ss, -H, -ltn, "sport = :{{ qwen3_tts_port }}"]
+  register: qwen3_tts_port_listener
+  changed_when: false
+
+- name: Find an existing Qwen3-TTS container on the host port
+  ansible.builtin.command:
+    argv:
+      - docker
+      - ps
+      - --quiet
+      - --filter
+      - "label=com.docker.compose.project={{ qwen3_tts_compose_project }}"
+      - --filter
+      - "publish={{ qwen3_tts_port }}"
+  register: qwen3_tts_existing_container
+  changed_when: false
+
+- name: Validate Qwen3-TTS host port ownership
+  ansible.builtin.assert:
+    that:
+      - >-
+        qwen3_tts_port_listener.stdout | trim | length == 0 or
+        qwen3_tts_existing_container.stdout | trim | length > 0
+    fail_msg: Host port 8100 is occupied outside the Qwen3-TTS project
+
+- name: Create Qwen3-TTS installation directory
+  ansible.builtin.file:
+    path: "{{ qwen3_tts_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [backend, config]
+
+- name: Create Qwen3-TTS model cache directory
+  ansible.builtin.file:
+    path: "{{ qwen3_tts_model_cache_dir }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  tags: [backend]
+
+- name: Create vLLM compilation cache directory
+  ansible.builtin.file:
+    path: "{{ qwen3_tts_vllm_cache_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [backend]
+
+- name: Create persistent Base voice profile directory
+  ansible.builtin.file:
+    path: "{{ qwen3_tts_profile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  tags: [backend, profile, bootstrap]
+
+- name: Deploy Qwen3-TTS profile bootstrap helper
+  ansible.builtin.copy:
+    src: qwen3-tts-profile-bootstrap.py
+    dest: "{{ qwen3_tts_install_dir }}/qwen3-tts-profile-bootstrap.py"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [backend, profile, bootstrap]
+
+- name: Deploy vLLM-Omni configuration
+  ansible.builtin.copy:
+    src: vllm-deploy-config.yaml
+    dest: "{{ qwen3_tts_vllm_deploy_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [backend, model-config, bootstrap]
+
+- name: Deploy Qwen3-TTS Speech Central shim
+  ansible.builtin.copy:
+    src: qwen3-tts-shim.py
+    dest: "{{ qwen3_tts_install_dir }}/qwen3-tts-shim.py"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [config, bootstrap]
+
+- name: Deploy Qwen3-TTS Compose definition
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ qwen3_tts_install_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [backend, config, model-config, bootstrap]
+
+- name: Validate Qwen3-TTS Compose definition
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen3_tts_compose_project }}"
+      - --file
+      - "{{ qwen3_tts_install_dir }}/compose.yml"
+      - config
+      - --quiet
+  changed_when: false
+  tags: [backend, config, model-config, bootstrap]
+
+- name: Bootstrap the synthetic Base profile without sharing the GPU
+  block:
+    - name: Stop any leftover VoiceDesign container before bootstrap
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, voice-design]
+      changed_when: false
+      failed_when: false
+
+    - name: Stop the active Qwen3-TTS services before VoiceDesign
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, shim, server]
+      changed_when: true
+
+    - name: Start temporary VoiceDesign backend
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, voice-design]
+      changed_when: true
+
+    - name: Wait for temporary VoiceDesign health endpoint
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", exec, --no-TTY, voice-design, python3, -c, "import urllib.request; urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/health', timeout=5)"]
+      register: qwen3_tts_voice_design_health
+      changed_when: false
+      retries: 120
+      delay: 10
+      until: qwen3_tts_voice_design_health.rc == 0
+
+    - name: Generate the synthetic reference WAV inside VoiceDesign
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+          - exec
+          - --no-TTY
+          - --env
+          - BOOTSTRAP_MODE=reference
+          - --env
+          - FORCE_REFERENCE=1
+          - --env
+          - "BASE_PROFILE={{ qwen3_tts_profile_name }}"
+          - --env
+          - "PROFILE_REFERENCE_FILE=/opt/qwen3-tts/profiles/{{ qwen3_tts_profile_name }}-reference.wav"
+          - --env
+          - "PROFILE_REFERENCE_TEXT={{ qwen3_tts_profile_reference_text }}"
+          - --env
+          - "VOICE_DESIGN_INSTRUCTIONS={{ qwen3_tts_voice_design_instructions }}"
+          - --env
+          - "VOICE_DESIGN_MODEL={{ qwen3_tts_voice_design_model_repository }}"
+          - --env
+          - BASE_URL=http://127.0.0.1:8880
+          - --env
+          - VOICE_DESIGN_URL=http://127.0.0.1:8880
+          - voice-design
+          - python
+          - /opt/qwen3-tts-profile-bootstrap.py
+      changed_when: true
+
+  rescue:
+    - name: Stop temporary VoiceDesign after bootstrap failure
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, voice-design]
+      changed_when: false
+      failed_when: false
+
+    - name: Restore the last configured Qwen3-TTS services after bootstrap failure
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, server, shim]
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with bootstrap recovery guidance
+      ansible.builtin.fail:
+        msg: Reference generation failed; temporary VoiceDesign was stopped and CustomVoice was restored.
+  tags: [never, voice-design-reference]
+
+- name: Activate Base profile in the explicitly authorized second stage
+  block:
+    - name: Select Base model and profile shim mode
+      ansible.builtin.set_fact:
+        qwen3_tts_model_repository: "{{ qwen3_tts_base_model_repository }}"
+        qwen3_tts_mode: base
+
+    - name: Render Base Compose definition
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ qwen3_tts_install_dir }}/compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Stop CustomVoice before starting Base
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, shim, server, voice-design]
+      changed_when: true
+
+    - name: Start Base backend for profile registration
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, server]
+      changed_when: true
+
+    - name: Wait for Base backend health endpoint
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", exec, --no-TTY, server, python3, -c, "import urllib.request; urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/health', timeout=5)"]
+      register: qwen3_tts_base_health
+      changed_when: false
+      retries: 120
+      delay: 10
+      until: qwen3_tts_base_health.rc == 0
+
+    - name: Register the ICL Base profile from the existing synthetic WAV
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", run, --rm, --no-deps, profile-bootstrap]
+      changed_when: true
+
+    - name: Start shim in Base profile mode
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, shim]
+      changed_when: true
+  tags: [never, base-activate, model-switch]
+
+- name: Create VoiceDesign and Base candidate-pairing samples
+  block:
+    - name: Select Base model while creating candidate pairs
+      ansible.builtin.set_fact:
+        qwen3_tts_model_repository: "{{ qwen3_tts_base_model_repository }}"
+        qwen3_tts_mode: base
+
+    - name: Render Base Compose definition for candidate pairing
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ qwen3_tts_install_dir }}/compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Stop the production Qwen3-TTS owner before candidate pairing
+      ansible.builtin.systemd_service:
+        name: "{{ qwen3_tts_service_name }}"
+        state: stopped
+      failed_when: false
+
+    - name: Stop Base and shim before starting VoiceDesign candidates
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, shim, server, voice-design]
+      changed_when: true
+
+    - name: Start temporary VoiceDesign backend for candidate references
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, voice-design]
+      changed_when: true
+
+    - name: Wait for temporary VoiceDesign candidate backend
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", exec, --no-TTY, voice-design, python3, -c, "import urllib.request; urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/health', timeout=5)"]
+      register: qwen3_tts_candidate_voice_design_health
+      changed_when: false
+      retries: 120
+      delay: 10
+      until: qwen3_tts_candidate_voice_design_health.rc == 0
+
+    - name: Generate each synthetic candidate reference WAV
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+          - exec
+          - --no-TTY
+          - --env
+          - BOOTSTRAP_MODE=reference
+          - --env
+          - FORCE_REFERENCE=1
+          - --env
+          - "BASE_PROFILE={{ item.name }}"
+          - --env
+          - "PROFILE_REFERENCE_FILE=/opt/qwen3-tts/profiles/{{ item.name }}-reference.wav"
+          - --env
+          - "PROFILE_REFERENCE_TEXT={{ qwen3_tts_profile_reference_text }}"
+          - --env
+          - "VOICE_DESIGN_INSTRUCTIONS={{ item.description }}"
+          - --env
+          - "VOICE_DESIGN_MODEL={{ qwen3_tts_voice_design_model_repository }}"
+          - --env
+          - BASE_URL=http://127.0.0.1:8880
+          - --env
+          - VOICE_DESIGN_URL=http://127.0.0.1:8880
+          - voice-design
+          - python
+          - /opt/qwen3-tts-profile-bootstrap.py
+      loop: "{{ qwen3_tts_candidate_profiles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: qwen3_tts_candidate_reference_results
+      changed_when: true
+      failed_when: false
+      no_log: true
+
+    - name: Record candidate reference generation failures without audio details
+      ansible.builtin.debug:
+        msg: >-
+          {{ qwen3_tts_candidate_reference_results.results |
+          selectattr('rc', 'ne', 0) | list | length }} candidate reference
+          generation(s) failed; remaining candidates will continue.
+
+    - name: Stop VoiceDesign before candidate Base profiles
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, voice-design]
+      changed_when: true
+
+    - name: Start Base backend for candidate profile registration
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, server]
+      changed_when: true
+
+    - name: Wait for Base candidate backend
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", exec, --no-TTY, server, python3, -c, "import urllib.request; urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/health', timeout=5)"]
+      register: qwen3_tts_candidate_base_health
+      changed_when: false
+      retries: 120
+      delay: 10
+      until: qwen3_tts_candidate_base_health.rc == 0
+
+    - name: Register candidate profile and generate matching Base probe WAV
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+          - run
+          - --rm
+          - --no-deps
+          - --env
+          - BOOTSTRAP_MODE=candidate
+          - --env
+          - "BASE_PROFILE={{ item.name }}"
+          - --env
+          - "PRODUCTION_PROFILE={{ qwen3_tts_profile_name }}"
+          - --env
+          - "PROFILE_REFERENCE_FILE=/opt/qwen3-tts/profiles/{{ item.name }}-reference.wav"
+          - --env
+          - "PROFILE_REFERENCE_TEXT={{ qwen3_tts_profile_reference_text }}"
+          - --env
+          - "PROFILE_PROBE_FILE=/opt/qwen3-tts/profiles/{{ item.name }}-clone.wav"
+          - --env
+          - "PROFILE_PROBE_TEXT={{ qwen3_tts_candidate_probe_text }}"
+          - --env
+          - "VOICE_DESIGN_INSTRUCTIONS={{ item.description }}"
+          - --env
+          - "BASE_MODEL={{ qwen3_tts_base_model_repository }}"
+          - profile-bootstrap
+      loop: "{{ qwen3_tts_candidate_profiles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: qwen3_tts_candidate_pair_results
+      changed_when: true
+      failed_when: false
+      no_log: true
+
+    - name: Record candidate Base pairing failures without audio details
+      ansible.builtin.debug:
+        msg: >-
+          {{ qwen3_tts_candidate_pair_results.results |
+          selectattr('rc', 'ne', 0) | list | length }} candidate Base pairing(s)
+          failed; VoiceDesign will remain available for adjustment.
+
+  always:
+    - name: Stop Base and shim after candidate pairing
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", stop, shim, server]
+      changed_when: false
+      failed_when: false
+
+    - name: Start VoiceDesign for follow-up adjustment
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", up, --detach, voice-design]
+      changed_when: false
+      failed_when: false
+
+    - name: Wait for VoiceDesign adjustment backend
+      ansible.builtin.command:
+        argv: [docker, compose, --project-name, "{{ qwen3_tts_compose_project }}", --file, "{{ qwen3_tts_install_dir }}/compose.yml", exec, --no-TTY, voice-design, python3, -c, "import urllib.request; urllib.request.urlopen('http://localhost:{{ qwen3_tts_container_port }}/health', timeout=5)"]
+      register: qwen3_tts_candidate_adjustment_health
+      changed_when: false
+      retries: 120
+      delay: 10
+      until: qwen3_tts_candidate_adjustment_health.rc == 0
+  tags: [never, candidate-pairing]
+
+- name: Create local candidate-pairing audition directory
+  ansible.builtin.file:
+    path: "{{ qwen3_tts_candidate_local_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  tags: [never, candidate-pairing]
+
+- name: Fetch candidate reference WAVs for local audition
+  ansible.builtin.stat:
+    path: "{{ qwen3_tts_profile_dir }}/{{ item.name }}-reference.wav"
+  loop: "{{ qwen3_tts_candidate_profiles }}"
+  register: qwen3_tts_candidate_reference_files
+  tags: [never, candidate-pairing]
+
+- name: Fetch available candidate reference WAVs for local audition
+  ansible.builtin.fetch:
+    src: "{{ qwen3_tts_profile_dir }}/{{ item.item.name }}-reference.wav"
+    dest: "{{ qwen3_tts_candidate_local_dir }}/"
+    flat: true
+  loop: "{{ qwen3_tts_candidate_reference_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }} reference"
+  when: item.stat.exists
+  tags: [never, candidate-pairing]
+
+- name: Check candidate Base clone WAVs before local audition fetch
+  ansible.builtin.stat:
+    path: "{{ qwen3_tts_profile_dir }}/{{ item.name }}-clone.wav"
+  loop: "{{ qwen3_tts_candidate_profiles }}"
+  register: qwen3_tts_candidate_clone_files
+  tags: [never, candidate-pairing]
+
+- name: Fetch available candidate Base clone WAVs for local audition
+  ansible.builtin.fetch:
+    src: "{{ qwen3_tts_profile_dir }}/{{ item.item.name }}-clone.wav"
+    dest: "{{ qwen3_tts_candidate_local_dir }}/"
+    flat: true
+  loop: "{{ qwen3_tts_candidate_clone_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }} clone"
+  when: item.stat.exists
+  tags: [never, candidate-pairing]
+
+- name: Apply Qwen3-TTS shim configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen3_tts_compose_project }}"
+      - --file
+      - "{{ qwen3_tts_install_dir }}/compose.yml"
+      - up
+      - --detach
+      - --pull
+      - missing
+      - --force-recreate
+      - --no-deps
+      - shim
+  tags: [never, config]
+
+- name: Apply Qwen3-TTS backend
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen3_tts_compose_project }}"
+      - --file
+      - "{{ qwen3_tts_install_dir }}/compose.yml"
+      - up
+      - --detach
+      - --pull
+      - missing
+      - --force-recreate
+      - --no-deps
+      - server
+  tags: [never, backend, model-config]
+
+- name: Deploy Qwen3-TTS systemd owner
+  ansible.builtin.template:
+    src: qwen3-tts.service.j2
+    dest: "/etc/systemd/system/{{ qwen3_tts_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [service-config]
+
+- name: Apply Qwen3-TTS systemd owner
+  ansible.builtin.meta: flush_handlers
+  tags: [service-config]
+
+- name: Restart Qwen3-TTS without enabling it
+  ansible.builtin.systemd_service:
+    name: "{{ qwen3_tts_service_name }}"
+    state: restarted
+    enabled: false
+
+- name: Wait for Qwen3-TTS health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/health"
+    method: GET
+    status_code: 200
+  register: qwen3_tts_deploy_health
+  retries: 120
+  delay: 10
+  until:
+    - qwen3_tts_deploy_health.status == 200
+
+- name: Verify the deployment
+  ansible.builtin.include_tasks: verify.yml

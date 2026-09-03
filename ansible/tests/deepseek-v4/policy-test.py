@@ -17,10 +17,36 @@ def require(condition, message):
         failures.append(message)
 
 
+# Everything below reads these artifacts unconditionally at import time. They
+# are on the llm-server decommission path, so once that lands the reads would
+# raise FileNotFoundError from module scope -- a traceback that says nothing
+# about why. Fail with the reason and the remedy instead.
+REQUIRED_ARTIFACTS = (
+    ANSIBLE / "roles/deepseek-v4",
+    ANSIBLE / "roles/deepseek-v4-ik",
+    ANSIBLE / "inventory/host_vars/llm-server.yml",
+    ANSIBLE / "playbooks/qualify-deepseek-v4-ik.yml",
+)
+absent = [str(path.relative_to(ROOT)) for path in REQUIRED_ARTIFACTS if not path.exists()]
+if absent:
+    print(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": "fail",
+                "failures": [
+                    "policy inputs are missing: " + ", ".join(absent),
+                    "if DeepSeek V4 has been decommissioned, delete this test "
+                    "with the artifacts it guards; otherwise restore them",
+                ],
+            },
+            indent=2,
+        )
+    )
+    sys.exit(1)
+
 compose = (ANSIBLE / "roles/deepseek-v4/templates/docker-compose.yml.j2").read_text()
 unit = (ANSIBLE / "roles/deepseek-v4/templates/deepseek-v4.service.j2").read_text()
-legacy_playbook = (ANSIBLE / "playbooks/deploy-llm-server.yml").read_text()
-legacy_role = (ANSIBLE / "roles/llm-server/tasks/main.yml").read_text()
 host_vars = (ANSIBLE / "inventory/host_vars/llm-server.yml").read_text()
 defaults = (ANSIBLE / "roles/deepseek-v4/defaults/main.yml").read_text()
 webui_tasks = (ANSIBLE / "roles/deepseek-v4/tasks/webui.yml").read_text()
@@ -84,11 +110,13 @@ require("restart: unless-stopped" in compose, "Compose is not the container rest
 require("Restart=" not in unit, "systemd must not own a restart loop")
 require("--pull never" in unit, "lifecycle could pull an image")
 require("deepseek_v4_compose_services" in unit, "systemd cannot isolate inference from UI cutover")
-require("role: llm-server" not in legacy_playbook and "    - llm-server\n" not in legacy_playbook,
-        "retired entrypoint still references the legacy role")
 require(
-    "Reject the retired legacy LLM lifecycle" in legacy_role,
-    "the legacy role can still reactivate retired models",
+    not (ANSIBLE / "playbooks/deploy-llm-server.yml").exists(),
+    "retired entrypoint playbook should have been deleted, not left in place",
+)
+require(
+    not (ANSIBLE / "roles/llm-server").exists(),
+    "the legacy multi-model role should have been deleted, not left in place",
 )
 require("llm_server_models" not in host_vars and "llm_server_boot_model" not in host_vars,
         "legacy desired state remains in host vars")

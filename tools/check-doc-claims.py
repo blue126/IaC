@@ -305,22 +305,49 @@ CLAIMS = (
         "netboxcommunity/netbox:v4.1.11",
         _table_value,
     ),
+    # Qwen3-TTS on llm-workstation. The design doc has already drifted once
+    # here: it claimed a Talker gpu_memory_utilization of 0.17 long after the
+    # config moved to 0.3, and nothing failed.
+    #
+    # The vLLM deploy-config values (gpu_memory_utilization, max_num_seqs,
+    # kv_cache_memory_bytes, silence_ban_frames) are not claimable today for
+    # two reasons: _yaml_key_values reads top-level keys only and those live
+    # under `stages:`, and the per-stage keys appear twice, which the reader
+    # rejects as ambiguous. Tracked in deferred-work.md.
     Claim(
-        "service.llm-server.engine-version",
-        "docs/deployment/llm-server-deployment.md",
-        "defaults/main.yml — 关键变量::llm_server_engine_version",
-        "ansible/roles/llm-server/defaults/main.yml",
-        "llm_server_engine_version",
-        "f7923739",
+        "service.qwen3-tts.vllm-image",
+        "docs/designs/qwen3-tts-openai-api-integration.md",
+        "关键配置值::qwen3_tts_vllm_image",
+        "ansible/roles/qwen3-tts-workstation/defaults/main.yml",
+        "qwen3_tts_vllm_image",
+        "vllm/vllm-omni:v0.28.0",
         _fenced_yaml_value,
     ),
     Claim(
-        "service.llm-server.webui-port",
-        "docs/deployment/llm-server-deployment.md",
-        "defaults/main.yml — 关键变量::llm_server_webui_port",
-        "ansible/roles/llm-server/defaults/main.yml",
-        "llm_server_webui_port",
-        3000,
+        "service.qwen3-tts.gpu-ordinal",
+        "docs/designs/qwen3-tts-openai-api-integration.md",
+        "关键配置值::qwen3_tts_gpu_ordinal",
+        "ansible/roles/qwen3-tts-workstation/defaults/main.yml",
+        "qwen3_tts_gpu_ordinal",
+        1,
+        _fenced_yaml_value,
+    ),
+    Claim(
+        "service.qwen3-tts.port",
+        "docs/designs/qwen3-tts-openai-api-integration.md",
+        "关键配置值::qwen3_tts_port",
+        "ansible/roles/qwen3-tts-workstation/defaults/main.yml",
+        "qwen3_tts_port",
+        8100,
+        _fenced_yaml_value,
+    ),
+    Claim(
+        "service.qwen3-tts.min-free-vram-mib",
+        "docs/designs/qwen3-tts-openai-api-integration.md",
+        "关键配置值::qwen3_tts_min_free_vram_mib",
+        "ansible/roles/qwen3-tts-workstation/defaults/main.yml",
+        "qwen3_tts_min_free_vram_mib",
+        512,
         _fenced_yaml_value,
     ),
 )

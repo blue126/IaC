@@ -1,0 +1,145 @@
+---
+- name: Validate the Open WebUI gateway deployment boundary
+  ansible.builtin.assert:
+    that:
+      - open_webui_gateway_bind_address == '192.168.1.1'
+      - open_webui_gateway_bind_address != '0.0.0.0'
+      - open_webui_gateway_port | int > 0
+      - open_webui_gateway_image_digest is match('^sha256:[0-9a-f]{64}$')
+      - open_webui_gateway_install_dir is match('^/mnt/data/')
+      - open_webui_gateway_data_dir is match('^/mnt/data/')
+    fail_msg: >-
+      Open WebUI gateway deployment boundary violated: the published port
+      must bind only to the LAN address 192.168.1.1 (never 0.0.0.0), and
+      persistent data must live under /mnt/data (the 223GB NVMe partition),
+      never /overlay (1.9GB).
+
+- name: Probe the target init system
+  ansible.builtin.raw: command -v systemctl >/dev/null 2>&1 && echo systemd || echo no-systemd
+  register: open_webui_gateway_init_probe
+  changed_when: false
+
+- name: Record the init system finding
+  ansible.builtin.debug:
+    msg: >-
+      Target init probe: {{ open_webui_gateway_init_probe.stdout | trim }}.
+      This role relies on Docker's own restart:unless-stopped policy plus
+      the already procd-managed and boot-enabled dockerd service for
+      persistence, since this host has no systemd.
+
+- name: Probe the target for a Python interpreter
+  ansible.builtin.raw: command -v python3 python 2>/dev/null || true
+  register: open_webui_gateway_python_probe
+  changed_when: false
+
+- name: Record the Python availability finding
+  ansible.builtin.debug:
+    msg: >-
+      Python probe on target: '{{ open_webui_gateway_python_probe.stdout | trim }}'
+      (empty means none found). This role uses ansible.builtin.raw
+      exclusively for that reason -- see defaults/main.yml.
+
+- name: Check for an existing listener on the Open WebUI gateway port
+  # A trailing `|| true` swallows more than grep's empty-match exit code: if
+  # netstat is missing or errors, stdout is empty too and the ownership check
+  # below reads that as "port is free". Emit PROBE_OK only when netstat itself
+  # succeeded, so the assert can tell "nothing is listening" apart from
+  # "we could not look".
+  ansible.builtin.raw: >-
+    listeners=$(netstat -tln 2>/dev/null) && echo PROBE_OK;
+    echo "$listeners" | awk '{print $4}' |
+    grep -E ":{{ open_webui_gateway_port }}$" || true
+  register: open_webui_gateway_port_listener
+  changed_when: false
+
+- name: Check for an existing Open WebUI container publishing that port
+  ansible.builtin.raw: >-
+    docker ps --quiet
+    --filter "label=com.docker.compose.project={{ open_webui_gateway_compose_project }}"
+    --filter "publish={{ open_webui_gateway_port }}"
+  register: open_webui_gateway_existing_container
+  changed_when: false
+
+- name: Validate Open WebUI gateway port ownership
+  ansible.builtin.assert:
+    that:
+      # The probe has to have actually run; an empty result from a failed or
+      # missing netstat must not read as "the port is free".
+      - "'PROBE_OK' in open_webui_gateway_port_listener.stdout"
+      - >-
+        open_webui_gateway_port_listener.stdout_lines
+        | reject('search', '^PROBE_OK$') | reject('match', '^\s*$')
+        | list | length == 0 or
+        open_webui_gateway_existing_container.stdout | trim | length > 0
+    fail_msg: >-
+      Port {{ open_webui_gateway_port }} is already occupied by something
+      other than this Open WebUI project, or the listener probe could not run
+      (no PROBE_OK marker); refusing to publish on top of it. Probe output:
+      {{ open_webui_gateway_port_listener.stdout_lines }}
+
+- name: Check whether the Open WebUI gateway directories already exist
+  ansible.builtin.raw: >-
+    test -d {{ open_webui_gateway_install_dir }} && test -d {{ open_webui_gateway_data_dir }} && echo present || echo missing
+  register: open_webui_gateway_dirs_check
+  changed_when: false
+
+- name: Create the Open WebUI gateway install and data directories
+  ansible.builtin.raw: >-
+    mkdir -p {{ open_webui_gateway_install_dir }} {{ open_webui_gateway_data_dir }} &&
+    chmod 0755 {{ open_webui_gateway_install_dir }} {{ open_webui_gateway_data_dir }}
+  when: (open_webui_gateway_dirs_check.stdout | trim) != 'present'
+  changed_when: true
+
+- name: Render the Open WebUI gateway Compose definition on the controller
+  ansible.builtin.set_fact:
+    open_webui_gateway_compose_rendered: "{{ lookup('ansible.builtin.template', 'compose.yml.j2') }}"
+
+- name: Read the Compose definition currently on the target
+  # ansible.builtin.raw always forces a pty (-tt) for its SSH session. The
+  # kernel pty line discipline applies ONLCR on that channel, so every LF
+  # this command's stdout crosses back over comes back as CRLF -- the file
+  # on disk is untouched (writes below go straight to a regular file, never
+  # through the pty), only this readback is affected. Strip the injected
+  # CR before comparing so the idempotency check isn't fooled by it.
+  ansible.builtin.raw: cat {{ open_webui_gateway_install_dir }}/compose.yml 2>/dev/null || true
+  register: open_webui_gateway_compose_remote
+  changed_when: false
+
+- name: Write the Open WebUI gateway Compose definition
+  # The target has neither Python nor a `base64` binary (busybox ash,
+  # minimal userland); OpenSSL is present and provides base64 decoding.
+  ansible.builtin.raw: >-
+    echo '{{ open_webui_gateway_compose_rendered | b64encode }}' | openssl base64 -d -A > {{ open_webui_gateway_install_dir }}/compose.yml
+  when: >-
+    (open_webui_gateway_compose_remote.stdout | replace('\r', '') | trim) !=
+    (open_webui_gateway_compose_rendered | trim)
+  changed_when: true
+
+- name: Validate the Open WebUI gateway Compose definition
+  ansible.builtin.raw: >-
+    docker compose --project-name {{ open_webui_gateway_compose_project }}
+    --file {{ open_webui_gateway_install_dir }}/compose.yml config --quiet
+  changed_when: false
+
+- name: Apply the Open WebUI gateway Compose project
+  ansible.builtin.raw: >-
+    docker compose --project-name {{ open_webui_gateway_compose_project }}
+    --file {{ open_webui_gateway_install_dir }}/compose.yml up --detach --pull missing
+  register: open_webui_gateway_compose_up
+  changed_when: >-
+    ('Created' in (open_webui_gateway_compose_up.stdout ~ open_webui_gateway_compose_up.stderr)) or
+    ('Started' in (open_webui_gateway_compose_up.stdout ~ open_webui_gateway_compose_up.stderr)) or
+    ('Recreated' in (open_webui_gateway_compose_up.stdout ~ open_webui_gateway_compose_up.stderr))
+
+- name: Wait for the Open WebUI gateway health endpoint
+  ansible.builtin.raw: >-
+    curl --silent --max-time 5 --output /dev/null --write-out '%{http_code}'
+    http://{{ open_webui_gateway_bind_address }}:{{ open_webui_gateway_port }}/health
+  register: open_webui_gateway_health
+  changed_when: false
+  retries: 30
+  delay: 5
+  until: (open_webui_gateway_health.stdout | default('') | trim) == '200'
+
+- name: Verify the deployment
+  ansible.builtin.include_tasks: verify.yml

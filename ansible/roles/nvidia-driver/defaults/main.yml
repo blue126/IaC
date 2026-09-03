@@ -1,0 +1,20 @@
+---
+nvidia_driver_package: nvidia-driver-580
+nvidia_driver_expected_gpu_count: 2
+nvidia_driver_expected_gpu_name: "NVIDIA GeForce RTX 3090"
+
+# Pinned from the key installed on llm-workstation on 2026-09-03. The apt
+# repository below is signed by this key, so an unnoticed swap upstream would
+# change what this host trusts for container-toolkit packages. To rotate:
+# fetch the new key, review it, then update this digest in the same commit.
+nvidia_driver_toolkit_keyring_sha256: >-
+  c880576d6cf75a48e5027a871bac70fd0421ab07d2b55f30877b21f1c87959c9
+
+# Units that hold a GPU through Docker. Restarting the Docker daemon
+# deactivates anything with Requires=docker.service, and neither of these
+# comes back on its own: both Compose projects use restart: "no". The role
+# records which of these were active before it touches Docker and restores
+# exactly those afterwards -- a unit that was already stopped stays stopped.
+nvidia_driver_dependent_units:
+  - qwen38.service
+  - qwen3-tts.service

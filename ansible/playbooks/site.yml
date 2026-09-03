@@ -1,6 +1,10 @@
 ---
+# `all` matches every host in the inventory, including ones no groups.yml entry
+# lists. network_appliance is excluded by name: it holds the border router,
+# which has no Python interpreter for the common role to run through and whose
+# configuration needs explicit authorization before any change.
 - name: Apply common baseline to all hosts
-  hosts: all
+  hosts: all:!network_appliance
   become: true
   roles:
     - common

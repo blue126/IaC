@@ -1,0 +1,62 @@
+---
+services:
+  server:
+    image: {{ qwen38_runtime_image }}
+    entrypoint: []
+    command:
+      - /build/llama-server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "{{ qwen38_api_port }}"
+      - --alias
+      - {{ qwen38_model_name }}
+      - --model
+      - /models/{{ qwen38_model_file }}
+      - --jinja
+      - --ctx-size
+      - "{{ qwen38_ctx_size }}"
+      - --n-gpu-layers
+      - "{{ qwen38_gpu_layers }}"
+      - --split-mode
+      - {{ qwen38_split_mode }}
+      - --flash-attn
+      - "on"
+      - --cache-type-k
+      - {{ qwen38_cache_type }}
+      - --cache-type-v
+      - {{ qwen38_cache_type }}
+      - --no-mmap
+      - --temp
+      - "{{ qwen38_temperature }}"
+      - --top-p
+      - "{{ qwen38_top_p }}"
+      - --top-k
+      - "{{ qwen38_top_k }}"
+      - --min-p
+      - "{{ qwen38_min_p }}"
+      - --presence-penalty
+      - "{{ qwen38_presence_penalty }}"
+{% if qwen38_spec_type | string | length > 0 %}
+      - --spec-type
+      - {{ qwen38_spec_type }}
+      - --spec-draft-n-max
+      - "{{ qwen38_spec_draft_n_max }}"
+{% endif %}
+    environment:
+      CUDA_VISIBLE_DEVICES: "{{ qwen38_gpu_ordinals | join(',') }}"
+      LD_LIBRARY_PATH: /build
+    ports:
+      - "{{ qwen38_bind_address }}:{{ qwen38_api_port }}:{{ qwen38_api_port }}"
+    volumes:
+      - "{{ qwen38_runtime_bin_dir }}:/build:ro"
+      - "{{ qwen38_model_dir }}:/models:ro"
+    devices:
+{% for ordinal in qwen38_gpu_ordinals %}
+      - nvidia.com/gpu={{ ordinal }}
+{% endfor %}
+    ipc: host
+    cap_add: [SYS_NICE]
+    init: true
+    restart: "no"
+    stop_grace_period: 120s

@@ -1,0 +1,81 @@
+---
+# Qwen3.8-27B on llm-workstation, split across both RTX 3090s.
+#
+# Modelled on ansible/roles/qwen36 but decoupled from llm-server: there is no
+# DeepSeek runtime on this host, so nothing to hand the backend port over from,
+# and no deepseek-v4-ik compatibility proxy in front. llama-server is published
+# on the LAN address directly.
+
+qwen38_install_dir: /opt/qwen38
+
+# llama.cpp mainline build. Produced by scripts/llama-cpp-mainline-build.sh,
+# which must run on the host before this role (same out-of-band build step the
+# DeepSeek and Qwen3.6 roles rely on -- Ansible only verifies the artifact).
+# Not under /opt/deepseek-v4-mainline as on llm-server: this host never ran
+# DeepSeek, so the path carries no model name.
+qwen38_runtime_root: /opt/llama-cpp-mainline
+qwen38_runtime_bin_dir: "{{ qwen38_runtime_root }}/src/build/bin"
+qwen38_runtime_commit: 10bf611e533d81f739128304991c5e133c6aebd8
+# The binary's rpath points inside the build image and it links libnccl.so.2,
+# which the host does not provide, so it only runs inside this image.
+qwen38_runtime_image: >-
+  approachingai/ktransformers@sha256:5e8f614b5f80ca9d281719a81d65f7dd153d9755696053a7487cd6b90558d1d8
+
+# Model pin. Third-party GGUF conversion, so the digest is checked before the
+# service is allowed to start, same rule as qwen36.
+qwen38_model_dir: /data/models/qwen38
+qwen38_model_file: Qwen3.8-27B-UD-Q5_K_M.gguf
+qwen38_model_repo: unsloth/Qwen3.8-27B-GGUF
+qwen38_model_revision: 4ca720788d1e01f1bff70c033e0d0028fd02e502
+qwen38_model_sha256: >-
+  2de73110cb254cbf09b54b717578dadff12ef1194e7271527e68202f39ba4bfd
+qwen38_model_size: 19771509664
+# Records the digest last verified for the artifact above, so a re-run does not
+# re-hash 19.7 GB. Lives next to the model: replacing the model makes the file
+# newer than this stamp, which forces the digest to be recomputed.
+qwen38_model_stamp: "{{ qwen38_model_dir }}/.{{ qwen38_model_file }}.verified"
+
+qwen38_compose_project: qwen38
+qwen38_service_unit: qwen38.service
+qwen38_model_name: qwen38
+
+# Published straight on the LAN. llm-server fronts llama-server with the
+# deepseek-v4-ik compatibility proxy to get a CIDR allowlist; this host has no
+# such proxy, so the API is reachable by anything on the LAN. Add a proxy
+# before exposing this host any wider.
+qwen38_bind_address: 192.168.1.191
+qwen38_api_port: 8081
+
+# Both GPUs. 18.4 GiB of weights split across 2x24 GiB leaves room for the
+# 128K f16 KV cache; qwen36 runs the same shape on the same pair of cards.
+qwen38_gpu_ordinals: [0, 1]
+qwen38_gpu_layers: 999
+qwen38_split_mode: layer
+qwen38_ctx_size: 131072
+qwen38_cache_type: f16
+
+# Unsloth's published instruct (non-thinking) sampling defaults for Qwen3.8.
+# Server-side defaults only: a client that sends its own values still wins.
+qwen38_temperature: 0.7
+qwen38_top_p: 0.80
+qwen38_top_k: 20
+qwen38_min_p: 0.0
+qwen38_presence_penalty: 1.5
+
+# Speculative decoding. This GGUF keeps the model's native MTP head
+# (blk.64.nextn.*), so draft-mtp needs no separate drafter and no extra VRAM.
+#
+# Measured on this host, same prompts either way: a 614-token generation went
+# 37.2 -> 65.5 tok/s (17.6s -> 9.4s) and a 27-token tool call 37.1 -> 75.2.
+# Prefill pays for it, 1698 -> 1486 tok/s on a cold 20K prompt, which is the
+# right trade for agent traffic: every turn waits on decode, while prefill is
+# mostly served from the prompt cache after the first turn.
+#
+# n_max is untuned beyond this. The DeepSeek work on llm-server found its
+# optimum at 2 and a regression at 3, so that is where this starts.
+qwen38_spec_type: draft-mtp
+qwen38_spec_draft_n_max: 2
+
+qwen38_start_retries: 60
+qwen38_start_delay_seconds: 10
+qwen38_chat_prompt: Reply with exactly OK.

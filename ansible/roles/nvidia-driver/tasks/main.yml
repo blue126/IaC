@@ -1,0 +1,138 @@
+---
+- name: Install the NVIDIA driver package
+  apt:
+    name: "{{ nvidia_driver_package }}"
+    state: present
+    update_cache: yes
+
+- name: Add the NVIDIA Container Toolkit GPG key
+  get_url:
+    url: https://nvidia.github.io/libnvidia-container/gpgkey
+    dest: /usr/share/keyrings/nvidia-container-toolkit-keyring.asc
+    checksum: "sha256:{{ nvidia_driver_toolkit_keyring_sha256 | trim }}"
+    mode: "0644"
+
+- name: Add the NVIDIA Container Toolkit apt repository
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.asc] https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /"
+    filename: nvidia-container-toolkit
+    state: present
+
+- name: Install nvidia-container-toolkit
+  apt:
+    name: nvidia-container-toolkit
+    state: present
+    update_cache: yes
+
+# Record what is running before anything can bounce the Docker daemon, so the
+# restore below reactivates exactly the units that were up -- and nothing else.
+- name: Read the state of units that hold a GPU through Docker
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ item }}"]
+  loop: "{{ nvidia_driver_dependent_units }}"
+  register: nvidia_driver_dependent_state
+  changed_when: false
+  failed_when: false
+
+- name: Configure the Docker runtime for GPU access
+  command: nvidia-ctk runtime configure --runtime=docker
+  register: nvidia_driver_ctk_configure
+  changed_when: "'Wrote updated config' in nvidia_driver_ctk_configure.stdout"
+  notify: Restart Docker
+
+# Bare `docker run --gpus all` resolves through CDI on this host and also
+# probes for an AMD CDI spec (the CPU's iGPU is a visible PCI device), which
+# fails with "AMD CDI spec not found" even though nothing wants the iGPU.
+# Compose/CLI callers must address GPUs explicitly instead, e.g.
+# `--device nvidia.com/gpu=0` or `devices: [nvidia.com/gpu=0]` in Compose.
+# That form needs this generated spec to resolve at all.
+#
+# Generated to stdout rather than straight to the file so `copy` can decide
+# whether anything actually changed; writing with --output made this role
+# report changed on every run.
+- name: Generate the NVIDIA CDI spec
+  command: nvidia-ctk cdi generate
+  register: nvidia_driver_cdi_generate
+  changed_when: false
+
+- name: Install the NVIDIA CDI spec
+  copy:
+    content: "{{ nvidia_driver_cdi_generate.stdout }}\n"
+    dest: /etc/cdi/nvidia.yaml
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Flush handlers so the Docker runtime change takes effect before verify
+  meta: flush_handlers
+
+- name: Restore units that were holding a GPU before Docker was reconfigured
+  ansible.builtin.systemd_service:
+    name: "{{ item.item }}"
+    state: started
+  loop: "{{ nvidia_driver_dependent_state.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout | trim == 'active'
+
+# /var/run/reboot-required only appears when update-notifier-common is
+# installed, so it cannot be the only signal. The authoritative check is
+# whether the module on disk matches the driver the kernel has loaded:
+# after an in-place driver upgrade they diverge until the host reboots, and
+# nvidia-smi fails outright with "Driver/library version mismatch".
+- name: Read the NVIDIA kernel module version on disk
+  ansible.builtin.command:
+    argv: [modinfo, -F, version, nvidia]
+  register: nvidia_driver_module_version
+  changed_when: false
+  failed_when: false
+
+- name: Read the loaded NVIDIA driver version
+  ansible.builtin.command:
+    argv: [nvidia-smi, --query-gpu=driver_version, --format=csv,noheader]
+  register: nvidia_driver_loaded_version
+  changed_when: false
+  failed_when: false
+
+- name: Check whether the packaging layer also flagged a pending reboot
+  stat:
+    path: /var/run/reboot-required
+  register: nvidia_driver_reboot_required
+
+- name: Determine whether the driver is usable without a reboot
+  ansible.builtin.set_fact:
+    nvidia_driver_ready: >-
+      {{
+        nvidia_driver_module_version.rc == 0
+        and nvidia_driver_loaded_version.rc == 0
+        and (nvidia_driver_module_version.stdout | trim)
+            == (nvidia_driver_loaded_version.stdout_lines | first | default('') | trim)
+      }}
+
+- name: Verify GPUs are visible to the driver
+  command: nvidia-smi --query-gpu=name --format=csv,noheader
+  register: nvidia_driver_smi
+  changed_when: false
+  when: nvidia_driver_ready | bool
+
+- name: Assert the expected GPU count and identity
+  assert:
+    that:
+      - nvidia_driver_smi.stdout_lines | length == nvidia_driver_expected_gpu_count
+      - nvidia_driver_smi.stdout_lines | unique | length == 1
+      - nvidia_driver_smi.stdout_lines[0] == nvidia_driver_expected_gpu_name
+    fail_msg: >-
+      Expected {{ nvidia_driver_expected_gpu_count }}x '{{ nvidia_driver_expected_gpu_name }}',
+      got: {{ nvidia_driver_smi.stdout_lines }}
+  when: nvidia_driver_ready | bool
+
+- name: Reboot is required before the driver is usable
+  debug:
+    msg: >-
+      The driver on disk ({{ nvidia_driver_module_version.stdout | trim | default('unknown') }})
+      does not match the loaded driver
+      ({{ nvidia_driver_loaded_version.stdout_lines | first | default('unavailable') | trim }});
+      /var/run/reboot-required
+      {{ 'is present' if nvidia_driver_reboot_required.stat.exists else 'is absent' }}.
+      GPU verification skipped this run; reboot, then re-run this role.
+  when: not (nvidia_driver_ready | bool)

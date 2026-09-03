@@ -1,0 +1,11 @@
+---
+- name: Deploy base LLM workstation platform
+  hosts: llm-workstation
+  become: true
+  gather_facts: true
+  roles:
+    - common
+    - tailscale
+    - docker
+    - nvidia-driver
+  tags: [deploy]

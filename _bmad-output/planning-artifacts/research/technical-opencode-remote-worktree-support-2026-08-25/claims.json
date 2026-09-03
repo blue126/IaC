@@ -1,0 +1,22 @@
+[
+  {
+    "claim": "OpenCode Desktop supports adding remote HTTP servers",
+    "class": "version/compatibility",
+    "pub_date": "2026-08-21"
+  },
+  {
+    "claim": "OpenCode 1.18.21 includes native experimental workspace routes and WorktreeAdapter",
+    "class": "version/compatibility",
+    "pub_date": "2026-08-21"
+  },
+  {
+    "claim": "Native TUI workspace commands require OPENCODE_EXPERIMENTAL_WORKSPACES",
+    "class": "version/compatibility",
+    "pub_date": "2026-08-21"
+  },
+  {
+    "claim": "The documented plugin API does not expose Desktop UI injection",
+    "class": "version/compatibility",
+    "pub_date": "2026-08-25"
+  }
+]

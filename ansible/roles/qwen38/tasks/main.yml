@@ -1,0 +1,191 @@
+---
+- name: Validate the fixed Qwen3.8 deployment boundary
+  ansible.builtin.assert:
+    that:
+      - qwen38_model_repo == 'unsloth/Qwen3.8-27B-GGUF'
+      - >-
+        qwen38_model_revision ==
+        '4ca720788d1e01f1bff70c033e0d0028fd02e502'
+      - >-
+        qwen38_model_sha256 | trim ==
+        '2de73110cb254cbf09b54b717578dadff12ef1194e7271527e68202f39ba4bfd'
+      - qwen38_model_size | int == 19771509664
+      - qwen38_api_port | int == 8081
+      - qwen38_bind_address == '192.168.1.191'
+      - qwen38_cache_type == 'f16'
+      - qwen38_gpu_ordinals | sort == [0, 1]
+    fail_msg: >-
+      Qwen3.8 model pin or fixed service boundary changed. The GGUF is a
+      third-party conversion, so the digest is the only thing standing between
+      a silent swap and production.
+
+# Size and mtime are cheap and catch a truncated or swapped file; the full
+# digest is what actually defends the pin, but hashing 19.7 GB costs minutes of
+# I/O contended with the inference running on the same host. So the digest runs
+# once per artifact and its result is stamped; a later run re-hashes only when
+# the stamp is missing, records a different digest, or the file has been
+# touched since the stamp was written.
+- name: Inspect the model artifact
+  ansible.builtin.stat:
+    path: "{{ qwen38_model_dir }}/{{ qwen38_model_file }}"
+    get_checksum: false
+  register: qwen38_model
+
+- name: Require the model artifact to be present and the expected size
+  ansible.builtin.assert:
+    that:
+      - qwen38_model.stat.exists
+      - qwen38_model.stat.size == qwen38_model_size
+    fail_msg: >-
+      Model missing or wrong size at
+      {{ qwen38_model_dir }}/{{ qwen38_model_file }}.
+      Re-download from {{ qwen38_model_repo }} at revision
+      {{ qwen38_model_revision }}.
+
+- name: Read the recorded digest verification stamp
+  ansible.builtin.stat:
+    path: "{{ qwen38_model_stamp }}"
+  register: qwen38_model_stamp_file
+
+- name: Read the stamped digest
+  ansible.builtin.slurp:
+    src: "{{ qwen38_model_stamp }}"
+  register: qwen38_model_stamp_content
+  when: qwen38_model_stamp_file.stat.exists
+
+- name: Decide whether the model digest must be recomputed
+  ansible.builtin.set_fact:
+    qwen38_model_needs_digest: >-
+      {{
+        not qwen38_model_stamp_file.stat.exists
+        or (qwen38_model_stamp_content.content | b64decode | trim)
+           != (qwen38_model_sha256 | trim)
+        or qwen38_model_stamp_file.stat.mtime < qwen38_model.stat.mtime
+      }}
+
+- name: Compute the model digest
+  ansible.builtin.stat:
+    path: "{{ qwen38_model_dir }}/{{ qwen38_model_file }}"
+    checksum_algorithm: sha256
+    get_checksum: true
+  register: qwen38_model_digest
+  when: qwen38_model_needs_digest | bool
+
+- name: Require the model artifact to match its pin
+  ansible.builtin.assert:
+    that:
+      - >-
+        qwen38_model_digest.stat.checksum | default('') ==
+        qwen38_model_sha256 | trim
+    fail_msg: >-
+      Model digest mismatch at {{ qwen38_model_dir }}/{{ qwen38_model_file }}.
+      Re-download from {{ qwen38_model_repo }} at revision
+      {{ qwen38_model_revision }}.
+  when: qwen38_model_needs_digest | bool
+
+- name: Record the verified model digest
+  ansible.builtin.copy:
+    content: "{{ qwen38_model_sha256 | trim }}\n"
+    dest: "{{ qwen38_model_stamp }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: qwen38_model_needs_digest | bool
+
+- name: Inspect the llama.cpp runtime checkout
+  ansible.builtin.command:
+    argv: [git, -C, "{{ qwen38_runtime_root }}/src", rev-parse, HEAD]
+  register: qwen38_runtime_actual_commit
+  changed_when: false
+  failed_when: false
+
+- name: Require the pinned llama.cpp runtime binary
+  ansible.builtin.stat:
+    path: "{{ qwen38_runtime_bin_dir }}/llama-server"
+  register: qwen38_binary
+
+- name: Fail when the shared runtime binary is missing or off its pin
+  ansible.builtin.assert:
+    that:
+      - qwen38_binary.stat.exists
+      - qwen38_runtime_actual_commit.rc == 0
+      - qwen38_runtime_actual_commit.stdout | trim == qwen38_runtime_commit
+    fail_msg: >-
+      llama.cpp runtime missing or not at {{ qwen38_runtime_commit }} in
+      {{ qwen38_runtime_root }}. Build it first with
+      scripts/llama-cpp-mainline-build.sh {{ qwen38_runtime_root }}.
+
+- name: Create the Qwen3.8 install directory
+  ansible.builtin.file:
+    path: "{{ qwen38_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the Qwen3.8 Compose definition
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ qwen38_install_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Qwen3.8
+
+- name: Deploy the Qwen3.8 systemd owner
+  ansible.builtin.template:
+    src: qwen38.service.j2
+    dest: "/etc/systemd/system/{{ qwen38_service_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: qwen38_unit_file
+  notify: Restart Qwen3.8
+
+# Not a handler: on a first deploy systemd has never seen this unit, so the
+# reload has to happen before the start task below rather than at the end of
+# the play. Conditional so a no-change run stays clean.
+- name: Reload systemd for a new or changed Qwen3.8 unit
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: qwen38_unit_file.changed
+
+- name: Validate the Compose definition before starting the runtime
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ qwen38_compose_project }}"
+      - --file
+      - "{{ qwen38_install_dir }}/docker-compose.yml"
+      - config
+      - --quiet
+  changed_when: false
+
+# Ensure-running only. The restart lives in a handler so it fires solely when
+# the Compose definition or the unit changed -- an unrelated re-run of this
+# role must not evict a loaded 19.7 GB model and drop requests in flight.
+# Flushed here, after Compose validation, so a broken definition fails before
+# anything stops the running service.
+- name: Start and enable the Qwen3.8 runtime owner
+  ansible.builtin.systemd_service:
+    name: "{{ qwen38_service_unit }}"
+    state: started
+    enabled: true
+
+- name: Apply pending Qwen3.8 unit and Compose changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the Qwen3.8 API
+  ansible.builtin.uri:
+    url: "http://{{ qwen38_bind_address }}:{{ qwen38_api_port }}/health"
+    status_code: 200
+    timeout: 5
+  register: qwen38_health
+  until: qwen38_health.status == 200
+  retries: "{{ qwen38_start_retries }}"
+  delay: "{{ qwen38_start_delay_seconds }}"
+
+- name: Verify the deployment
+  ansible.builtin.include_tasks: verify.yml
