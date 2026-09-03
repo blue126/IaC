@@ -367,3 +367,22 @@
 - name: Display free memory for each GPU after deployment
   ansible.builtin.debug:
     var: qwen3_tts_gpu_memory_after.stdout_lines
+
+# This card is shared with Qwen3.8, which holds ~12 GB of it. Without a floor
+# the deployment reports success right up to the point where the next process
+# to touch the card cannot get a CUDA context. Lines are "<index>, <free_mib>".
+- name: Require headroom left on the shared GPU
+  ansible.builtin.assert:
+    that:
+      - >-
+        qwen3_tts_gpu_memory_after.stdout_lines
+        | select('search', '^' ~ (qwen3_tts_gpu_ordinal | string) ~ ', ')
+        | map('regex_replace', '^.*, ', '') | map('int')
+        | select('lt', qwen3_tts_min_free_vram_mib | int)
+        | list | length == 0
+    fail_msg: >-
+      GPU {{ qwen3_tts_gpu_ordinal }} has less than
+      {{ qwen3_tts_min_free_vram_mib }} MiB free after deployment:
+      {{ qwen3_tts_gpu_memory_after.stdout_lines }}. Qwen3.8 shares this card,
+      so check whether an unexpected third process is resident before raising
+      the floor.

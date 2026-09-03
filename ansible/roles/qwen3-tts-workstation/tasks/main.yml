@@ -8,7 +8,6 @@
       - qwen3_tts_voice_design_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign'
       - qwen3_tts_backend == 'vllm_omni'
       - qwen3_tts_gpu_ordinal | string is match('^[01]$')
-      - qwen3_tts_exclusive_gpu | bool
       - qwen3_tts_bind_address == '192.168.1.191'
       - qwen3_tts_port | int == 8100
       - qwen3_tts_container_port | int == 8880
@@ -29,6 +28,14 @@
       - qwen3_tts_profile_reference_file == '/data/models/qwen3-tts/profiles/audiobook_narrator_zh-reference.wav'
       - qwen3_tts_profile_reference_text == '这是一次平静而自然的中文有声书朗读。清晨的阳光穿过窗帘，房间里很安静，故事正从这里开始。'
       - qwen3_tts_voice_design_instructions == '成熟、年长、沉稳、低起伏、自然的中文有声书旁白。声音应带有温和阅历感，避免年轻、明亮或活泼的质感。'
+    # These speaker values are pinned for change detection, not because the
+    # running service reads them. In base mode the shim rewrites every request
+    # to the single Base profile and never consults the map's values, and its
+    # customvoice branch uses its own built-in table rather than
+    # VOICE_ALIASES_JSON -- so editing this mapping does not currently change
+    # any timbre. Kept pinned because it is the recorded intent for the
+    # per-slot Base profiles in deferred-work.md, at which point these values
+    # do become live, and an unnoticed edit before then would be silent.
       - qwen3_tts_voice_aliases.alloy == 'Uncle_Fu'
       - qwen3_tts_voice_aliases.echo == 'Dylan'
       - qwen3_tts_voice_aliases.fable == 'Aiden'

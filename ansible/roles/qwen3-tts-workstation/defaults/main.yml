@@ -19,7 +19,20 @@ qwen3_tts_backend: vllm_omni
 # load, and passes the same burst. Keep an eye on `lspci -vv` DevSta for that
 # device if the hang symptom ever returns.
 qwen3_tts_gpu_ordinal: 1
-qwen3_tts_exclusive_gpu: true
+# This card is shared, not exclusive: Qwen3.8 splits across both GPUs and holds
+# ~12 GB here. The llm-server role had a qwen3_tts_exclusive_gpu flag backed by
+# a task that stopped the co-tenant first; that task is gone on this host, so
+# the flag went with it rather than asserting a guarantee nothing enforces.
+# The floor below is what actually protects the co-tenancy.
+#
+# Minimum free VRAM the target card must still have once everything is up.
+# Checked in verify, not before deploying: a redeploy runs while the previous
+# TTS instance still holds its allocation, so a pre-deploy reading says nothing
+# useful. Measured steady state with Qwen3.8 co-resident left ~739 MiB free at
+# the old KV sizing and ~1.7 GB after pinning stage 0's cache, so 512 MiB is a
+# floor a healthy host clears and a card carrying an unexpected third tenant
+# does not.
+qwen3_tts_min_free_vram_mib: 512
 qwen3_tts_bind_address: 192.168.1.191
 qwen3_tts_port: 8100
 qwen3_tts_container_port: 8880

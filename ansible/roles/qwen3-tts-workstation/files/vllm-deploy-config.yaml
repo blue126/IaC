@@ -15,11 +15,32 @@ connectors:
       codec_left_context_frames: 72
       initial_codec_chunk_frames: 1
       decode_batch_max_size: 1
+      # Bound Code2Wav's CUDA graph capture to batch 1. Stage 1 keeps
+      # enforce_eager: false, so raising its max_num_seqs would otherwise
+      # widen the set of captured shapes -- and an oversized Code2Wav capture
+      # is the documented way this model OOMs on a 3090 (upstream's
+      # max_num_seqs=64 fails during warmup). decode_batch_max_size is already
+      # 1, so nothing decodes wider than this anyway. Same value upstream's
+      # own qwen3_tts_high_concurrency.yaml uses.
+      decode_cudagraph_batch_sizes: [1]
 
 stages:
   - stage_id: 0
-    max_num_seqs: 1
+    # Three concurrent requests. Measured on this host at max_num_seqs 1, the
+    # KV cache held 27,296 tokens -- 6.66x one request's 4096-token ceiling.
+    # Three requests need 12,288, which the cache already covered, so this
+    # costs no additional KV memory; only scheduler and activation state grow.
+    max_num_seqs: 3
     gpu_memory_utilization: 0.3
+    # Pin the KV cache instead of letting it size itself from whatever is free
+    # at startup. Measured: 2.92 GiB held 27,296 tokens (114,864 B/token), and
+    # vLLM logged that 2.66 GiB was all its own 0.3 budget actually asked for
+    # -- it overshot because the profiling fallback sized against free memory.
+    # 2.00 GiB is 18,696 tokens, 4.56x the 4096-token ceiling, so it covers
+    # max_num_seqs: 3 with room and returns ~0.9 GiB to a card that had 739 MiB
+    # free with Qwen3.8 co-resident. Recompute this if max_model_len or
+    # max_num_seqs changes: bytes = tokens * 114864.
+    kv_cache_memory_bytes: 2147483648
     trust_remote_code: true
     enable_prefix_caching: false
     async_scheduling: true
@@ -62,7 +83,15 @@ stages:
       top_p: 1.0
 
   - stage_id: 1
-    max_num_seqs: 1
+    # Matched to stage 0 so a queued request is not blocked behind Code2Wav.
+    # Cheap here: this stage is a decoder with no KV cache at all -- it never
+    # reports one, and its measured 3.24 GiB is weights plus activation.
+    max_num_seqs: 3
+    # Unreachable ceiling, kept at upstream's value. This stage shares the card
+    # with stage 0 and Qwen3.8, so at startup it logs "Capping requested memory
+    # to available free memory" and settles well below 0.3 -- harmless, because
+    # with no KV cache there is nothing for the extra budget to fill. Do not
+    # read this number as a reservation.
     gpu_memory_utilization: 0.3
     enforce_eager: false
     trust_remote_code: true
