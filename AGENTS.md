@@ -26,6 +26,19 @@ docs/               # Deployment guides, technical guides, learning notes
 
 ## Key Commands
 
+**Where these run:** `ansible-playbook` and `terraform` are installed **only inside the Docker Sandbox**, not on the macOS host. On the host these commands do not exist, and installing them needs explicit user permission. Detect where you are before assuming:
+
+```bash
+[ -n "$SANDBOX_ID" ] && echo sandbox || echo host
+```
+
+`SANDBOX_ID`, `SANDBOX_NAME` and `SANDBOX_VM_ID` are set in the process environment of every shell in a Sandbox, login or not. Do **not** test for `/.dockerenv` or `/run/.containerenv`: the Sandbox runtime is `io.containerd.nerdbox.v1` and neither file exists there.
+
+From the host, run them with `sbx exec <sandbox> bash -lc '...'`. Two things bite:
+
+- `sbx exec` **hangs with no output** while an interactive `sbx` TUI is attached to that sandbox. It is not a timeout, a permission problem, or a stdin problem -- the call never reaches the daemon, so nothing appears in its log either. Close the TUI and retry.
+- A clone-mode Sandbox has **its own copy of the repository**, usually on `main`. It does not see the host working tree, and its clone may carry broken codex checkpoint refs that make `git fetch` fail. Copy what you need in with `sbx cp <dir> <sandbox>:/tmp/<path>/`, then `sudo chown -R "$(id -u):$(id -g)"` the copy -- `.vault_pass` arrives owned by the host uid and Ansible cannot read it.
+
 ```bash
 # Terraform
 terraform init && terraform validate && terraform plan    # in terraform/<env>/
@@ -52,7 +65,7 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 - **Module structure**: `main.tf`, `variables.tf`, `outputs.tf` (3-file standard)
 - **Sensitive variables**: Always mark `sensitive = true`
 - **Backend**: HCP Terraform Cloud (`cloud { organization = "homelab-roseville" }`), **Local execution mode** — plan/apply run on this machine, HCP only stores state
-- **Workspaces**: `iac-proxmox` → `terraform/proxmox/`, `iac-esxi` → `terraform/esxi/`, `iac-oci` → `terraform/oci/`
+- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/`, `iac-esxi-lab` → `terraform/esxi/`, `iac-oci` → `terraform/oci/`. The two `-lab` suffixes are real -- they have been in `versions.tf` since the HCP migration and were never renamed. Only OCI lacks one. Read the `cloud` block rather than trusting this line.
 - **Lifecycle blocks**: Use `ignore_changes` for clone, full_clone, efidisk, ostemplate, description
 
 ### Ansible
