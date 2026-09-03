@@ -6,7 +6,7 @@
 > 其中的路径、命令与运行事实均**不再适用于当前部署**。
 >
 > 当前部署见 [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
-> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts-workstation`。
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts`。
 
 
 > **适用版本**：mainline llama.cpp pin `10bf611e`，Open WebUI，SearXNG `latest`

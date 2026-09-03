@@ -12,13 +12,14 @@ context:
 
 > **溯源说明(迁移时补充)**
 >
-> 本规格撰写时的实现目标是 `ansible/roles/qwen3-tts`,部署在 llm-server
-> (192.168.1.247)。该主机已退役。正文中的文件路径与行号指向
-> `baseline_commit` 当时的旧 role,保持原样以保留记录。
+> 本规格撰写时的实现目标是 llm-server (192.168.1.247) 上的
+> `ansible/roles/qwen3-tts`。该主机已退役,其 VM 已销毁,那份 role 已删除。
+> 正文中的文件路径与行号指向 `baseline_commit` 当时的旧 role,保持原样以保留记录。
 >
-> 实际在运行的同一份实现现位于 `ansible/roles/qwen3-tts-workstation`
-> (llm-workstation, 192.168.1.191)。`qwen3-tts-shim.py` 与
-> `qwen3-tts-profile-bootstrap.py` 两个文件在两个 role 之间字节一致;
+> 同一份实现现运行在 llm-workstation (192.168.1.191),仓库中仍名为
+> `ansible/roles/qwen3-tts`——迁移期间它曾叫 `qwen3-tts-workstation` 以避免与旧
+> role 重名,旧 role 删除后已改回。`qwen3-tts-shim.py` 与
+> `qwen3-tts-profile-bootstrap.py` 两个文件在新旧 role 之间字节一致;
 > role 层面的差异是去掉了 qwen36 共存断言与停止逻辑,新主机上没有该服务。
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">

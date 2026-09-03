@@ -33,7 +33,8 @@ qwen3_tts_gpu_ordinal: 1
 # floor a healthy host clears and a card carrying an unexpected third tenant
 # does not.
 qwen3_tts_min_free_vram_mib: 512
-qwen3_tts_bind_address: 192.168.1.191
+# From the inventory, not hardcoded -- see the same note in roles/qwen38.
+qwen3_tts_bind_address: "{{ ansible_host | default(inventory_hostname) }}"
 qwen3_tts_port: 8100
 qwen3_tts_container_port: 8880
 qwen3_tts_shim_container_port: 8090

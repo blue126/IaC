@@ -1,0 +1,29 @@
+---
+# Qwen3-TTS as a service. The host baseline -- common, tailscale, docker,
+# nvidia-driver -- is deploy-llm-workstation.yml's job, not this playbook's;
+# this one only puts a service on a host that is already prepared.
+#
+# The role itself is host-neutral: it binds to whatever address the inventory
+# gives for the target, so moving it is a change to this hosts: line.
+#
+# The implementation originated in the unmerged codex/qwen3-tts-speech-central-shim
+# draft (PR #13, closed as superseded); its shim and profile bootstrap are
+# carried here byte for byte.
+- name: Deploy Qwen3-TTS Base clone
+  hosts: llm-workstation
+  become: true
+  gather_facts: false
+  tags: [deploy]
+  roles:
+    - qwen3-tts
+
+- name: Verify Qwen3-TTS
+  hosts: llm-workstation
+  become: true
+  gather_facts: false
+  tags: [never, verify]
+  tasks:
+    - name: Load read-only Qwen3-TTS verification
+      ansible.builtin.import_role:
+        name: qwen3-tts
+        tasks_from: verify

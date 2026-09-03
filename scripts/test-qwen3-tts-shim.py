@@ -17,13 +17,7 @@ from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-# qwen3-tts-workstation, not qwen3-tts: the latter is pinned to llm-server,
-# which is being decommissioned, and its copy of the shim is the older one that
-# no longer serves any traffic. These two files are what runs on
-# llm-workstation.
-ROLE_FILES = (
-    REPOSITORY_ROOT / "ansible" / "roles" / "qwen3-tts-workstation" / "files"
-)
+ROLE_FILES = REPOSITORY_ROOT / "ansible" / "roles" / "qwen3-tts" / "files"
 SHIM_PATH = ROLE_FILES / "qwen3-tts-shim.py"
 PROFILE_BOOTSTRAP_PATH = ROLE_FILES / "qwen3-tts-profile-bootstrap.py"
 SPEC = importlib.util.spec_from_file_location("qwen3_tts_shim", SHIM_PATH)

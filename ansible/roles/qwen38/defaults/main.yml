@@ -40,11 +40,14 @@ qwen38_compose_project: qwen38
 qwen38_service_unit: qwen38.service
 qwen38_model_name: qwen38
 
-# Published straight on the LAN. llm-server fronts llama-server with the
-# deepseek-v4-ik compatibility proxy to get a CIDR allowlist; this host has no
-# such proxy, so the API is reachable by anything on the LAN. Add a proxy
-# before exposing this host any wider.
-qwen38_bind_address: 192.168.1.191
+# Taken from the inventory, not hardcoded: this is a service, and which host it
+# runs on is the inventory's business. Overridable per host if a machine has to
+# publish on an interface other than the one Ansible reaches it by.
+#
+# Published straight on the LAN, with no proxy in front, so the API is reachable
+# by anything on the LAN. The assertion in tasks/main.yml only rules out
+# 0.0.0.0; add a proxy with an allowlist before exposing a host any wider.
+qwen38_bind_address: "{{ ansible_host | default(inventory_hostname) }}"
 qwen38_api_port: 8081
 
 # Both GPUs. 18.4 GiB of weights split across 2x24 GiB leaves room for the
