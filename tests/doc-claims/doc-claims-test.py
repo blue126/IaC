@@ -56,6 +56,31 @@ fenced_sample_engine_version: "f7923739"
 fenced_sample_webui_port: 3000
 """
 
+# The fixture root stands in for the whole repository, so it must satisfy every
+# registered claim: the CLI test asserts a clean exit before it introduces a
+# contradiction, and a claim whose document or oracle is absent is reported as
+# indeterminate, which is also a non-zero exit. Values here mirror the real
+# ones so a change to either side of a claim shows up as a test failure rather
+# than a silently reshaped fixture.
+QWEN3_TTS_DOCUMENT = """# Qwen3-TTS
+
+### 关键配置值
+
+```yaml
+qwen3_tts_vllm_image: "vllm/vllm-omni:v0.28.0"
+qwen3_tts_gpu_ordinal: 1
+qwen3_tts_port: 8100
+qwen3_tts_min_free_vram_mib: 512
+```
+"""
+
+QWEN3_TTS_DEFAULTS = """---
+qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
+qwen3_tts_gpu_ordinal: 1
+qwen3_tts_port: 8100
+qwen3_tts_min_free_vram_mib: 512
+"""
+
 
 class Fixture:
     def __init__(self) -> None:
@@ -63,6 +88,13 @@ class Fixture:
         self.root = Path(self.temporary_directory.name)
         self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT)
         self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
+        self.write(
+            "docs/designs/qwen3-tts-openai-api-integration.md", QWEN3_TTS_DOCUMENT
+        )
+        self.write(
+            "ansible/roles/qwen3-tts-workstation/defaults/main.yml",
+            QWEN3_TTS_DEFAULTS,
+        )
 
     def write(self, relative_path: str, content: str) -> None:
         path = self.root / relative_path
@@ -99,6 +131,11 @@ class DocClaimsTest(unittest.TestCase):
         report = CHECKER.build_report(REPOSITORY_ROOT)
         self.assertEqual(report["schema_version"], 1)
         self.assertRegex(report["revision"], r"^[0-9a-f]{40}$")
+        # Both comparisons below take CLAIMS as their own expected value, so an
+        # empty registry would satisfy them with two empty lists and this test
+        # would pass while checking nothing. Pin a lower bound: dropping the
+        # last claims has to be a deliberate edit here, not a silent green.
+        self.assertGreaterEqual(len(CHECKER.CLAIMS), 4)
         self.assertEqual(
             [claim["id"] for claim in report["claims"]],
             [claim.claim_id for claim in CHECKER.CLAIMS],
