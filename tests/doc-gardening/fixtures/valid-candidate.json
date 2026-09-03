@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kind": "claim_candidates",
+  "manifest_sha256": "833ac20e40f3c66c8ddf90d3379a941ab36357b6dbe45a91557db5f256d2299c",
+  "document_path": "docs/designs/example.md",
+  "revision": {"base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+  "candidates": [{
+    "id": "candidate-1",
+    "classification": "candidate_contradiction",
+    "reason": "evidence_conflict",
+    "hunk_id": "hunk-1",
+    "source": {"span_id": "span-1", "quote": "new"},
+    "evidence_refs": ["service.example.port"],
+    "edit": {"find": "new", "replace": "corrected"}
+  }]
+}

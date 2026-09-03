@@ -25,7 +25,12 @@ pipeline {
                 script {
                     // Get changed files since last commit
                     def changes = sh(
-                        script: 'git diff --name-only HEAD~1 HEAD || echo ""',
+                        // --diff-filter=d drops deletions. Without it a renamed
+                        // playbook yields both paths, the deploy-*.yml matcher below
+                        // accepts the old name, and the deploy stage then runs
+                        // `ansible-playbook` against a file that no longer exists --
+                        // failing the stage so the new playbook never runs.
+                        script: 'git diff --name-only --diff-filter=d HEAD~1 HEAD || echo ""',
                         returnStdout: true
                     ).trim()
 
