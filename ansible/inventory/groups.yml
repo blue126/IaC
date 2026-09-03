@@ -6,6 +6,10 @@ all:
     esxi_hosts:
     esxi_vms:
     bare_metal:
+    # Border router. Listed for visibility only -- it is excluded from
+    # site.yml and deliberately absent from `tailscale` below. See
+    # inventory/bare_metal/hosts.yml for why.
+    network_appliance:
     tailscale:
       children:
         proxmox_cluster:
