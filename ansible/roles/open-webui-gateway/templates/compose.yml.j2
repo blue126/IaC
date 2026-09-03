@@ -9,6 +9,21 @@ services:
     ports:
       - "{{ open_webui_gateway_bind_address }}:{{ open_webui_gateway_port }}:{{ open_webui_gateway_container_port }}"
     environment:
+      # Pinned rather than left to the image default: this container is
+      # published on a border device, and a build that ever shipped
+      # WEBUI_AUTH=false would expose an unauthenticated admin UI on the LAN.
+      WEBUI_AUTH: "true"
+      # Open WebUI grants admin to the first account that registers, so there
+      # is a window between this container starting and you creating that
+      # account in which anyone on the LAN can take it. Close signup in
+      # Admin Panel -> Settings once your account exists.
+      #
+      # Not set to "false" here on purpose: ENABLE_SIGNUP is a PersistentConfig
+      # value, so after the first start Open WebUI reads it from its own
+      # database and this variable stops having any effect -- setting it would
+      # look like a control that is not one, and setting it before the first
+      # account exists risks locking you out entirely.
+      ENABLE_SIGNUP: "{{ open_webui_gateway_enable_signup }}"
       # LLM backend on llm-workstation (llama.cpp, OpenAI-compatible).
       OPENAI_API_BASE_URL: "{{ open_webui_gateway_llm_base_url }}"
       OPENAI_API_KEY: not-needed

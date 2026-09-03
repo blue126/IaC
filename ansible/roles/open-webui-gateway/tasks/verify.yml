@@ -34,8 +34,11 @@
   failed_when: false
 
 - name: Check which interface the Open WebUI gateway port listens on
+  # `|| true` so a missing listener reaches the assert below with its own
+  # message instead of failing here as a bare non-zero raw command.
   ansible.builtin.raw: >-
-    netstat -tln 2>/dev/null | awk '{print $4}' | grep -E ":{{ open_webui_gateway_port }}$"
+    netstat -tln 2>/dev/null | awk '{print $4}' |
+    grep -E ":{{ open_webui_gateway_port }}$" || true
   register: open_webui_gateway_verify_listener
   changed_when: false
 
@@ -45,11 +48,27 @@
       - "'open-webui' in open_webui_gateway_verify_compose.stdout_lines"
       - (open_webui_gateway_verify_health.stdout | trim) == '200'
       - (open_webui_gateway_verify_root.stdout | trim) in ['200', '302']
-      - (open_webui_gateway_verify_restart_count.stdout | trim) == '0'
+      # This container uses restart: unless-stopped, unlike the restart: "no"
+      # projects on llm-workstation, so Docker legitimately restarts it after a
+      # transient failure and the count is not expected to stay at zero
+      # forever. Report it, and assert only that it is not restart-looping.
+      - (open_webui_gateway_verify_restart_count.stdout | trim | int) < 5
+      # Every listening socket on this port must be the LAN address. Compared
+      # per line rather than against the whole stdout: a second bind (IPv6, or
+      # another docker-proxy) would otherwise fail a whole-string equality even
+      # when the binding is correct -- while a 0.0.0.0 bind must still fail.
       - >-
-        open_webui_gateway_verify_listener.stdout | trim ==
-        (open_webui_gateway_bind_address ~ ':' ~ open_webui_gateway_port)
-    fail_msg: Open WebUI gateway read-only verification failed
+        open_webui_gateway_verify_listener.stdout_lines
+        | map('trim') | reject('match', '^$') | list | length > 0
+      - >-
+        open_webui_gateway_verify_listener.stdout_lines
+        | map('trim') | reject('match', '^$')
+        | reject('equalto', open_webui_gateway_bind_address ~ ':' ~ open_webui_gateway_port)
+        | list | length == 0
+    fail_msg: >-
+      Open WebUI gateway read-only verification failed. Listeners seen:
+      {{ open_webui_gateway_verify_listener.stdout_lines }}; restart count
+      {{ open_webui_gateway_verify_restart_count.stdout | trim }}.
 
 - name: Report the Open WebUI gateway container health state
   ansible.builtin.debug:

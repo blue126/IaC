@@ -40,8 +40,15 @@
       exclusively for that reason -- see defaults/main.yml.
 
 - name: Check for an existing listener on the Open WebUI gateway port
+  # A trailing `|| true` swallows more than grep's empty-match exit code: if
+  # netstat is missing or errors, stdout is empty too and the ownership check
+  # below reads that as "port is free". Emit PROBE_OK only when netstat itself
+  # succeeded, so the assert can tell "nothing is listening" apart from
+  # "we could not look".
   ansible.builtin.raw: >-
-    netstat -tln 2>/dev/null | awk '{print $4}' | grep -E ":{{ open_webui_gateway_port }}$" || true
+    listeners=$(netstat -tln 2>/dev/null) && echo PROBE_OK;
+    echo "$listeners" | awk '{print $4}' |
+    grep -E ":{{ open_webui_gateway_port }}$" || true
   register: open_webui_gateway_port_listener
   changed_when: false
 
@@ -56,12 +63,19 @@
 - name: Validate Open WebUI gateway port ownership
   ansible.builtin.assert:
     that:
+      # The probe has to have actually run; an empty result from a failed or
+      # missing netstat must not read as "the port is free".
+      - "'PROBE_OK' in open_webui_gateway_port_listener.stdout"
       - >-
-        open_webui_gateway_port_listener.stdout | trim | length == 0 or
+        open_webui_gateway_port_listener.stdout_lines
+        | reject('search', '^PROBE_OK$') | reject('match', '^\s*$')
+        | list | length == 0 or
         open_webui_gateway_existing_container.stdout | trim | length > 0
     fail_msg: >-
       Port {{ open_webui_gateway_port }} is already occupied by something
-      other than this Open WebUI project; refusing to publish on top of it.
+      other than this Open WebUI project, or the listener probe could not run
+      (no PROBE_OK marker); refusing to publish on top of it. Probe output:
+      {{ open_webui_gateway_port_listener.stdout_lines }}
 
 - name: Check whether the Open WebUI gateway directories already exist
   ansible.builtin.raw: >-

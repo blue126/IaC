@@ -34,6 +34,12 @@ open_webui_gateway_data_dir: "{{ open_webui_gateway_install_dir }}/data"
 open_webui_gateway_compose_project: open-webui-gateway
 open_webui_gateway_container_name: open-webui
 
+# Only meaningful on the very first start; afterwards Open WebUI reads this
+# from its own database as a PersistentConfig value and ignores the
+# environment. Close signup from Admin Panel -> Settings once your admin
+# account exists -- the first account to register becomes the admin.
+open_webui_gateway_enable_signup: "true"
+
 # Backends on llm-workstation (192.168.1.191). The LLM backend may not be
 # reachable yet at deploy time (it is being brought up independently);
 # Open WebUI is configured to point at it regardless of current health.
