@@ -36,6 +36,7 @@ RUN_REASONS = {
     "refusal",
     "stale_input",
     "unsafe_input",
+    "unsafe_output",
     "execution_failed",
 }
 SECRET_PATTERNS = (

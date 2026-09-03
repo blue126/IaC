@@ -161,7 +161,10 @@ def validate_manifest_repository(manifest: dict[str, Any], root: Path) -> None:
         raise ContractError("manifest_working_file_missing") from error
     if sha256_bytes(working_data) != manifest["document"]["head_sha256"]:
         raise ContractError("manifest_working_file_stale")
-    lines = head_data.decode("utf-8").splitlines()
+    try:
+        lines = head_data.decode("utf-8").splitlines()
+    except UnicodeDecodeError as error:
+        raise ContractError("manifest_document_not_utf8") from error
     for span in manifest["spans"]:
         quote = "\n".join(lines[span["start_line"] - 1 : span["end_line"]])
         if quote != span["quote"]:

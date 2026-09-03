@@ -43,6 +43,10 @@ def evaluate(fixtures: Path) -> dict[str, Any]:
             "security",
         }:
             raise ContractError("fixture_expectation_invalid")
+        # Without this a mistyped filename reads as a correct rejection and
+        # the gate passes with no coverage at all.
+        if not (fixtures / expectation["file"]).is_file():
+            raise ContractError("fixture_missing")
         accepted = False
         artifact: dict[str, Any] | None = None
         try:

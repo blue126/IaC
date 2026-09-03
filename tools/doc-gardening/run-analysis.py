@@ -223,10 +223,13 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.live:
             if not arguments.confirm_live:
                 raise ContractError("live_confirmation_required")
+            # Claim the live provenance before the call so a failure inside it
+            # is not recorded as a recorded/offline replay.
+            model = arguments.model
+            runtime = "live"
             output_data, runtime = _live_output(
                 manifest, prompt_data, schema_path, arguments.model, arguments.timeout
             )
-            model = arguments.model
             reason = "live_completed"
         else:
             output_data = arguments.recorded_output.read_bytes()
@@ -237,7 +240,9 @@ def main(argv: list[str] | None = None) -> int:
         _validate_proposal_binding(artifact, selected_candidate)
         atomic_write_json(arguments.output_artifact, artifact)
         status = "completed"
-        if artifact["kind"] == "claim_candidates" and all(
+        # An empty candidate list is a clean "nothing found"; only candidates
+        # the model could not resolve make the run undetermined.
+        if artifact["kind"] == "claim_candidates" and artifact["candidates"] and all(
             candidate["classification"] == "unknown"
             for candidate in artifact["candidates"]
         ):
@@ -256,13 +261,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         atomic_write_json(arguments.run_record, record)
     except (ContractError, OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        if manifest is not None and prompt_data and schema_data:
+        if manifest is not None:
             error_code = str(error)
             reason = "validation_failed"
             if error_code == "live_timeout":
                 reason = "timeout"
             elif error_code in {"unsafe_input", "unsafe_output"}:
-                reason = "unsafe_input"
+                reason = error_code
             elif error_code in {
                 "manifest_revision_stale",
                 "manifest_base_stale",

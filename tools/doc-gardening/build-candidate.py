@@ -61,6 +61,10 @@ def _parse_hunks(diff: str, head_lines: list[str]) -> tuple[list[dict[str, Any]]
             }
         )
         if new_count:
+            # new_start is 1-based whenever the hunk adds lines; 0 would slice
+            # from the end of the document and quote unrelated content.
+            if new_start < 1:
+                raise ContractError("document_diff_invalid")
             quote = "\n".join(head_lines[new_start - 1 : new_start - 1 + new_count])
             span_digest = sha256_bytes(quote.encode("utf-8"))
             spans.append(
@@ -216,7 +220,7 @@ def build_manifest(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".")
-    parser.add_argument("--document", required=True)
+    parser.add_argument("--document", action="append", default=[], required=True)
     parser.add_argument("--base", required=True)
     parser.add_argument("--head", required=True)
     parser.add_argument("--evidence-report", type=Path, required=True)
@@ -224,9 +228,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     try:
+        # One manifest carries exactly one document. argparse keeps every
+        # --document, so more than one is a rejection rather than a silent
+        # last-wins overwrite.
+        if len(arguments.document) != 1:
+            raise ContractError("document_multiple")
         manifest = build_manifest(
             Path(arguments.root).resolve(),
-            arguments.document,
+            arguments.document[0],
             arguments.base,
             arguments.head,
             arguments.evidence_report,

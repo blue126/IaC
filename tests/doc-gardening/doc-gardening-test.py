@@ -46,33 +46,40 @@ NETBOX_DOCUMENT = """# Netbox
 
 {note}
 """
-LLM_DOCUMENT = """# LLM Server
+# The second seeded service mirrors the Phase 1 claim set, which covers
+# netbox and qwen3-tts. It carried llm-server until that role was retired.
+QWEN_DOCUMENT = """# Qwen3-TTS
 
-### `defaults/main.yml` — 关键变量
+### 关键配置值
 
 ```yaml
-llm_server_engine_version: "f7923739"
-llm_server_webui_port: 3000
+qwen3_tts_vllm_image: "vllm/vllm-omni:v0.28.0"
+qwen3_tts_gpu_ordinal: 1
+qwen3_tts_port: 8100
+qwen3_tts_min_free_vram_mib: 512
 ```
 """
 NETBOX_DEFAULTS = """---
 netbox_port: 8080
 netbox_image: "netboxcommunity/netbox:v4.1.11"
 """
-LLM_DEFAULTS = """---
-llm_server_engine_version: "f7923739"
-llm_server_webui_port: 3000
+QWEN_DEFAULTS = """---
+qwen3_tts_gpu_ordinal: 1
+qwen3_tts_min_free_vram_mib: 512
+qwen3_tts_port: 8100
+qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
 """
 
 
 class GitFixture:
-    def __init__(self, head_note: str = "Updated note.") -> None:
+    def __init__(self, base_note: str = "Initial note.", head_note: str = "Updated note.") -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
-        self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT.format(note="Initial note."))
-        self.write("docs/deployment/llm-server-deployment.md", LLM_DOCUMENT)
+        self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT.format(note=base_note))
+        self.write("docs/designs/qwen3-tts-openai-api-integration.md", QWEN_DOCUMENT)
+        self.write("docs/learningnotes/2026-01-01-example.md", "# Note\n")
         self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
-        self.write("ansible/roles/llm-server/defaults/main.yml", LLM_DEFAULTS)
+        self.write("ansible/roles/qwen3-tts-workstation/defaults/main.yml", QWEN_DEFAULTS)
         self.git("init", "-q")
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "user.name", "Fixture")
@@ -106,25 +113,36 @@ class GitFixture:
         path.write_text(content, encoding="utf-8")
 
     def git(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        # Host git config must not reach the fixture: commit.gpgsign, hooks
+        # and templates would otherwise decide whether these commits succeed.
+        environment = dict(os.environ)
+        environment["GIT_CONFIG_GLOBAL"] = os.devnull
+        environment["GIT_CONFIG_SYSTEM"] = os.devnull
         result = subprocess.run(
             ["git", "-C", str(self.root), *arguments],
             check=False,
             capture_output=True,
             text=True,
+            env=environment,
         )
         if result.returncode != 0:
             raise AssertionError(result.stdout + result.stderr)
         return result
 
-    def build(self, *extra: str) -> tuple[subprocess.CompletedProcess[str], Path]:
+    def build(
+        self, *extra: str, documents: list[str] | None = None
+    ) -> tuple[subprocess.CompletedProcess[str], Path]:
         output = self.root / "manifest.json"
+        selected = ["docs/deployment/netbox-deployment.md"] if documents is None else documents
         command = [
             sys.executable,
             str(TOOL_ROOT / "build-candidate.py"),
             "--root",
             str(self.root),
-            "--document",
-            "docs/deployment/netbox-deployment.md",
+        ]
+        for document in selected:
+            command += ["--document", document]
+        command += [
             "--base",
             self.base,
             "--head",
@@ -159,6 +177,7 @@ class DocGardeningTest(unittest.TestCase):
         sentinel = "UNRELATED_ENVIRONMENT_SENTINEL"
         self.fixture.write("unrelated.txt", sentinel)
         os.environ[sentinel] = sentinel
+        self.addCleanup(os.environ.pop, sentinel, None)
         result, output = self.fixture.build()
         self.assertEqual(result.returncode, 0, result.stderr)
         manifest = json.loads(output.read_text(encoding="utf-8"))
@@ -200,17 +219,47 @@ class DocGardeningTest(unittest.TestCase):
         self.assertFalse(output.exists())
 
     def test_manifest_rejects_out_of_scope_or_multiple_document_argument(self) -> None:
-        result, _ = self.fixture.build("--document", "README.md")
-        self.assertEqual(result.returncode, 2)
+        # A Markdown file that exists in the fixture repository and is out of
+        # scope only by prefix, so the allowlist is what must reject it.
         result, _ = self.fixture.build(
-            "--document", "docs/designs/one.md", "--document", "docs/designs/two.md"
+            documents=["docs/learningnotes/2026-01-01-example.md"]
         )
         self.assertEqual(result.returncode, 2)
+        self.assertIn("document_path_out_of_scope", result.stderr)
+        # Non-Markdown is rejected by the same code for the suffix rule.
+        result, _ = self.fixture.build(
+            documents=["ansible/roles/netbox/defaults/main.yml"]
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("document_path_out_of_scope", result.stderr)
+        # Both documents exist and are in scope, so only the one-document
+        # invariant can reject this.
+        result, output = self.fixture.build(
+            documents=[
+                "docs/deployment/netbox-deployment.md",
+                "docs/designs/qwen3-tts-openai-api-integration.md",
+            ]
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("document_multiple", result.stderr)
+        self.assertFalse(output.exists())
 
     def test_secret_sentinel_blocks_packaging_without_echo(self) -> None:
-        self.fixture.close()
         sentinel = "SECRET_SENTINEL_DO_NOT_ECHO"
-        self.fixture = GitFixture(head_note=sentinel)
+        replacement = GitFixture(head_note=sentinel)
+        self.fixture.close()
+        self.fixture = replacement
+        result, output = self.fixture.build()
+        self.assert_blocked_without(result, sentinel)
+        self.assertFalse(output.exists())
+
+    def test_secret_removed_between_base_and_head_still_blocks_packaging(self) -> None:
+        # The head document is clean; the secret survives only as a removed
+        # line inside the hunk text that would be handed to the model.
+        sentinel = "SECRET_SENTINEL_DO_NOT_ECHO"
+        replacement = GitFixture(base_note=sentinel)
+        self.fixture.close()
+        self.fixture = replacement
         result, output = self.fixture.build()
         self.assert_blocked_without(result, sentinel)
         self.assertFalse(output.exists())
@@ -589,10 +638,22 @@ class DocGardeningTest(unittest.TestCase):
         candidates = json.loads(
             (TOOL_ROOT / "schemas/claim-candidates-v1.json").read_text(encoding="utf-8")
         )
-        classification = candidates["properties"]["candidates"]["items"]["properties"]["classification"]["enum"]
+        candidate_properties = candidates["properties"]["candidates"]["items"]["properties"]
+        classification = candidate_properties["classification"]["enum"]
         self.assertEqual(classification, ["candidate_contradiction", "possibly_stale", "unknown"])
         self.assertNotIn("verified", classification)
         self.assertNotIn("document_drift", classification)
+        # The schema constrains the model and contract.py constrains the
+        # validator. They are two copies of one contract, so they must agree.
+        self.assertEqual(set(classification), contract.CLASSIFICATIONS)
+        self.assertEqual(
+            set(candidate_properties["reason"]["enum"]), contract.CANDIDATE_REASONS
+        )
+        record = json.loads(
+            (TOOL_ROOT / "schemas/run-record-v1.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(record["properties"]["status"]["enum"]), contract.RUN_STATUSES)
+        self.assertEqual(set(record["properties"]["reason"]["enum"]), contract.RUN_REASONS)
 
 
 if __name__ == "__main__":
