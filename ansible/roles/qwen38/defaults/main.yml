@@ -30,6 +30,10 @@ qwen38_model_revision: 4ca720788d1e01f1bff70c033e0d0028fd02e502
 qwen38_model_sha256: >-
   2de73110cb254cbf09b54b717578dadff12ef1194e7271527e68202f39ba4bfd
 qwen38_model_size: 19771509664
+# Records the digest last verified for the artifact above, so a re-run does not
+# re-hash 19.7 GB. Lives next to the model: replacing the model makes the file
+# newer than this stamp, which forces the digest to be recomputed.
+qwen38_model_stamp: "{{ qwen38_model_dir }}/.{{ qwen38_model_file }}.verified"
 
 qwen38_compose_project: qwen38
 qwen38_service_unit: qwen38.service

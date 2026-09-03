@@ -1,4 +1,8 @@
 ---
-- name: Reload systemd
+# Only fires when the Compose definition or the unit actually changed. A
+# restart tears down a 19.7 GB model and reloads it, so it must not happen on
+# every run just because the role was applied again.
+- name: Restart Qwen3.8
   ansible.builtin.systemd_service:
-    daemon_reload: true
+    name: "{{ qwen38_service_unit }}"
+    state: restarted

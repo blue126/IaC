@@ -63,18 +63,45 @@
   register: qwen38_verify_restart_count
   changed_when: false
 
-- name: Read GPU memory in use after deployment
+# Aggregate per-card usage cannot show that THIS service occupies both cards:
+# Qwen3-TTS shares GPU 1 and holds ~11 GB there on its own, which satisfies any
+# "this card is busy" threshold even if Qwen3.8 had loaded entirely onto GPU 0.
+# Attribute the memory to the container's own process instead.
+- name: Read the Qwen3.8 container main process id
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.State.Pid}}' }}"
+      - "{{ qwen38_compose_project }}-server-1"
+  register: qwen38_verify_pid
+  changed_when: false
+
+- name: Read per-process GPU memory after deployment
   ansible.builtin.command:
     argv:
       - nvidia-smi
-      - --query-gpu=index,memory.used
+      - --query-compute-apps=gpu_uuid,pid,used_memory
       - --format=csv,noheader,nounits
-  register: qwen38_verify_gpu_memory
+  register: qwen38_verify_compute_apps
   changed_when: false
 
-- name: Display GPU memory in use after deployment
+# Lines are "<gpu_uuid>, <pid>, <used_memory>". Matching ", <pid>, " with both
+# delimiters keeps a row whose memory figure happens to equal our pid from
+# being picked up, since that value is line-final and has no trailing comma.
+- name: Attribute GPU memory to the Qwen3.8 process
+  ansible.builtin.set_fact:
+    qwen38_verify_own_allocations: >-
+      {{
+        qwen38_verify_compute_apps.stdout_lines
+        | select('search', ', ' ~ (qwen38_verify_pid.stdout | trim) ~ ', ')
+        | list
+      }}
+
+- name: Display the GPU memory held by the Qwen3.8 process
   ansible.builtin.debug:
-    var: qwen38_verify_gpu_memory.stdout_lines
+    var: qwen38_verify_own_allocations
 
 - name: Validate the Qwen3.8 deployment
   ansible.builtin.assert:
@@ -90,9 +117,14 @@
         | default('') | trim | length > 0
       - qwen38_verify_chat.json.choices[0].finish_reason == 'stop'
       - qwen38_verify_restart_count.stdout | int == 0
-      # Weights are split across both cards, so both must be carrying the model.
+      # Weights are split across both cards, so this process must hold a
+      # context on two distinct GPUs, each carrying a model-sized allocation.
       - >-
-        qwen38_verify_gpu_memory.stdout_lines
-        | map('regex_replace', '^\d+,\s*', '')
-        | map('int') | select('gt', 4096) | list | length == 2
+        qwen38_verify_own_allocations
+        | map('regex_replace', '^([^,]+),.*$', '\1')
+        | unique | list | length == 2
+      - >-
+        qwen38_verify_own_allocations
+        | map('regex_replace', '^.*, ', '') | map('int')
+        | select('gt', 4096) | list | length == 2
     fail_msg: Qwen3.8 read-only verification failed
