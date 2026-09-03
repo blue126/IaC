@@ -1,5 +1,14 @@
 # DeepSeek V4 Flash 本地推理性能优化全景计划
 
+> **状态:历史参考。** 本文描述的 `llm-server`(192.168.1.247,ESXi 上的 VM)已退役,
+> 工作负载迁至裸机 `llm-workstation`(192.168.1.191)。本文提到的 Ansible role
+> (`deepseek-v4`、`deepseek-v4-mainline`、`deepseek-v4-ik`)及其 playbook 已从仓库删除;正文保持原样以保留记录,
+> 其中的路径、命令与运行事实均**不再适用于当前部署**。
+>
+> 当前部署见 [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts-workstation`。
+
+
 **创建日期**：2026-08-15；**最后更新**：2026-08-17
 **状态**：执行中（Stage 1–3 已完成；mainline + DSpark 当前运行，部署与文档已提交）
 **关联**：
