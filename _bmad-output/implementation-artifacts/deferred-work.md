@@ -26,9 +26,6 @@
   summary: 在 shim 内按能量阈值裁剪 clip 首尾静音，消除连续朗读时每个接缝约 775 毫秒的死区。
   evidence: 实测 clip 头部约 400 毫秒、尾部约 350 毫秒为 RMS 仅峰值 0.13%–0.68% 的近似静音，语音段为 6%–23%，阈值分离干净；`silence_ban_frames` 经每组 15 样本对比证明无效（775 对 806 毫秒）。非 PCM 格式需要 shim 具备解码能力，属于新增依赖，需单独授权。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
-  summary: 把 Phase 2 离线测试套件接入 `.github/workflows/doc-accuracy.yml`，与已自动化的 Phase 1 套件并列。
-  evidence: 该 workflow 目前只有一个测试步骤，跑 `tests/doc-claims/doc-claims-test.py`；全仓检索 `doc-gardening` 只在本规格里作为手工命令出现。整套 fail-closed 保证（单文档 manifest、密钥脱敏、逐字 quote/hash 绑定）目前只在有人记得敲命令时才被验证。改动 Actions workflow 属于本规格 Ask First 边界，需单独授权。
-- source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 让 `validate-contract.py` 直接消费 `schemas/*.json`，取代手写校验，并给 `analysis-input-v1.json` 一个真实消费者。
   evidence: 同一份契约被编码两次——`contract.py` 的常量与手写检查，和四份 JSON schema。`analysis-input-v1.json` 无任何代码读取；`run-record-v1.json` 只被本次新增的等价性断言覆盖。等价性断言能挡住漂移，但两份实现的维护成本仍在。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
