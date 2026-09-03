@@ -2,6 +2,11 @@
 Description=Qwen3-TTS OpenAI-compatible API and local shim
 After=docker.service
 Requires=docker.service
+# Ordering only, no Requires: TTS must still come up if Qwen3.8 fails.
+# Both are enabled at boot and share GPU 1, and both size their GPU
+# allocations at startup, so this makes the boot order match the one
+# that has been measured rather than leaving it to systemd's discretion.
+After=qwen38.service
 
 [Service]
 Type=oneshot

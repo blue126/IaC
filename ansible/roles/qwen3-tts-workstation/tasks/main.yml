@@ -581,11 +581,18 @@
   ansible.builtin.meta: flush_handlers
   tags: [service-config]
 
-- name: Restart Qwen3-TTS without enabling it
+# Enabled at boot. It was deliberately not enabled on llm-server, where the
+# GPU was contended and a model switch was a manual step. On this host the
+# service is a permanent tenant: it shares GPU 1 with Qwen3.8, and both
+# footprints are now fixed at startup -- Qwen3.8 preallocates its KV with
+# -c 131072, and stage 0's cache is pinned by kv_cache_memory_bytes -- so the
+# two fit regardless of which comes up first. Ordering is still declared in
+# the unit so boot is deterministic rather than merely sufficient.
+- name: Restart and enable Qwen3-TTS at boot
   ansible.builtin.systemd_service:
     name: "{{ qwen3_tts_service_name }}"
     state: restarted
-    enabled: false
+    enabled: true
 
 - name: Wait for Qwen3-TTS health endpoint
   ansible.builtin.uri:

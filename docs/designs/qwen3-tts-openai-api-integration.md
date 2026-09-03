@@ -119,7 +119,7 @@ playbook 采用薄编排模式：Deploy play 调用 `qwen3-tts-workstation` role
 - shared-memory connector 的 `decode_batch_max_size` 固定为 `1`：三个请求可以同时在途，但 Code2Wav 仍逐个解码。上游的 `qwen3_tts_high_concurrency.yaml` 在 `max_num_seqs: 64` 下也用 `1`；
 - Talker 的 `max_tokens` 由上游默认的 `512` 提高到 `2048`，把单次请求的音频上限从约 55 秒抬到约 3.5 分钟。`512` 会让整段发送的阅读客户端持续触发上限并重试，表现为服务很慢而不是失败；代价是退化的无 EOS 生成从约 14 秒后被拒绝变为约 57 秒。实测数据记在 `vllm-deploy-config.yaml` 该项的注释里；
 - 两个容器均使用 `init: true`、`restart: "no"`；
-- 独立 `qwen3-tts.service` 同时启动 `server` 和 `shim`，但不开机自启；
+- 独立 `qwen3-tts.service` 同时启动 `server` 和 `shim`，并开机自启。单元里声明 `After=qwen38.service`（仅排序，不加 `Requires`，Qwen3.8 失败时 TTS 仍应起来），使开机顺序与实测过的顺序一致；两者的显存都在启动时一次性定死，因此先后其实都能容纳；
 - Hugging Face 模型缓存持久化到 `/data/models/qwen3-tts`，vLLM 编译缓存持久化到 `/data/models/qwen3-tts/vllm-cache`。
 
 部署边界固定为 1.7B Base、GPU ordinal 1、单 worker 和 `max_num_seqs: 3`。与 llm-server 上的旧 role 不同，本 role 不含 Qwen3.6 共存断言与停止逻辑，也不要求 DeepSeek mainline 为 inactive —— 新主机上这两个服务都不存在，同卡上只有按 layer 分摊的 Qwen3.8。首次 profile 缺失时，常规启动会失败并要求单独获授权的 `--tags bootstrap`，不会启动一个只能返回 503 的表面健康服务。
@@ -197,7 +197,7 @@ Split:        punctuation
 
 ## 8. 生命周期与回滚
 
-llm-server 上需要的手工模型切换在本主机不再适用：没有 DeepSeek，Qwen3.8 与 TTS 常驻并存，服务不开机自启，按需启停即可。
+llm-server 上需要的手工模型切换在本主机不再适用：没有 DeepSeek，Qwen3.8 与 TTS 常驻并存，两者均开机自启，平时无需干预。
 
 ```bash
 sudo systemctl start qwen3-tts
