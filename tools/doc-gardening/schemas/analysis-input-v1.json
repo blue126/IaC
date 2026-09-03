@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Document gardening analysis input v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "revision", "document", "hunks", "spans", "evidence", "manifest_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "kind": {"const": "analysis_input"},
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head"],
+      "properties": {
+        "base": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "base_sha256", "head_sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"},
+        "base_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "head_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "hunks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "sha256", "old_start", "old_count", "new_start", "new_count", "text"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^hunk-[a-z0-9._-]+$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "old_start": {"type": "integer", "minimum": 0},
+          "old_count": {"type": "integer", "minimum": 0},
+          "new_start": {"type": "integer", "minimum": 0},
+          "new_count": {"type": "integer", "minimum": 0},
+          "text": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "spans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "hunk_id", "start_line", "end_line", "quote", "sha256"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^span-[a-z0-9._-]+$"},
+          "hunk_id": {"type": "string"},
+          "start_line": {"type": "integer", "minimum": 1},
+          "end_line": {"type": "integer", "minimum": 1},
+          "quote": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "reason", "document", "oracle"],
+        "properties": {
+          "id": {"type": "string"},
+          "status": {"enum": ["verified", "contradiction", "indeterminate"]},
+          "reason": {"type": ["string", "null"]},
+          "document": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "locator", "sha256"],
+            "properties": {
+              "path": {"type": "string"},
+              "locator": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          },
+          "oracle": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "key", "sha256"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "key": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
