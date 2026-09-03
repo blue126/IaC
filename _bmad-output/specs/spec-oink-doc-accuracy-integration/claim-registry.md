@@ -51,6 +51,6 @@ The test suite must cover all of the following without contacting external servi
 
 `docs/deployment/immich-deployment.md` is deliberately excluded: its stated port is not presently represented by a stable `immich_port` scalar in `ansible/roles/immich/defaults/main.yml`.
 
-`ansible/roles/qwen3-tts-workstation/files/vllm-deploy-config.yaml` 中的 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 同样排除：oracle 读取器只识别顶层键，而这些键位于 `stages:` 之下，且每个 stage 各出现一次，会被判为歧义。这四项目前只能人工核对。
+`ansible/roles/qwen3-tts-workstation/files/vllm-deploy-config.yaml` 中的 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 同样排除：`_yaml_key_values` 直接跳过首字符为空白的行，而这些键位于 `stages:` 之下均为缩进行，因此根本不会被收集，实际结果是 `oracle_key_missing`——不是每 stage 重复导致的歧义，重复判定压根轮不到。这四项目前只能人工核对。
 
 Credentials, tokens, passwords, free-form notes, domains, runtime states, Terraform resource specifications and any value sourced from a secret file are also excluded, even if they appear in documentation.

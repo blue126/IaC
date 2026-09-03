@@ -22,12 +22,12 @@ IaC 文档中的错误端口、版本或配置会误导维护者和 coding agent
   - **success:** 使用唯一测试哨兵值的 mocked 同步证明出站属性及 stdout/stderr 均不含哨兵或其派生值，且允许的非敏感库存元数据仍可同步。
 
 - **CAP-2**
-  - **intent:** 系统能够对 [claim-registry.md](claim-registry.md) 中封闭的四条文档 claim，以确定性方式比较 Markdown locator 与已提交 Ansible defaults 中声明的 oracle。
+  - **intent:** 系统能够对 [claim-registry.md](claim-registry.md) 中封闭的每一条文档 claim，以确定性方式比较 Markdown locator 与已提交 Ansible defaults 中声明的 oracle。
   - **success:** 匹配、矛盾、缺失 source 及缺失或歧义 locator 的 fixture 都为每条 claim 产生规定状态与证据，不猜测或回退到运行时数据。
 
 - **CAP-3**
   - **intent:** 系统能够生成不含敏感信息、可供人和 OINK 消费的漂移报告，说明每条 claim 的结果、文档位置、oracle、非敏感预期/观测值和 provenance。
-  - **success:** 仅依赖 checkout 文件的运行能报告全部四条 claim；出现 contradiction 或 indeterminate evidence 时以非零结果结束，且报告不含任何凭据或 token 值。
+  - **success:** 仅依赖 checkout 文件的运行能报告 registry 中的全部 claim（当前 6 条）；出现 contradiction 或 indeterminate evidence 时以非零结果结束，且报告不含任何凭据或 token 值。
 
 ## Constraints
 
@@ -41,13 +41,13 @@ IaC 文档中的错误端口、版本或配置会误导维护者和 coding agent
 
 - Runtime collector、设备/API 采集、webhook 或 reconciliation。
 - AI claim extraction、AI 自动编辑、任何自动文档修改、自动 PR 创建或自动 merge。
-- 检查四条 registry claim 之外的端口、域名、资源规格、路径、版本、文档集合或开放世界 coverage。
+- 检查 registry 之外的端口、域名、资源规格、路径、版本、文档集合或开放世界 coverage。
 - 将 Notion 数据、Terraform state、Vault、日志或生产状态作为 Phase 1 的 claim oracle。
 - 向 OINK 页面或 `llms.txt` 发布凭据、token、密码或敏感派生信息。
 
 ## Success signal
 
-在干净 checkout 上，先通过 Notion 同步的 sentinel 防泄漏测试；随后运行四条 registry claim 的 fixture suite 和 repository-only 检测。四条正常 fixture 均 verified，任何人为篡改都以可定位的 contradiction 或 indeterminate evidence 和非零结果失败，生成的报告仍只含允许的非敏感字段。
+在干净 checkout 上，先通过 Notion 同步的 sentinel 防泄漏测试；随后运行 registry 全部 claim 的 fixture suite 和 repository-only 检测。每条正常 fixture 均 verified，任何人为篡改都以可定位的 contradiction 或 indeterminate evidence 和非零结果失败，生成的报告仍只含允许的非敏感字段。
 
 ## Assumptions
 

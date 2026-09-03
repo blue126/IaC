@@ -6,8 +6,10 @@
 
 一个组件只有**同时**满足以下两项，才算"仍由 IaC 有效管理"：
 
-1. 仓库中存在管理该组件的代码（Ansible role 或 playbook）；
-2. 目标主机出现在**当前** inventory 中——Terraform 动态 inventory（`cloud.terraform.terraform_provider`）或 `ansible/inventory/bare_metal/hosts.yml`。
+1. 仓库中存在管理该组件的代码——Ansible role/playbook **或** Terraform resource/module；
+2. 目标主机出现在**当前** inventory 中——Terraform 动态 inventory（`cloud.terraform.terraform_provider`）、`ansible/inventory/bare_metal/hosts.yml`，或 `ansible/inventory/oci/hosts.yml`。
+
+只认 Ansible 是不够的：§3 把 CPU、内存、磁盘规格列为 V1 关键 claim，而这些由 Terraform 供给（例如 `terraform/modules/proxmox-vm/main.tf` 的 `cores` 与 `memory`），只看 Ansible 会把这类候选全部判为"无代码"。OCI 主机同理——AGENTS.md 明确记载它们是不走 Terraform 插件的静态 inventory 例外。
 
 | 代码 | 在册 | 判定 | 允许动作 |
 |---|---|---|---|
@@ -18,7 +20,7 @@
 
 只有代码存在就判定为有效管理，正是原 open question 所指的失效模式：**残留的废弃代码会被误读为现行事实**。llm-server 退役过程中曾同时存在 role、playbook 与文档，而服务已在关停——当时任何只看代码的判定都会出错。
 
-两项判据均可由 checkout 加 Terraform state 直接得出，**不需要任何凭据**。
+两项判据都要 Terraform state。`*.tfstate` 被 `.gitignore` 排除、不在 checkout 里，`scripts/refresh-terraform-state.sh` 通过 `terraform state pull` 从 HCP 取得——**因此这一判据需要凭据**，见 §4。
 
 ## 2. Observation Registry and Retry Tiers / 观察目标登记与重试分级
 
@@ -28,7 +30,7 @@
 
 **未登记的目标一律不探测、不因不可达而升级。** 这不是遗漏，是主动选择。
 
-代价必须明说：未登记目标的相关陈述只有文档与代码两条腿，按 [evidence-model.md](evidence-model.md) 的 truth priority，它们永远只能是 `consistent` 或 `unresolved`，**不可能到达 `document_drift`**。因此把一个目标排除在观察之外，同时也就是放弃对它上面一切内容的自动修复。
+代价必须明说：未登记目标的相关陈述只有文档与代码两条腿，生产状态未知。`consistent` 按 [evidence-model.md](evidence-model.md) 的定义要求三方证据一致，因此这类结果**只能是 `unresolved`**——既不能判 `consistent`，也不可能到达 `document_drift`。把一个目标排除在观察之外，同时也就是放弃对它上面一切内容的自动修复。
 
 ### 层级
 
@@ -43,7 +45,23 @@
 
 跨时段重试后仍失败，只能升级人工。任何层级下，不可达都不构成废弃的证据。
 
+### 登记表位置与 schema
+
+登记表是 [`tools/doc-gardening/observation-registry.yml`](../../../tools/doc-gardening/observation-registry.yml)，与读取它的工具同处一地。每个条目：
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `id` | 是 | kebab-case，唯一，与 inventory 主机名一致 |
+| `address` | 是 | 探测连接的 IP 或主机名 |
+| `tier` | 是 | `always_on` 或 `periodic` |
+| `window` | 仅 `periodic` | 一个周期的 ISO-8601 时长，登记声明，不得反推 |
+| `probes` | 是 | 一或多项，`type` 为 `tcp` 或 `http`，带 `port`；`http` 另有 `path` |
+
 ### V1 的登记内容
+
+常在线层级两个成员：**immich**（`192.168.1.101:2283`）与 **jenkins**（`192.168.1.107:8080`）。
+
+immich 是个说明性的例子：`docs/deployment/immich-deployment.md` 写着 `immich_port: 2283`，而 role defaults 里没有对应的 `immich_port` 标量——正因如此它被 Phase 1 的 claim registry 明确排除。观察实际监听端口是验证这条文档陈述的唯一途径。
 
 周期性层级**当前没有成员**。T7910 冷备份服务器及其上的资源**不登记**：其开机节奏不规律，可能超过半个月不上线，无法声明一个可靠的周期。层级定义保留，以便日后新增条目时无需重新决策。
 
@@ -68,19 +86,28 @@ V1 只审计**能绑定确定性 oracle 的标量陈述**：
 
 ## 4. Authorized Runtime Interfaces / 授权的运行时接口
 
-V1 只授权一类运行时观察：
+V1 授权以下只读接口，每一项都绑定它是唯一验证途径的 claim 类别：
 
-- **无凭据网络探测** —— TCP 连通性、HTTP 健康检查
+| 接口 | 凭据 | 用途 |
+|---|---|---|
+| TCP 连通性、HTTP 健康检查 | 无 | 端口与可达性类 claim |
+| HCP `terraform state pull` | 是 | §1 的"在册"判据；state 不在 checkout 内 |
+| NetBox 只读 API | 是 | 设备/服务/IP 登记事实 |
+| Proxmox 只读 API（PVEAuditor） | 是 | CPU、内存、磁盘规格与镜像 tag |
 
-未授权，需新决策方可使用：NetBox API、Proxmox API、HCP、Terraform state 远程读取，以及任何需要 token、密钥或口令的接口。
+**此前"V1 不持有任何生产凭据"的结论已撤回，它是错的。** 无凭据探测最多证明端点可达，证明不了镜像 tag、文件路径或资源规格与代码一致；而 evidence-model 要求生产证据支持代码才允许 `document_drift`。若坚持零凭据，§3 列出的大部分 claim 类别将永远无法闭环。§1 的"在册"判据同样需要凭据。
 
-**V1 的文档治理工具不持有任何生产凭据。** 这与第 1 节共同成立：管理范围的判定不需要凭据，运行时观察也不需要，因此整个 V1 不引入凭据边界。
+超出上表的任何接口仍需新决策。凭据必须是专用只读身份，且不得出现在任何 artifact、run record、报告或日志中。按 `spec-oink-doc-accuracy-integration` 的边界，collector 与 detector 是两个信任面：detector、OINK 与 Pages 只消费脱敏产物，永不接收凭据。
+
+**前置条件**：Phase 2 的 `contains_secret()` 目前不认 `$ANSIBLE_VAULT` header，也不认 `vault_*` 赋值。在任何持凭据的 collector 运行之前，这个缺口必须先补上。
 
 所有观察必须只读、无影响、无破坏，并按 evidence-model 的 Audit Record 要求记录方法、目标、时间与结果。
 
 ## 5. Observation Retention / 观察证据保留
 
-运行时观察写入 gitignore 的 `tmp/` 路径，**保留 15 天**。
+运行时观察写入 gitignore 的 `tmp/` 路径，保留期取 **15 天与最长已登记重试窗口两者中的较大值**。
+
+固定 15 天不成立：周期性层级允许登记任意周期，一旦某目标的周期超过 7.5 天，两个周期的判定尚未完成，首轮观察就已过期，持续不可达的门禁永远闭合不了。
 
 观察保存在本地而非 CI artifact，因此 CI artifact 的 14 天保留期不构成约束。
 
