@@ -112,6 +112,17 @@ def require_integer(value: Any, location: str, *, minimum: int = 0) -> int:
     return value
 
 
+def require_enum(value: Any, allowed: set[str], code: str) -> str:
+    """Membership test that rejects non-strings before querying the set.
+
+    `value in allowed` raises TypeError for unhashable input, which escapes the
+    ContractError contract and aborts with a traceback instead of blocking.
+    """
+    if not isinstance(value, str) or value not in allowed:
+        raise ContractError(code)
+    return value
+
+
 def require_sha256(value: Any, location: str) -> str:
     if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
         raise ContractError(f"{location}_invalid")

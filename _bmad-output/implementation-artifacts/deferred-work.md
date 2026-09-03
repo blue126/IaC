@@ -46,3 +46,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 补 `tools/doc-gardening/` 的使用文档，并把 `tools/` 与 `tests/` 加进 AGENTS.md 的 Repository Structure。
   evidence: 新增 5 个脚本、4 份 schema、2 份 prompt，没有 README，`docs/designs/` 下也没有对应设计文档；AGENTS.md 的目录树至今没有 `tools/` 和 `tests/` 两项，Key Commands 也没有任何 doc-gardening 条目。测试文件名 `doc-gardening-test.py` 不匹配 `unittest discover` 默认的 `test*.py`，怎么跑只能靠猜。
+- source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
+  summary: 让 `validate_manifest_repository()` 从指定 revision 重建 diff，逐项比对 hunks 与 span-to-hunk 关系，而不是只核对文件哈希与 span quote。
+  evidence: 当前校验只确认 manifest 自洽——篡改者改掉 hunk 文本后重算 hunk SHA 与 `manifest_sha256` 即可通过，任意内容因此可以进入交给 live 模型的封闭输入。Codex 在 PR #18 判为 P1 并复现过。这是"manifest 只做到自洽、从未从仓库重新推导"的一半。
+- source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
+  summary: 让 `_redacted_evidence()` 按目标 revision 重新读取 oracle 文件，核对路径、内容哈希与 claim 结果，而不是只做 `oracle_sha256` 的格式校验。
+  evidence: `require_sha256` 只验证形如 64 位十六进制，从不打开那个 oracle 文件。Phase 1 report 生成后修改 oracle（例如把 `netbox_port` 改成 9999），builder 仍返回 0 并把旧 evidence 记为 `verified`，候选分析因此建立在过期证据上。本仓库的 edge-case-hunter 与 Codex 各自独立发现；前者曾在评审中提出 `manifest_oracle_stale` 守卫而未被采纳，此处补记。这是上一条的另一半。
+- source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
+  summary: 让 artifact 与 run record 原子发布——写入 run-scoped 临时路径后共同提交，任一失败即清除或隔离 artifact。
+  evidence: 固定输出路径下，本轮验证失败不会使上一轮的旧 artifact 失效；反之若 artifact 写入成功而 run record 写入失败，会在 exit 2 后留下一个无 provenance 的新 artifact。两种情况下消费者都可能读到一个并不属于当前成功运行的合法 JSON。Codex 在 PR #18 判为 P2。
+- source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
+  summary: 在 `validate_run_record()` 中校验 status、reason、live、runtime、model 与 artifact 是否存在之间的允许组合，而不只是逐个查枚举。
+  evidence: 目前 `status=completed` 配 `reason=timeout`、`live=false` 配 `reason=live_completed`、以及 blocked record 携带 artifact 都能通过。该 validator 是审计记录的确定性信任边界，自相矛盾的记录不应通过。Codex 在 PR #18 判为 P2。

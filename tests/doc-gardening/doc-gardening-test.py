@@ -492,6 +492,105 @@ class DocGardeningTest(unittest.TestCase):
         record = VALIDATOR.validate_run_record(json.loads(record_path.read_text()), manifest, artifact)
         self.assertEqual(record["artifact_kind"], "edit_proposal")
 
+    def test_non_string_enum_blocks_with_a_run_record(self) -> None:
+        # `value in SET` raises TypeError for an unhashable value. That escapes
+        # the ContractError contract, so the run used to abort with a traceback
+        # and leave no audit record at all.
+        result, manifest_path = self.fixture.build()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        span = manifest["spans"][0]
+        hostile = {
+            "schema_version": 1,
+            "kind": "claim_candidates",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "document_path": manifest["document"]["path"],
+            "revision": manifest["revision"],
+            "candidates": [{
+                "id": "candidate-hostile",
+                "classification": ["candidate_contradiction"],
+                "reason": "evidence_conflict",
+                "hunk_id": span["hunk_id"],
+                "source": {"span_id": span["id"], "quote": span["quote"]},
+                "evidence_refs": [manifest["evidence"][0]["id"]],
+                "edit": None,
+            }],
+        }
+        recorded_path = self.fixture.root / "hostile-enum.json"
+        recorded_path.write_text(json.dumps(hostile), encoding="utf-8")
+        artifact_path = self.fixture.root / "hostile-artifact.json"
+        record_path = self.fixture.root / "hostile-run.json"
+        replay = subprocess.run(
+            [
+                sys.executable,
+                str(TOOL_ROOT / "run-analysis.py"),
+                "--root", str(self.fixture.root),
+                "--manifest", str(manifest_path),
+                "--recorded-output", str(recorded_path),
+                "--output-artifact", str(artifact_path),
+                "--run-record", str(record_path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(replay.returncode, 2, replay.stderr)
+        self.assertIn("candidate_classification_invalid", replay.stderr)
+        self.assertNotIn("Traceback", replay.stderr)
+        self.assertFalse(artifact_path.exists())
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        self.assertEqual(record["status"], "blocked")
+        # The unhashable value must also block the validator directly.
+        with self.assertRaisesRegex(contract.ContractError, "candidate_classification_invalid"):
+            VALIDATOR.validate_artifact(hostile, manifest)
+
+    def test_propose_mode_rejects_a_candidate_artifact(self) -> None:
+        # The generic validator accepts either kind; the mode does not.
+        result, manifest_path = self.fixture.build()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        span = manifest["spans"][0]
+        candidate = {
+            "schema_version": 1,
+            "kind": "claim_candidates",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "document_path": manifest["document"]["path"],
+            "revision": manifest["revision"],
+            "candidates": [{
+                "id": "candidate-proposal",
+                "classification": "possibly_stale",
+                "reason": "possibly_outdated",
+                "hunk_id": span["hunk_id"],
+                "source": {"span_id": span["id"], "quote": span["quote"]},
+                "evidence_refs": [manifest["evidence"][0]["id"]],
+                "edit": None,
+            }],
+        }
+        candidate_path = self.fixture.root / "propose-candidate.json"
+        candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+        artifact_path = self.fixture.root / "wrong-kind.json"
+        record_path = self.fixture.root / "wrong-kind-run.json"
+        replay = subprocess.run(
+            [
+                sys.executable,
+                str(TOOL_ROOT / "run-analysis.py"),
+                "--root", str(self.fixture.root),
+                "--manifest", str(manifest_path),
+                "--mode", "propose",
+                "--candidate-artifact", str(candidate_path),
+                # A structurally valid claim_candidates fed to propose mode.
+                "--recorded-output", str(candidate_path),
+                "--output-artifact", str(artifact_path),
+                "--run-record", str(record_path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(replay.returncode, 2, replay.stderr)
+        self.assertIn("artifact_kind_unexpected", replay.stderr)
+        self.assertFalse(artifact_path.exists())
+
     def test_proposal_must_bind_exactly_to_selected_candidate(self) -> None:
         result, manifest_path = self.fixture.build()
         self.assertEqual(result.returncode, 0, result.stderr)

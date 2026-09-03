@@ -8,5 +8,6 @@
   {"name": "stale manifest hash", "file": "stale-sha.json", "valid": false, "security": true},
   {"name": "secret sentinel", "file": "secret-sentinel.json", "valid": false, "security": true},
   {"name": "unknown with edit", "file": "unknown-with-edit.json", "valid": false, "security": true},
+  {"name": "non-string enum", "file": "non-string-enum.json", "valid": false, "security": true},
   {"name": "malformed refusal", "file": "refusal.txt", "valid": false, "security": true}
 ]

@@ -19,6 +19,7 @@ from contract import (
     git_file,
     payload_hash,
     read_json,
+    require_enum,
     require_identifier,
     require_integer,
     require_revision,
@@ -118,8 +119,11 @@ def validate_manifest_structure(manifest: Any) -> dict[str, Any]:
         if evidence_id in evidence_ids:
             raise ContractError("manifest_evidence_duplicate")
         evidence_ids.add(evidence_id)
-        if evidence["status"] not in {"verified", "contradiction", "indeterminate"}:
-            raise ContractError("manifest_evidence_status_invalid")
+        require_enum(
+            evidence["status"],
+            {"verified", "contradiction", "indeterminate"},
+            "manifest_evidence_status_invalid",
+        )
         if evidence["reason"] is not None:
             require_string(evidence["reason"], "manifest_evidence_reason")
         evidence_document = exact_keys(
@@ -178,8 +182,7 @@ def _validate_source(
     location: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     hunk_ids = {item["id"] for item in manifest["hunks"]}
-    if hunk_id not in hunk_ids:
-        raise ContractError(f"{location}_hunk_unknown")
+    require_enum(hunk_id, hunk_ids, f"{location}_hunk_unknown")
     source = exact_keys(source, {"span_id", "quote"}, f"{location}_source")
     span = next((item for item in manifest["spans"] if item["id"] == source["span_id"]), None)
     if span is None or span["hunk_id"] != hunk_id:
@@ -247,10 +250,10 @@ def validate_artifact(artifact: Any, manifest: dict[str, Any]) -> dict[str, Any]
             if candidate_id in ids:
                 raise ContractError("candidate_id_duplicate")
             ids.add(candidate_id)
-            if candidate["classification"] not in CLASSIFICATIONS:
-                raise ContractError("candidate_classification_invalid")
-            if candidate["reason"] not in CANDIDATE_REASONS:
-                raise ContractError("candidate_reason_invalid")
+            require_enum(
+                candidate["classification"], CLASSIFICATIONS, "candidate_classification_invalid"
+            )
+            require_enum(candidate["reason"], CANDIDATE_REASONS, "candidate_reason_invalid")
             _, span = _validate_source(candidate["source"], candidate["hunk_id"], manifest, "candidate")
             refs = _validate_refs(
                 candidate["evidence_refs"],
@@ -296,8 +299,8 @@ def validate_run_record(record: Any, manifest: dict[str, Any], artifact: dict[st
     )
     if record["schema_version"] != 1 or record["kind"] != "run_record":
         raise ContractError("run_record_version_invalid")
-    if record["status"] not in RUN_STATUSES or record["reason"] not in RUN_REASONS:
-        raise ContractError("run_record_outcome_invalid")
+    require_enum(record["status"], RUN_STATUSES, "run_record_outcome_invalid")
+    require_enum(record["reason"], RUN_REASONS, "run_record_outcome_invalid")
     if record["manifest_sha256"] != manifest["manifest_sha256"]:
         raise ContractError("run_record_manifest_mismatch")
     require_sha256(record["prompt_sha256"], "run_record_prompt_sha256")
@@ -305,8 +308,11 @@ def validate_run_record(record: Any, manifest: dict[str, Any], artifact: dict[st
     require_string(record["model"], "run_record_model")
     require_string(record["runtime"], "run_record_runtime")
     require_sha256(record["output_sha256"], "run_record_output_sha256")
-    if record["artifact_kind"] not in {"claim_candidates", "edit_proposal"}:
-        raise ContractError("run_record_artifact_kind_invalid")
+    require_enum(
+        record["artifact_kind"],
+        {"claim_candidates", "edit_proposal"},
+        "run_record_artifact_kind_invalid",
+    )
     if type(record["live"]) is not bool:
         raise ContractError("run_record_live_invalid")
     if record["status"] == "completed" and artifact is None:

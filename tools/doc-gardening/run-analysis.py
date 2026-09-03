@@ -237,6 +237,11 @@ def main(argv: list[str] | None = None) -> int:
         if contains_secret(output_data.decode("utf-8", errors="replace")):
             raise ContractError("unsafe_output")
         artifact = validator.validate_artifact(json.loads(output_data), manifest)
+        # The generic validator accepts either kind; the mode does not. Without
+        # this, propose mode writes a claim_candidates artifact and records it
+        # as an edit_proposal.
+        if artifact["kind"] != artifact_kind:
+            raise ContractError("artifact_kind_unexpected")
         _validate_proposal_binding(artifact, selected_candidate)
         atomic_write_json(arguments.output_artifact, artifact)
         status = "completed"
@@ -260,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
             live=arguments.live,
         )
         atomic_write_json(arguments.run_record, record)
-    except (ContractError, OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (ContractError, OSError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         if manifest is not None:
             error_code = str(error)
             reason = "validation_failed"
