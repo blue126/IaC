@@ -1,0 +1,12 @@
+[
+  {"name": "valid candidate", "file": "valid-candidate.json", "valid": true, "security": false},
+  {"name": "unknown", "file": "unknown.json", "valid": true, "security": false},
+  {"name": "prompt injection is data", "file": "prompt-injection.json", "valid": true, "security": true},
+  {"name": "fake evidence ref", "file": "fake-ref.json", "valid": false, "security": true},
+  {"name": "multi document", "file": "multi-doc.json", "valid": false, "security": true},
+  {"name": "schema extra", "file": "schema-extra.json", "valid": false, "security": true},
+  {"name": "stale manifest hash", "file": "stale-sha.json", "valid": false, "security": true},
+  {"name": "secret sentinel", "file": "secret-sentinel.json", "valid": false, "security": true},
+  {"name": "unknown with edit", "file": "unknown-with-edit.json", "valid": false, "security": true},
+  {"name": "malformed refusal", "file": "refusal.txt", "valid": false, "security": true}
+]

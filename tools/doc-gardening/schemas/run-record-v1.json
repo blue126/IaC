@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Document gardening run record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "status", "reason", "manifest_sha256", "prompt_sha256", "schema_sha256", "model", "runtime", "output_sha256", "artifact_kind", "live"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "kind": {"const": "run_record"},
+    "status": {"enum": ["completed", "unknown", "blocked"]},
+    "reason": {"enum": ["recorded_replay", "live_completed", "validation_failed", "timeout", "refusal", "stale_input", "unsafe_input", "execution_failed"]},
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "prompt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "schema_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model": {"type": "string", "minLength": 1},
+    "runtime": {"type": "string", "minLength": 1},
+    "output_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact_kind": {"enum": ["claim_candidates", "edit_proposal"]},
+    "live": {"type": "boolean"}
+  }
+}

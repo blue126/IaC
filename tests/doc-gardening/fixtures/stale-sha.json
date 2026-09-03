@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "kind": "claim_candidates",
+  "manifest_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "document_path": "docs/designs/example.md",
+  "revision": {"base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+  "candidates": []
+}
