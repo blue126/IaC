@@ -67,15 +67,19 @@
 # Qwen3-TTS shares GPU 1 and holds ~11 GB there on its own, which satisfies any
 # "this card is busy" threshold even if Qwen3.8 had loaded entirely onto GPU 0.
 # Attribute the memory to the container's own process instead.
-- name: Read the Qwen3.8 container main process id
+# docker top, not inspect .State.Pid: the Compose service sets init: true, so
+# the container's main process is docker-init and llama-server -- the process
+# that actually holds the CUDA contexts -- is its child. Matching on
+# .State.Pid found nothing and failed this verification.
+- name: Read the host process ids inside the Qwen3.8 container
   ansible.builtin.command:
     argv:
       - docker
-      - inspect
-      - --format
-      - "{{ '{{.State.Pid}}' }}"
+      - top
       - "{{ qwen38_compose_project }}-server-1"
-  register: qwen38_verify_pid
+      - -eo
+      - pid
+  register: qwen38_verify_container_pids
   changed_when: false
 
 - name: Read per-process GPU memory after deployment
@@ -88,14 +92,16 @@
   changed_when: false
 
 # Lines are "<gpu_uuid>, <pid>, <used_memory>". Matching ", <pid>, " with both
-# delimiters keeps a row whose memory figure happens to equal our pid from
-# being picked up, since that value is line-final and has no trailing comma.
-- name: Attribute GPU memory to the Qwen3.8 process
+# delimiters keeps a row whose memory figure happens to equal one of our pids
+# from being picked up, since that value is line-final and has no trailing
+# comma. stdout_lines[1:] drops docker top's "PID" header row.
+- name: Attribute GPU memory to the Qwen3.8 container's processes
   ansible.builtin.set_fact:
     qwen38_verify_own_allocations: >-
       {{
         qwen38_verify_compute_apps.stdout_lines
-        | select('search', ', ' ~ (qwen38_verify_pid.stdout | trim) ~ ', ')
+        | select('search', ', (' ~ (qwen38_verify_container_pids.stdout_lines[1:]
+                                    | map('trim') | join('|')) ~ '), ')
         | list
       }}
 
@@ -119,9 +125,13 @@
       - qwen38_verify_restart_count.stdout | int == 0
       # Weights are split across both cards, so this process must hold a
       # context on two distinct GPUs, each carrying a model-sized allocation.
+      # No capture group on purpose: '\1' inside a Jinja string literal is
+      # parsed the way Python parses it, as the octal escape for \x01, not as
+      # a regex backreference -- it would need '\\1'. Stripping from the first
+      # comma leaves the uuid without needing one.
       - >-
         qwen38_verify_own_allocations
-        | map('regex_replace', '^([^,]+),.*$', '\1')
+        | map('regex_replace', ',.*$', '')
         | unique | list | length == 2
       - >-
         qwen38_verify_own_allocations

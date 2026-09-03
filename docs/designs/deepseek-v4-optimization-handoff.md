@@ -1,5 +1,14 @@
 # DeepSeek V4 Flash 本地推理优化 —— 项目交接文档（Handoff）
 
+> **状态:历史参考。** 本文描述的 `llm-server`(192.168.1.247,ESXi 上的 VM)已退役,
+> 工作负载迁至裸机 `llm-workstation`(192.168.1.191)。本文提到的 Ansible role
+> (`deepseek-v4`、`deepseek-v4-mainline`、`deepseek-v4-ik`)及其 playbook 已从仓库删除;正文保持原样以保留记录,
+> 其中的路径、命令与运行事实均**不再适用于当前部署**。
+>
+> 当前部署见 [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts-workstation`。
+
+
 **最后更新/实机核验**：2026-08-18
 **用途**：交给接手本项目的 AI/工程师。**只读本文档即可继续工作**，不需要原始对话上下文。
 **权威顺序**：当前运行事实以已提交的 `deepseek-v4-mainline` Ansible role 和 guest 实机为准；本文件是操作入口；性能计划只提供背景和后续方向。`_bmad-output/implementation-artifacts/spec-switch-deepseek-v4-to-mainline-dspark.md` 是已完成的历史实施 spec，**不是当前配置来源**。

@@ -1,5 +1,14 @@
 # LLM Server 使用说明
 
+> **状态:历史参考。** 本文描述的 `llm-server`(192.168.1.247,ESXi 上的 VM)已退役,
+> 工作负载迁至裸机 `llm-workstation`(192.168.1.191)。本文提到的 Ansible role
+> (`deepseek-v4-mainline`、`qwen36`、`deepseek-v4-ik`)及其 playbook 已从仓库删除;正文保持原样以保留记录,
+> 其中的路径、命令与运行事实均**不再适用于当前部署**。
+>
+> 当前部署见 [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts-workstation`。
+
+
 > **适用版本**：mainline llama.cpp pin `10bf611e`，Open WebUI，SearXNG `latest`
 > **最后核验**：2026-08-18（实机）
 >
