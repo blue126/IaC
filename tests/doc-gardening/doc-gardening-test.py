@@ -102,7 +102,7 @@ SEEDED_FILES = {
     "docs/deployment/netbox-deployment.md": NETBOX_DOCUMENT,
     "docs/designs/qwen3-tts-openai-api-integration.md": QWEN_DOCUMENT,
     "ansible/roles/netbox/defaults/main.yml": NETBOX_DEFAULTS,
-    "ansible/roles/qwen3-tts-workstation/defaults/main.yml": QWEN_DEFAULTS,
+    "ansible/roles/qwen3-tts/defaults/main.yml": QWEN_DEFAULTS,
     # Out of scope by prefix, and in the repository, so the scope allowlist is
     # the only thing that can reject it.
     "docs/learningnotes/2026-01-01-example.md": "# Note\n",

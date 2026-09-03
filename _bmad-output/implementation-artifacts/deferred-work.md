@@ -19,7 +19,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-qwen3-tts-restrained-voice-mapping.md`
   summary: 为既有 1.7B Talker/Subtalker 采样配置增加渲染级验证。
   evidence: 当前音频冒烟只断言返回字节是合法 WAV（`fail_msg: ... invalid RIFF/WAVE header`），证明不了部署后 `temperature`/`top_k`/`repetition_penalty` 及 subtalker 采样字段未被误改或被新版 vLLM-Omni 静默忽略——服务照常 200、WAV 头合法、verify 全绿，而音色开始漂移。原规格针对 llm-server 上已删除的同名 role，同样适用于当前的 `ansible/roles/qwen3-tts`。
-  note: 原条目设想用固定 seed 的确定性做验证（合成两次断言字节一致），该前提已被实测推翻：同一文本三次渲染为 6.16s/6.56s/6.80s（10.4% 跨度），显式传相同 per-request seed 两次同样不一致。配置中的 `seed` 键已因此删除，详见 `files/vllm-deploy-config.yaml` 的注释。可行的替代路径是断言渲染音频的统计特征（时长落在实测区间内、RMS 包络、基频中位数），而非字节相等。
+  note: 原条目设想用固定 seed 的确定性做验证（合成两次断言字节一致），该路径在当前配置下不可行：实测同一文本三次渲染为 6.16s/6.56s/6.80s（10.4% 跨度），显式传相同 per-request seed 两次同样不一致。原因不是 seed 失效——仓库自己的源码核验（`research/.../digests/timbre-prosody-vllm-omni-r2-1.md`）已 verified 两点：seed 同时进入 Stage 0 Talker 与残差 MTP/Subtalker；而 FULL CUDA graph 重放单一捕获的 RNG 流，使逐请求 seed 不可复现。要拿到 bit-exact 需把 Stage 0 改为 eager 或纯 PIECEWISE，代价是 talker_mtp 每步 9ms→39ms。因此可行的替代是断言渲染音频的统计特征（时长落在实测区间、RMS 包络、基频中位数），而非字节相等。
 - source_spec: `tools/check-doc-claims.py`
   summary: 让 claim 的 oracle 读取支持嵌套与按索引定位的 YAML 键，使 vLLM deploy-config 中的每 stage 取值可被校验。
   evidence: `_yaml_key_values` 只匹配顶层键（第 110 行显式跳过缩进行），且同名键出现多次会被判 `oracle_key_duplicate`；而 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 全部位于 `stages:` 之下且每 stage 各一份。设计文档曾把 Talker 的 `gpu_memory_utilization` 写成 `0.17` 而配置早已是 `0.3`，正是该工具应当拦截却拦不到的一类漂移。改动会变更工具契约并影响既有 oracle 语义，需独立交付。
