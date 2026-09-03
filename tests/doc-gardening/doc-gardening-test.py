@@ -35,6 +35,30 @@ VALIDATOR = load_script("validate-contract.py")
 EVALUATOR = load_script("evaluate.py")
 
 
+def load_phase_one() -> Any:
+    path = REPOSITORY_ROOT / "tools/check-doc-claims.py"
+    spec = importlib.util.spec_from_file_location("check_doc_claims", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # dataclasses resolves field types through sys.modules, so the module has
+    # to be registered before its body runs.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+PHASE_ONE = load_phase_one()
+
+
+def phase_one_required_paths() -> set[str]:
+    """Every repository path the current Phase 1 claim set reads."""
+    required: set[str] = set()
+    for claim in PHASE_ONE.CLAIMS:
+        required.add(claim.document_path)
+        required.add(claim.oracle_path)
+    return required
+
+
 NETBOX_DOCUMENT = """# Netbox
 
 #### Configuration Variables
@@ -71,15 +95,40 @@ qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
 """
 
 
+# The Phase 1 checker runs over this fixture and must find every claim it
+# knows about, so these files mirror its claim set. When main adds, renames or
+# retires a claim, this mapping has to move with it.
+SEEDED_FILES = {
+    "docs/deployment/netbox-deployment.md": NETBOX_DOCUMENT,
+    "docs/designs/qwen3-tts-openai-api-integration.md": QWEN_DOCUMENT,
+    "ansible/roles/netbox/defaults/main.yml": NETBOX_DEFAULTS,
+    "ansible/roles/qwen3-tts-workstation/defaults/main.yml": QWEN_DEFAULTS,
+    # Out of scope by prefix, and in the repository, so the scope allowlist is
+    # the only thing that can reject it.
+    "docs/learningnotes/2026-01-01-example.md": "# Note\n",
+}
+PHASE_ONE_HINT = (
+    "The doc-gardening fixture must seed every document and oracle in "
+    "tools/check-doc-claims.py CLAIMS. Update SEEDED_FILES (and the document "
+    "constants above it) to match the current claim set."
+)
+
+
+def assert_fixture_covers_phase_one() -> None:
+    missing = phase_one_required_paths() - set(SEEDED_FILES)
+    if missing:
+        raise AssertionError(
+            f"{PHASE_ONE_HINT} Missing: {sorted(missing)}"
+        )
+
+
 class GitFixture:
     def __init__(self, base_note: str = "Initial note.", head_note: str = "Updated note.") -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
-        self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT.format(note=base_note))
-        self.write("docs/designs/qwen3-tts-openai-api-integration.md", QWEN_DOCUMENT)
-        self.write("docs/learningnotes/2026-01-01-example.md", "# Note\n")
-        self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
-        self.write("ansible/roles/qwen3-tts-workstation/defaults/main.yml", QWEN_DEFAULTS)
+        assert_fixture_covers_phase_one()
+        for relative_path, content in SEEDED_FILES.items():
+            self.write(relative_path, content.format(note=base_note))
         self.git("init", "-q")
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "user.name", "Fixture")
@@ -105,7 +154,9 @@ class GitFixture:
             text=True,
         )
         if report.returncode != 0:
-            raise AssertionError(report.stdout + report.stderr)
+            raise AssertionError(
+                f"{PHASE_ONE_HINT}\n{report.stdout}{report.stderr}"
+            )
 
     def write(self, relative_path: str, content: str) -> None:
         path = self.root / relative_path
@@ -172,6 +223,11 @@ class DocGardeningTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("blocked", result.stderr)
         self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_fixture_seeds_every_document_and_oracle_phase_one_reads(self) -> None:
+        # Phase 1's claim set is the outside world for this suite. When it
+        # moves, this fails by name instead of every test dying in setUp.
+        self.assertEqual(phase_one_required_paths() - set(SEEDED_FILES), set(), PHASE_ONE_HINT)
 
     def test_manifest_packages_one_document_hunks_spans_and_selected_evidence(self) -> None:
         sentinel = "UNRELATED_ENVIRONMENT_SENTINEL"
