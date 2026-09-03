@@ -89,7 +89,13 @@
 
 - name: Read the loaded NVIDIA driver version
   ansible.builtin.command:
-    argv: [nvidia-smi, --query-gpu=driver_version, --format=csv,noheader]
+    # Block form, not [a, b, c]: the comma in --format=csv,noheader is a flow
+    # sequence separator in YAML, which silently split it into two arguments
+    # and made nvidia-smi reject 'noheader'.
+    argv:
+      - nvidia-smi
+      - --query-gpu=driver_version
+      - --format=csv,noheader
   register: nvidia_driver_loaded_version
   changed_when: false
   failed_when: false
