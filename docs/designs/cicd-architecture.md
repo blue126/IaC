@@ -118,6 +118,14 @@ flowchart LR
 
 PR job/check 名固定为 `repo-validation`。同一 PR 出现新 commit 时会取消旧运行，并针对新的 head SHA 重新验证。
 
+### `ai-review-gate` shadow
+
+Phase 2A 新增独立的 `ai-review-gate` shadow check，同时保留现有发布评论的 Claude reviewer。两次调用相互隔离：评论 reviewer 继续提供人类可读反馈，gate reviewer 不发布评论，只返回符合公共 governance runtime schema 的机器可读 verdict。这样可以先在真实 PR 中验证 structured output，而不会把评论文本误当作合并依据。
+
+Gate 对 `opened`、`synchronize`、`ready_for_review` 与 `reopened` 事件运行，并把 verdict 严格绑定到事件中的仓库、PR 编号和完整 head SHA。公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`；Claude Code Action 也固定到不可变 commit。`pass` 成功，`needs_fix`、`human_required`、畸形输出和陈旧 SHA 均 fail closed。
+
+该阶段仍是观察模式：`ai-review-gate` 尚未加入 Ruleset required checks，不执行自动修复或自动合并。workflow 的 GitHub 权限仅允许读取代码、PR 和 issue，模型凭据仅使用现有 Claude OAuth token；checkout 不保留写凭据。Fork PR 不接收模型凭据，gate 明确失败并转人工处理。
+
 ### Jenkins 保持合并后交付职责
 
 `main` push（包括 PR merge）继续触发 Jenkins。Jenkins 可以读取其受控凭据并生成 Terraform plan，但 Terraform Apply 与 Ansible Deploy 前的两个 `input` 人工审批点必须保留。PR CI 的成功不代表批准部署，GitHub 或 AI 自动化也不得代替 Jenkins 操作者确认任何生产写入。
