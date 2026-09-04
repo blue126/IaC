@@ -104,7 +104,9 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 
 - `origin/main` is authoritative; local `main` and `master` are read-only mirrors.
 - Never absorb, overwrite, clean, stash, reset, or otherwise modify unrelated user changes.
-- Commit, push, merge, PR close, history rewrite, force-push, and branch/tag/remote/worktree deletion or rename require explicit user authorization.
+- Commit, push, merge, PR close, history rewrite, and force-push require explicit user authorization.
+- Agents may remove or rename an agent-created task worktree, its local task branch, and its matching remote task branch when the user explicitly authorizes that cleanup or the associated PR has merged. Before removal, verify the exact targets, associated PR state, branch/worktree ownership, and that no other worktree uses the branch. Never remove or rename `main`, `master`, tags, remotes, user-owned branches/worktrees, or unrelated task resources.
+- Agents may remove task-local generated or untracked files only with explicit user authorization for the resolved targets. Never clean up user changes, unreviewed artifacts, credentials, or files outside the task worktree without target-specific authorization.
 - After reviewing the final diff, ask exactly `Ready to commit?` before committing. Commit authorization does not authorize push, Draft PR creation, local integration, merge, deployment, or any later external write; obtain separate authorization for each requested boundary.
 - Changes to GitHub defaults, Rulesets, protection, permissions, Actions secrets, Environments, deploy/publish triggers, infrastructure, deployments, releases, or other external systems require separate explicit authorization.
 - Repository validation must not deploy, publish, apply infrastructure, push images, release artifacts, use production secrets, or write to external systems.
