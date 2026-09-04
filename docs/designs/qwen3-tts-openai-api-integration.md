@@ -62,7 +62,7 @@ qwen3_tts_min_free_vram_mib: 512
 
 四项均取自 `ansible/roles/qwen3-tts/defaults/main.yml`。
 
-`files/vllm-deploy-config.yaml` 中的取值（`gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames`）尚未纳入校验：claim 的 oracle 读取只识别顶层键，而这些键位于 `stages:` 之下，且每个 stage 各出现一次会被判为歧义。本文中关于它们的描述目前只能靠人工核对。
+`files/vllm-deploy-config.yaml` 中的取值（`gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames`）尚未纳入校验：claim 的 oracle 读取会跳过首字符为空白的行，而这些键位于 `stages:` 之下均为缩进行，因此根本不会被收集，判定停在 `oracle_key_missing`。每个 stage 各出现一次所导致的 `oracle_key_duplicate` 轮不到触发。本文中关于它们的描述目前只能靠人工核对。
 
 ## 3. 本地 shim
 

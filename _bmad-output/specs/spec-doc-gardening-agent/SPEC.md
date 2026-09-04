@@ -2,6 +2,7 @@
 id: SPEC-doc-gardening-agent
 companions:
   - evidence-model.md
+  - observation-policy.md
 sources:
   - ../../brainstorming/brainstorm-doc-gardening-agent-2026-08-12/brainstorm-intent.md
 ---
@@ -40,7 +41,12 @@ sources:
 - 生产核验只能使用无影响、无破坏的只读方式，并留下可追溯记录。
 - 可达性失败必须在不同时段多次重试；持续失败只能升级，不能作为废弃证据。
 - 每个自动 PR 只能处理一个偏差，逻辑必须完整，格式必须遵循目标文档，并附带 [evidence-model.md](evidence-model.md) 规定的证据与验证记录。
-- 在“有效 IaC 管理代码”的充分证据标准得到确认前，相关候选项不得进入自动修复路径。
+- 有效管理判定为代码与在册双要件，代码含 Ansible 与 Terraform，在册含三处 inventory 来源，见 [observation-policy.md](observation-policy.md) §1；只满足其一即为不确定，须升级人工，不得视为有效管理。
+- 观察目标为 `tools/doc-gardening/observation-registry.yml` 中的显式登记表，未登记的目标不探测、不因不可达而升级，其结果只能是 `unresolved`，见 [observation-policy.md](observation-policy.md) §2；排除一个目标即等于放弃对它上面一切内容的自动修复。
+- 可达性重试策略按登记层级执行，周期长度只能来自登记声明、不得由观测历史反推；对周期性目标套用常在线层级本身即为违规。
+- V1 只审计能绑定确定性 oracle 的标量陈述，见 [observation-policy.md](observation-policy.md) §3；无此类 oracle 的陈述不得提名进入修复路径，模型的把握程度不构成例外。
+- V1 授权的只读接口限于 [observation-policy.md](observation-policy.md) §4 的五项：无凭据探测、HCP state pull、NetBox 只读、Proxmox 只读、Ansible ad-hoc 只读采集；Ansible 采集不得执行 playbook 或使用有副作用的模块，凭据须为专用只读身份，不得进入任何 artifact、报告或日志，且 detector 面永不接收凭据。
+- 运行时观察写入 gitignore 的 `tmp/`，保留期取 15 天与「最长已登记周期 × 2」的较大值，见 [observation-policy.md](observation-policy.md) §5。
 
 ## Non-goals
 
@@ -49,6 +55,7 @@ sources:
 - 仅凭一次或多次不可达就宣告代码、服务或文档已废弃。
 - 自动合并 PR。
 - 在 V1 中保证实施文档和架构文档之外的文档覆盖。
+- 审计无确定性 oracle 的陈述——拓扑与依赖关系、运维流程步骤均不在 V1 范围内。
 
 ## Success signal
 
@@ -58,10 +65,8 @@ sources:
 
 - 根据当前仓库布局，V1 的实施文档对应 `docs/deployment/`，架构文档对应 `docs/designs/`；若预期覆盖更多路径，应在实现前确认。
 - V1 开启 PR 供人审阅但不自动合并，因为当前输入只授权了开 PR，没有授权合并。
+- `tmp/` 不进版本库也不做备份，clean 或重新 clone 会丢掉观察历史；这可接受，因为观察可重新探测取得，但整窗口离线的目标会丢掉此前尝试、重试计数从头开始。
 
 ## Open Questions
 
-- 哪些代码证据足以证明组件仍由 IaC 有效管理，而不是仅存在相关但已废弃的代码？
-- 跨时段重试需要多少次、跨越多长观察窗口？
-- V1 中哪些文档陈述属于必须审计的“关键陈述”？
-- 允许使用哪些生产只读接口与凭据，审计证据必须保留在哪里？
+_None._

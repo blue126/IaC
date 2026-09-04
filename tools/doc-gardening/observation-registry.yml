@@ -1,0 +1,37 @@
+---
+# Observation registry for the doc-gardening agent.
+#
+# Opt-in only. A target absent from this file is never probed, and claims about
+# it can only be `unresolved` -- excluding a target also forgoes automatic
+# documentation repair for everything on it. See
+# _bmad-output/specs/spec-doc-gardening-agent/observation-policy.md section 2.
+#
+# Schema, per entry:
+#   id       required, kebab-case, unique. Matches the inventory hostname.
+#   address  required, IP or hostname the probe connects to.
+#   tier     required, `always_on` or `periodic`.
+#   window   required for `periodic` only, ISO-8601 duration of one cycle.
+#            Declared here; never inferred from observation history.
+#   probes   required, one or more. Each has `type` (`tcp` or `http`) and
+#            `port`; `http` also takes `path`.
+#
+# Retry gates come from the tier, not from this file: `always_on` needs at
+# least 3 attempts across at least 24 hours; `periodic` needs coverage of at
+# least 2 declared cycles.
+
+schema_version: 1
+
+targets:
+  - id: immich
+    address: 192.168.1.101
+    tier: always_on
+    probes:
+      - type: tcp
+        port: 2283
+
+  - id: jenkins
+    address: 192.168.1.107
+    tier: always_on
+    probes:
+      - type: tcp
+        port: 8080
