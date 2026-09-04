@@ -22,10 +22,10 @@
 |---|---|---|---|---|
 | `service.netbox.port` | `docs/deployment/netbox-deployment.md` → `Configuration Variables` 表中 `netbox_port` 行 | `ansible/roles/netbox/defaults/main.yml` → `netbox_port` | `8080` | 表格 |
 | `service.netbox.image` | `docs/deployment/netbox-deployment.md` → `Configuration Variables` 表中 `netbox_image` 行 | `ansible/roles/netbox/defaults/main.yml` → `netbox_image` | `netboxcommunity/netbox:v4.1.11` | 表格 |
-| `service.qwen3-tts.vllm-image` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_vllm_image` | `ansible/roles/qwen3-tts-workstation/defaults/main.yml` → `qwen3_tts_vllm_image` | `vllm/vllm-omni:v0.28.0` | fenced YAML |
-| `service.qwen3-tts.gpu-ordinal` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_gpu_ordinal` | `ansible/roles/qwen3-tts-workstation/defaults/main.yml` → `qwen3_tts_gpu_ordinal` | `1` | fenced YAML |
-| `service.qwen3-tts.port` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_port` | `ansible/roles/qwen3-tts-workstation/defaults/main.yml` → `qwen3_tts_port` | `8100` | fenced YAML |
-| `service.qwen3-tts.min-free-vram-mib` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_min_free_vram_mib` | `ansible/roles/qwen3-tts-workstation/defaults/main.yml` → `qwen3_tts_min_free_vram_mib` | `512` | fenced YAML |
+| `service.qwen3-tts.vllm-image` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_vllm_image` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_vllm_image` | `vllm/vllm-omni:v0.28.0` | fenced YAML |
+| `service.qwen3-tts.gpu-ordinal` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_gpu_ordinal` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_gpu_ordinal` | `1` | fenced YAML |
+| `service.qwen3-tts.port` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_port` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_port` | `8100` | fenced YAML |
+| `service.qwen3-tts.min-free-vram-mib` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_min_free_vram_mib` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_min_free_vram_mib` | `512` | fenced YAML |
 
 每条 claim 的依赖项均为"该文档 + 该 defaults 文件"。
 
@@ -33,9 +33,9 @@
 
 `service.llm-server.engine-version` 与 `service.llm-server.webui-port` 随 llm-server 多模型 role 一并删除（`f46ab45`）。四条 qwen3-tts claim 在 `a3818ec` 加入。
 
-### 待同步
+### 同步记录
 
-`ansible/roles/qwen3-tts-workstation/` → `ansible/roles/qwen3-tts/` 的 role 重命名已在 `claude/tts-drop-inert-seed` 上提交但尚未合并。本表记录的是 `origin/main` 的事实；该分支落地后，四条 qwen3-tts claim 的 oracle 路径随之改变。
+`ansible/roles/qwen3-tts-workstation/` → `ansible/roles/qwen3-tts/` 的 role 重命名已合入 main，上表四条 qwen3-tts claim 的 oracle 路径已随之更新。这是本 registry 作为 `CLAIMS` 投影的第一次实际同步：权威侧先变，投影随后跟上。
 
 ## Required fixtures
 
@@ -51,6 +51,6 @@ The test suite must cover all of the following without contacting external servi
 
 `docs/deployment/immich-deployment.md` is deliberately excluded: its stated port is not presently represented by a stable `immich_port` scalar in `ansible/roles/immich/defaults/main.yml`.
 
-`ansible/roles/qwen3-tts-workstation/files/vllm-deploy-config.yaml` 中的 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 同样排除：`_yaml_key_values` 直接跳过首字符为空白的行，而这些键位于 `stages:` 之下均为缩进行，因此根本不会被收集，实际结果是 `oracle_key_missing`——不是每 stage 重复导致的歧义，重复判定压根轮不到。这四项目前只能人工核对。
+`ansible/roles/qwen3-tts/files/vllm-deploy-config.yaml` 中的 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 同样排除：`_yaml_key_values` 直接跳过首字符为空白的行，而这些键位于 `stages:` 之下均为缩进行，因此根本不会被收集，实际结果是 `oracle_key_missing`——不是每 stage 重复导致的歧义，重复判定压根轮不到。这四项目前只能人工核对。
 
 Credentials, tokens, passwords, free-form notes, domains, runtime states, Terraform resource specifications and any value sourced from a secret file are also excluded, even if they appear in documentation.
