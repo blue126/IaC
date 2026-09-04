@@ -5,6 +5,7 @@ set -euo pipefail
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNTIME_DIR="${1:-}"
 EVALUATOR="${RUNTIME_DIR}/scripts/evaluate-ai-review-gate.sh"
+VALIDATOR="${RUNTIME_DIR}/scripts/validate-review-verdict.sh"
 WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/claude-review.yml"
 REPOSITORY_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/repo-validation.yml"
 FIXTURE_DIR="$(mktemp -d)"
@@ -79,6 +80,7 @@ run_evaluator() {
 }
 
 [[ -x "${EVALUATOR}" ]] || fail "runtime evaluator is missing or not executable: ${EVALUATOR}"
+[[ -x "${VALIDATOR}" ]] || fail "runtime validator is missing or not executable: ${VALIDATOR}"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 write_verdict "${FIXTURE_DIR}/pass.json" pass \
