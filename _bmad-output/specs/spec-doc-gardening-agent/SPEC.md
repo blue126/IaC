@@ -45,8 +45,8 @@ sources:
 - 观察目标为 `tools/doc-gardening/observation-registry.yml` 中的显式登记表，未登记的目标不探测、不因不可达而升级，其结果只能是 `unresolved`，见 [observation-policy.md](observation-policy.md) §2；排除一个目标即等于放弃对它上面一切内容的自动修复。
 - 可达性重试策略按登记层级执行，周期长度只能来自登记声明、不得由观测历史反推；对周期性目标套用常在线层级本身即为违规。
 - V1 只审计能绑定确定性 oracle 的标量陈述，见 [observation-policy.md](observation-policy.md) §3；无此类 oracle 的陈述不得提名进入修复路径，模型的把握程度不构成例外。
-- V1 授权的只读接口限于 [observation-policy.md](observation-policy.md) §4 的四项：无凭据探测、HCP state pull、NetBox 只读、Proxmox 只读；凭据须为专用只读身份，不得进入任何 artifact、报告或日志，且 detector 面永不接收凭据。
-- 运行时观察写入 gitignore 的 `tmp/`，保留期取 15 天与最长已登记重试窗口的较大值，见 [observation-policy.md](observation-policy.md) §5。
+- V1 授权的只读接口限于 [observation-policy.md](observation-policy.md) §4 的五项：无凭据探测、HCP state pull、NetBox 只读、Proxmox 只读、Ansible ad-hoc 只读采集；Ansible 采集不得执行 playbook 或使用有副作用的模块，凭据须为专用只读身份，不得进入任何 artifact、报告或日志，且 detector 面永不接收凭据。
+- 运行时观察写入 gitignore 的 `tmp/`，保留期取 15 天与「最长已登记周期 × 2」的较大值，见 [observation-policy.md](observation-policy.md) §5。
 
 ## Non-goals
 

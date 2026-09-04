@@ -20,7 +20,9 @@
 
 只有代码存在就判定为有效管理，正是原 open question 所指的失效模式：**残留的废弃代码会被误读为现行事实**。llm-server 退役过程中曾同时存在 role、playbook 与文档，而服务已在关停——当时任何只看代码的判定都会出错。
 
-两项判据都要 Terraform state。`*.tfstate` 被 `.gitignore` 排除、不在 checkout 里，`scripts/refresh-terraform-state.sh` 通过 `terraform state pull` 从 HCP 取得——**因此这一判据需要凭据**，见 §4。
+**只有走 Terraform 动态 inventory 的目标需要 Terraform state。** `*.tfstate` 被 `.gitignore` 排除、不在 checkout 里，`scripts/refresh-terraform-state.sh` 通过 `terraform state pull` 从 HCP 取得，因此这一分支需要凭据，见 §4。
+
+登记在 `bare_metal/hosts.yml` 或 `oci/hosts.yml` 的目标不受此限：那是已提交文件，两项判据都能直接从 checkout 得出。对它们要求 state，只会在 HCP 拉取不可用时无谓地阻塞审计。
 
 ## 2. Observation Registry and Retry Tiers / 观察目标登记与重试分级
 
@@ -91,9 +93,14 @@ V1 授权以下只读接口，每一项都绑定它是唯一验证途径的 clai
 | 接口 | 凭据 | 用途 |
 |---|---|---|
 | TCP 连通性、HTTP 健康检查 | 无 | 端口与可达性类 claim |
-| HCP `terraform state pull` | 是 | §1 的"在册"判据；state 不在 checkout 内 |
+| HCP `terraform state pull` | 是 | §1 在册判据的**动态 inventory 分支**；state 不在 checkout 内 |
 | NetBox 只读 API | 是 | 设备/服务/IP 登记事实 |
-| Proxmox 只读 API（PVEAuditor） | 是 | CPU、内存、磁盘规格与镜像 tag |
+| Proxmox 只读 API（PVEAuditor） | 是 | VM/LXC 的 CPU、内存、磁盘规格 |
+| Ansible ad-hoc 只读采集 | 复用既有 SSH | guest 内的文件路径与**应用容器镜像 tag** |
+
+最后一项不可省略。宿主层接口看不见 guest 内部：`service.qwen3-tts.vllm-image` 的 `vllm/vllm-omni:v0.28.0` 是 guest 里由 compose 跑起来的容器镜像，不是 Proxmox 的 VM 模板；`immich_app_dir: /opt/immich` 这类文件路径同样只存在于 guest 文件系统。若不授权这一项，§3 声明的四类关键 claim 里有两类永远没有生产证据，只能 `unresolved`。
+
+Ansible 采集必须**只读**：收集 facts、`stat` 路径、读取生效的 compose 配置。不得执行 playbook、不得改变状态、不得使用有副作用的模块。它不引入新的凭据类别——Ansible 本就持有全部受管主机的 SSH 访问。
 
 **此前"V1 不持有任何生产凭据"的结论已撤回，它是错的。** 无凭据探测最多证明端点可达，证明不了镜像 tag、文件路径或资源规格与代码一致；而 evidence-model 要求生产证据支持代码才允许 `document_drift`。若坚持零凭据，§3 列出的大部分 claim 类别将永远无法闭环。§1 的"在册"判据同样需要凭据。
 
@@ -105,9 +112,9 @@ V1 授权以下只读接口，每一项都绑定它是唯一验证途径的 clai
 
 ## 5. Observation Retention / 观察证据保留
 
-运行时观察写入 gitignore 的 `tmp/` 路径，保留期取 **15 天与最长已登记重试窗口两者中的较大值**。
+运行时观察写入 gitignore 的 `tmp/` 路径，保留期取 **15 天与「最长已登记周期 × 2」两者中的较大值**。
 
-固定 15 天不成立：周期性层级允许登记任意周期，一旦某目标的周期超过 7.5 天，两个周期的判定尚未完成，首轮观察就已过期，持续不可达的门禁永远闭合不了。
+乘 2 是必须的：registry 的 `window` 定义的是**一个**周期，而周期性层级的门禁要求覆盖**两个**。登记一个 `P10D` 的目标需要 20 天，只取 `max(15, 10)` 会让首轮观察在第 15 天过期，持续不可达的判定永远闭合不了。
 
 观察保存在本地而非 CI artifact，因此 CI artifact 的 14 天保留期不构成约束。
 
