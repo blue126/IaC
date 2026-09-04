@@ -310,10 +310,11 @@ CLAIMS = (
     # config moved to 0.3, and nothing failed.
     #
     # The vLLM deploy-config values (gpu_memory_utilization, max_num_seqs,
-    # kv_cache_memory_bytes, silence_ban_frames) are not claimable today for
-    # two reasons: _yaml_key_values reads top-level keys only and those live
-    # under `stages:`, and the per-stage keys appear twice, which the reader
-    # rejects as ambiguous. Tracked in deferred-work.md.
+    # kv_cache_memory_bytes, silence_ban_frames) are not claimable today.
+    # _yaml_key_values skips any line starting with whitespace, and those keys
+    # live indented under `stages:`, so nothing is collected and the result is
+    # oracle_key_missing. The per-stage repetition never reaches the
+    # oracle_key_duplicate branch. Tracked in deferred-work.md.
     Claim(
         "service.qwen3-tts.vllm-image",
         "docs/designs/qwen3-tts-openai-api-integration.md",
