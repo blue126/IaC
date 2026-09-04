@@ -130,7 +130,7 @@ Phase 2A 新增独立的 `ai-review-gate` shadow check，同时保留现有发�
 
 - PR #29 首次证明 Claude 能产生符合 schema、绑定当前完整 HEAD SHA 的结构化 verdict，且公共 runtime evaluator 接受 `pass`。
 - PR #30 再次证明 structured gate 对新的 HEAD 独立运行并返回无 finding 的 `pass`，同时全部确定性检查通过。
-- 普通非 workflow Draft PR 的生命周期验证仍为 pending：Draft 阶段必须跳过两个 AI job；转为 Ready 后两个 AI job 必须首次实际运行，且同一 SHA 的 `repo-validation` 不得重复运行。
+- PR #32 以普通非 workflow 文档变更证明 Draft 生命周期：`opened` 时两个 AI job 均为 `skipped`，`repo-validation` 与适用的确定性检查通过；同一 HEAD 转为 Ready 后只有两个 AI workflow 新建 run，评论 reviewer 实际取得短期 App token 并完成审查，structured gate 对该 SHA 返回无 finding 的 `pass`，且 `repo-validation` 没有重复运行。
 
 ### Jenkins 保持合并后交付职责
 
