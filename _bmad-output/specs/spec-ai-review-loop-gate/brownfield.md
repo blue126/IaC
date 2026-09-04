@@ -12,5 +12,5 @@
 ## Adoption boundary
 
 - Public bootstrap runtime 已公开并固定使用经过 contract tests 的 commit `3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`；升级必须通过新 PR 验证并改用新的 immutable SHA。
-- 自动 reviewer 改为单次 Claude Code Action structured review；评论由受限确定性步骤发布。现有 `@claude` workflow 保留人工交互；Fixer App、required checks、auto-merge 与 Ruleset enforcement 尚未配置。
-- 本规范是设计产物，不证明 Anthropic structured output、Fixer App push recursion 或 reusable workflow provenance 已在真实 PR 上通过；这些属于 rollout evidence。
+- 自动 reviewer 已改为单次 Claude Code Action structured review；评论由受限确定性步骤发布。现有 `@claude` workflow 保留人工交互；Fixer App、required checks、auto-merge 与 Ruleset enforcement 尚未配置。
+- PR #33 已证明 Anthropic structured output、当前 SHA 绑定、确定性 gate 和同 SHA 评论 PATCH 在真实 PR 上通过。Dedicated Fixer App 已延后，不属于当前 rollout 的前置条件。

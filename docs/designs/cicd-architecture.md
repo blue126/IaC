@@ -126,7 +126,7 @@ workflow 监听 `opened`、`synchronize`、`ready_for_review` 与 `reopened`，�
 
 模型只能读取 checkout 和执行受限的本地 Git 命令；Claude Action 显式接收当前 job 的只读 `github.token`，不申请 OIDC、GitHub write tool 或可持久化 checkout 凭据。`review-policy-gate` 不 checkout 或执行 PR head 代码，也不持有 Claude 凭据或 OIDC；它仅为确定性 renderer 获得 `pull-requests: write` 来创建或更新 PR 评论，先用固定 runtime 校验上游 job/conclusion、仓库、PR 编号和完整 HEAD SHA，再发布带完整 HEAD marker 的评论并执行 policy 判定。上游失败、空输出、GitHub redaction、畸形 JSON、身份不匹配、陈旧 SHA、`needs_fix` 与 `human_required` 都 fail closed。
 
-公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`，Claude Code Action 和 checkout 也固定到完整 commit SHA。该阶段仍是观察模式：`review-policy-gate` 尚未加入 Ruleset required checks，不配置 Fixer、自动合并或 GitHub 设置，也不改变 Jenkins。
+公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`，Claude Code Action 和 checkout 也固定到完整 commit SHA。该阶段仍是观察模式：`review-policy-gate` 尚未加入 Ruleset required checks，不配置 Fixer、自动合并或 GitHub 设置，也不改变 Jenkins。Dedicated Fixer App 已延后，不作为后续 required checks 或 auto-merge 的前置条件；阻断 finding 当前由人工或交互式 agent 修复，新 HEAD 会自动重新进入完整流程。
 
 ### Phase 2A rollout evidence
 
@@ -134,7 +134,13 @@ workflow 监听 `opened`、`synchronize`、`ready_for_review` 与 `reopened`，�
 - PR #30 再次证明 structured gate 对新的 HEAD 独立运行并返回无 finding 的 `pass`，同时全部确定性检查通过。
 - PR #32 以普通非 workflow 文档变更证明 Draft 生命周期：`opened` 时两个 AI job 均为 `skipped`，`repo-validation` 与适用的确定性检查通过；同一 HEAD 转为 Ready 后只有两个 AI workflow 新建 run，评论 reviewer 实际取得短期 App token 并完成审查，structured gate 对该 SHA 返回无 finding 的 `pass`，且 `repo-validation` 没有重复运行。
 
-这些证据验证了 structured output 与事件触发，但 Phase 2A 每个 HEAD 调用 Claude 两次。Phase 2B 保留其 schema、SHA 绑定和 Draft 生命周期合同，以单次调用加确定性 renderer 取代双调用；新 workflow 的真实 PR 运行仍需作为 rollout evidence 补充。
+这些证据验证了 structured output 与事件触发，但 Phase 2A 每个 HEAD 调用 Claude 两次。Phase 2B 保留其 schema、SHA 绑定和 Draft 生命周期合同，以单次调用加确定性 renderer 取代双调用。
+
+### Phase 2B rollout evidence
+
+- PR #33 的最终 HEAD `5de855a1a159e8dc9600968d8e2f9aa967346629` 上，`claude-review` 与 `review-policy-gate` 均成功；所有确定性检查同时通过。
+- 同一 HEAD 重跑后 marker 评论数量仍为 1，评论节点 ID 保持 `IC_kwDOQcml1s8AAAABSl9XPA`，更新时间推进，证明 renderer 更新原评论而非制造重复评论。
+- 初始 OIDC 失败通过显式只读 `github.token` 修复；评论 API 403 通过为 policy job 精确授予 `pull-requests: write` 修复，没有扩大到 OIDC 或 branch write。
 
 ### Jenkins 保持合并后交付职责
 
