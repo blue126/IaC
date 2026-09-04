@@ -144,15 +144,16 @@ When working on specific areas, read the relevant design doc for detailed patter
 - Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
 - Choose the topology before running an entry command. Treat the main checkout as coordination-only; direct-mode commands must run from an assigned host task worktree. Create clone-mode Sandboxes only from the verified main checkout when Git will be managed inside the Sandbox. Never create a clone-mode Sandbox from a host linked worktree.
 - Replace `TASK` with a unique kebab-case task name. Use versioned, task-specific Sandbox names so parallel work and Kit-upgrade testing never reconnect to an unrelated or stale Sandbox.
+- Playwright is registered globally with host `sbx mcp`. Sandboxes use dynamic MCP Gateway mode by default; agents attach the registered `playwright` server when browser automation is needed. Do not add project-local Playwright MCP configuration.
 - Direct mode from an assigned host task worktree:
-  - Codex: `sbx run --name iac-codex-TASK-direct-v120 --no-share-skills codex . --kit ./.sandbox-kit`
-  - Claude Code: `sbx run --name iac-claude-TASK-direct-v120 claude . --kit ./.sandbox-kit`
-  - OpenCode: `sbx run --name iac-opencode-TASK-direct-v120 opencode . --kit ./.sandbox-kit`
+  - Codex: `sbx run --name iac-codex-TASK-direct-v130 codex . --kit ./.sandbox-kit`
+  - Claude Code: `sbx run --name iac-claude-TASK-direct-v130 claude . --kit ./.sandbox-kit`
+  - OpenCode: `sbx run --name iac-opencode-TASK-direct-v130 opencode . --kit ./.sandbox-kit`
 - Clone mode from the verified main checkout:
-  - Codex: `sbx run --clone --name iac-codex-TASK-clone-v120 --no-share-skills codex . --kit ./.sandbox-kit`
-  - Claude Code: `sbx run --clone --name iac-claude-TASK-clone-v120 claude . --kit ./.sandbox-kit`
-  - OpenCode: `sbx run --clone --name iac-opencode-TASK-clone-v120 opencode . --kit ./.sandbox-kit`
-- OpenCode Desktop must run in a long-lived attached session: `sbx run --name iac-opencode-desktop-TASK-v120 --publish 127.0.0.1:4096:4096 opencode . --kit ./.sandbox-kit -- serve --hostname 0.0.0.0 --port 4096`. Do not use `--detached`; publish the server only through host loopback.
+  - Codex: `sbx run --clone --name iac-codex-TASK-clone-v130 codex . --kit ./.sandbox-kit`
+  - Claude Code: `sbx run --clone --name iac-claude-TASK-clone-v130 claude . --kit ./.sandbox-kit`
+  - OpenCode: `sbx run --clone --name iac-opencode-TASK-clone-v130 opencode . --kit ./.sandbox-kit`
+- OpenCode Desktop must run in a long-lived attached session: `sbx run --name iac-opencode-desktop-TASK-v130 --publish 127.0.0.1:4096:4096 opencode . --kit ./.sandbox-kit -- serve --hostname 0.0.0.0 --port 4096`. Do not use `--detached`; publish the server only through host loopback.
 - Each task must use one independent worktree and one unique branch. When multiple tasks share one clone-mode Sandbox, each task also needs its own agent session and runtime namespace. Use separate, uniquely named Sandboxes when tasks require runtime isolation.
 - Worktrees isolate files and Git state, not Docker, networking, ports, volumes, `/tmp`, or service state. Shared-Sandbox tasks must use distinct Compose project names, ports, volumes, and temporary paths.
 - Worker agents must not modify another task's worktree or merge other task branches. Local integration is allowed only when explicitly assigned and must use a dedicated integration worktree. No agent may merge or close a pull request without explicit authorization.

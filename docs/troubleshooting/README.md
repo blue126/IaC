@@ -44,7 +44,7 @@
 **包含内容**:
 - Ansible 输出格式 (Callback 插件) 演变
 - Docker Sandbox Ansible 依赖缺失：passlib、ansible.posix
-- Docker Sandbox Playwright MCP 连接异常：按当前 agent 检查 sandbox-local adapter
+- Docker Sandbox Playwright MCP 连接异常：检查宿主注册与 Sandbox MCP Gateway 加载状态
 - 优雅地检测命令是否存在
 - 从静态到动态Inventory的数据丢失风险
 - 寻址 (Addressing) 与配置 (Configuration) 分离

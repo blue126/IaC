@@ -920,19 +920,18 @@ ss -tlnp | grep <port>                # 端口监听
 
 ```
 Docker Sandboxes（隔离 microVM）
-├── .sandbox-kit（Terraform、Python/Ansible、Playwright MCP、Chromium）
+├── .sandbox-kit（Terraform、Python/Ansible）
 ├── Codex / Claude Code / OpenCode agent template
 ├── SSH agent forwarding（私钥不复制进 sandbox）
-└── sandbox-local iac-playwright-mcp
+└── MCP Gateway → 宿主可见 Playwright 浏览器
 ```
 
-**启动入口**：从仓库根目录启动。Codex 使用 trusted project 的 `.codex/config.toml`
-加载 sandbox-local Playwright MCP，并以 `--no-share-skills` 排除宿主共享 skills；完整的
-direct/clone mode、OCI 只读挂载、trust 和端口发布规则见
+**启动入口**：Playwright 在宿主全局注册，由默认 dynamic MCP Gateway 按需附加；完整的
+direct/clone mode、OCI 只读挂载和端口发布规则见
 [README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境)。
 
 ```bash
-sbx run --name iac-codex --no-share-skills codex . --kit ./.sandbox-kit
+sbx run --name iac-codex codex . --kit ./.sandbox-kit
 ```
 
 ### Terraform Providers

@@ -900,23 +900,13 @@ package/collection list，并重新创建 sandbox。
 
 ### 6.4 Docker Sandbox Playwright MCP
 
-本节只用于 Playwright MCP 连接异常，不是 Ansible 依赖缺失的诊断步骤。进入当前
-agent 对应的 sandbox 后，**只运行下列一条匹配的命令**：
+本节只用于 Playwright MCP 连接异常，不是 Ansible 依赖缺失的诊断步骤。先在宿主检查：
 
 ```bash
-# Codex sandbox
-codex mcp list
-
-# Claude sandbox
-claude mcp list
-
-# OpenCode sandbox
-opencode mcp list
+sbx mcp ls
 ```
 
-Codex 从 trusted project 的 `.codex/config.toml` 加载 required local Playwright adapter。
-若列表缺少 `playwright`，先修复 project trust；不要用 CLI override 掩盖配置问题。
-该命令检查的是 sandbox-local adapter，不检查宿主机 Playwright。
+`playwright` 应为 `ready`。默认 dynamic MCP Gateway 允许 Agent 按需发现并附加；运行中的实例也可用 `sbx mcp load playwright --sandbox <name>` 修复，无需重启。
 
 ### 6.5 命令存在检测
 

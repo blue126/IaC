@@ -1,10 +1,10 @@
 schemaVersion: "2"
 kind: mixin
 name: iac-toolchain
-version: "1.2.0"
+version: "1.3.0"
 displayName: IaC Toolchain
 description: >-
-  Terraform, Ansible, Python, and sandbox-local Playwright MCP for the IaC repository.
+  Terraform, Ansible, and Python tooling for the IaC repository.
   The Python and Ansible collection lists must change together because Kit install
   hooks run before workspace files are available.
 
@@ -22,13 +22,6 @@ permissions:
       - galaxy.ansible.com
       - github.com
       - objects.githubusercontent.com
-      - registry.npmjs.org
-      - cdn.playwright.dev
-      - playwright.download.prss.microsoft.com
-
-environment:
-  variables:
-    PLAYWRIGHT_BROWSERS_PATH: /opt/ms-playwright
 
 setup:
   install:
@@ -82,21 +75,6 @@ setup:
         community.general community.vmware cloud.terraform community.docker
         ansible.posix netbox.netbox ansible.windows;
         chown -R 1000:1000 /home/agent/.ansible
-
-    - description: Install Playwright MCP and Chromium inside the sandbox
-      command: >-
-        set -eu;
-        npm install --global '@playwright/mcp@0.0.78';
-        playwright_cli="$(npm root --global)/@playwright/mcp/node_modules/playwright/cli.js";
-        test -f "$playwright_cli";
-        install -d -m 0755 /opt/ms-playwright;
-        PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright node "$playwright_cli" install --with-deps chromium;
-        playwright_package="$(npm root --global)/@playwright/mcp/node_modules/playwright";
-        chromium_path="$(PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright node -e 'const { chromium } = require(process.argv[1]); process.stdout.write(chromium.executablePath())' "$playwright_package")";
-        test -x "$chromium_path";
-        ln -sfn "$chromium_path" /usr/local/bin/iac-chromium;
-        chmod -R a+rX /opt/ms-playwright;
-        install -m 0755 /home/agent/.local/bin/iac-playwright-mcp /usr/local/bin/iac-playwright-mcp
 
     - description: Install shared Sandbox instructions for supported agents
       command: >-

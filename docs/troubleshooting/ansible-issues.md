@@ -161,28 +161,19 @@ sbx run --name iac-claude claude . --kit ./.sandbox-kit
 ## Docker Sandbox Playwright MCP
 
 本节只处理 Playwright MCP 连接异常，与缺少 `passlib` 或 `ansible.posix` 无关。
-进入当前 agent 对应的 sandbox 后，先检查 sandbox-local wrapper：
+先在宿主检查注册状态：
 
 ```bash
-command -v iac-playwright-mcp
+sbx mcp ls
 ```
 
-然后**只运行下列一条与当前 agent 匹配的命令**：
+`playwright` 应显示为 `ready`。默认 dynamic MCP Gateway 允许 Agent 按需发现并附加它；也可以从宿主直接加载到运行中的 Sandbox：
 
 ```bash
-# Codex sandbox
-codex mcp list
-
-# Claude sandbox
-claude mcp list
-
-# OpenCode sandbox
-opencode mcp list
+sbx mcp load playwright --sandbox <sandbox-name>
 ```
 
-Codex 从 trusted project 的 `.codex/config.toml` 加载 required local Playwright adapter。
-如果列表缺少 `playwright`，先修复 project trust；不要用 CLI override 掩盖配置问题。
-以上命令只验证 sandbox-local adapter，不检查宿主机 Playwright。
+Playwright MCP 和可见浏览器运行在宿主，Agent 通过 Sandbox MCP Gateway 使用它。访问 Sandbox 内服务时，确认服务监听 `0.0.0.0`、端口已发布到宿主 loopback，并让浏览器使用发布后的地址。
 
 ---
 
