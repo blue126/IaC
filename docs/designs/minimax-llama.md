@@ -1,5 +1,15 @@
 # MiniMax M2.5 本地部署方案 — ESXi + Dual RTX 3090
 
+> **状态：历史参考。** 本文描述的部署运行在 ESXi 上的 `llm-server`（双 RTX 3090 直通，
+> 384GB DDR4，双 Xeon E5-2686 v4）。该 VM 已于 2026-09-03 销毁，宿主机 T7910 退役；
+> 工作负载迁至裸机 `llm-workstation`（Ryzen 9800X3D + 32GB DDR5 + 双 RTX 3090）。
+>
+> 正文中的硬件参数、显存分配、CPU 卸载策略和调优结论均基于那套硬件，**不适用于当前部署**。
+> 当前的 LLM 与 TTS 部署见
+> [qwen3-tts-openai-api-integration.md](./qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts`。
+
+
 ## 环境概述
 
 | 项目 | 配置 |
@@ -809,7 +819,7 @@ GPU 配置: 2× RTX 3090
 
 经过 17 轮系统性单变量调优（11 轮 expert 层放置 + 6 轮 CPU 线程），short gen 从基线 4.7 提升到 8.38 tok/s（+78%），long gen 从 4.7 提升到 8.02 tok/s（+71%）。
 
-**完整调优过程详见独立文档**：[minimax-m25-tuning-log.md](minimax-m25-tuning-log.md)
+**完整调优过程详见独立文档**：[minimax-m25-tuning-log.md](../guides/minimax-m25-tuning-log.md)
 
 #### 推荐生产配置
 

@@ -8,7 +8,8 @@
       - qwen3_tts_voice_design_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign'
       - qwen3_tts_backend == 'vllm_omni'
       - qwen3_tts_gpu_ordinal | string is match('^[01]$')
-      - qwen3_tts_bind_address == '192.168.1.191'
+      - qwen3_tts_bind_address | length > 0
+      - qwen3_tts_bind_address not in ['0.0.0.0', '::', '*']
       - qwen3_tts_port | int == 8100
       - qwen3_tts_container_port | int == 8880
       - qwen3_tts_shim_container_port | int == 8090

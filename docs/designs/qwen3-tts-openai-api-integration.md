@@ -5,10 +5,11 @@
 **目标主机**：`llm-workstation`（`192.168.1.191`）
 
 > **迁移说明**：本方案最初部署在 ESXi 上的 `llm-server`（`192.168.1.247`），
-> 该主机已退役。实现现由 `ansible/roles/qwen3-tts-workstation` 承载，运行在
+> 该主机已退役，其 VM 已销毁。实现由 `ansible/roles/qwen3-tts` 承载，运行在
 > 裸机 `llm-workstation` 上。shim 与 profile bootstrap 两个文件在迁移中未改动；
 > role 层面去掉了 Qwen3.6 共存与 DeepSeek 互斥逻辑，新主机上没有这两个服务。
-> 旧 role `ansible/roles/qwen3-tts` 会随 llm-server 退役一并删除。
+> 迁移期间该 role 曾短暂命名为 `qwen3-tts-workstation`，以便与 llm-server 上的
+> 同名 role 并存；后者删除后已改回 `qwen3-tts`——服务不应以其所在主机命名。
 
 ## 1. 目标与边界
 
@@ -59,7 +60,7 @@ qwen3_tts_port: 8100
 qwen3_tts_min_free_vram_mib: 512
 ```
 
-四项均取自 `ansible/roles/qwen3-tts-workstation/defaults/main.yml`。
+四项均取自 `ansible/roles/qwen3-tts/defaults/main.yml`。
 
 `files/vllm-deploy-config.yaml` 中的取值（`gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames`）尚未纳入校验：claim 的 oracle 读取只识别顶层键，而这些键位于 `stages:` 之下，且每个 stage 各出现一次会被判为歧义。本文中关于它们的描述目前只能靠人工核对。
 
@@ -96,19 +97,19 @@ shim 不实现 Worker 的 `url_override`、`model_override`、`/admin/clone`，�
 相关文件：
 
 ```text
-ansible/playbooks/deploy-qwen3-tts-workstation.yml
-ansible/roles/qwen3-tts-workstation/defaults/main.yml
-ansible/roles/qwen3-tts-workstation/tasks/main.yml
-ansible/roles/qwen3-tts-workstation/tasks/verify.yml
-ansible/roles/qwen3-tts-workstation/templates/docker-compose.yml.j2
-ansible/roles/qwen3-tts-workstation/templates/qwen3-tts.service.j2
-ansible/roles/qwen3-tts-workstation/files/qwen3-tts-shim.py
-ansible/roles/qwen3-tts-workstation/files/qwen3-tts-profile-bootstrap.py
-ansible/roles/qwen3-tts-workstation/files/vllm-deploy-config.yaml
+ansible/playbooks/deploy-qwen3-tts.yml
+ansible/roles/qwen3-tts/defaults/main.yml
+ansible/roles/qwen3-tts/tasks/main.yml
+ansible/roles/qwen3-tts/tasks/verify.yml
+ansible/roles/qwen3-tts/templates/docker-compose.yml.j2
+ansible/roles/qwen3-tts/templates/qwen3-tts.service.j2
+ansible/roles/qwen3-tts/files/qwen3-tts-shim.py
+ansible/roles/qwen3-tts/files/qwen3-tts-profile-bootstrap.py
+ansible/roles/qwen3-tts/files/vllm-deploy-config.yaml
 scripts/test-qwen3-tts-shim.py
 ```
 
-playbook 采用薄编排模式：Deploy play 调用 `qwen3-tts-workstation` role，Verify play 只加载 role 的 `verify.yml`。role 管理以下内容：
+playbook 采用薄编排模式：Deploy play 调用 `qwen3-tts` role，Verify play 只加载 role 的 `verify.yml`。role 管理以下内容：
 
 - `server` 直接使用 pinned 官方 vLLM-Omni 镜像，不 checkout 上游源码、不做本地镜像构建，只通过 Compose `expose` 提供 `8880`；
 - `shim` 使用独立的 `python:3.12-slim` 镜像，挂载仓库提供的 shim 文件，并发布 `192.168.1.191:8100`；
@@ -131,7 +132,7 @@ playbook 采用薄编排模式：Deploy play 调用 `qwen3-tts-workstation` role
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-qwen3-tts-shim.py
 cd ansible
-ansible-playbook playbooks/deploy-qwen3-tts-workstation.yml --syntax-check
+ansible-playbook playbooks/deploy-qwen3-tts.yml --syntax-check
 ```
 
 标准库测试覆盖全部 13 个 alias 和未知 alias 的同一 Base 请求载荷、profile 缺失时的 speech/health 503、普通 WAV、chunked PCM、AAC 兼容、health/models 代理，以及无效 input 在到达 upstream 前被拒绝。

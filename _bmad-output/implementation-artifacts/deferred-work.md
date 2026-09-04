@@ -2,23 +2,30 @@
   summary: 将 Proxmox 节点和 VMID 直接传入动态 inventory，消除 Terraform 与 host_vars 的重复元数据。
   evidence: n8n 本次必须手工新增 `proxmox_node: pve0` 和 `proxmox_vmid: 106`；迁移或重建后容易失配并操作错误容器。
 - source_spec: `_bmad-output/implementation-artifacts/spec-enable-tailscale-on-n8n.md`
-  summary: 建立所有新节点都会执行 common、Tailscale 和服务 role 的统一部署入口。
-  evidence: `deploy-n8n.yml` 只执行 n8n role，新增 host_vars 本身不会触发 `install-tailscale.yml`；同类遗漏会影响其他新节点。
+  summary: 把 llm-workstation 已有的"主机基线 + 服务部署"两层结构推广到其余节点。
+  evidence: 19 个 deploy playbook 中 13 个开头手抄同一段 `common + tailscale + docker + <服务>`；新增 host_vars 本身不会触发 `install-tailscale.yml`，忘记补这几行不会报错，只是静默不做。`deploy-llm-workstation.yml`（主机基线）与 `deploy-qwen38.yml`/`deploy-qwen3-tts.yml`（服务）已是正确形态：Tailscale 属于主机，模型只是主机上的服务，两者不应混在一个 playbook 里。
+  note: 原条目表述为"统一入口同时执行 common、Tailscale 和服务 role"，方向相反——那会把已分对的层次重新搅浑。另：先前统计"6 个 playbook 缺 common、8 个缺 tailscale"不可直接当作遗漏清单，其中 open-webui-gateway（网关无 Python）、anki-oci 与 unified-proxy（OCI 静态 inventory）、jenkins-agent（与 jenkins 同机）都是有意为之。可选做法：把基线并入 `site.yml`（爆炸半径从 16 台升到 16+15 台，且引入可能重启 LXC 的逻辑），或维持约定并在新节点检查中断言"在 tailscale 组却未连上"。
+- source_spec: `terraform/README.md`
+  summary: 把 pve1 上的 Proxmox Backup Server import 进 Terraform，使其重新进入动态 inventory。
+  evidence: `b438075` 把 PBS 从 ESXi 迁到 pve1 并删除了 `terraform/esxi/pbs.tf`，提交信息明确记录"The backup server on pve1 has no Terraform definition yet"。因此 `ansible pbs --list-hosts` 匹配不到任何主机，而 `ansible/roles/pbs`、`roles/pbs-client`、`deploy-pbs.yml`、`setup-pbs-backup.yml` 四者仍在仓库中，目前是指向不存在目标的孤儿。补主机基线（common/tailscale）在 import 之前没有意义。
+  note: import 的是一台在跑的生产备份机，plan 写错可能提议重建，需谨慎并单独授权。
 - source_spec: `_bmad-output/implementation-artifacts/spec-enable-tailscale-on-n8n.md`
   summary: 为包含 Proxmox snapshot 区段的 LXC 设计安全的 TUN 配置管理和重复执行验证。
   evidence: 当前简化的 `lineinfile` 适用于没有 snapshot 的 VMID 106，但不理解配置文件中的 snapshot 区段；缺少连续执行与重启后的自动验证。
 - source_spec: `_bmad-output/implementation-artifacts/spec-oink-documentation-site.md`
-  summary: 单独清理现有 Markdown 的断链、坏锚点和过期仓库文件引用。
-  evidence: OINK 审查确认 `llm-server-deployment.md` 等既有文档含错误目标；本试点按人类确认保持 `docs/` byte-for-byte 不变，因此不在展示层变更中修复。
+  summary: 建立自动的 Markdown 断链检查，纳入 doc-accuracy 工作流。
+  evidence: 一次性清理已完成：扫描 `docs/**/*.md` 得 68 处失效目标，逐条分类后实修 5 处真错误（minimax 两篇的互链写错目录、jenkins 学习笔记指向从未提交的 spec），另给 minimax 两篇补历史横幅。其余不应修改——历史文档指向已正当删除的代码（正文本身即记录）、未实现工作的 spec、以及把 Terraform provider 名 `ansible/ansible` 误判为路径这类扫描噪声。
+  note: 缺的是防止再次发生的机制。手工扫描既会漏（第一次用较窄的正则只得 46 处）又会误报，需要能区分“真断链”与“历史记录中的已删路径”的检查，后者的判据大致是文档是否带历史横幅。
 - source_spec: `_bmad-output/implementation-artifacts/spec-oink-doc-accuracy-integration-phase-1.md`
   summary: 保留 Ansible Vault 到私有 Notion Credentials DB 的单向密码同步，并以显式 credential allowlist、全量日志脱敏和 OINK/detector 隔离加固这个人类可读 GUI。
   evidence: 用户明确 Notion 是弥补 Ansible Vault 无 GUI 的授权 secret sink；该目标与只读仓库文件的 deterministic detector 可独立交付，且同 PR 会混合 secret 存储与文档验证两种 blast radius。
-- source_spec: `ansible/roles/qwen3-tts-workstation`
+- source_spec: `ansible/roles/qwen3-tts`
   summary: 为每个 OpenAI voice 槽位分别建立并部署独立的 Base 参考 profile，让 llm-workstation 上可用的音色不止一个。
   evidence: 当前 `TTS_MODE=base` 下 shim 把 13 个 alias 全部改写成同一个 `audiobook_narrator_zh` profile，`voice` 参数实际不起作用；role 已经具备生成候选参考音频的 `candidate-pairing` 流程，缺的是把多个 profile 同时注册并按 alias 路由。
 - source_spec: `_bmad-output/implementation-artifacts/spec-qwen3-tts-restrained-voice-mapping.md`
-  summary: 为既有 1.7B Talker/Subtalker 采样及固定 seed 配置增加渲染级验证。
-  evidence: 当前音频冒烟只验证响应可用，无法证明部署后的 sampling 字段未被误改；采样和 seed 属于本规格 Ask First 边界。原规格针对 llm-server 上的 `qwen3-tts`，同样适用于 `qwen3-tts-workstation`。
+  summary: 为既有 1.7B Talker/Subtalker 采样配置增加渲染级验证。
+  evidence: 当前音频冒烟只断言返回字节是合法 WAV（`fail_msg: ... invalid RIFF/WAVE header`），证明不了部署后 `temperature`/`top_k`/`repetition_penalty` 及 subtalker 采样字段未被误改或被新版 vLLM-Omni 静默忽略——服务照常 200、WAV 头合法、verify 全绿，而音色开始漂移。原规格针对 llm-server 上已删除的同名 role，同样适用于当前的 `ansible/roles/qwen3-tts`。
+  note: 原条目设想用固定 seed 的确定性做验证（合成两次断言字节一致），该路径在当前配置下不可行：实测同一文本三次渲染为 6.16s/6.56s/6.80s（10.4% 跨度），显式传相同 per-request seed 两次同样不一致。原因不是 seed 失效——仓库自己的源码核验（`research/.../digests/timbre-prosody-vllm-omni-r2-1.md`）已 verified 两点：seed 同时进入 Stage 0 Talker 与残差 MTP/Subtalker；而 FULL CUDA graph 重放单一捕获的 RNG 流，使逐请求 seed 不可复现。要拿到 bit-exact 需把 Stage 0 改为 eager 或纯 PIECEWISE，代价是 talker_mtp 每步 9ms→39ms。因此可行的替代是断言渲染音频的统计特征（时长落在实测区间、RMS 包络、基频中位数），而非字节相等。
 - source_spec: `tools/check-doc-claims.py`
   summary: 让 claim 的 oracle 读取支持嵌套与按索引定位的 YAML 键，使 vLLM deploy-config 中的每 stage 取值可被校验。
   evidence: `_yaml_key_values` 只匹配顶层键（第 110 行显式跳过缩进行），且同名键出现多次会被判 `oracle_key_duplicate`；而 `gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames` 全部位于 `stages:` 之下且每 stage 各一份。设计文档曾把 Talker 的 `gpu_memory_utilization` 写成 `0.17` 而配置早已是 `0.3`，正是该工具应当拦截却拦不到的一类漂移。改动会变更工具契约并影响既有 oracle 语义，需独立交付。

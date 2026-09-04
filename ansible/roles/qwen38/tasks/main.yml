@@ -11,7 +11,11 @@
         '2de73110cb254cbf09b54b717578dadff12ef1194e7271527e68202f39ba4bfd'
       - qwen38_model_size | int == 19771509664
       - qwen38_api_port | int == 8081
-      - qwen38_bind_address == '192.168.1.191'
+      # Not pinned to one address -- the host is the inventory's to choose.
+      # What must hold is that it is a real single interface: 0.0.0.0 would
+      # publish an unauthenticated inference API on every interface.
+      - qwen38_bind_address | length > 0
+      - qwen38_bind_address not in ['0.0.0.0', '::', '*']
       - qwen38_cache_type == 'f16'
       - qwen38_gpu_ordinals | sort == [0, 1]
     fail_msg: >-

@@ -169,4 +169,4 @@ pipeline 中通过 credential binding 注入的业务凭据。它应通过 Vault
 - [CI/CD 架构设计](../designs/cicd-architecture.md)
 - [Ansible Role 架构](../designs/ansible-role-architecture.md)
 - [Ansible Vault 架构](../designs/ansible-vault-architecture.md)
-- [绑定 SPEC](../../_bmad-output/specs/spec-ci-only-execution/SPEC.md)
+- 绑定 SPEC：`spec-ci-only-execution`（该 spec 未提交进本仓库，内容见上方架构设计文档）

@@ -1,6 +1,16 @@
 # MiniMax M2.5 性能调优实测记录
 
-> 本文档从 [minimax-llama.md](minimax-llama.md) 的 6.6 节独立拆出，记录在 Dual RTX 3090 + ik_llama.cpp 上逐步调优 MiniMax M2.5 的完整过程。
+> **状态：历史参考。** 本文描述的部署运行在 ESXi 上的 `llm-server`（双 RTX 3090 直通，
+> 384GB DDR4，双 Xeon E5-2686 v4）。该 VM 已于 2026-09-03 销毁，宿主机 T7910 退役；
+> 工作负载迁至裸机 `llm-workstation`（Ryzen 9800X3D + 32GB DDR5 + 双 RTX 3090）。
+>
+> 正文中的硬件参数、显存分配、CPU 卸载策略和调优结论均基于那套硬件，**不适用于当前部署**。
+> 当前的 LLM 与 TTS 部署见
+> [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts`。
+
+
+> 本文档从 [minimax-llama.md](../designs/minimax-llama.md) 的 6.6 节独立拆出，记录在 Dual RTX 3090 + ik_llama.cpp 上逐步调优 MiniMax M2.5 的完整过程。
 
 ## 测试环境
 

@@ -92,7 +92,7 @@ class Fixture:
             "docs/designs/qwen3-tts-openai-api-integration.md", QWEN3_TTS_DOCUMENT
         )
         self.write(
-            "ansible/roles/qwen3-tts-workstation/defaults/main.yml",
+            "ansible/roles/qwen3-tts/defaults/main.yml",
             QWEN3_TTS_DEFAULTS,
         )
 

@@ -33,6 +33,21 @@ pipeline {
 
                     def changedFiles = changes.split('\n').findAll { it.trim() }
 
+                    // Deletions must stay in changedFiles: a commit that only
+                    // removes terraform/<env>/<service>.tf is exactly the commit
+                    // that has to reach terraform plan/apply, and filtering it out
+                    // here would leave the destroyed-in-code resource running.
+                    // They are excluded in one place only -- the deploy-*.yml
+                    // matcher below -- because a renamed playbook yields both its
+                    // old and new path, and the deploy stage would otherwise run
+                    // `ansible-playbook` against a file that no longer exists,
+                    // failing the stage before the replacement ever runs.
+                    def deletions = sh(
+                        script: 'git diff --name-only --diff-filter=D HEAD~1 HEAD || echo ""',
+                        returnStdout: true
+                    ).trim()
+                    def deletedFiles = deletions.split('\n').findAll { it.trim() }
+
                     // --- Determine if build is needed at all ---
                     def buildPaths = ['terraform/', 'ansible/', 'scripts/', 'Jenkinsfile']
                     env.SHOULD_BUILD = 'false'
@@ -119,7 +134,7 @@ pipeline {
                             def pbMatcher = (file =~ /^ansible\/playbooks\/(deploy-[^\/]+\.yml)$/)
                             def pbName = pbMatcher ? pbMatcher[0][1] : null
                             pbMatcher = null  // Discard Matcher before CPS checkpoint
-                            if (pbName) {
+                            if (pbName && !deletedFiles.contains(file)) {
                                 playbooks.add(pbName)
                                 matched = true
                             }

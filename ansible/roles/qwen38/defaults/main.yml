@@ -10,8 +10,9 @@
 qwen38_install_dir: /opt/qwen38
 
 # llama.cpp mainline build. Produced by scripts/llama-cpp-mainline-build.sh,
-# which must run on the host before this role (same out-of-band build step the
-# DeepSeek and Qwen3.6 roles rely on -- Ansible only verifies the artifact).
+# which must run on the host before this role (the same out-of-band build step
+# the retired DeepSeek and Qwen3.6 roles used -- Ansible only verifies the
+# artifact, it does not build it).
 # Not under /opt/deepseek-v4-mainline as on llm-server: this host never ran
 # DeepSeek, so the path carries no model name.
 qwen38_runtime_root: /opt/llama-cpp-mainline
@@ -40,11 +41,14 @@ qwen38_compose_project: qwen38
 qwen38_service_unit: qwen38.service
 qwen38_model_name: qwen38
 
-# Published straight on the LAN. llm-server fronts llama-server with the
-# deepseek-v4-ik compatibility proxy to get a CIDR allowlist; this host has no
-# such proxy, so the API is reachable by anything on the LAN. Add a proxy
-# before exposing this host any wider.
-qwen38_bind_address: 192.168.1.191
+# Taken from the inventory, not hardcoded: this is a service, and which host it
+# runs on is the inventory's business. Overridable per host if a machine has to
+# publish on an interface other than the one Ansible reaches it by.
+#
+# Published straight on the LAN, with no proxy in front, so the API is reachable
+# by anything on the LAN. The assertion in tasks/main.yml only rules out
+# 0.0.0.0; add a proxy with an allowlist before exposing a host any wider.
+qwen38_bind_address: "{{ ansible_host | default(inventory_hostname) }}"
 qwen38_api_port: 8081
 
 # Both GPUs. 18.4 GiB of weights split across 2x24 GiB leaves room for the
@@ -72,8 +76,9 @@ qwen38_presence_penalty: 1.5
 # right trade for agent traffic: every turn waits on decode, while prefill is
 # mostly served from the prompt cache after the first turn.
 #
-# n_max is untuned beyond this. The DeepSeek work on llm-server found its
-# optimum at 2 and a regression at 3, so that is where this starts.
+# n_max is untuned beyond this. The DeepSeek work on the retired llm-server
+# had found its optimum at 2 and a regression at 3, so that is where this
+# starts.
 qwen38_spec_type: draft-mtp
 qwen38_spec_draft_n_max: 2
 

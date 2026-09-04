@@ -1,11 +1,11 @@
 ---
-# Qwen3.8-27B on llm-workstation, split across both RTX 3090s.
+# Qwen3.8-27B, split across both RTX 3090s.
 #
 # Prerequisite (out of band, same as the DeepSeek and Qwen3.6 runtimes on
 # llm-server): the pinned llama.cpp build must already exist on the host.
 #   scripts/llama-cpp-mainline-build.sh /opt/llama-cpp-mainline
 # This role verifies that artifact; it does not build it.
-- name: Deploy Qwen3.8-27B on llm-workstation
+- name: Deploy Qwen3.8-27B
   hosts: llm-workstation
   become: true
   gather_facts: true
@@ -13,7 +13,7 @@
   roles:
     - qwen38
 
-- name: Verify Qwen3.8-27B on llm-workstation
+- name: Verify Qwen3.8-27B
   hosts: llm-workstation
   become: true
   gather_facts: false

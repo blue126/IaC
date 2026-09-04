@@ -5,13 +5,13 @@
 > (`deepseek-v4`、`deepseek-v4-mainline`、`deepseek-v4-ik`)及其 playbook 已从仓库删除;正文保持原样以保留记录,
 > 其中的路径、命令与运行事实均**不再适用于当前部署**。
 >
-> 当前部署见 [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
-> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts-workstation`。
+> 当前部署见 [qwen3-tts-openai-api-integration.md](./qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts`。
 
 
 **最后更新/实机核验**：2026-08-18
-**用途**：交给接手本项目的 AI/工程师。**只读本文档即可继续工作**，不需要原始对话上下文。
-**权威顺序**：当前运行事实以已提交的 `deepseek-v4-mainline` Ansible role 和 guest 实机为准；本文件是操作入口；性能计划只提供背景和后续方向。`_bmad-output/implementation-artifacts/spec-switch-deepseek-v4-to-mainline-dspark.md` 是已完成的历史实施 spec，**不是当前配置来源**。
+**用途**：原为交给接手 DeepSeek V4 工作的 AI/工程师的操作入口。该工作已随 llm-server 退役终止，本文现仅作历史记录。
+**权威顺序（当时）**：运行事实以当时已提交的 `deepseek-v4-mainline` Ansible role 和 guest 实机为准。该 role 与该 guest 均已不存在，因此本文不再有可对照的权威来源。`_bmad-output/implementation-artifacts/spec-switch-deepseek-v4-to-mainline-dspark.md` 是已完成的历史实施 spec，**不是当前配置来源**。
 **关联文档**（细节均在，按需查阅）：
 - `docs/designs/deepseek-v4-performance-optimization-plan.md`（全景优化计划，最详细）
 - `docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`（部署与实验纪年）

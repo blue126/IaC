@@ -52,7 +52,32 @@ stages:
     default_sampling_params:
       temperature: 0.6
       top_k: 50
+      # This does NOT make output reproducible, and that is expected rather
+      # than a defect. Measured here: the same sentence rendered three times
+      # came back 6.16s / 6.56s / 6.80s, a 10.4% spread in duration, and two
+      # requests carrying an identical explicit seed: 777 differed just as
+      # much.
+      #
+      # The repository's own source review of the pinned tag predicted exactly
+      # that -- see
+      # _bmad-output/planning-artifacts/research/technical-qwen3-tts-audiobook-sampling-parameters-2026-09-01/digests/timbre-prosody-vllm-omni-r2-1.md
+      # It records two verified findings: a seed reaches both the Stage 0
+      # Talker's SamplingParams.seed and the residual MTP/Subtalker's
+      # extra_args["tts_local_seed"], AND under FULL CUDA graph -- which this
+      # deployment uses, the engine logs cudagraph_mode FULL_AND_PIECEWISE --
+      # the graph replays a single captured RNG stream, so per-request seeding
+      # is not reproducible. Only Stage 0 eager or pure PIECEWISE keeps the
+      # per-row generators, at 39ms/step for talker_mtp instead of 9ms.
+      #
+      # So the measurement above shows the pipeline is non-deterministic; it
+      # does not show this value is inert, and it cannot -- with that much
+      # variance the seed's effect is unobservable by comparing two renders.
+      # Keep it: it still feeds both sampling stages, and dropping it would
+      # change some random paths for no demonstrated benefit. Upstream's
+      # bundled qwen3_tts.yaml no longer ships a default seed, so this is the
+      # only place one is set.
       seed: 42
+
       # Upstream ships 512, which caps a request at roughly 55 seconds of
       # audio: measured on this host, 220 Chinese characters synthesise fine
       # and 264 fail after 14.2s with "did not emit codec EOS before its token

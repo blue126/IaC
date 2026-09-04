@@ -5,12 +5,12 @@
 > (`deepseek-v4`、`deepseek-v4-mainline`、`deepseek-v4-ik`)及其 playbook 已从仓库删除;正文保持原样以保留记录,
 > 其中的路径、命令与运行事实均**不再适用于当前部署**。
 >
-> 当前部署见 [qwen3-tts-openai-api-integration.md](../designs/qwen3-tts-openai-api-integration.md)
-> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts-workstation`。
+> 当前部署见 [qwen3-tts-openai-api-integration.md](./qwen3-tts-openai-api-integration.md)
+> 与 `ansible/roles/qwen38`、`ansible/roles/qwen3-tts`。
 
 
 **创建日期**：2026-08-15；**最后更新**：2026-08-17
-**状态**：执行中（Stage 1–3 已完成；mainline + DSpark 当前运行，部署与文档已提交）
+**状态**：已终止（截至最后更新时 Stage 1–3 已完成、mainline + DSpark 在 llm-server 上运行；该主机已于 2026-09-03 退役，后续 Stage 未执行）
 **关联**：
 - `docs/learningnotes/2026-08-14-deepseek-v4-dual-gpu-deployment.md`（部署与实验纪年）
 - `_bmad-output/implementation-artifacts/spec-deepseek-v4-memory-prefill-experiments.md`（实验规范）
