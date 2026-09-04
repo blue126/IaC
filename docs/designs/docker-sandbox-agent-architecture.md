@@ -73,13 +73,46 @@ Claude Code 不直接读取 `AGENTS.md`，因此根 `CLAUDE.md` 使用正式 `@A
 OpenCode Desktop 使用长期 attached session：
 
 ```bash
-sbx run --name iac-opencode-desktop-TASK-v130 \
+sbx run --name iac-opencode-desktop-TASK-loopback-v130 \
   --publish 127.0.0.1:4096:4096 \
   opencode . --kit ./.sandbox-kit \
   -- serve --hostname 0.0.0.0 --port 4096
 ```
 
-不要使用 `--detached`；它只创建或启动 microVM，不启动 agent server。宿主端口只绑定 `127.0.0.1`。
+默认模式继续把宿主端口绑定到 `127.0.0.1`。不要使用 `--detached`；它只创建或启动
+microVM，不启动 agent server。
+
+loopback 与 LAN 必须使用不同的 Sandbox 名称：分别为
+`iac-opencode-desktop-TASK-loopback-v130` 与 `iac-opencode-desktop-TASK-lan-v130`。
+`--publish` 仅在 Sandbox 首次创建时生效，重连时传入的新值会被忽略。因此启动任一模式
+前，若同名 Sandbox 已存在，必须先运行 `sbx ports <name>`，确认现有映射与所需地址、
+端口完全一致；不一致时停止，不能假定 `sbx run` 已切换发布模式。
+
+只有用户明确要求从可信、隔离的私有 LAN 进行浏览器访问时，才允许使用受控例外：
+
+```bash
+sbx run --name iac-opencode-desktop-TASK-lan-v130 \
+  --publish <LAN_IP>:4096:4096 \
+  opencode . --kit ./.sandbox-kit \
+  -- serve --hostname 0.0.0.0 --port 4096
+```
+
+`<LAN_IP>` 必须是所选物理 LAN 网卡实际拥有的具体私有 IPv4。公网、VPN、bridge、IPv4
+通配 `0.0.0.0`、IPv6 通配 `::` 和省略宿主地址都不是有效目标。启动前必须确认三项条件：
+该地址属于目标网卡、该地址的 TCP 4096 端口空闲，以及 OpenCode server 进程环境中已
+通过未纳入版本控制的运行时渠道注入非空且至少 20 字符的强随机
+`OPENCODE_SERVER_PASSWORD`。密码不得写入仓库、命令示例、命令参数或 shell 历史。
+任一检查失败都不得启动；端口占用时必须停止并询问用户，不得自动改用其他端口。
+
+LAN 模式的明文 HTTP 仅允许在可信隔离 LAN 内使用；其他网络路径必须提供 TLS 或可信
+VPN。启动后，从另一宿主终端检查 TCP 4096 的监听地址只等于所选 `<LAN_IP>`，不能是
+`0.0.0.0`、`::`、`*` 或其他接口地址；随后验证未认证访问失败、认证访问成功。任一后检
+失败时立即终止长期 attached session，并确认宿主端口已经关闭。这里有两个独立监听层：
+Sandbox 内 `serve --hostname 0.0.0.0` 是端口转发所需，宿主 `--publish` 则必须是显式
+loopback 或具体 LAN IPv4。省略宿主 IP 和宿主 `0.0.0.0` 在所有模式下都禁止。
+
+此 LAN 例外仅适用于 OpenCode Desktop，不改变其他 Sandbox 服务的 loopback-only 策略，
+也不允许关闭认证。
 
 ## 5. Project-specific credential handling
 
@@ -119,7 +152,7 @@ Codex
 
 宿主只需运行一次 `sbx mcp add playwright ...` 完成全局注册。所有未指定 `--static-mcp` 的 Sandbox 默认进入 dynamic mode，并由 Agent 通过 Gateway 的发现与附加工具按需启用。宿主直接进入仓库运行 Codex 时，不会再尝试启动 sandbox-only 命令。
 
-宿主 Playwright 访问 Sandbox 内服务时，服务必须监听 `0.0.0.0`，并通过 `--publish 127.0.0.1:<host>:<sandbox>` 发布。浏览器访问发布后的 loopback 地址，用户可以实时观察同一个窗口。
+宿主 Playwright 访问 Sandbox 内服务时，服务必须监听 `0.0.0.0`，并通过 `--publish 127.0.0.1:<host>:<sandbox>` 发布。浏览器访问发布后的 loopback 地址，用户可以实时观察同一个窗口。第 4 节中受认证的 OpenCode Desktop LAN 发布是唯一例外；不得据此把其他服务发布到 LAN。
 
 ## 8. 现有 Sandbox 迁移
 
