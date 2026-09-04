@@ -5,7 +5,8 @@
 | Identity | Allowed | Forbidden |
 |---|---|---|
 | Validation workflow | 读取 PR 与代码；发布自身 check 和有限 artifact | secrets、branch write、deploy/apply、外部系统 |
-| Claude reviewer | 读取可信 PR；发布评论和结构化 verdict | commit、merge、删除 branch、部署凭据 |
+| Claude reviewer | 读取可信 PR；返回结构化 verdict | GitHub write tools、commit、merge、删除 branch、部署凭据 |
+| Review comment renderer | 由 schema verdict 创建或更新当前 SHA 的 PR 评论 | 修改代码、branch、review verdict 或仓库设置 |
 | Dedicated Fixer App | 在 trust、path 和 SHA 检查后普通 push 当前 PR head；回复 bot thread | `main`、force push、fork、治理敏感文件、settings、部署凭据 |
 | GitHub auto-merge | Ruleset 满足后 squash merge 普通路径 PR | bypass、陈旧 SHA、治理敏感 PR |
 | Remote cleanup | 删除已合并远端 head branch；取消旧 run；配置 artifact retention | 删除 open/unmerged branch 或审计记录 |
@@ -31,7 +32,7 @@
 ## Ruleset
 
 - Require pull request，阻止 direct push、force push 和 branch deletion。
-- Require 当前 SHA 的 `repo-validation` 与 `ai-review-gate`，并要求 review conversation resolved。
+- Require 当前 SHA 的 `repo-validation` 与 `review-policy-gate`，并要求 review conversation resolved。
 - 普通路径允许 squash auto-merge；治理敏感路径由独立 check/label 维持人工确认。
 - 合并后自动删除远端 head branch。
 

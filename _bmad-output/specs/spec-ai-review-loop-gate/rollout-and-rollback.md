@@ -3,7 +3,7 @@
 ## Implementation sequence
 
 1. **Pending:** Bootstrap 安装薄 caller 与 IaC adapter 配置骨架；未完成 adapter 时只运行 AI review，auto-merge 关闭。
-2. **Observe:** 每个 `opened`、`ready_for_review`、`reopened`、`synchronize` 产生结构化 Claude 结果和非 required shadow gate。
+2. **Observe:** Ready PR 的 `opened`、`ready_for_review`、`reopened`、`synchronize` 对当前 HEAD 只调用一次 Claude，确定性 renderer 发布评论，非 required `review-policy-gate` 校验同一 verdict；Draft `opened` 不调用模型。
 3. **Validate:** 启用无生产凭据的 path-aware `repo-validation`，用 Terraform、Ansible、文档、脚本及治理敏感 fixture 验证。
 4. **Repair:** 安装独立 Fixer App，先允许一次自动修复，证明普通 push 会触发新复审，再启用三轮与重复指纹保护。
 5. **Protect:** 以 evaluate/shadow 方式验证 Ruleset 后，要求两个 gate、会话解决、无 direct/force push 和 squash merge。

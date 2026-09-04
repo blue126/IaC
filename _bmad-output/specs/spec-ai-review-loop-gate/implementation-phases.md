@@ -58,18 +58,50 @@
 - 代表性 PR 分别证明 docs-only、Terraform、Ansible、module 和 governance-sensitive 路径行为。
 - Shadow 至少覆盖一次新 commit 的 cancellation/restart；结果未配置为 required。
 
-## Phase 2 — Pinned public runtime and adapter shadow
+## Phase 2A — Structured review shadow（完成）
 
-- 等 public bootstrap 发布 contract-tested immutable SHA 后，引入固定 IaC adapter、改为薄 caller，并显式映射 Claude 与 Fixer App secrets。
-- 产生绑定当前 SHA 的结构化 Claude verdict 和 shadow `ai-review-gate`。
-- 只允许一次自动修复，验证 Fixer App 普通 push 会触发新的 `synchronize` validation/review。
-- 证明 parity 后停用自动 `.github/workflows/claude-code-review.yml`，保留手动 `@claude` workflow。
+- 固定 public bootstrap runtime 与 Claude Code Action 的完整 commit SHA。
+- PR #29、#30 验证绑定当前 HEAD 的 structured verdict；PR #32 验证 Draft → Ready 与 `synchronize` 触发行为。
+- 该过渡阶段保留评论 reviewer 与独立 structured reviewer，因此每个 HEAD 有两次 Claude 调用。
+
+## Phase 2B — Single review and policy gate（当前）
+
+### Scope
+
+把两个自动 AI workflow 收敛为一个 `Claude Review` workflow：`claude-review` 每个 HEAD 只调用一次 Claude 并输出有界 structured verdict；确定性 renderer 从该 verdict 创建或更新当前 SHA 评论；`review-policy-gate` 作为独立 job 复用固定 bootstrap evaluator。继续保持 shadow，不修改 Ruleset、Fixer、auto-merge 或 Jenkins。
+
+### Files and actions
+
+1. `.github/workflows/claude-review.yml`
+   - 合并并取代 `.github/workflows/claude-code-review.yml` 与 `.github/workflows/ai-review-gate.yml`。
+   - 保留 opened、synchronize、ready_for_review、reopened、non-Draft 和 per-PR cancellation；明确拒绝 fork。
+   - Claude job 只读 PR 内容且恰好调用一次 SHA-pinned Claude Action；schema 限制 finding 数量和字段长度。
+   - job output 仅通过 environment 交给 renderer/gate；空、redacted 或上游失败一律 fail closed。
+   - renderer 不解析自然语言评论，以 HEAD marker 幂等创建或更新摘要；模型无 GitHub write tool。
+   - gate job 使用 `if: always()`，不持有模型凭据或 OIDC；它只获得 renderer 所需的 `pull-requests: write` 来发布 PR 评论，先校验上游结果和绑定当前 repo/PR/full HEAD SHA 的 verdict，再执行 policy 判定。
+2. `tests/ci/review-policy-gate-test.sh`
+   - 保留 evaluator 的 pass、needs_fix、human_required、stale SHA 和 malformed fixtures。
+   - 断言单 workflow、单 Claude Action、两个稳定 job 名、job output、`needs`/`always()`、权限边界、immutable pins 和旧 workflow 已移除。
+3. `docs/designs/cicd-architecture.md` 与 canonical spec companions
+   - 将 Phase 2A 双调用记为历史 evidence，并记录 Phase 2B 单调用数据流、命名和 fallback 原因。
+
+### Acceptance criteria
+
+- **AC-P2B-1:** Given 一个 Ready PR HEAD，when `Claude Review` 运行，then workflow 中恰好一次 Claude Action 调用，同时得到人类可读评论和机器 verdict。
+- **AC-P2B-2:** Given Draft PR，when opened，then该 review workflow 的所有 job 均 skipped；when 同一 HEAD 转 Ready，then首次执行；when push 新 HEAD，then旧 run 取消并重新审查。
+- **AC-P2B-3:** Given Claude 失败、output 为空/畸形/陈旧或身份不匹配，when policy job运行，then `review-policy-gate` fail closed 而不是 skipped。
+- **AC-P2B-4:** Given pass、needs_fix 或 human_required verdict，when renderer运行，then它只从该 JSON 幂等创建/更新当前 SHA 评论，不把评论文本作为 gate 输入。
+- **AC-P2B-5:** Given governance-sensitive workflow 变更，when Phase 2B 合入，then它仍处于 shadow，Ruleset、auto-merge、Fixer 和 Jenkins 行为均不变。
+
+## Phase 2C — One-round repair
+
+- 安装独立 Fixer App，只允许一次自动修复，验证普通 push 会触发新的 `synchronize` validation/review。
 
 ## Phase 3 — Enforcement and merge
 
 - 将自动修复扩展到最多三轮，并启用重复 fingerprint、冲突、含糊结论和 permission stop guards。
 - 新增 CODEOWNERS 敏感路径 ownership；治理敏感变更继续要求人工确认。
-- 经单独授权后，Ruleset 要求当前 SHA 的 `repo-validation`、`ai-review-gate` 和 resolved conversations，只允许 squash。
+- 经单独授权后，Ruleset 要求当前 SHA 的 `repo-validation`、`review-policy-gate` 和 resolved conversations，只允许 squash。
 - 经单独授权后启用 auto-merge、merge 后远端 branch 删除、obsolete run cancellation 和 bounded artifact retention。
 
 ## Phase 4 — Jenkins hardening
