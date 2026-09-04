@@ -136,8 +136,8 @@ sbx run --clone --name iac-codex-TASK-clone-v130 codex . --kit ./.sandbox-kit
 sbx run --clone --name iac-claude-TASK-clone-v130 claude . --kit ./.sandbox-kit
 sbx run --clone --name iac-opencode-TASK-clone-v130 opencode . --kit ./.sandbox-kit
 
-# OpenCode Desktop server
-sbx run --name iac-opencode-desktop-TASK-v130 \
+# OpenCode Desktop server: default loopback mode
+sbx run --name iac-opencode-desktop-TASK-loopback-v130 \
   --publish 127.0.0.1:4096:4096 \
   opencode . --kit ./.sandbox-kit \
   -- serve --hostname 0.0.0.0 --port 4096
@@ -155,7 +155,33 @@ Playwright 不再由项目级 Agent 配置直接启动。先运行 `sbx mcp ls`�
 
 因此，当前 linked-worktree smoke 中的 `No Git` 是 Docker 的预期 host-worktree 限制，不是迁移缺陷；正式验收在 main checkout 中进行即可。参见 [Docker host worktree Git 边界](https://docs.docker.com/ai/sandboxes/workflows/git/) 与 [Docker Sandboxes clone mode 限制](https://docs.docker.com/ai/sandboxes/usage/)。
 
-前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。宿主 Playwright 通过发布后的 `127.0.0.1:<host-port>` 访问服务，用户可以直接观察同一个浏览器窗口。OpenCode Desktop server 命令必须保持在长期 attached terminal/session 中运行；`--detached` 只会创建/启动 microVM，不会启动 agent server。
+前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。宿主 Playwright 通过发布后的 `127.0.0.1:<host-port>` 访问服务，用户可以直接观察同一个浏览器窗口。受认证的 OpenCode Desktop LAN 模式是唯一受控例外，不得推广到其他 Sandbox 服务。
+
+OpenCode Desktop 的 loopback 与 LAN 模式必须使用不同名称：分别使用
+`iac-opencode-desktop-TASK-loopback-v130` 和 `iac-opencode-desktop-TASK-lan-v130`。
+`--publish` 只在 Sandbox 首次创建时生效，重连时会被忽略。启动前若同名 Sandbox 已存在，
+必须运行 `sbx ports <name>` 并确认现有映射与所需模式完全一致；不一致时停止，不得假定
+重新运行 `sbx run` 已切换映射。
+
+默认使用 loopback。只有用户明确要求从可信、隔离的私有 LAN 访问时，才允许 LAN 模式：
+
+```bash
+sbx run --name iac-opencode-desktop-TASK-lan-v130 \
+  --publish <LAN_IP>:4096:4096 \
+  opencode . --kit ./.sandbox-kit \
+  -- serve --hostname 0.0.0.0 --port 4096
+```
+
+`<LAN_IP>` 必须是目标物理 LAN 网卡拥有的具体私有 IPv4；禁止公网、VPN、bridge、IPv4
+通配 `0.0.0.0`、IPv6 通配 `::` 或省略宿主地址。启动前验证地址归属与端口空闲；端口
+占用时停止并询问用户，不得自行改端口。可信隔离 LAN 默认不设置 Server 密码；如需认证，
+通过未纳入版本控制的运行时渠道注入 `OPENCODE_SERVER_PASSWORD`，不得把密码写入仓库、
+示例、命令参数或 shell 历史。
+
+LAN 模式的明文 HTTP 仅限可信隔离 LAN；其他网络必须使用 TLS 或可信 VPN。启动后确认宿主
+只监听所选 `<LAN_IP>`。默认无密码模式验证未认证访问返回 `200`；设置密码时验证未认证访问
+失败且认证访问成功。任一后检失败时立即终止长期 attached session，并确认宿主端口已经关闭。禁止 `--detached`；Sandbox 内
+`serve --hostname 0.0.0.0` 仍是转发所需，不代表允许宿主通配发布。
 
 ### Project-Specific Credential Handling
 

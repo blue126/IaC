@@ -27,6 +27,27 @@ scripts/
 
 ## Core Scripts
 
+### OpenCode Sandbox Server
+
+- **`opencode-sandbox-server.sh`**: Synchronizes the host OpenCode resolved
+  provider configuration (`opencode.json` plus `opencode.jsonc`) and
+  authentication into an existing OpenCode Docker Sandbox,
+  then runs the server as an attached session. Trusted private LAN mode is
+  passwordless by default:
+
+  ```bash
+  scripts/opencode-sandbox-server.sh iac-opencode-desktop-TASK-lan-v130
+  ```
+
+  Authentication is optional. To enable it, load `OPENCODE_SERVER_PASSWORD`
+  from an approved secret manager and export it before running the script.
+
+  The script preserves Sandbox-managed MCP configuration and never copies the
+  host's local Playwright MCP entry. Template-provided environment providers
+  that are not configured or authenticated on the host are disabled. The script
+  does not change Sandbox network policy; custom provider endpoints must already
+  be allowed.
+
 ### Secrets Management
 - **`get-secrets.sh`**: Extracts `vault_*` variables from Ansible Vault and writes them to Terraform `*.auto.tfvars` files. Ansible Vault is the single source of truth for all secrets.
 

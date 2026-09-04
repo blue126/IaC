@@ -144,18 +144,47 @@ sbx run --name iac-opencode opencode . --kit ./.sandbox-kit
 
 ### 3.2 OpenCode Desktop
 
-OpenCode Desktop 通过宿主 loopback 连接 sandbox 内的 standalone server：
+OpenCode Desktop 默认通过宿主 loopback 连接 sandbox 内的 standalone server：
 
 ```bash
 sbx run \
-  --name iac-opencode-desktop \
+  --name iac-opencode-desktop-loopback \
   --publish 127.0.0.1:4096:4096 \
   opencode . \
   --kit ./.sandbox-kit \
   -- serve --hostname 0.0.0.0 --port 4096
 ```
 
-Desktop 连接 `http://127.0.0.1:4096`。宿主发布只绑定 loopback，不暴露到局域网。
+Desktop 默认连接 `http://127.0.0.1:4096`。loopback 与 LAN 必须分别使用
+`iac-opencode-desktop-loopback` 与 `iac-opencode-desktop-lan`，避免复用旧端口映射。
+`--publish` 仅在 Sandbox 首次创建时生效，重连时会被忽略；启动前若同名 Sandbox 已存在，
+必须用 `sbx ports <name>` 核对现有映射，不一致时停止，不能假定映射已经切换。
+
+用户明确要求从可信、隔离的私有 LAN 访问时，可以把宿主发布地址改为目标物理 LAN 网卡
+实际拥有的具体私有 IPv4：
+
+```bash
+sbx run \
+  --name iac-opencode-desktop-lan \
+  --publish <LAN_IP>:4096:4096 \
+  opencode . \
+  --kit ./.sandbox-kit \
+  -- serve --hostname 0.0.0.0 --port 4096
+```
+
+LAN 模式禁止公网、VPN、bridge、IPv4 通配 `0.0.0.0`、IPv6 通配 `::` 或省略宿主地址。
+启动前必须验证 `<LAN_IP>` 地址归属和 TCP 4096 端口空闲；端口占用时停止并询问用户，
+不得自行改端口。可信隔离 LAN 默认无 Server 密码；如需认证，通过未纳入版本控制的运行时
+渠道注入 `OPENCODE_SERVER_PASSWORD`，不得写入仓库、示例、命令参数或 shell 历史。
+
+明文 HTTP 仅限可信隔离 LAN；其他网络必须使用 TLS 或可信 VPN。启动后必须从另一宿主
+终端确认 TCP 4096 只监听所选 `<LAN_IP>`。默认无密码模式验证未认证访问返回 `200`；设置
+密码时验证未认证访问失败、认证访问成功。任一后检失败时立即终止长期 attached session，
+并确认宿主端口已经关闭。
+
+宿主 `--publish` 不得省略 IP 或使用 `0.0.0.0`。Sandbox 内
+`serve --hostname 0.0.0.0` 仍是端口转发所需，与宿主发布范围不是同一层。该受控例外
+只适用于 OpenCode Desktop，不推广到其他 Sandbox 服务。
 
 `sbx run ... -- serve ...` 必须在长期 attached terminal/session 中持续运行。不要使用
 `--detached`：它只创建/启动 microVM，不会启动 agent server。仅在该 session 保持运行时，
@@ -290,9 +319,18 @@ OCI 验证使用 `"${HOME}/.oci:ro"` 额外 workspace，只检查私钥路径可
 
 OpenCode Desktop 验收：
 
-- 启动 `iac-opencode-desktop` server sandbox。
-- 从宿主检查 `http://127.0.0.1:4096/global/health`。
-- 用 Desktop GUI 确认连接和项目路径。
+- 未请求 LAN 访问时，启动 `iac-opencode-desktop-loopback` server sandbox，并确认宿主只监听
+  `127.0.0.1:4096`。
+- 若同名 Sandbox 已存在，先用 `sbx ports <name>` 验证模式专用名称的现有映射；映射不符
+  时停止，因为重连时 `--publish` 会被忽略。
+- 从宿主检查 `http://127.0.0.1:4096/global/health`，再用 Desktop GUI 确认连接和项目路径。
+- 用户明确请求可信隔离 LAN 访问时，先验证 `<LAN_IP>` 是物理 LAN 网卡的具体私有 IPv4且
+  端口空闲，再使用 `iac-opencode-desktop-lan` 以 `<LAN_IP>:4096:4096` 启动长期 attached
+  session。端口占用时停止并询问用户；需要认证时再从运行时渠道注入密码。
+- LAN 启动后确认宿主只监听 `<LAN_IP>:4096`，拒绝公网、VPN、bridge、`0.0.0.0`、`::`、
+  省略 host IP 或任何额外接口监听；默认无密码模式验证未认证访问返回 `200`，设置密码时
+  验证未认证访问被拒绝、认证访问成功。任一后检失败时终止 attached session 并确认端口
+  关闭。可信隔离 LAN 以外还必须验证 TLS 或可信 VPN。
 
 阶段一完成后停止，汇报证据并等待用户批准最终切换。
 
