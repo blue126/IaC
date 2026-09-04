@@ -126,6 +126,12 @@ Phase 2A 新增独立的 `ai-review-gate` shadow check，同时保留现有发�
 
 该阶段仍是观察模式：`ai-review-gate` 尚未加入 Ruleset required checks，不执行自动修复或自动合并。Gate 显式向 Claude Action 传入当前 job 的只读 GitHub token，从而允许新增 workflow 在合并前接受验证，而不申请 OIDC 或仓库写权限；模型凭据仍只使用现有 Claude OAuth token。现有评论 reviewer 继续通过 OIDC 获取短期 GitHub App token。checkout 不保留写凭据，Fork PR 不接收模型凭据，gate 明确失败并转人工处理。
 
+### Phase 2A rollout evidence
+
+- PR #29 首次证明 Claude 能产生符合 schema、绑定当前完整 HEAD SHA 的结构化 verdict，且公共 runtime evaluator 接受 `pass`。
+- PR #30 再次证明 structured gate 对新的 HEAD 独立运行并返回无 finding 的 `pass`，同时全部确定性检查通过。
+- PR #32 以普通非 workflow 文档变更证明 Draft 生命周期：`opened` 时两个 AI job 均为 `skipped`，`repo-validation` 与适用的确定性检查通过；同一 HEAD 转为 Ready 后只有两个 AI workflow 新建 run，评论 reviewer 实际取得短期 App token 并完成审查，structured gate 对该 SHA 返回无 finding 的 `pass`，且 `repo-validation` 没有重复运行。
+
 ### Jenkins 保持合并后交付职责
 
 `main` push（包括 PR merge）继续触发 Jenkins。Jenkins 可以读取其受控凭据并生成 Terraform plan，但 Terraform Apply 与 Ansible Deploy 前的两个 `input` 人工审批点必须保留。PR CI 的成功不代表批准部署，GitHub 或 AI 自动化也不得代替 Jenkins 操作者确认任何生产写入。
