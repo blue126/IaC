@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   ai-review-gate:
+    if: github.event.pull_request.draft == false
     name: ai-review-gate
     runs-on: ubuntu-latest
     timeout-minutes: 30

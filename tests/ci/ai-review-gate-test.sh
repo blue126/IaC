@@ -6,6 +6,7 @@ REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNTIME_DIR="${1:-}"
 EVALUATOR="${RUNTIME_DIR}/scripts/evaluate-ai-review-gate.sh"
 WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/ai-review-gate.yml"
+COMMENT_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/claude-code-review.yml"
 FIXTURE_DIR="$(mktemp -d)"
 
 cleanup() {
@@ -86,6 +87,7 @@ fi
 
 [[ -f "${WORKFLOW}" ]] || fail "AI review gate workflow is missing"
 assert_file_contains "${WORKFLOW}" "types: [opened, synchronize, ready_for_review, reopened]"
+assert_file_contains "${WORKFLOW}" 'if: github.event.pull_request.draft == false'
 assert_file_contains "${WORKFLOW}" 'group: ai-review-gate-${{ github.event.pull_request.number }}'
 assert_file_contains "${WORKFLOW}" "name: ai-review-gate"
 assert_file_contains "${WORKFLOW}" "repository: blue126/agent-project-bootstrap"
@@ -105,5 +107,9 @@ if grep -Eq '^[[:space:]]*uses:' "${WORKFLOW}" && \
     < <(grep -E '^[[:space:]]*uses:' "${WORKFLOW}") | grep -q .; then
   fail "all AI review gate actions must be pinned to full commit SHAs"
 fi
+
+[[ -f "${COMMENT_WORKFLOW}" ]] || fail "Claude comment review workflow is missing"
+assert_file_contains "${COMMENT_WORKFLOW}" "types: [opened, synchronize, ready_for_review, reopened]"
+assert_file_contains "${COMMENT_WORKFLOW}" 'if: github.event.pull_request.draft == false'
 
 echo "AI review gate contract tests passed"

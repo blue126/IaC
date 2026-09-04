@@ -273,7 +273,10 @@ fi
 workflow="${REPOSITORY_ROOT}/.github/workflows/repo-validation.yml"
 jenkinsfile="${REPOSITORY_ROOT}/Jenkinsfile"
 [[ -f "${workflow}" ]] || fail "repository validation workflow is missing"
-assert_file_contains "${workflow}" "types: [opened, synchronize, ready_for_review, reopened]"
+assert_file_contains "${workflow}" "types: [opened, synchronize, reopened]"
+if grep -Fq "ready_for_review" "${workflow}"; then
+  fail "repository validation must not rerun for an unchanged SHA on ready_for_review"
+fi
 assert_file_contains "${workflow}" 'group: repo-validation-${{ github.event.pull_request.number }}'
 assert_file_contains "${workflow}" "cancel-in-progress: true"
 assert_file_contains "${workflow}" "name: repo-validation"
