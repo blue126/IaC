@@ -32,14 +32,15 @@ scripts/
 - **`opencode-sandbox-server.sh`**: Synchronizes the host OpenCode resolved
   provider configuration (`opencode.json` plus `opencode.jsonc`) and
   authentication into an existing OpenCode Docker Sandbox,
-  then runs the server as an attached session. For LAN mode, export a strong
-  `OPENCODE_SERVER_PASSWORD` first and pass only the Sandbox name:
+  then runs the server as an attached session. Trusted private LAN mode is
+  passwordless by default:
 
   ```bash
-  # Load the value from an approved secret manager without printing it.
-  export OPENCODE_SERVER_PASSWORD
   scripts/opencode-sandbox-server.sh iac-opencode-desktop-TASK-lan-v130
   ```
+
+  Authentication is optional. To enable it, load `OPENCODE_SERVER_PASSWORD`
+  from an approved secret manager and export it before running the script.
 
   The script preserves Sandbox-managed MCP configuration and never copies the
   host's local Playwright MCP entry. Template-provided environment providers

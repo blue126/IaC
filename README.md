@@ -174,13 +174,13 @@ sbx run --name iac-opencode-desktop-TASK-lan-v130 \
 
 `<LAN_IP>` 必须是目标物理 LAN 网卡拥有的具体私有 IPv4；禁止公网、VPN、bridge、IPv4
 通配 `0.0.0.0`、IPv6 通配 `::` 或省略宿主地址。启动前验证地址归属与端口空闲；端口
-占用时停止并询问用户，不得自行改端口。OpenCode server 进程必须通过未纳入版本控制的
-运行时渠道获得非空且至少 20 字符的强随机 `OPENCODE_SERVER_PASSWORD`，不得把密码写入仓库、
+占用时停止并询问用户，不得自行改端口。可信隔离 LAN 默认不设置 Server 密码；如需认证，
+通过未纳入版本控制的运行时渠道注入 `OPENCODE_SERVER_PASSWORD`，不得把密码写入仓库、
 示例、命令参数或 shell 历史。
 
 LAN 模式的明文 HTTP 仅限可信隔离 LAN；其他网络必须使用 TLS 或可信 VPN。启动后确认宿主
-只监听所选 `<LAN_IP>`，未认证访问失败且认证访问成功。任一后检失败时立即终止长期
-attached session，并确认宿主端口已经关闭。禁止 `--detached`；Sandbox 内
+只监听所选 `<LAN_IP>`。默认无密码模式验证未认证访问返回 `200`；设置密码时验证未认证访问
+失败且认证访问成功。任一后检失败时立即终止长期 attached session，并确认宿主端口已经关闭。禁止 `--detached`；Sandbox 内
 `serve --hostname 0.0.0.0` 仍是转发所需，不代表允许宿主通配发布。
 
 ### Project-Specific Credential Handling

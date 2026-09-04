@@ -174,14 +174,15 @@ sbx run \
 
 LAN 模式禁止公网、VPN、bridge、IPv4 通配 `0.0.0.0`、IPv6 通配 `::` 或省略宿主地址。
 启动前必须验证 `<LAN_IP>` 地址归属和 TCP 4096 端口空闲；端口占用时停止并询问用户，
-不得自行改端口。OpenCode server 必须通过未纳入版本控制的运行时渠道获得非空且至少 20 字符的
-强随机 `OPENCODE_SERVER_PASSWORD`；密码不得写入仓库、示例、命令参数或 shell 历史。
+不得自行改端口。可信隔离 LAN 默认无 Server 密码；如需认证，通过未纳入版本控制的运行时
+渠道注入 `OPENCODE_SERVER_PASSWORD`，不得写入仓库、示例、命令参数或 shell 历史。
 
 明文 HTTP 仅限可信隔离 LAN；其他网络必须使用 TLS 或可信 VPN。启动后必须从另一宿主
-终端确认 TCP 4096 只监听所选 `<LAN_IP>`，并从 LAN 客户端验证未认证访问失败、认证访问
-成功。任一后检失败时立即终止长期 attached session，并确认宿主端口已经关闭。
+终端确认 TCP 4096 只监听所选 `<LAN_IP>`。默认无密码模式验证未认证访问返回 `200`；设置
+密码时验证未认证访问失败、认证访问成功。任一后检失败时立即终止长期 attached session，
+并确认宿主端口已经关闭。
 
-宿主 `--publish` 不得省略 IP 或使用 `0.0.0.0`；LAN 模式不得关闭认证。Sandbox 内
+宿主 `--publish` 不得省略 IP 或使用 `0.0.0.0`。Sandbox 内
 `serve --hostname 0.0.0.0` 仍是端口转发所需，与宿主发布范围不是同一层。该受控例外
 只适用于 OpenCode Desktop，不推广到其他 Sandbox 服务。
 
@@ -323,13 +324,13 @@ OpenCode Desktop 验收：
 - 若同名 Sandbox 已存在，先用 `sbx ports <name>` 验证模式专用名称的现有映射；映射不符
   时停止，因为重连时 `--publish` 会被忽略。
 - 从宿主检查 `http://127.0.0.1:4096/global/health`，再用 Desktop GUI 确认连接和项目路径。
-- 用户明确请求可信隔离 LAN 访问时，先验证 `<LAN_IP>` 是物理 LAN 网卡的具体私有 IPv4、
-  端口空闲和 server 环境中非空且至少 20 字符的强随机 `OPENCODE_SERVER_PASSWORD`，再使用
-  `iac-opencode-desktop-lan` 以 `<LAN_IP>:4096:4096` 启动长期 attached session。端口占用
-  时停止并询问用户。
+- 用户明确请求可信隔离 LAN 访问时，先验证 `<LAN_IP>` 是物理 LAN 网卡的具体私有 IPv4且
+  端口空闲，再使用 `iac-opencode-desktop-lan` 以 `<LAN_IP>:4096:4096` 启动长期 attached
+  session。端口占用时停止并询问用户；需要认证时再从运行时渠道注入密码。
 - LAN 启动后确认宿主只监听 `<LAN_IP>:4096`，拒绝公网、VPN、bridge、`0.0.0.0`、`::`、
-  省略 host IP 或任何额外接口监听；最后验证未认证访问被拒绝、认证访问成功。任一后检
-  失败时终止 attached session 并确认端口关闭。可信隔离 LAN 以外还必须验证 TLS 或可信 VPN。
+  省略 host IP 或任何额外接口监听；默认无密码模式验证未认证访问返回 `200`，设置密码时
+  验证未认证访问被拒绝、认证访问成功。任一后检失败时终止 attached session 并确认端口
+  关闭。可信隔离 LAN 以外还必须验证 TLS 或可信 VPN。
 
 阶段一完成后停止，汇报证据并等待用户批准最终切换。
 

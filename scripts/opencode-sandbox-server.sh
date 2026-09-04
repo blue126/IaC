@@ -5,7 +5,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: OPENCODE_SERVER_PASSWORD=... $0 <sandbox-name>" >&2
+    echo "Usage: $0 <sandbox-name>" >&2
     exit 2
 }
 
@@ -43,18 +43,6 @@ server_mapping_count="$(jq '[.[] | select(.sandbox_port == 4096 and .protocol ==
 if [[ "$server_mapping_count" != "1" ]]; then
     echo "Error: expected exactly one TCP mapping for Sandbox port 4096" >&2
     exit 1
-fi
-
-host_ip="$(jq -r '.[] | select(.sandbox_port == 4096 and .protocol == "tcp") | .host_ip' <<<"$ports_json")"
-if [[ "$host_ip" != "127.0.0.1" ]]; then
-    password_length=0
-    if [[ -n "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
-        password_length="${#OPENCODE_SERVER_PASSWORD}"
-    fi
-    if [[ "$password_length" -lt 20 ]]; then
-        echo "Error: LAN mode requires OPENCODE_SERVER_PASSWORD with at least 20 characters" >&2
-        exit 1
-    fi
 fi
 
 host_stage="$(mktemp -d "${TMPDIR:-/tmp}/opencode-sandbox-sync.XXXXXX")"

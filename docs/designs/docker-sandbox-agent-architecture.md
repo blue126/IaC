@@ -98,21 +98,20 @@ sbx run --name iac-opencode-desktop-TASK-lan-v130 \
 ```
 
 `<LAN_IP>` 必须是所选物理 LAN 网卡实际拥有的具体私有 IPv4。公网、VPN、bridge、IPv4
-通配 `0.0.0.0`、IPv6 通配 `::` 和省略宿主地址都不是有效目标。启动前必须确认三项条件：
-该地址属于目标网卡、该地址的 TCP 4096 端口空闲，以及 OpenCode server 进程环境中已
-通过未纳入版本控制的运行时渠道注入非空且至少 20 字符的强随机
-`OPENCODE_SERVER_PASSWORD`。密码不得写入仓库、命令示例、命令参数或 shell 历史。
-任一检查失败都不得启动；端口占用时必须停止并询问用户，不得自动改用其他端口。
+通配 `0.0.0.0`、IPv6 通配 `::` 和省略宿主地址都不是有效目标。启动前必须确认该地址属于
+目标网卡且 TCP 4096 端口空闲。可信隔离 LAN 默认无 Server 密码；如需认证，通过未纳入
+版本控制的运行时渠道注入 `OPENCODE_SERVER_PASSWORD`，不得写入仓库、命令示例、命令参数
+或 shell 历史。任一检查失败都不得启动；端口占用时必须停止并询问用户，不得自动改用其他端口。
 
 LAN 模式的明文 HTTP 仅允许在可信隔离 LAN 内使用；其他网络路径必须提供 TLS 或可信
 VPN。启动后，从另一宿主终端检查 TCP 4096 的监听地址只等于所选 `<LAN_IP>`，不能是
-`0.0.0.0`、`::`、`*` 或其他接口地址；随后验证未认证访问失败、认证访问成功。任一后检
-失败时立即终止长期 attached session，并确认宿主端口已经关闭。这里有两个独立监听层：
+`0.0.0.0`、`::`、`*` 或其他接口地址；默认无密码模式验证未认证访问返回 `200`，设置密码时
+验证未认证访问失败、认证访问成功。任一后检失败时立即终止长期 attached session，并确认
+宿主端口已经关闭。这里有两个独立监听层：
 Sandbox 内 `serve --hostname 0.0.0.0` 是端口转发所需，宿主 `--publish` 则必须是显式
 loopback 或具体 LAN IPv4。省略宿主 IP 和宿主 `0.0.0.0` 在所有模式下都禁止。
 
-此 LAN 例外仅适用于 OpenCode Desktop，不改变其他 Sandbox 服务的 loopback-only 策略，
-也不允许关闭认证。
+此 LAN 例外仅适用于 OpenCode Desktop，不改变其他 Sandbox 服务的 loopback-only 策略。
 
 ## 5. Project-specific credential handling
 
