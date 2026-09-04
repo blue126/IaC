@@ -1,0 +1,53 @@
+---
+all:
+  vars:
+    ansible_connection: local
+    ansible_host: 127.0.0.1
+  hosts:
+    localhost:
+    anki:
+    caddy:
+    fileserver:
+    gateway:
+    homepage:
+    immich:
+    jenkins:
+    jenkins_agent:
+    llm-workstation:
+    llm-server:
+    mcp-gateway:
+    n8n:
+    netbox:
+    oracle-cloud-ubuntu2404:
+    pbs:
+    pve0:
+    rustdesk:
+    template-vm:
+  children:
+    bare_metal:
+      hosts:
+        ci-bare-metal:
+    esxi_hosts:
+      hosts:
+        ci-esxi-host:
+    esxi_vms:
+      hosts:
+        ci-esxi-vm:
+    network_appliance:
+      hosts:
+        ci-network-appliance:
+    oci:
+      hosts:
+        oracle-cloud-ubuntu2404:
+    proxmox_cluster:
+      hosts:
+        pve0:
+    pve_lxc:
+      hosts:
+        ci-pve-lxc:
+    pve_vms:
+      hosts:
+        ci-pve-vm:
+    tailscale:
+      hosts:
+        ci-tailscale:

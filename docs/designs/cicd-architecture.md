@@ -85,6 +85,43 @@ ansible-playbook playbooks/deploy-xxx.yml   # 又要等待...
 | HCP Terraform Cloud | 远程状态存储 | - |
 | GitHub | 代码仓库 | - |
 
+## GitHub PR CI 与 Jenkins CD 边界
+
+本仓库把合并前验证与合并后交付明确分离：GitHub Actions 负责无生产凭据、无外部写入的 PR CI；Jenkins 只在代码进入 `main` 后负责需要生产凭据的 plan、apply 与 deploy 流程。两条链路不能互相替代。
+
+```mermaid
+flowchart LR
+    PR[Pull Request] --> PRCI[GitHub repo-validation]
+    PRCI --> Review[人工或 AI Review]
+    Review --> Merge[Merge to main]
+    Merge --> Jenkins[Jenkins Pipeline]
+    Jenkins --> Plan[Terraform Plan]
+    Plan --> ApplyApproval{人工批准 Apply}
+    ApplyApproval --> Apply[Terraform Apply]
+    Apply --> DeployApproval{人工批准 Deploy}
+    DeployApproval --> Deploy[Ansible Deploy]
+```
+
+### `repo-validation` shadow CI
+
+`.github/workflows/repo-validation.yml` 在 PR 创建、重新打开、转为 ready for review 以及提交新 commit 时运行。Phase 1 的结果仅用于观察和校准，尚未加入 Ruleset required checks，因此失败不会改变当前合并权限。
+
+该 workflow：
+
+- 权限仅为 `contents: read`，checkout 不持久化凭据，也不映射 repository secrets。
+- 使用事件中显式的 base/head SHA 做三点 diff，不依赖 `HEAD~1`。
+- 对 Terraform、Ansible、文档、Hugo 与 Shell 变更运行适用检查；不适用项输出原因明确的 `not_applicable`。
+- 只执行 Terraform `fmt`、禁用 backend 的 `init` 和 `validate`，不执行 `plan` 或 `apply`。
+- 使用 CI-only Ansible inventory，不读取 Vault、Terraform state 或 SSH 身份，不连接 live hosts。
+- 对 workflow、Jenkinsfile、validation scripts、secret bridge 与部署审批相关变更仅报告 `human_required`；Phase 1 不自动修复或合并。
+- 不上传 Pages、不部署、不发布 artifact、不刷新生产 state，也不写入任何外部系统。
+
+PR job/check 名固定为 `repo-validation`。同一 PR 出现新 commit 时会取消旧运行，并针对新的 head SHA 重新验证。
+
+### Jenkins 保持合并后交付职责
+
+`main` push（包括 PR merge）继续触发 Jenkins。Jenkins 可以读取其受控凭据并生成 Terraform plan，但 Terraform Apply 与 Ansible Deploy 前的两个 `input` 人工审批点必须保留。PR CI 的成功不代表批准部署，GitHub 或 AI 自动化也不得代替 Jenkins 操作者确认任何生产写入。
+
 ## 系统架构
 
 ### 整体架构图
