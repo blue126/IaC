@@ -104,7 +104,7 @@ flowchart LR
 
 ### `repo-validation` shadow CI
 
-`.github/workflows/repo-validation.yml` 在 PR 创建、重新打开、转为 ready for review 以及提交新 commit 时运行。Phase 1 的结果仅用于观察和校准，尚未加入 Ruleset required checks，因此失败不会改变当前合并权限。
+`.github/workflows/repo-validation.yml` 在 PR 创建、重新打开以及提交新 commit 时运行，包括 Draft PR，以便尽早反馈确定性问题。Draft 转为 ready for review 不会改变 HEAD SHA，因此该事件不重复运行 validation。Phase 1 的结果仅用于观察和校准，尚未加入 Ruleset required checks，因此失败不会改变当前合并权限。
 
 该 workflow：
 
@@ -122,7 +122,7 @@ PR job/check 名固定为 `repo-validation`。同一 PR 出现新 commit 时会�
 
 Phase 2A 新增独立的 `ai-review-gate` shadow check，同时保留现有发布评论的 Claude reviewer。两次调用相互隔离：评论 reviewer 继续提供人类可读反馈，gate reviewer 不发布评论，只返回符合公共 governance runtime schema 的机器可读 verdict。这样可以先在真实 PR 中验证 structured output，而不会把评论文本误当作合并依据。
 
-Gate 对 `opened`、`synchronize`、`ready_for_review` 与 `reopened` 事件运行，并把 verdict 严格绑定到事件中的仓库、PR 编号和完整 head SHA。公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`；Claude Code Action 也固定到不可变 commit。`pass` 成功，`needs_fix`、`human_required`、畸形输出和陈旧 SHA 均 fail closed。
+两个 AI workflow 都监听 `opened`、`synchronize`、`ready_for_review` 与 `reopened`，但仅在 PR 非 Draft 时运行：直接创建 Ready PR 时在 `opened` 首次审查；Draft PR 在 `ready_for_review` 首次审查；Ready 后的新 commit 通过 `synchronize` 复审。Gate 把 verdict 严格绑定到事件中的仓库、PR 编号和完整 head SHA。公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`；Claude Code Action 也固定到不可变 commit。`pass` 成功，`needs_fix`、`human_required`、畸形输出和陈旧 SHA 均 fail closed。
 
 该阶段仍是观察模式：`ai-review-gate` 尚未加入 Ruleset required checks，不执行自动修复或自动合并。Gate 显式向 Claude Action 传入当前 job 的只读 GitHub token，从而允许新增 workflow 在合并前接受验证，而不申请 OIDC 或仓库写权限；模型凭据仍只使用现有 Claude OAuth token。现有评论 reviewer 继续通过 OIDC 获取短期 GitHub App token。checkout 不保留写凭据，Fork PR 不接收模型凭据，gate 明确失败并转人工处理。
 
