@@ -121,21 +121,23 @@ Pipeline stages: **Change Detection → Terraform Lint → Terraform Plan → An
 
 ### 1. Docker Sandboxes 环境
 
-先选择执行拓扑，并将 `TASK` 替换为唯一的 kebab-case 任务名。Direct mode 必须从已分配的 host task worktree 启动；clone mode 必须从 verified main checkout 启动。开始任何 Ansible SSH 操作前，先运行 `ssh-add -L`，确认输出中包含用于 Ansible 认证的已加载 SSH 公钥身份（public identity）。
+Playwright 在宿主通过 `sbx mcp` 全局注册。每个 Sandbox 默认使用 dynamic MCP Gateway，Agent 在需要浏览器时从全局注册表附加 `playwright`，无需项目配置或创建参数。
+
+将 `TASK` 替换为唯一的 kebab-case 任务名。Direct mode 必须从已分配的 host task worktree 启动；clone mode 必须从 verified main checkout 启动。开始任何 Ansible SSH 操作前，先运行 `ssh-add -L`，确认输出中包含用于 Ansible 认证的已加载 SSH 公钥身份（public identity）。
 
 ```bash
 # Direct mode
-sbx run --name iac-codex-TASK-direct-v120 --no-share-skills codex . --kit ./.sandbox-kit
-sbx run --name iac-claude-TASK-direct-v120 claude . --kit ./.sandbox-kit
-sbx run --name iac-opencode-TASK-direct-v120 opencode . --kit ./.sandbox-kit
+sbx run --name iac-codex-TASK-direct-v130 codex . --kit ./.sandbox-kit
+sbx run --name iac-claude-TASK-direct-v130 claude . --kit ./.sandbox-kit
+sbx run --name iac-opencode-TASK-direct-v130 opencode . --kit ./.sandbox-kit
 
 # Clone mode: --clone is fixed when the sandbox is first created
-sbx run --clone --name iac-codex-TASK-clone-v120 --no-share-skills codex . --kit ./.sandbox-kit
-sbx run --clone --name iac-claude-TASK-clone-v120 claude . --kit ./.sandbox-kit
-sbx run --clone --name iac-opencode-TASK-clone-v120 opencode . --kit ./.sandbox-kit
+sbx run --clone --name iac-codex-TASK-clone-v130 codex . --kit ./.sandbox-kit
+sbx run --clone --name iac-claude-TASK-clone-v130 claude . --kit ./.sandbox-kit
+sbx run --clone --name iac-opencode-TASK-clone-v130 opencode . --kit ./.sandbox-kit
 
 # OpenCode Desktop server
-sbx run --name iac-opencode-desktop-TASK-v120 \
+sbx run --name iac-opencode-desktop-TASK-v130 \
   --publish 127.0.0.1:4096:4096 \
   opencode . --kit ./.sandbox-kit \
   -- serve --hostname 0.0.0.0 --port 4096
@@ -143,16 +145,7 @@ sbx run --name iac-opencode-desktop-TASK-v120 \
 
 Direct mode 直接挂载整个主机工作区，因此也会读取被 Git 忽略的 `ansible/.vault_pass` 和已生成的 Terraform tfvars。仓库工作区中严禁存放 `.ssh` 私钥：它们会随 direct mode 暴露给 sandbox。SSH 私钥只能由宿主 SSH agent 管理，并通过转发供 sandbox 使用。Clone mode 使用私有 clone；如需上述未追踪文件，必须从 `/run/sandbox/source` 手动复制所需文件，且不得输出其内容。
 
-Codex 的 sandbox-local Playwright MCP 由项目 `.codex/config.toml` 配置。首次进入新 sandbox 时，先将 IaC 项目标记为 trusted，再运行 `codex mcp list`，确认本地 `playwright` 使用 `iac-playwright-mcp` 且初始化成功。Untrusted project 会跳过 `.codex/config.toml`，此时不得假定 Playwright MCP 已加载。`--no-share-skills` 是 sandbox 创建级配置，现有 sandbox 不能原地切换；需要新建或在单独授权后重建。
-
-如果首次启动没有出现 trust 提示，在 Sandbox 的 `$CODEX_HOME/config.toml` 中加入当前绝对工作区路径：
-
-```toml
-[projects."/absolute/path/to/IaC"]
-trust_level = "trusted"
-```
-
-重建 Sandbox 后该 engine-managed 配置可能被重写，因此每次创建都要重新检查 trust。先运行 `sbx ls`；如果目标名称已指向旧实例，使用包含任务名和 Kit 版本的新名称完成验证，除非用户另行授权替换旧实例。
+Playwright 不再由项目级 Agent 配置直接启动。先运行 `sbx mcp ls`，确认宿主全局注册的 `playwright` 为 `ready`。未传 `--static-mcp` 的 Sandbox 使用 dynamic mode，Agent 可通过 Gateway 的发现与附加工具按需启用；宿主也可运行 `sbx mcp load playwright --sandbox <name>`，绑定会跨重启保留。
 
 ### Git 与 host worktree 边界
 
@@ -162,7 +155,7 @@ trust_level = "trusted"
 
 因此，当前 linked-worktree smoke 中的 `No Git` 是 Docker 的预期 host-worktree 限制，不是迁移缺陷；正式验收在 main checkout 中进行即可。参见 [Docker host worktree Git 边界](https://docs.docker.com/ai/sandboxes/workflows/git/) 与 [Docker Sandboxes clone mode 限制](https://docs.docker.com/ai/sandboxes/usage/)。
 
-前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。OpenCode Desktop server 命令必须保持在长期 attached terminal/session 中运行；`--detached` 只会创建/启动 microVM，不会启动 agent server。Playwright MCP 与 headless Chromium 均在 microVM 内运行。Claude Code 和 OpenCode 继续使用各自的项目配置。
+前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。宿主 Playwright 通过发布后的 `127.0.0.1:<host-port>` 访问服务，用户可以直接观察同一个浏览器窗口。OpenCode Desktop server 命令必须保持在长期 attached terminal/session 中运行；`--detached` 只会创建/启动 microVM，不会启动 agent server。
 
 ### Project-Specific Credential Handling
 
@@ -170,7 +163,7 @@ OCI 凭据注入是 IaC 项目要求，不是 Docker Sandbox 的 topology 或 Ag
 
 ```bash
 test -d "${HOME}/.oci" || { echo 'OCI credentials directory is missing; stop and ask the user to restore or provide approved OCI credentials.' >&2; exit 1; }
-sbx run --name iac-codex-TASK-oci-v120 --no-share-skills codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
+sbx run --name iac-codex-TASK-oci-v130 codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
 ```
 
 目录不存在时必须停止或跳过 OCI Sandbox 创建，并请求用户恢复或提供已批准的 OCI credentials。不得创建空目录、搜索替代私钥位置或使用可写挂载。只读挂载允许 Sandbox 进程读取 OCI API 私钥，但禁止修改。修改 Kit 后需要重新创建 Sandbox；只有 `sbx kit add` 明确支持的变更例外。

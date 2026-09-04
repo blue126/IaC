@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "iac-playwright-mcp"
-    }
-  }
-}

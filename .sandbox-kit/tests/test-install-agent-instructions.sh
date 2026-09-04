@@ -41,7 +41,7 @@ for target in "${targets[@]}"; do
   [[ "$(grep -Fc 'vendor-policy:' "$target")" == "1" ]]
   [[ "$(grep -Fxc '<!-- BEGIN IAC SANDBOX RULES -->' "$target")" == "1" ]]
   [[ "$(grep -Fxc '<!-- END IAC SANDBOX RULES -->' "$target")" == "1" ]]
-  [[ "$(grep -Fc 'iac-sandbox-v1.2.0' "$target")" == "1" ]]
+  [[ "$(grep -Fc 'iac-sandbox-v1.3.0' "$target")" == "1" ]]
   diff -u "$source_file" <(
     awk '
       $0 == "<!-- BEGIN IAC SANDBOX RULES -->" { inside = 1; next }
@@ -51,14 +51,14 @@ for target in "${targets[@]}"; do
   )
 done
 
-sed -i.bak 's/iac-sandbox-v1\.2\.0/iac-sandbox-v1\.1\.0/' "${targets[0]}"
+sed -i.bak 's/iac-sandbox-v1\.3\.0/iac-sandbox-v1\.2\.0/' "${targets[0]}"
 rm -f "${targets[0]}.bak"
 run_installer
-if grep -Fq 'iac-sandbox-v1.1.0' "${targets[0]}"; then
+if grep -Fq 'iac-sandbox-v1.2.0' "${targets[0]}"; then
   echo 'Installer did not replace the old ruleset marker' >&2
   exit 1
 fi
-grep -Fq 'iac-sandbox-v1.2.0' "${targets[0]}"
+grep -Fq 'iac-sandbox-v1.3.0' "${targets[0]}"
 
 printf '%s\n' '<!-- BEGIN IAC SANDBOX RULES -->' >> "${targets[1]}"
 before_checksums="$(cksum "${targets[@]}")"

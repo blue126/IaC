@@ -3,6 +3,10 @@
 > 本文记录迁移决策与历史实施边界。当前职责模型见
 > [Docker Sandbox Agent Architecture](docker-sandbox-agent-architecture.md)。
 
+> 2026-09-04 后续决策：Playwright 已改为宿主 `sbx mcp` 全局注册，并通过默认 dynamic Sandbox MCP
+> Gateway 提供可见浏览器；项目级 adapter 和 sandbox-local headless 实现已移除。
+> 本文后续相关章节仅保留为历史决策记录，不代表当前运行方式。
+
 ## 1. 背景与目标
 
 本项目当前使用根目录 `.devcontainer/` 提供 Terraform、Ansible、Python、Codex、Claude Code、OpenCode 和 Playwright 工具链。该方案依赖 devcontainer CLI、Docker Desktop bind mount、宿主机 MCP Gateway、宿主机可见 Chrome，以及为 OpenCode Desktop 维护的同路径双重挂载。

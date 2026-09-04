@@ -1,6 +1,6 @@
 # IaC Docker Sandbox Instructions
 
-Ruleset: `iac-sandbox-v1.2.0`
+Ruleset: `iac-sandbox-v1.3.0`
 
 These instructions apply only inside an IaC Docker Sandbox. The repository `AGENTS.md` remains authoritative for project conventions, workflow ownership, and external-write authorization.
 
@@ -56,6 +56,7 @@ These instructions apply only inside an IaC Docker Sandbox. The repository `AGEN
 
 ## Agent runtime notes
 
-- Codex loads project `.codex/config.toml` only after the IaC project is trusted; verify trust and `codex mcp list` in each new Sandbox.
+- Host-managed MCP servers are globally registered with `sbx mcp` and exposed through the Docker Sandbox MCP gateway.
+- When browser automation is needed, use the gateway's dynamic discovery and attach the registered `playwright` server. Never add a project-local Playwright MCP adapter.
 - Claude Code loads the project `CLAUDE.md`, which imports the repository `AGENTS.md`.
 - OpenCode loads the repository `AGENTS.md`; do not rely on the OpenCode V2 `instructions` array to load active instructions.
