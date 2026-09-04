@@ -1,14 +1,15 @@
 ---
-# Host-decoupled variant of ansible/roles/qwen3-tts for llm-workstation.
-# That role (and the unmerged codex/qwen3-tts-speech-central-shim draft this
-# is based on) is pinned to llm-server (192.168.1.247) and asserts
-# qwen36.service coexistence -- neither applies to this fresh host.
+# Qwen3-TTS on llm-workstation. The implementation came from the unmerged
+# codex/qwen3-tts-speech-central-shim draft (PR #13, closed as superseded) and
+# from the same-named role that lived on llm-server; both were pinned to that
+# host at 192.168.1.247 and asserted coexistence with qwen36.service. That host
+# and its role are gone, and neither constraint survives here.
 qwen3_tts_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-Base
 qwen3_tts_base_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-Base
 qwen3_tts_mode: base
 qwen3_tts_voice_design_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
 qwen3_tts_backend: vllm_omni
-# GPU1, same ordinal as llm-server uses.
+# GPU1, the same ordinal the retired llm-server used.
 #
 # This host's first SFF-8654 cable to GPU1 was faulty: the card reported PCIe
 # non-fatal errors (GPU0 did not) and under load stage 0 wedged inside a CUDA
