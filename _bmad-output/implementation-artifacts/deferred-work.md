@@ -7,7 +7,7 @@
   note: 原条目表述为"统一入口同时执行 common、Tailscale 和服务 role"，方向相反——那会把已分对的层次重新搅浑。另：先前统计"6 个 playbook 缺 common、8 个缺 tailscale"不可直接当作遗漏清单，其中 open-webui-gateway（网关无 Python）、anki-oci 与 unified-proxy（OCI 静态 inventory）、jenkins-agent（与 jenkins 同机）都是有意为之。可选做法：把基线并入 `site.yml`（爆炸半径从 16 台升到 16+15 台，且引入可能重启 LXC 的逻辑），或维持约定并在新节点检查中断言"在 tailscale 组却未连上"。
 - source_spec: `terraform/README.md`
   summary: 把 pve1 上的 Proxmox Backup Server import 进 Terraform，使其重新进入动态 inventory。
-  evidence: `a0e5692` 把 PBS 从 ESXi 迁到 pve1 并删除了 `terraform/esxi/pbs.tf`，提交信息明确记录"The backup server on pve1 has no Terraform definition yet"。因此 `ansible pbs --list-hosts` 匹配不到任何主机，而 `ansible/roles/pbs`、`roles/pbs-client`、`deploy-pbs.yml`、`setup-pbs-backup.yml` 四者仍在仓库中，目前是指向不存在目标的孤儿。补主机基线（common/tailscale）在 import 之前没有意义。
+  evidence: `b438075` 把 PBS 从 ESXi 迁到 pve1 并删除了 `terraform/esxi/pbs.tf`，提交信息明确记录"The backup server on pve1 has no Terraform definition yet"。因此 `ansible pbs --list-hosts` 匹配不到任何主机，而 `ansible/roles/pbs`、`roles/pbs-client`、`deploy-pbs.yml`、`setup-pbs-backup.yml` 四者仍在仓库中，目前是指向不存在目标的孤儿。补主机基线（common/tailscale）在 import 之前没有意义。
   note: import 的是一台在跑的生产备份机，plan 写错可能提议重建，需谨慎并单独授权。
 - source_spec: `_bmad-output/implementation-artifacts/spec-enable-tailscale-on-n8n.md`
   summary: 为包含 Proxmox snapshot 区段的 LXC 设计安全的 TUN 配置管理和重复执行验证。
