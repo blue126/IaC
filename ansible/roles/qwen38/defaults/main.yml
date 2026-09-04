@@ -10,8 +10,9 @@
 qwen38_install_dir: /opt/qwen38
 
 # llama.cpp mainline build. Produced by scripts/llama-cpp-mainline-build.sh,
-# which must run on the host before this role (same out-of-band build step the
-# DeepSeek and Qwen3.6 roles rely on -- Ansible only verifies the artifact).
+# which must run on the host before this role (the same out-of-band build step
+# the retired DeepSeek and Qwen3.6 roles used -- Ansible only verifies the
+# artifact, it does not build it).
 # Not under /opt/deepseek-v4-mainline as on llm-server: this host never ran
 # DeepSeek, so the path carries no model name.
 qwen38_runtime_root: /opt/llama-cpp-mainline
@@ -75,8 +76,9 @@ qwen38_presence_penalty: 1.5
 # right trade for agent traffic: every turn waits on decode, while prefill is
 # mostly served from the prompt cache after the first turn.
 #
-# n_max is untuned beyond this. The DeepSeek work on llm-server found its
-# optimum at 2 and a regression at 3, so that is where this starts.
+# n_max is untuned beyond this. The DeepSeek work on the retired llm-server
+# had found its optimum at 2 and a regression at 3, so that is where this
+# starts.
 qwen38_spec_type: draft-mtp
 qwen38_spec_draft_n_max: 2
 
