@@ -43,16 +43,16 @@
   evidence: `_parse_hunks` 用 `"\n".join(current_lines) + "\n"` 重建 hunk 文本，丢弃原始行尾并无条件补尾换行，`\ No newline at end of file` 这类元数据行也会混入内容。整套设计以 sha256 作为溯源凭证，而这个哈希哈的是重建产物而非真实 diff。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 为 `contains_secret()` 补上本仓库实际使用的密钥形态，并把测试哨兵移出生产脱敏逻辑。
-  evidence: 当前只有 `SECRET_SENTINEL`、PRIVATE KEY header、AKIA、GitHub PAT 四类模式。本仓库以 Ansible Vault 为唯一密钥来源，却没有 `$ANSIBLE_VAULT;1.1;AES256` header 与 `vault_*` 赋值的模式；同时把测试哨兵硬编码进生产脱敏逻辑，使仓库里长期存在一个会被自家工具判为含密的 fixture 文件。
+  evidence: 当前只有 `SECRET_SENTINEL`、PRIVATE KEY header、AKIA、GitHub PAT 四类模式。本仓库以 Ansible Vault 为唯一密钥来源，却没有 `$ANSIBLE_VAULT;1.1;AES256` header 与 `vault_*` 赋值的模式；同时把测试哨兵硬编码进生产脱敏逻辑，使仓库里长期存在一个会被自家工具判为含密的 fixture 文件。**此条已升级为阻塞项**：`spec-doc-gardening-agent` 采纳 A3 与 B1 后，V1 会持有 HCP、NetBox、Proxmox 只读凭据并通过 Ansible 登入 guest，脱敏缺口必须在任何持凭据的 collector 运行之前补上。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 给离线 evaluator 补 `edit_proposal` 类型的黄金用例，并为 schema 加规模上界。
-  evidence: `expectations.json` 的 10 个用例全是 `claim_candidates`，而提案是唯一会产生可应用文本改动的产物，其接受/拒绝行为从未被离线验证。schema 侧 `candidates` 无 `maxItems`、`quote`/`find`/`replace` 无 `maxLength`，模型返回超大数组或超长替换会被照单全收。
+  evidence: `expectations.json` 的 11 个用例全是 `claim_candidates`，而提案是唯一会产生可应用文本改动的产物，其接受/拒绝行为从未被离线验证。schema 侧 `candidates` 无 `maxItems`、`quote`/`find`/`replace` 无 `maxLength`，模型返回超大数组或超长替换会被照单全收。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 让 `--confirm-live` 成为真正的人工确认，并与 `--live` 建立互斥校验。
   evidence: 同一条命令行上的一个 flag 不构成人工确认——脚本化调用可以一次性带上 `--live --confirm-live`。另外 `--confirm-live` 可在不带 `--live` 时静默传入，没有任何校验。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 补 `tools/doc-gardening/` 的使用文档，并把 `tools/` 与 `tests/` 加进 AGENTS.md 的 Repository Structure。
-  evidence: 新增 5 个脚本、4 份 schema、2 份 prompt，没有 README，`docs/designs/` 下也没有对应设计文档；AGENTS.md 的目录树至今没有 `tools/` 和 `tests/` 两项，Key Commands 也没有任何 doc-gardening 条目。测试文件名 `doc-gardening-test.py` 不匹配 `unittest discover` 默认的 `test*.py`，怎么跑只能靠猜。
+  evidence: 新增 5 个脚本、4 份 schema、2 份 prompt，没有 README，`docs/designs/` 下也没有对应设计文档；AGENTS.md 的目录树至今没有 `tools/` 和 `tests/` 两项，Key Commands 也没有任何 doc-gardening 条目。测试文件名 `doc-gardening-test.py` 不匹配 `unittest discover` 默认的 `test*.py`；`.github/workflows/doc-accuracy.yml` 现已写明两条运行命令，但仓库文档里仍无处可查。
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 让 `validate_manifest_repository()` 从指定 revision 重建 diff，逐项比对 hunks 与 span-to-hunk 关系，而不是只核对文件哈希与 span quote。
   evidence: 当前校验只确认 manifest 自洽——篡改者改掉 hunk 文本后重算 hunk SHA 与 `manifest_sha256` 即可通过，任意内容因此可以进入交给 live 模型的封闭输入。Codex 在 PR #18 判为 P1 并复现过。这是"manifest 只做到自洽、从未从仓库重新推导"的一半。
