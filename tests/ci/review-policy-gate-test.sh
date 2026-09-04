@@ -162,7 +162,7 @@ assert_file_contains "${WORKFLOW}" "validate-review-verdict.sh"
 assert_file_contains "${WORKFLOW}" "persist-credentials: false"
 assert_file_contains "${WORKFLOW}" "not a required check"
 assert_count "${WORKFLOW}" 'uses: anthropics/claude-code-action@' 1
-assert_count "${WORKFLOW}" '^[[:space:]]+github_token:' 0
+assert_count "${WORKFLOW}" '^[[:space:]]+github_token:[[:space:]]+\$\{\{ github\.token \}\}' 1
 
 claude_job="$({
   sed -n '/^  claude-review:/,/^  review-policy-gate:/p' "${WORKFLOW}"
