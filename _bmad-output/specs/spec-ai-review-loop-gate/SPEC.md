@@ -2,6 +2,7 @@
 id: SPEC-ai-review-loop-gate
 status: done
 baseline_commit: d9cd1c8c0c8b095a6309745b68bc3f66704199d4
+current_phase: phase-2b-review-consolidation-complete
 companions:
   - state-machines.md
   - validation-matrix.md
@@ -30,7 +31,7 @@ IaC 已有 Claude PR review 和合并后 Jenkins 流程，但缺少当前 SHA �
   - **success:** 每次修复普通 push 都产生新的 `synchronize` 审查，循环在通过、三轮上限或安全停止条件之一结束。
 - **CAP-3**
   - **intent:** IaC 为 Claude 对当前 SHA 的结构化结论发布 required check。
-  - **success:** `ai-review-gate` 仅在审查成功、`reviewed_sha` 等于当前 HEAD 且不存在 actionable finding 时通过。
+  - **success:** `review-policy-gate` 仅在唯一一次 Claude 审查成功、`reviewed_sha` 等于当前 HEAD 且不存在 blocking finding 时通过。
 - **CAP-4**
   - **intent:** GitHub 只自动合并通过代码、审查、信任和分支规则的普通 IaC 变更。
   - **success:** 当前 SHA 的两个 gate 和 Ruleset 满足后执行 squash auto-merge；治理敏感路径始终等待人工确认。
@@ -46,7 +47,7 @@ IaC 已有 Claude PR review 和合并后 Jenkins 流程，但缺少当前 SHA �
 - IaC 以薄 caller workflow 引用 public reusable workflow 的 immutable commit SHA；项目专属 adapter、敏感路径策略与 secrets 显式保留在本仓库。
 - 空项目或未配置 adapter 的状态必须是 `validation: pending` 且禁止 auto-merge；不得使用永远成功的占位检查。
 - 禁止使用 `pull_request_target` 执行 PR head；写凭据仅处理 owner/allowlist 创建的同仓库可信任务分支和不可变 SHA。
-- reviewer 使用现有 Claude GitHub App；fixer 使用 Claude Code Action 和独立最小权限 Fixer App，不使用默认 `GITHUB_TOKEN` 推送。
+- 自动 reviewer 每个 PR HEAD 只调用一次 Claude Code Action；模型只读，结构化 verdict 由确定性步骤渲染为评论并交给独立 `review-policy-gate` 校验。fixer 使用独立最小权限 Fixer App，不使用默认 `GITHUB_TOKEN` 推送。
 - 自动循环最多三轮；重复 finding 指纹、冲突、验证失败、治理敏感路径、不可修复结论或权限异常必须 fail closed。
 - PR validation 不得 deploy、publish、apply、push image、release、读取生产 secrets、刷新动态生产 state 或写入外部系统。
 - `.github/workflows/**`、`Jenkinsfile`、validation/gate/bootstrap 配置及 secret/部署审批相关文件禁止 AI 自动修复和自动合并。
@@ -62,43 +63,36 @@ IaC 已有 Claude PR review 和合并后 Jenkins 流程，但缺少当前 SHA �
 
 ## Success signal
 
-一个可信的普通 IaC PR 无需人工对话即可在最多三轮内完成逐 SHA 验证、Claude 审查、修复和复审；当前 SHA 的 `repo-validation` 与 `ai-review-gate` 通过后自动 squash merge。治理敏感变更仍等待人工确认，任何合并触发的 Jenkins 流程仍在 Apply 与 Deploy 前停于人工输入。
+一个可信的普通 IaC PR 无需人工对话即可在最多三轮内完成逐 SHA 验证、Claude 审查、修复和复审；当前 SHA 的 `repo-validation` 与 `review-policy-gate` 通过后自动 squash merge。治理敏感变更仍等待人工确认，任何合并触发的 Jenkins 流程仍在 Apply 与 Deploy 前停于人工输入。
 
 ## Assumptions
 
-- Anthropic review workflow 能同时发布 PR 评论与符合 schema 的结构化结果；实施前用代表性 PR 验证。
+- Claude Code Action 能在一次只读调用中稳定返回符合有界 schema 的 verdict；评论由确定性 renderer 从同一 verdict 生成，不解析自然语言评论。
+- 官方 `/code-review --comment` plugin 会在 PR 已有 Claude 评论时跳过，且其自然语言终端输出不构成 gate 合同，因此不用于逐 SHA 自动循环。
 - Public reusable workflow 在 public 与 private consumer 中都能保持正确的 secret、permission 和 check provenance；实施前使用 fixture 验证。
 
 ## Suggested Review Order
 
-**PR entry point and permission boundary**
+**Single-call review path**
 
-- Start with the read-only shadow workflow and explicit PR SHA handoff.
-  [`repo-validation.yml:1`](../../../.github/workflows/repo-validation.yml#L1)
+- One read-only Claude call exports the bounded verdict for the current HEAD.
+  [`claude-review.yml:15`](../../../.github/workflows/claude-review.yml#L15)
 
-- Confirm CI and post-merge Jenkins responsibilities remain separate.
-  [`cicd-architecture.md:88`](../../../docs/designs/cicd-architecture.md#L88)
+- Fail-closed policy job validates identity before rendering or evaluating.
+  [`claude-review.yml:93`](../../../.github/workflows/claude-review.yml#L93)
 
-**Classification and aggregation**
+- Sanitized, SHA-marked comments update idempotently without becoming gate input.
+  [`claude-review.yml:154`](../../../.github/workflows/claude-review.yml#L154)
 
-- Review fail-closed three-dot classification and conservative Terraform fan-out.
-  [`classify-pr.sh:41`](../../../scripts/ci/classify-pr.sh#L41)
+**Independent contract enforcement**
 
-- Trace validation dispatch, output validation, and visible governance warnings.
-  [`validate-repository.sh:19`](../../../scripts/ci/validate-repository.sh#L19)
+- Read-only repository CI independently runs the review workflow contract.
+  [`repo-validation.yml:55`](../../../.github/workflows/repo-validation.yml#L55)
 
-**Technology-specific validation**
+- Runtime fixtures, permissions, shell extraction, and API stubs guard the data flow.
+  [`review-policy-gate-test.sh:143`](../../../tests/ci/review-policy-gate-test.sh#L143)
 
-- Verify backend-disabled Terraform initialization never reaches plan or apply.
-  [`validate-terraform.sh:31`](../../../scripts/ci/validate-terraform.sh#L31)
+**Architecture record**
 
-- Verify Ansible excludes Vault and uses only the CI inventory.
-  [`validate-ansible.sh:26`](../../../scripts/ci/validate-ansible.sh#L26)
-
-- Verify documentation build remains local and never publishes Pages.
-  [`validate-documentation.sh:20`](../../../scripts/ci/validate-documentation.sh#L20)
-
-**Contract and policy evidence**
-
-- Finish with classification, failure-propagation, permission, and Jenkins gate fixtures.
-  [`repo-validation-test.sh:55`](../../../tests/ci/repo-validation-test.sh#L55)
+- Phase 2B supersedes the dual-call shadow while leaving enforcement unchanged.
+  [`cicd-architecture.md:121`](../../../docs/designs/cicd-architecture.md#L121)

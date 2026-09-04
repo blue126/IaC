@@ -52,6 +52,18 @@ jobs:
       - name: Run validation contract tests
         run: tests/ci/repo-validation-test.sh
 
+      - name: Check out governance runtime
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: blue126/agent-project-bootstrap
+          ref: 3c6e3ada5ebe3790b9bbecf44c594ffa03be716e
+          path: .governance-runtime
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run review policy gate contract tests
+        run: tests/ci/review-policy-gate-test.sh .governance-runtime
+
       - name: Validate repository
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
