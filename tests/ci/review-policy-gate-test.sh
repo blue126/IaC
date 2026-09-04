@@ -172,9 +172,9 @@ gate_job="$(sed -n '/^  review-policy-gate:/,$p' "${WORKFLOW}")"
 if grep -Eq 'id-token:[[:space:]]*write|[[:space:]][a-z-]+:[[:space:]]*write' <<< "${claude_job}"; then
   fail "Claude review job must not have OIDC or GitHub write permission"
 fi
-grep -Fq "issues: write" <<< "${gate_job}" || fail "deterministic renderer must have issue comment permission"
-if grep -Eq 'CLAUDE_CODE_OAUTH_TOKEN|id-token:[[:space:]]*write|contents:[[:space:]]*write|pull-requests:[[:space:]]*write|actions:[[:space:]]*write|checks:[[:space:]]*write' <<< "${gate_job}"; then
-  fail "review-policy-gate must receive only the documented issue comment write permission"
+grep -Fq "pull-requests: write" <<< "${gate_job}" || fail "deterministic renderer must have PR comment permission"
+if grep -Eq 'CLAUDE_CODE_OAUTH_TOKEN|id-token:[[:space:]]*write|contents:[[:space:]]*write|issues:[[:space:]]*write|actions:[[:space:]]*write|checks:[[:space:]]*write' <<< "${gate_job}"; then
+  fail "review-policy-gate must receive only the documented pull-request comment write permission"
 fi
 
 if grep -Eq '^[[:space:]]*uses:' "${WORKFLOW}" && \

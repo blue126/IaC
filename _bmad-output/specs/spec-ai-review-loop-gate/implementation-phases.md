@@ -78,7 +78,7 @@
    - Claude job 只读 PR 内容且恰好调用一次 SHA-pinned Claude Action；schema 限制 finding 数量和字段长度。
    - job output 仅通过 environment 交给 renderer/gate；空、redacted 或上游失败一律 fail closed。
    - renderer 不解析自然语言评论，以 HEAD marker 幂等创建或更新摘要；模型无 GitHub write tool。
-   - gate job 使用 `if: always()`，不持有模型凭据或 OIDC；它只获得 renderer 所需的 `issues: write`，先校验上游结果和绑定当前 repo/PR/full HEAD SHA 的 verdict，再发布评论并执行 policy 判定。
+   - gate job 使用 `if: always()`，不持有模型凭据或 OIDC；它只获得 renderer 所需的 `pull-requests: write` 来发布 PR 评论，先校验上游结果和绑定当前 repo/PR/full HEAD SHA 的 verdict，再执行 policy 判定。
 2. `tests/ci/review-policy-gate-test.sh`
    - 保留 evaluator 的 pass、needs_fix、human_required、stale SHA 和 malformed fixtures。
    - 断言单 workflow、单 Claude Action、两个稳定 job 名、job output、`needs`/`always()`、权限边界、immutable pins 和旧 workflow 已移除。

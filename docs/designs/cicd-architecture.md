@@ -124,7 +124,7 @@ Phase 2B 将 Phase 2A 的两个自动 AI workflow 收敛为单一 `Claude Review
 
 workflow 监听 `opened`、`synchronize`、`ready_for_review` 与 `reopened`，所有 job 仅在 PR 非 Draft 时运行：直接创建 Ready PR 时在 `opened` 首次审查；Draft PR 在 `ready_for_review` 首次审查；Ready 后的新 commit 通过 `synchronize` 复审。同一 PR 的新事件会取消旧 run。Fork PR 在模型步骤前明确失败，不获得模型凭据。
 
-模型只能读取 checkout 和执行受限的本地 Git 命令；Claude Action 显式接收当前 job 的只读 `github.token`，不申请 OIDC、GitHub write tool 或可持久化 checkout 凭据。`review-policy-gate` 不 checkout 或执行 PR head 代码，也不持有 Claude 凭据或 OIDC；它仅为确定性 renderer 获得 `issues: write`，先用固定 runtime 校验上游 job/conclusion、仓库、PR 编号和完整 HEAD SHA，再创建或更新带完整 HEAD marker 的评论并执行 policy 判定。上游失败、空输出、GitHub redaction、畸形 JSON、身份不匹配、陈旧 SHA、`needs_fix` 与 `human_required` 都 fail closed。
+模型只能读取 checkout 和执行受限的本地 Git 命令；Claude Action 显式接收当前 job 的只读 `github.token`，不申请 OIDC、GitHub write tool 或可持久化 checkout 凭据。`review-policy-gate` 不 checkout 或执行 PR head 代码，也不持有 Claude 凭据或 OIDC；它仅为确定性 renderer 获得 `pull-requests: write` 来创建或更新 PR 评论，先用固定 runtime 校验上游 job/conclusion、仓库、PR 编号和完整 HEAD SHA，再发布带完整 HEAD marker 的评论并执行 policy 判定。上游失败、空输出、GitHub redaction、畸形 JSON、身份不匹配、陈旧 SHA、`needs_fix` 与 `human_required` 都 fail closed。
 
 公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`，Claude Code Action 和 checkout 也固定到完整 commit SHA。该阶段仍是观察模式：`review-policy-gate` 尚未加入 Ruleset required checks，不配置 Fixer、自动合并或 GitHub 设置，也不改变 Jenkins。
 
