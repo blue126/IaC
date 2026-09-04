@@ -124,7 +124,7 @@ Phase 2A 新增独立的 `ai-review-gate` shadow check，同时保留现有发�
 
 Gate 对 `opened`、`synchronize`、`ready_for_review` 与 `reopened` 事件运行，并把 verdict 严格绑定到事件中的仓库、PR 编号和完整 head SHA。公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`；Claude Code Action 也固定到不可变 commit。`pass` 成功，`needs_fix`、`human_required`、畸形输出和陈旧 SHA 均 fail closed。
 
-该阶段仍是观察模式：`ai-review-gate` 尚未加入 Ruleset required checks，不执行自动修复或自动合并。workflow 的 GitHub 仓库权限仅允许读取代码、PR 和 issue；`id-token: write` 仅供 Claude Action 获取短期 GitHub App token，模型凭据仍只使用现有 Claude OAuth token。checkout 不保留写凭据。Fork PR 不接收模型凭据，gate 明确失败并转人工处理。
+该阶段仍是观察模式：`ai-review-gate` 尚未加入 Ruleset required checks，不执行自动修复或自动合并。Gate 显式向 Claude Action 传入当前 job 的只读 GitHub token，从而允许新增 workflow 在合并前接受验证，而不申请 OIDC 或仓库写权限；模型凭据仍只使用现有 Claude OAuth token。现有评论 reviewer 继续通过 OIDC 获取短期 GitHub App token。checkout 不保留写凭据，Fork PR 不接收模型凭据，gate 明确失败并转人工处理。
 
 ### Jenkins 保持合并后交付职责
 

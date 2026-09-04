@@ -20,7 +20,6 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-      id-token: write
     steps:
       - name: Reject unsupported fork pull requests
         if: github.event.pull_request.head.repo.full_name != github.repository
@@ -58,6 +57,7 @@ jobs:
         uses: anthropics/claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           prompt: |
             Perform an independent, read-only code review of pull request
             ${{ github.repository }}#${{ github.event.pull_request.number }} at exactly

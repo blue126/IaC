@@ -92,12 +92,11 @@ assert_file_contains "${WORKFLOW}" "repository: blue126/agent-project-bootstrap"
 assert_file_contains "${WORKFLOW}" "ref: 3c6e3ada5ebe3790b9bbecf44c594ffa03be716e"
 assert_file_contains "${WORKFLOW}" "uses: anthropics/claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2"
 assert_file_contains "${WORKFLOW}" 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'
+assert_file_contains "${WORKFLOW}" 'github_token: ${{ github.token }}'
 assert_file_contains "${WORKFLOW}" "persist-credentials: false"
-assert_file_contains "${WORKFLOW}" "id-token: write"
 assert_file_contains "${WORKFLOW}" "not a required check"
 
-if grep -E 'pull_request_target|[[:space:]][a-z-]+:[[:space:]]*write' "${WORKFLOW}" | \
-  grep -Ev '^[[:space:]]*id-token:[[:space:]]*write([[:space:]]*(#.*)?)?$' | grep -q .; then
+if grep -E 'pull_request_target|[[:space:]][a-z-]+:[[:space:]]*write' "${WORKFLOW}" | grep -q .; then
   fail "AI review gate must not use pull_request_target or GitHub write permissions"
 fi
 
