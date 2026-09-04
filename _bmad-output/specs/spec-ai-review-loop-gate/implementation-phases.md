@@ -64,7 +64,7 @@
 - PR #29、#30 验证绑定当前 HEAD 的 structured verdict；PR #32 验证 Draft → Ready 与 `synchronize` 触发行为。
 - 该过渡阶段保留评论 reviewer 与独立 structured reviewer，因此每个 HEAD 有两次 Claude 调用。
 
-## Phase 2B — Single review and policy gate（当前）
+## Phase 2B — Single review and policy gate（完成）
 
 ### Scope
 
@@ -93,16 +93,24 @@
 - **AC-P2B-4:** Given pass、needs_fix 或 human_required verdict，when renderer运行，then它只从该 JSON 幂等创建/更新当前 SHA 评论，不把评论文本作为 gate 输入。
 - **AC-P2B-5:** Given governance-sensitive workflow 变更，when Phase 2B 合入，then它仍处于 shadow，Ruleset、auto-merge、Fixer 和 Jenkins 行为均不变。
 
-## Phase 2C — One-round repair
+### Phase evidence
 
-- 安装独立 Fixer App，只允许一次自动修复，验证普通 push 会触发新的 `synchronize` validation/review。
+- PR #33 的最终 HEAD `5de855a1a159e8dc9600968d8e2f9aa967346629` 上，`claude-review` 与 `review-policy-gate` 均成功。
+- 同一 HEAD 重跑保持 marker 评论数量为 1、评论节点 ID 不变且更新时间推进，证明 renderer PATCH 原评论而非新增重复评论。
+- 首次 OIDC 失败通过显式只读 `github.token` 修复；评论 403 通过将 policy job 精确收窄为 `pull-requests: write` 修复。
+
+## Phase 2C — Dedicated fixer（延后，可选）
+
+- 不作为 enforcement 或 auto-merge 的前置条件。
+- 如未来恢复，安装独立 Fixer App，先只允许一次自动修复，并验证普通 push 会触发新的 `synchronize` validation/review。
 
 ## Phase 3 — Enforcement and merge
 
-- 将自动修复扩展到最多三轮，并启用重复 fingerprint、冲突、含糊结论和 permission stop guards。
+- `needs_fix` 与 `human_required` 保持 fail closed，由人工或交互式 agent 修复；新 HEAD 自动重新验证和复审。
 - 新增 CODEOWNERS 敏感路径 ownership；治理敏感变更继续要求人工确认。
 - 经单独授权后，Ruleset 要求当前 SHA 的 `repo-validation`、`review-policy-gate` 和 resolved conversations，只允许 squash。
 - 经单独授权后启用 auto-merge、merge 后远端 branch 删除、obsolete run cancellation 和 bounded artifact retention。
+- Dedicated Fixer App 后续可独立加入；若扩展到多轮，必须另行实现重复 fingerprint、冲突、含糊结论和 permission stop guards。
 
 ## Phase 4 — Jenkins hardening
 

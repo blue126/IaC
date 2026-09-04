@@ -21,10 +21,9 @@ stateDiagram-v2
     Classify --> Validate: ordinary trusted path
     Validate --> HumanRequired: adapter missing or validation failed
     Validate --> Review: repo-validation passed
-    Review --> Fix: actionable and unambiguous finding
+    Review --> AwaitHumanFix: needs_fix
     Review --> HumanRequired: invalid result or ambiguous finding
-    Fix --> HumanRequired: conflict, repeated fingerprint, or limit
-    Fix --> Validate: Fixer App pushes new SHA
+    AwaitHumanFix --> Validate: human or interactive agent pushes new SHA
     Review --> MergeReady: no actionable finding for current SHA
     MergeReady --> Merged: Ruleset satisfied
     Merged --> RemoteCleanup
@@ -51,7 +50,7 @@ stateDiagram-v2
 - 自然语言评论不是 gate 输入；schema 校验后的结构化结果才是。
 - 每个新 SHA 使旧验证、旧审查和旧 merge readiness 失效。
 - `concurrency` 以 PR number 为键，取消已过时的 run，但不能中断正在进行的原子 push。
-- fixer 只回复或解决其处理的 bot finding；human thread 永不自动解决。
+- Dedicated Fixer App 延后；当前阻断 finding 由人工或交互式 agent 修复，human thread 永不自动解决。
 
 ## Jenkins boundary
 
