@@ -41,15 +41,22 @@ done
 "${ANSIBLE_GALAXY_BIN}" collection install -r "${ANSIBLE_ROOT}/requirements.yml" -p "${ANSIBLE_ROOT}/collections"
 "${PYTHON_BIN}" - "${ANSIBLE_ROOT}" <<'PY'
 from pathlib import Path
+import os
 import sys
 
 import yaml
 
 ansible_root = Path(sys.argv[1])
 vault_path = ansible_root / "inventory/group_vars/all/vault.yml"
-for pattern in ("*.yml", "*.yaml"):
-    for path in ansible_root.rglob(pattern):
-        if path == vault_path:
+for directory, subdirs, filenames in os.walk(ansible_root):
+    directory = Path(directory)
+    if directory == ansible_root:
+        # Downloaded collections contain third-party fixtures, including
+        # Ansible-specific YAML tags that PyYAML's SafeLoader cannot parse.
+        subdirs[:] = [name for name in subdirs if name != "collections"]
+    for filename in sorted(filenames):
+        path = directory / filename
+        if path.suffix not in (".yml", ".yaml") or path == vault_path:
             continue
         with path.open(encoding="utf-8") as stream:
             yaml.safe_load(stream)

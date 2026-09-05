@@ -199,6 +199,8 @@ if PYTHON_BIN="${MOCK_BIN}/python3" \
   fail "Ansible lint failure must propagate"
 fi
 
+python3 "${REPOSITORY_ROOT}/tests/ci/ansible-yaml-scan-test.py"
+
 : >"${MOCK_LOG}"
 PYTHON_BIN="${MOCK_BIN}/python3" "${DOCUMENTATION_VALIDATOR}" false >/dev/null
 grep -Fq "python3 tests/doc-claims/doc-claims-test.py" "${MOCK_LOG}" || \
