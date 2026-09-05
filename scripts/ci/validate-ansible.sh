@@ -5,6 +5,7 @@ set -euo pipefail
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ANSIBLE_ROOT="${REPOSITORY_ROOT}/ansible"
 CI_INVENTORY="${REPOSITORY_ROOT}/tests/ci/fixtures/inventory.yml"
+CI_ANSIBLE_CONFIG="${REPOSITORY_ROOT}/tests/ci/fixtures/ansible.cfg"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 ANSIBLE_GALAXY_BIN="${ANSIBLE_GALAXY_BIN:-ansible-galaxy}"
 ANSIBLE_LINT_BIN="${ANSIBLE_LINT_BIN:-ansible-lint}"
@@ -18,15 +19,18 @@ for tool in "${required_tools[@]}"; do
   fi
 done
 
-if [[ ! -f "${CI_INVENTORY}" ]]; then
-  echo "CI-only inventory is unavailable: ${CI_INVENTORY}" >&2
+if [[ ! -f "${CI_INVENTORY}" || ! -f "${CI_ANSIBLE_CONFIG}" ]]; then
+  echo "CI-only inventory or Ansible configuration is unavailable" >&2
   exit 1
 fi
 
-export ANSIBLE_CONFIG="${ANSIBLE_ROOT}/ansible.cfg"
+export ANSIBLE_CONFIG="${CI_ANSIBLE_CONFIG}"
 export ANSIBLE_INVENTORY="${CI_INVENTORY}"
 export ANSIBLE_COLLECTIONS_PATH="${ANSIBLE_ROOT}/collections"
-export ANSIBLE_VAULT_PASSWORD_FILE="/dev/null"
+export ANSIBLE_ROLES_PATH="${ANSIBLE_ROOT}/roles"
+# Syntax checks must not load the deployment Vault configuration. An empty
+# password file such as /dev/null is rejected even when no Vault data is read.
+unset ANSIBLE_VAULT_PASSWORD_FILE ANSIBLE_VAULT_IDENTITY_LIST
 
 "${PYTHON_BIN}" -m pip install --disable-pip-version-check -r "${REPOSITORY_ROOT}/requirements.txt"
 

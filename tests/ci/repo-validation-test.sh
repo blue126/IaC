@@ -134,6 +134,13 @@ cat >"${MOCK_BIN}/mock-tool" <<'EOF'
 set -euo pipefail
 tool="${0##*/}"
 printf '%s %s\n' "${tool}" "$*" >>"${MOCK_LOG}"
+if [[ "${tool}" == ansible-* && -n "${MOCK_EXPECT_CI_ROOT:-}" ]]; then
+  [[ "${ANSIBLE_CONFIG}" == "${MOCK_EXPECT_CI_ROOT}/tests/ci/fixtures/ansible.cfg" ]]
+  [[ "${ANSIBLE_INVENTORY}" == "${MOCK_EXPECT_CI_ROOT}/tests/ci/fixtures/inventory.yml" ]]
+  [[ "${ANSIBLE_ROLES_PATH}" == "${MOCK_EXPECT_CI_ROOT}/ansible/roles" ]]
+  [[ -z "${ANSIBLE_VAULT_PASSWORD_FILE+x}" ]]
+  [[ -z "${ANSIBLE_VAULT_IDENTITY_LIST+x}" ]]
+fi
 if [[ -n "${MOCK_FAIL_MATCH:-}" && "${tool} $*" == *"${MOCK_FAIL_MATCH}"* ]]; then
   exit 9
 fi
@@ -174,6 +181,10 @@ if TERRAFORM_BIN="${MOCK_BIN}/missing-terraform" \
 fi
 
 : >"${MOCK_LOG}"
+MOCK_EXPECT_CI_ROOT="${REPOSITORY_ROOT}" \
+ANSIBLE_CONFIG="/ci-test/deployment.cfg" \
+ANSIBLE_VAULT_PASSWORD_FILE="/ci-test/must-not-read-vault" \
+ANSIBLE_VAULT_IDENTITY_LIST="default@/ci-test/must-not-read-vault" \
 PYTHON_BIN="${MOCK_BIN}/python3" \
 ANSIBLE_GALAXY_BIN="${MOCK_BIN}/ansible-galaxy" \
 ANSIBLE_LINT_BIN="${MOCK_BIN}/ansible-lint" \
