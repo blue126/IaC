@@ -26,8 +26,8 @@
 
 - name: Install Node.js
   ansible.builtin.apt:
-    name: nodejs
-    state: latest
+    name: "nodejs={{ nodejs_version }}.*"
+    state: present
     update_cache: yes
 
 - name: Check installed Node.js version

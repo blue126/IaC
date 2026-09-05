@@ -61,8 +61,9 @@
 - name: Check if Tailscale is installed
   shell: command -v tailscale
   register: tailscale_check
-  ignore_errors: true
+  failed_when: tailscale_check.rc not in [0, 1]
   changed_when: false
+  check_mode: false
 
 - name: Install curl
   package:
@@ -70,8 +71,32 @@
     state: present
 
 - name: Install Tailscale
-  shell: curl -fsSL https://tailscale.com/install.sh | sh
-  when: tailscale_check.rc != 0
+  when:
+    - tailscale_check.rc != 0
+    - not ansible_check_mode
+  block:
+    - name: Allocate Tailscale installer file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .tailscale-install.sh
+      register: tailscale_installer
+
+    - name: Download Tailscale installer
+      ansible.builtin.get_url:
+        url: https://tailscale.com/install.sh
+        dest: "{{ tailscale_installer.path }}"
+        force: true
+        mode: "0700"
+
+    - name: Run Tailscale installer
+      ansible.builtin.command:
+        argv: [/bin/sh, "{{ tailscale_installer.path }}"]
+  always:
+    - name: Remove Tailscale installer file
+      ansible.builtin.file:
+        path: "{{ tailscale_installer.path }}"
+        state: absent
+      when: tailscale_installer.path is defined
 
 - name: Enable IP forwarding
   sysctl:

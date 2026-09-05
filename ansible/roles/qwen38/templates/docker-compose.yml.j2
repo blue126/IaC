@@ -16,10 +16,18 @@ services:
       - --jinja
       - --ctx-size
       - "{{ qwen38_ctx_size }}"
+      - --batch-size
+      - "{{ qwen38_batch_size }}"
+      - --ubatch-size
+      - "{{ qwen38_ubatch_size }}"
       - --n-gpu-layers
       - "{{ qwen38_gpu_layers }}"
       - --split-mode
       - {{ qwen38_split_mode }}
+      - --tensor-split
+      - "{{ qwen38_tensor_split }}"
+      - --fit
+      - "off"
       - --flash-attn
       - "on"
       - --cache-type-k
@@ -37,6 +45,9 @@ services:
       - "{{ qwen38_min_p }}"
       - --presence-penalty
       - "{{ qwen38_presence_penalty }}"
+      - --reasoning-effort
+      - {{ qwen38_reasoning_effort }}
+      - --reasoning-preserve
 {% if qwen38_spec_type | string | length > 0 %}
       - --spec-type
       - {{ qwen38_spec_type }}
@@ -59,4 +70,10 @@ services:
     cap_add: [SYS_NICE]
     init: true
     restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:{{ qwen38_api_port }}/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 900s
+      retries: 20
     stop_grace_period: 120s

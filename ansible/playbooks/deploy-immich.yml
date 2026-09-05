@@ -52,15 +52,20 @@
       command: docker compose ps
       args:
         chdir: "{{ immich_app_dir }}"
+      become: true
       become_user: "{{ immich_host_user }}"
       register: compose_ps_result
       changed_when: false
 
     # Check for running containers
     - name: Count running containers
-      shell: docker compose ps --status running | grep -c "Up" || true
+      shell: |
+        set -o pipefail
+        docker compose ps --status running | awk '/Up/ {count++} END {print count+0}'
       args:
         chdir: "{{ immich_app_dir }}"
+        executable: /bin/bash
+      become: true
       become_user: "{{ immich_host_user }}"
       register: running_count
       changed_when: false
@@ -101,6 +106,7 @@
         sh -c 'pg_isready -h immich_postgres -U {{ immich_db_username }}'
       args:
         chdir: "{{ immich_app_dir }}"
+      become: true
       become_user: "{{ immich_host_user }}"
       register: db_check
       changed_when: false

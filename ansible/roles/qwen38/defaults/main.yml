@@ -51,24 +51,32 @@ qwen38_model_name: qwen38
 qwen38_bind_address: "{{ ansible_host | default(inventory_hostname) }}"
 qwen38_api_port: 8081
 
-# Both GPUs. 18.4 GiB of weights split across 2x24 GiB leaves room for the
-# 128K f16 KV cache; qwen36 ran the same shape on the same pair of cards.
+# TTS occupies about 10 GiB on physical GPU 0. A fixed layer split keeps the
+# allocation consistent whether TTS is already running or starts after us.
+# Automatic fitting against free VRAM would reserve TTS memory twice on a
+# warm restart. Keep all layers on GPU and use Q8 KV for the native 256K window.
 qwen38_gpu_ordinals: [0, 1]
 qwen38_gpu_layers: 999
 qwen38_split_mode: layer
-qwen38_ctx_size: 131072
-qwen38_cache_type: f16
+qwen38_tensor_split: "3,5"
+qwen38_ctx_size: 262144
+qwen38_cache_type: q8_0
+# Bound prefill compute buffers at the larger context while TTS shares GPU 0.
+qwen38_batch_size: 1024
+qwen38_ubatch_size: 256
 
-# Unsloth's published instruct (non-thinking) sampling defaults for Qwen3.8.
+# Qwen's published thinking-mode sampling defaults for coding agents.
 # Server-side defaults only: a client that sends its own values still wins.
-qwen38_temperature: 0.7
-qwen38_top_p: 0.80
+qwen38_temperature: 1.0
+qwen38_top_p: 0.95
 qwen38_top_k: 20
 qwen38_min_p: 0.0
-qwen38_presence_penalty: 1.5
+qwen38_presence_penalty: 0.0
+qwen38_reasoning_effort: medium
 
 # Speculative decoding. This GGUF keeps the model's native MTP head
-# (blk.64.nextn.*), so draft-mtp needs no separate drafter and no extra VRAM.
+# (blk.64.nextn.*), so draft-mtp needs no separate model file. It still allocates
+# its own KV cache and compute buffers; retain its default f16 KV precision.
 #
 # Measured on this host, same prompts either way: a 614-token generation went
 # 37.2 -> 65.5 tok/s (17.6s -> 9.4s) and a 27-token tool call 37.1 -> 75.2.

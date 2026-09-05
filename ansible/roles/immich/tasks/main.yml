@@ -35,6 +35,7 @@
   command: docker compose pull
   args:
     chdir: "{{ immich_app_dir }}"
+  become: true
   become_user: "{{ immich_host_user }}"
   register: pull_result
   changed_when: "'Pulling' in pull_result.stderr or 'Downloaded' in pull_result.stderr"
@@ -43,6 +44,7 @@
   command: docker compose up -d
   args:
     chdir: "{{ immich_app_dir }}"
+  become: true
   become_user: "{{ immich_host_user }}"
   register: compose_up_result
   changed_when: "'Started' in compose_up_result.stderr or 'Created' in compose_up_result.stderr"

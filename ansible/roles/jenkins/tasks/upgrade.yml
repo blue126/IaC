@@ -191,9 +191,10 @@
         mode: "0600"
 
     - name: Read the staged Adoptium key fingerprints
-      ansible.builtin.shell: >-
-        gpg --batch --show-keys --with-colons
-        {{ (jenkins_upgrade_staging_dir + '/adoptium.asc') | quote }} |
+      ansible.builtin.shell: |
+        set -o pipefail
+        gpg --batch --show-keys --with-colons \
+          {{ (jenkins_upgrade_staging_dir + '/adoptium.asc') | quote }} |
         sed -n '0,/^fpr:/{s/^fpr:::::::::\([0-9A-F]*\):$/\1/p}'
       args:
         executable: /bin/bash

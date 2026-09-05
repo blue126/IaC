@@ -19,10 +19,21 @@
 
 # ── 2. Node.js repository ──────────────────────────────────────────────
 
+- name: Inspect NodeSource GPG key
+  ansible.builtin.stat:
+    path: /usr/share/keyrings/nodesource.gpg
+  register: nodesource_key_file
+
+- name: Download NodeSource GPG key
+  ansible.builtin.get_url:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    dest: /usr/share/keyrings/nodesource.asc
+    mode: "0644"
+  when: not nodesource_key_file.stat.exists
+
 - name: Add NodeSource GPG key
-  shell: |
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-      | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+  ansible.builtin.command:
+    argv: [gpg, --batch, --dearmor, -o, /usr/share/keyrings/nodesource.gpg, /usr/share/keyrings/nodesource.asc]
   args:
     creates: /usr/share/keyrings/nodesource.gpg
 
@@ -39,10 +50,21 @@
 
 # ── 3. Caddy repository ────────────────────────────────────────────────
 
+- name: Inspect Caddy GPG key
+  ansible.builtin.stat:
+    path: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  register: caddy_key_file
+
+- name: Download Caddy GPG key
+  ansible.builtin.get_url:
+    url: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+    dest: /usr/share/keyrings/caddy-stable-archive-keyring.asc
+    mode: "0644"
+  when: not caddy_key_file.stat.exists
+
 - name: Add Caddy GPG key
-  shell: |
-    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-      | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  ansible.builtin.command:
+    argv: [gpg, --batch, --dearmor, -o, /usr/share/keyrings/caddy-stable-archive-keyring.gpg, /usr/share/keyrings/caddy-stable-archive-keyring.asc]
   args:
     creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 
@@ -111,6 +133,7 @@
     version: "{{ repo_version }}"
     depth: 1
     force: true
+  become: true
   become_user: ubuntu
   tags: [code]
 
@@ -232,6 +255,7 @@
           - "{{ caddyfile_candidate.path }}"
           - --adapter
           - caddyfile
+      become: true
       become_user: caddy
       changed_when: false
       check_mode: false
@@ -255,6 +279,7 @@
           - /etc/caddy/Caddyfile
           - --adapter
           - caddyfile
+      become: true
       become_user: caddy
       changed_when: false
       when: not ansible_check_mode
