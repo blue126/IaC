@@ -1,0 +1,11 @@
+# Governance-sensitive repository ownership
+/.github/workflows/ @blue126
+/.github/actions/ @blue126
+/.github/CODEOWNERS @blue126
+/Jenkinsfile* @blue126
+/AGENTS.md @blue126
+/scripts/ci/ @blue126
+/tests/ci/ @blue126
+/scripts/get-secrets.sh @blue126
+/scripts/refresh-terraform-state.sh @blue126
+/ansible/inventory/group_vars/all/vault.yml @blue126

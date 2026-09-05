@@ -110,7 +110,7 @@ while IFS= read -r -d '' changed_file; do
   esac
 
   case "${changed_file}" in
-    .github/workflows/* | .github/actions/repo-validation/* | AGENTS.md | Jenkinsfile* | \
+    .github/workflows/* | .github/actions/* | .github/CODEOWNERS | AGENTS.md | Jenkinsfile* | \
       scripts/ci/* | tests/ci/* | scripts/get-secrets.sh | scripts/refresh-terraform-state.sh | \
       ansible/inventory/group_vars/all/vault.yml)
       governance_sensitive=true

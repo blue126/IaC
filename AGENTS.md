@@ -166,3 +166,16 @@ When working on specific areas, read the relevant design doc for detailed patter
 - Worker agents must not modify another task's worktree or merge other task branches. Local integration is allowed only when explicitly assigned and must use a dedicated integration worktree. No agent may merge or close a pull request without explicit authorization.
 - The Kit installs a managed Sandbox-only instruction block into the global instruction locations for Codex, Claude Code, and OpenCode while preserving existing non-managed content. Repository rules remain authoritative for project policy and external-write boundaries.
 - Recreate a Sandbox after Kit changes unless the change is explicitly supported by `sbx kit add`.
+
+<!-- bmad:context -->
+<!-- Verified 2026-09-05 against e5dd546e965e6878b5edffe093699c81ff1e0dce. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+
+## Minimal-Scope Implementation
+
+- Implement the smallest correct change that satisfies the explicit request and acceptance criteria.
+- Preserve the existing architecture and conventions. Do not refactor adjacent code or add abstractions, dependencies, configuration, extension points, or speculative edge-case handling unless they are required for correctness.
+- Do not fix unrelated issues. Mention them briefly in the final response instead.
+- Run required repository checks and tests directly relevant to the changed behavior. Do not invent new gates or repeat passing checks without a concrete reason.
+- Once the acceptance criteria pass, stop immediately. Ask before materially expanding the scope.
+
+<!-- /bmad:context -->
