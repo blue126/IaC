@@ -16,7 +16,12 @@
       # publish an unauthenticated inference API on every interface.
       - qwen38_bind_address | length > 0
       - qwen38_bind_address not in ['0.0.0.0', '::', '*']
-      - qwen38_cache_type == 'f16'
+      - qwen38_cache_type in ['f16', 'q8_0']
+      - qwen38_ctx_size | int > 0
+      - qwen38_ctx_size | int <= 262144
+      - qwen38_batch_size | int >= qwen38_ubatch_size | int
+      - qwen38_ubatch_size | int > 0
+      - qwen38_reasoning_effort in ['low', 'medium', 'xhigh']
       - qwen38_gpu_ordinals | sort == [0, 1]
     fail_msg: >-
       Qwen3.8 model pin or fixed service boundary changed. The GGUF is a

@@ -28,6 +28,13 @@
     return_content: true
   register: qwen38_verify_models
 
+- name: Read the effective context and sampling defaults
+  ansible.builtin.uri:
+    url: "http://{{ qwen38_bind_address }}:{{ qwen38_api_port }}/props"
+    status_code: 200
+    return_content: true
+  register: qwen38_verify_props
+
 - name: Send a deterministic chat completion
   ansible.builtin.uri:
     url: "http://{{ qwen38_bind_address }}:{{ qwen38_api_port }}/v1/chat/completions"
@@ -64,8 +71,8 @@
   changed_when: false
 
 # Aggregate per-card usage cannot show that THIS service occupies both cards:
-# Qwen3-TTS shares GPU 1 and holds ~11 GB there on its own, which satisfies any
-# "this card is busy" threshold even if Qwen3.8 had loaded entirely onto GPU 0.
+# Qwen3-TTS shares physical GPU 0 and holds ~10 GB there on its own, which satisfies any
+# "this card is busy" threshold even if Qwen3.8 had loaded entirely onto GPU 1.
 # Attribute the memory to the container's own process instead.
 # docker top, not inspect .State.Pid: the Compose service sets init: true, so
 # the container's main process is docker-init and llama-server -- the process
@@ -123,6 +130,16 @@
         | default('') | trim | length > 0
       - qwen38_verify_chat.json.choices[0].finish_reason == 'stop'
       - qwen38_verify_restart_count.stdout | int == 0
+      - qwen38_verify_props.json.default_generation_settings.n_ctx | int == qwen38_ctx_size | int
+      - >-
+        (qwen38_verify_props.json.default_generation_settings.params.temperature | float
+        - qwen38_temperature | float) | abs < 0.00001
+      - >-
+        (qwen38_verify_props.json.default_generation_settings.params.top_p | float
+        - qwen38_top_p | float) | abs < 0.00001
+      - >-
+        (qwen38_verify_props.json.default_generation_settings.params.presence_penalty | float
+        - qwen38_presence_penalty | float) | abs < 0.00001
       # Weights are split across both cards, so this process must hold a
       # context on two distinct GPUs, each carrying a model-sized allocation.
       # No capture group on purpose: '\1' inside a Jinja string literal is
