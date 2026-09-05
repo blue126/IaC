@@ -154,7 +154,7 @@
 # Not a handler: on a first deploy systemd has never seen this unit, so the
 # reload has to happen before the start task below rather than at the end of
 # the play. Conditional so a no-change run stays clean.
-- name: Reload systemd for a new or changed Qwen3.8 unit
+- name: Reload systemd for a new or changed Qwen3.8 unit # noqa: no-handler
   ansible.builtin.systemd_service:
     daemon_reload: true
   when: qwen38_unit_file.changed

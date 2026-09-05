@@ -196,6 +196,8 @@ grep -Fq "ansible-galaxy collection install -r ${REPOSITORY_ROOT}/ansible/requir
   fail "Ansible collections were not installed from the repository manifest"
 grep -Fq "python3 - ${REPOSITORY_ROOT}/ansible" "${MOCK_LOG}" || \
   fail "Ansible YAML files were not parsed with the CI Python runtime"
+grep -Fq "python3 ${REPOSITORY_ROOT}/tests/ci/ansible-shell-tasks-test.py" "${MOCK_LOG}" || \
+  fail "Ansible shell probe regression tests were not executed"
 grep -Fq "ansible-lint -c ${REPOSITORY_ROOT}/.ansible-lint playbooks roles" "${MOCK_LOG}" || \
   fail "Ansible lint was not executed"
 grep -Fq "ansible-playbook -i ${REPOSITORY_ROOT}/tests/ci/fixtures/inventory.yml" "${MOCK_LOG}" || \

@@ -1758,11 +1758,18 @@ ansible pbs -m ping
     path: /etc/modprobe.d/zfs.conf
     line: "options zfs zfs_arc_max={{ pbs_zfs_arc_max_bytes }}"
     create: yes
-  register: zfs_arc_config
+  notify: Update PBS initramfs
+```
 
-- name: Update initramfs if ZFS config changed
-  command: update-initramfs -u
-  when: zfs_arc_config.changed
+**文件**: `ansible/roles/pbs/handlers/main.yml`
+
+配置变化后由 handler 重建 initramfs，同一个 play 中多次通知只执行一次。
+
+```yaml
+---
+- name: Update PBS initramfs
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true
 ```
 
 **文件**: `ansible/roles/pbs/tasks/users.yml`

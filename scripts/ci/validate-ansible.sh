@@ -66,6 +66,8 @@ for directory, subdirs, filenames in os.walk(ansible_root):
             yaml.safe_load(stream)
 PY
 
+"${PYTHON_BIN}" "${REPOSITORY_ROOT}/tests/ci/ansible-shell-tasks-test.py"
+
 (
   cd "${ANSIBLE_ROOT}"
   "${ANSIBLE_LINT_BIN}" -c "${REPOSITORY_ROOT}/.ansible-lint" playbooks roles

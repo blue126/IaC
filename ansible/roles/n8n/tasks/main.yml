@@ -23,13 +23,35 @@
     - /usr/local/lib/node_modules
 
 - name: Install NodeSource repository
-  shell: curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  when: not ansible_check_mode
+  block:
+    - name: Allocate NodeSource installer file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .nodesource-setup.sh
+      register: n8n_nodesource_installer
+
+    - name: Download NodeSource repository installer
+      ansible.builtin.get_url:
+        url: https://deb.nodesource.com/setup_20.x
+        dest: "{{ n8n_nodesource_installer.path }}"
+        force: true
+        mode: "0700"
+
+    - name: Run NodeSource repository installer
+      ansible.builtin.command:
+        argv: [/bin/bash, "{{ n8n_nodesource_installer.path }}"]
+  always:
+    - name: Remove NodeSource installer file
+      ansible.builtin.file:
+        path: "{{ n8n_nodesource_installer.path }}"
+        state: absent
+      when: n8n_nodesource_installer.path is defined
 
 - name: Upgrade Node.js
   apt:
-    name:
-      - nodejs
-    state: latest
+    name: "nodejs=20.*"
+    state: present
     update_cache: yes
 
 - name: Check Node.js version

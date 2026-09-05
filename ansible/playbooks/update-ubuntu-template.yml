@@ -11,7 +11,11 @@
   
   tasks:
     - name: Check if template exists
-      shell: qm list | grep {{ template_id }}
+      shell: |
+        set -o pipefail
+        qm list | grep {{ template_id }}
+      args:
+        executable: /bin/bash
       register: template_check
       changed_when: false
       failed_when: false
@@ -33,7 +37,12 @@
         seconds: 60
 
     - name: Get VM IP address
-      shell: qm guest cmd {{ template_id }} network-get-interfaces | grep -oP '(?<="ip-address":")[^"]+' | grep -v "127.0.0.1" | head -1
+      shell: |
+        set -o pipefail
+        qm guest cmd {{ template_id }} network-get-interfaces |
+          grep -oP '(?<="ip-address":")[^"]+' | grep -v "127.0.0.1" | sed -n '1p'
+      args:
+        executable: /bin/bash
       register: vm_ip
       retries: 10
       delay: 5
@@ -120,10 +129,8 @@
       changed_when: false
 
     - name: Shutdown VM
-      command: shutdown -h now
-      async: 1
-      poll: 0
-      ignore_errors: yes
+      community.general.shutdown:
+        delay: 0
 
 - name: Convert VM back to template
   hosts: pve0
@@ -137,7 +144,11 @@
         seconds: 60
 
     - name: Verify VM is stopped
-      shell: qm status {{ template_id }} | grep stopped
+      shell: |
+        set -o pipefail
+        qm status {{ template_id }} | grep stopped
+      args:
+        executable: /bin/bash
       register: vm_status
       retries: 10
       delay: 5
@@ -148,7 +159,11 @@
       command: qm template {{ template_id }}
 
     - name: Verify template conversion
-      shell: qm list | grep {{ template_id }} | grep template
+      shell: |
+        set -o pipefail
+        qm list | grep {{ template_id }} | grep template
+      args:
+        executable: /bin/bash
       changed_when: false
 
     - name: Display success message

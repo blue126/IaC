@@ -66,10 +66,11 @@
   changed_when: false
 
 - name: Count failed plugins in the current Jenkins service invocation
-  ansible.builtin.shell: >-
-    journalctl -u jenkins
-    --since "$(systemctl show --property=ActiveEnterTimestamp --value jenkins)"
-    --no-pager | awk '/Failed Loading plugin/{count++} END{print count+0}'
+  ansible.builtin.shell: |
+    set -e -o pipefail
+    service_started="$(systemctl show --property=ActiveEnterTimestamp --value jenkins)"
+    journalctl -u jenkins --since "$service_started" \
+      --no-pager | awk '/Failed Loading plugin/{count++} END{print count+0}'
   args:
     executable: /bin/bash
   register: jenkins_upgrade_final_failed_plugins

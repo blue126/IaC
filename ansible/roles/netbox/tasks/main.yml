@@ -69,12 +69,14 @@
   poll: 10
 
 - name: Wait for Netbox to become healthy
-  shell: docker compose ps | grep netbox | grep healthy
+  shell: |
+    set -o pipefail
+    docker compose ps | grep netbox | grep healthy
   args:
     chdir: "{{ netbox_install_dir }}"
+    executable: /bin/bash
   register: compose_status
   until: compose_status.rc == 0
   retries: 60
   delay: 10
   changed_when: false
-

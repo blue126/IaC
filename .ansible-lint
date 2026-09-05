@@ -8,6 +8,9 @@ skip_list:
   - command-instead-of-shell
   - schema
   - var-naming
+  # AGENTS.md requires kebab-case role directories; Galaxy's underscore-only
+  # role-name convention does not apply to these repository-local roles.
+  - role-name
 
 # Exclude patterns
 exclude_paths:

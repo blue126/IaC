@@ -1,0 +1,4 @@
+---
+- name: Update PBS initramfs
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true

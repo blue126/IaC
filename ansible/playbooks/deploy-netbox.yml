@@ -47,9 +47,12 @@
       tags: [summary]
 
     - name: Check for healthy containers
-      shell: docker compose ps | grep -E "netbox.*healthy" | wc -l
+      shell: |
+        set -o pipefail
+        docker compose ps | awk '/netbox.*healthy/ {count++} END {print count+0}'
       args:
         chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
+        executable: /bin/bash
       register: healthy_count
       changed_when: false
       tags: [summary]

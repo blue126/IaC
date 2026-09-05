@@ -131,17 +131,25 @@
     timeout: 30
 
 # C4: Exact username match — awk extracts Username column (col 2, skip header),
-#     grep -qxF does full-line exact match, avoiding "admin" matching "myadmin"
+#     grep -xF does full-line exact match, avoiding "admin" matching "myadmin".
+# Do not use -q: draining the pipe avoids upstream SIGPIPE under pipefail.
 - name: Check if Gitea admin user exists
-  shell: >
-    {{ gitea_binary_path }} admin user list
-    --config {{ gitea_config_dir }}/app.ini
-    | awk 'NR>1 {print $2}'
-    | grep -qxF '{{ gitea_admin_user }}'
+  shell: |
+    set -o pipefail
+    if ! gitea_users="$({{ gitea_binary_path | quote }} admin user list \
+      --config {{ (gitea_config_dir + '/app.ini') | quote }})"; then
+      exit 2
+    fi
+    printf '%s\n' "$gitea_users" |
+      awk 'NR>1 {print $2}' |
+      grep -xF -- {{ gitea_admin_user | quote }}
+  args:
+    executable: /bin/bash
+  become: true
   become_user: "{{ gitea_user }}"
   register: gitea_admin_check
   changed_when: false
-  failed_when: false
+  failed_when: gitea_admin_check.rc not in [0, 1]
   environment:
     GITEA_WORK_DIR: "{{ gitea_work_dir }}"
 
@@ -154,6 +162,7 @@
     --password {{ gitea_admin_password }}
     --email {{ gitea_admin_email }}
     --admin
+  become: true
   become_user: "{{ gitea_user }}"
   when: gitea_admin_check.rc != 0
   no_log: true
