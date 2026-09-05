@@ -19,9 +19,13 @@ if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
 fi
 
 cd "${REPOSITORY_ROOT}"
+# Deterministic regression for the six explicitly registered claim pairs.
 "${PYTHON_BIN}" tests/doc-claims/doc-claims-test.py
+# Offline controller/contract tests; this never invokes the live AI path.
 "${PYTHON_BIN}" tests/doc-gardening/doc-gardening-test.py
+# Recorded accept/reject fixtures, not a live model quality evaluation.
 "${PYTHON_BIN}" tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures
+# Current repository consistency report for the known claim pairs.
 "${PYTHON_BIN}" tools/check-doc-claims.py --root . --output tmp/doc-accuracy/report.json
 
 if [[ "${run_hugo}" == false ]]; then

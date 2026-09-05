@@ -1,5 +1,5 @@
 ---
-title: 'Deterministic documentation drift detector / 确定性文档漂移检测器'
+title: 'Known-claim documentation consistency gate / 已知文档声明一致性门禁'
 type: 'feature'
 created: '2026-08-30'
 status: 'done'
@@ -12,61 +12,66 @@ context: []
 
 ## Intent
 
-**Problem:** 仓库无法自动发现关键部署文档与已提交 Ansible defaults 之间的漂移，过期端口、镜像或版本会误导人和 coding agent。
+**Problem:** 仓库缺少关键部署文档与 checked-in Ansible defaults 之间的确定性回归门禁，过期端口、镜像或版本可能误导维护者和 coding agent。该门禁只保障显式登记的已知值，不承担开放式 claim 发现或生产事实认证。
 
-**Approach:** 对 canonical registry 的四条 claim 实现 stdlib-only deterministic detector、稳定 JSON report、fixture suite 和无特权 PR workflow；Notion credential GUI 加固已拆为独立安全任务。
+**Approach:** 对 canonical registry 当前六条 claim 实现 stdlib-only deterministic consistency detector、稳定 JSON report、fixture suite 和无特权 PR workflow；它作为后续 AI discovery/repair 的 evidence 与修改后验收层。Notion credential GUI 是独立人工路径，不进入 detector/CI 信任面。
 
 ## Boundaries & Constraints
 
-**Always:** 只读 registry 指定的两份 Markdown 和两份 defaults；要求 locator/oracle 唯一；按 typed scalar exact equality 判定；report 绑定 Git revision 与两个输入 SHA-256；任一 `contradiction`/`indeterminate` 均 exit 1。
+**Always:** 只读 registry 指定的两份 Markdown 和两份 defaults；要求 locator/oracle 唯一；按 typed scalar exact equality 判定；report 绑定 Git revision 与两个输入 SHA-256；独立锁定六个 claim ID；任一 `contradiction`/`indeterminate` 均 exit 1。
 
-**Ask First:** 扩大 claim registry、将 report 公开渲染到 OINK/Pages、引入 AI 编辑/runtime 证据、修改 Notion/Jenkins 或设为 Ruleset required check。
+**Ask First:** 扩大 claim registry、将 report 公开渲染到 OINK/Pages、引入真实 AI/runtime evidence、修改 Notion/Jenkins 或设为 Ruleset required check。
 
-**Never:** 读取 `.env`、Vault、tfvars、Terraform state、Notion 或生产 API；输出原始异常/文档片段/环境值；自动修文档、开 PR 或 merge；写入 `docs/`、`docs-site/`、`public/` 或 `llms.txt`；触发 deploy/publish/apply。
+**Never:** 读取 `.env`、Vault、tfvars、Terraform state、Notion 或生产 API；输出原始异常/文档片段/环境值；把 `verified` 表述为生产或绝对事实；自动修文档、开 PR 或 merge；写入 `docs/`、`docs-site/`、`public/` 或 `llms.txt`；触发 deploy/publish/apply。
 
 ## I/O & Edge-Case Matrix
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Verified | locator/oracle 各唯一且同类型同值 | `verified`; exit 0 when all four pass | report locator, values, revision, digests |
+| Verified | locator/oracle 各唯一且同类型同值 | 六条均为 `verified`; exit 0 | report locator, values, revision, digests；不声称生产正确 |
 | Contradiction | 两端唯一可解析但值/类型不同 | `contradiction`; exit 1 | 不修改输入 |
 | Indeterminate | source/heading/key 缺失、重复或非标量 | `indeterminate` + enum reason; exit 1 | 不回显原始内容 |
+| Registry shrink/reorder | 运行时 `CLAIMS` 偏离六 ID baseline | fixture suite 失败 | 必须人工批准并同步代码、测试与 registry |
 
 </frozen-after-approval>
 
 ## Code Map
 
-- `_bmad-output/specs/spec-oink-doc-accuracy-integration/claim-registry.md` -- closed claims、status contract 与 required fixtures；不扩大。
-- `docs/deployment/netbox-deployment.md:87-98` + `ansible/roles/netbox/defaults/main.yml:1-10` -- table locator 及 port/image oracle；文档其他位置有同 key，必须限定 section。
-- `docs/deployment/llm-server-deployment.md:120-160` + `ansible/roles/llm-server/defaults/main.yml:7-51` -- fenced-YAML locator 及 engine/webui oracle。
-- `Jenkinsfile:36-44,178-217,269-364` -- `scripts/**` 进入特权 pipeline；detector 必须放 `tools/`。
-- `.github/workflows/docs-pages.yml:3-116`, `docs-site/scripts/prepare-content.py:62-74` -- 公开发布边界；report 只能是 ignored local/CI artifact。
+- `_bmad-output/specs/spec-oink-doc-accuracy-integration/claim-registry.md` -- closed claims、consistency status contract 与 required fixtures。
+- `docs/deployment/netbox-deployment.md:87-98` + `ansible/roles/netbox/defaults/main.yml:1-10` -- NetBox table locator 与 port/image oracle。
+- `docs/designs/qwen3-tts-openai-api-integration.md:52-60` + `ansible/roles/qwen3-tts/defaults/main.yml:22-62` -- Qwen3-TTS fenced-YAML locator 与 image/GPU/port/free-VRAM oracle。
+- `Jenkinsfile:52,94,220,326,377` -- `scripts/**` 与 secret/runtime/deploy 路径；detector 位于 `tools/`，避免进入该特权路径。
+- `.github/workflows/docs-pages.yml:3-116`, `docs-site/scripts/prepare-content.py:62-91` -- 公开发布边界；report 仍只作为 ignored local/CI artifact。
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `tools/check-doc-claims.py` -- 实现四条 claim、section-scoped Markdown locator、受限 YAML scalar parser、stable report 与 `--output`。
-- [x] `tests/doc-claims/doc-claims-test.py` -- 用临时 fixtures 覆盖 verified/contradiction、缺失/重复 locator/key、非标量、type mismatch、schema/sentinel 和 CLI exit code。
-- [x] `.github/workflows/doc-accuracy.yml` -- 添加 `pull_request` workflow；仅 `contents: read`，无 secrets/environment，运行 tests+detector，并用 `if: always()` 上传 `tmp/doc-accuracy/report.json`。
+- [x] `tools/check-doc-claims.py` -- 维护当前六条 claim、section-scoped Markdown locator、受限 YAML scalar parser、stable report 与 `--output`。
+- [x] `tests/doc-claims/doc-claims-test.py` -- 独立锁定六 ID，并用临时 fixtures 覆盖 verified/contradiction、缺失/重复 locator/key、非标量、type mismatch、schema/sentinel 和 CLI exit code。
+- [x] `.github/workflows/doc-accuracy.yml` -- 所有 `pull_request` 上运行只读离线 tests + detector，并用 `if: always()` 上传 `tmp/doc-accuracy/report.json`。
 
 **Acceptance Criteria:**
-- Given clean repository inputs, when CLI runs offline, then exactly four claims are `verified`, report has stable order/revision/digests, and exit code is 0.
+- Given clean repository inputs, when CLI runs offline, then exactly six known claims are `verified`, report has stable order/revision/digests, and exit code is 0.
 - Given any contradiction or indeterminate fixture, when CLI runs, then it exits 1 with an enum reason, emits no absolute temp path/free-form source/secret sentinel, and changes no documentation.
-- Given a pull request, when doc-accuracy workflow runs, then no Notion/Vault/runtime/deploy path is reachable and the non-sensitive report remains downloadable even on failure.
+- Given the runtime claim list loses, replaces or reorders an ID, when the repository fixture runs, then it fails against the independently declared six-ID baseline.
+- Given a pull request, when doc-accuracy workflow runs, then no real AI/Notion/Vault/runtime/deploy path is reachable and the non-sensitive report remains downloadable even on failure.
 
 ## Spec Change Log
 
+- 2026-09-05 — Human renegotiation aligned this done artifact with the current six-claim NetBox + Qwen3-TTS implementation, retired llm-server paths, independent ID baseline and consistency-only semantics. This preserves the delivered Phase 1 boundary while avoiding the known-bad claim that it performs open-world or production correctness detection.
+
 ## Design Notes
 
-- Parse only top-level registry-required YAML scalars; detect duplicate keys before conversion. Preserve types, quoted `"3000"` is not integer `3000`.
-- Write reports to ignored `tmp/doc-accuracy/report.json`; public OINK rendering is deferred until schema, freshness and disclosure policy receive separate approval.
+- Parse only top-level registry-required YAML scalars; detect duplicate keys before conversion. Preserve types: quoted `"3000"` is not integer `3000`.
+- `verified` means only that the selected Markdown and defaults values agree. If both move to the same wrong value, this pairwise gate can still pass; AI semantic eval or later runtime evidence addresses different questions.
+- Write reports to ignored `tmp/doc-accuracy/report.json`; public OINK rendering remains separately gated.
 - Notion remains an intentional credential GUI and is entirely outside this detector process and CI trust boundary.
 
 ## Verification
 
 **Commands:**
-- `python3 tests/doc-claims/doc-claims-test.py` -- fixture matrix passes without third-party packages/network.
-- `python3 tools/check-doc-claims.py --root . --output tmp/doc-accuracy/report.json` -- four claims verified, exit 0.
+- `python3 tests/doc-claims/doc-claims-test.py` -- six-ID baseline and fixture matrix pass without third-party packages/network.
+- `python3 tools/check-doc-claims.py --root . --output tmp/doc-accuracy/report.json` -- six claims verified, exit 0.
 - `python3 -m py_compile tools/check-doc-claims.py tests/doc-claims/doc-claims-test.py` -- syntax passes.
 - `git diff --check` -- no whitespace errors.
 
@@ -74,39 +79,39 @@ context: []
 
 **Closed registry and evaluation**
 
-- 四条显式 claim 是全部保障边界，不做开放世界扫描。
+- Six explicit claim IDs are the entire deterministic protection boundary; AI candidate discovery is separate.
   [`check-doc-claims.py:289`](../../tools/check-doc-claims.py#L289)
 
-- 单条证据的唯一性、类型和状态在这里汇合。
-  [`check-doc-claims.py:373`](../../tools/check-doc-claims.py#L373)
+- Per-claim uniqueness, type and consistency status converge here.
+  [`check-doc-claims.py:401`](../../tools/check-doc-claims.py#L401)
 
 **Fail-closed parsing and evidence safety**
 
-- 受限 scalar parser 拒绝暧昧 YAML 语义而不猜测。
+- Restricted scalar parsing rejects ambiguous YAML semantics instead of guessing.
   [`check-doc-claims.py:58`](../../tools/check-doc-claims.py#L58)
 
-- Section 状态机排除 fenced code 中的假 heading。
+- The section state machine excludes fake headings inside fenced code.
   [`check-doc-claims.py:154`](../../tools/check-doc-claims.py#L154)
 
-- Header-driven table locator 只提取目标 section 的 Default 列。
+- The header-driven table locator extracts only the target section's Default column.
   [`check-doc-claims.py:210`](../../tools/check-doc-claims.py#L210)
 
-- YAML fence locator 跟踪 marker 长度并要求唯一 key。
+- The fenced-YAML locator tracks marker length and requires a unique key.
   [`check-doc-claims.py:252`](../../tools/check-doc-claims.py#L252)
 
-- Source resolve 在读取前拒绝越出 checkout 的 symlink。
-  [`check-doc-claims.py:329`](../../tools/check-doc-claims.py#L329)
+- Source resolution rejects symlinks outside the checkout before reading.
+  [`check-doc-claims.py:357`](../../tools/check-doc-claims.py#L357)
 
-- 同目录临时文件与 atomic replace 防止半份 report。
-  [`check-doc-claims.py:442`](../../tools/check-doc-claims.py#L442)
+- Same-directory temporary files and atomic replacement prevent partial reports.
+  [`check-doc-claims.py:470`](../../tools/check-doc-claims.py#L470)
 
 **Verification and PR automation**
 
-- Repository fixture 锁定四条 claim、顺序、revision 与 digests。
-  [`doc-claims-test.py:96`](../../tests/doc-claims/doc-claims-test.py#L96)
+- The repository fixture independently locks six IDs, order, status, revision and digests.
+  [`doc-claims-test.py:142`](../../tests/doc-claims/doc-claims-test.py#L142)
 
-- Edge fixtures 覆盖类型、Markdown 变体、symlink 和原子失败。
-  [`doc-claims-test.py:128`](../../tests/doc-claims/doc-claims-test.py#L128)
+- Edge fixtures cover type handling, Markdown variants, symlinks and atomic failure.
+  [`doc-claims-test.py:158`](../../tests/doc-claims/doc-claims-test.py#L158)
 
-- 所有 PR 都运行只读 workflow，失败也保留 report。
+- Every PR runs the read-only workflow and retains a report even on failure.
   [`doc-accuracy.yml:3`](../../.github/workflows/doc-accuracy.yml#L3)

@@ -1,48 +1,66 @@
-# Notion Synchronization Security Boundary
+# Credential Boundary and Accepted Risk
 
-## Blocking finding
+## Decision
 
-The current `scripts/sync-to-notion.py` reads the repository `.env` for the Notion integration configuration, decrypts Ansible Vault when available (or reads Terraform `secrets.auto.tfvars`), maps system/app credentials and tokens to Notion fields/notes, and prints masked password prefixes in dry-run output. This is incompatible with the Phase 1 boundary: a static documentation detector and OINK presentation plane must never receive secret material.
+- **Status:** Accepted risk
+- **Accepted by:** Project owner
+- **Date:** 2026-09-05
+- **Behavior baseline:** `e5dd546e965e6878b5edffe093699c81ff1e0dce`
+- **Scope:** Existing direct invocation and the existing `Jenkinsfile` post-deployment `Sync to Notion` stage only.
 
-## Permitted Notion data
+The synchronizer reads repository `.env` configuration, decrypts Ansible Vault when available (or reads Terraform secret data), constructs system/application credential fields, stores them in the project's private Notion workspace, and may print masked prefixes during local dry-run output. It can be run directly and is also invoked by the existing Jenkins post-deployment stage with credentials binding. Notion is a third-party cloud service even though the managed homelab is on a private LAN; the accepted exposure is therefore the private Notion account/workspace, integration token and direct/Jenkins execution or logging path—not merely LAN reachability.
 
-The retained inventory sync may send only reviewed non-sensitive metadata:
+For this personal project, the owner intentionally uses Notion as a private credential GUI and accepts that existing SaaS/account and execution risk. Removing credential fields or the existing Jenkins invocation is **not** a prerequisite for OINK, the repository consistency gate or AI doc-gardening. This decision does not claim the behavior is generally safe, recommend it for shared projects or authorize expanding it.
 
-- resource name;
-- address or explicitly approved non-secret endpoint;
-- resource classification;
-- parent relationship identifier;
-- static VM/resource identifier and static port description, where neither embeds credentials or tokens.
+## Accepted Scope
 
-`NOTION_TOKEN` may authenticate the direct Notion API request at runtime, but it is never report content, a documentation field, a test expectation, a log value, or a value available to OINK, Hugo, GitHub Pages, the drift detector, or its fixtures.
+The accepted risk covers the synchronizer's existing data flow at the behavior baseline:
 
-## Prohibited data
+- direct invocation using local Notion configuration and existing secret sources;
+- the `Jenkinsfile` post-deployment stage using Jenkins credentials binding;
+- mapping and sending credentials into the owner's private Notion database;
+- existing dry-run/status and Jenkins output associated with those invocations.
 
-The sync, drift detector, OINK-facing report, tests and logs must not read for publication, retain, emit, mask, truncate, hash for display, or place into Notion properties any of:
+This contract does not change, test or harden `scripts/sync-to-notion.py` or `Jenkinsfile`. Any additional schedule/trigger, new destination, broader sharing, additional credential source or materially changed output is outside the accepted scope and requires a new decision.
 
-- Ansible Vault values or variables resolved from them;
-- Terraform `secrets.auto.tfvars` values or Terraform state values;
-- passwords, SSH/RDP credentials, application credentials, database credentials, API keys/tokens, integration tokens, connection strings containing credentials, or private keys;
-- free-form notes derived from those values.
+## Existing Controls and Residual Risk
 
-The Notion integration credential is an authentication implementation detail, not inventory data. No code path may print it or any masked/prefixed derivative.
+Known controls are the private Notion workspace, Jenkins credentials binding for the existing stage, and Jenkins post-run removal of generated secret files. MFA state, Notion member access, integration-token scope/rotation, cloud exports/backups and local/Jenkins log retention are not verified by this contract and must not be claimed as controls.
 
-## Required remediation contract
+Residual risk remains credential disclosure through Notion account/workspace compromise, integration-token misuse, provider storage/export behavior, or direct/Jenkins output. The project owner accepts that residual risk only within the scope above.
 
-1. Remove the secret-loading and credential-construction path from the retained synchronization behavior. The synchronizer must build its Notion payload exclusively from an explicit non-sensitive allowlist.
-2. Remove or reject credential-bearing Notion property mappings. No alternate `Notes` field may be used as a secret side channel.
-3. Preserve a dry-run mode, but make its output a projection of the same allowlisted payload; it must not reveal masked values, prefixes, lengths, hashes intended for comparison, or debug structures containing secret values.
-4. Add deterministic tests with synthetic, unique sentinel values and a mocked Notion client. Assert that outbound request objects and captured stdout/stderr exclude every sentinel and its recognizable derivatives, while a representative allowlisted resource is still produced.
-5. Keep the documentation drift detector independent of the synchronizer. It reads only the four repository paths in [claim-registry.md](claim-registry.md) and must not import, invoke, or receive outputs from the sync path.
+## Hard Isolation Boundary
 
-## Acceptance evidence
+Acceptance ends at the Notion synchronization process. The following components must not import, invoke, inspect, consume or receive the synchronizer, its payloads, its stdout/stderr or any data derived from them:
 
-Implementation is blocked until all of these are demonstrated locally:
+- `tools/check-doc-claims.py` and its fixtures/report;
+- `tools/doc-gardening/`, AI prompts, manifests, model outputs and run records;
+- documentation GitHub Actions, their CI artifacts and Draft PR content;
+- OINK/Hugo, GitHub Pages, rendered Markdown and `llms.txt`.
 
-- source-level tests prove the payload schema has no credential-bearing properties;
-- mocked execution proves sentinel non-disclosure in request payloads and logs;
-- the allowlisted inventory record remains valid in normal and dry-run modes;
-- the Phase 1 detector and report fixtures pass without `.env`, Vault password file, Terraform secret file, network access, or Notion credentials;
-- a search/assertion over generated report/manifest output confirms the test sentinels are absent.
+Those components must not read `.env`, Ansible Vault values or password files, Terraform `*.tfvars`/state secrets, Notion database content, passwords, API/integration tokens, private keys, credential-bearing connection strings, or masked/truncated/hash-for-display derivatives. A Notion token used by the manual synchronizer is never documentation evidence or inventory data for this automation.
 
-A failure of any security check is a hard failure. It must not be converted into `unknown`, masked away, retried with broader credentials, or bypassed to publish documentation.
+The detector may read only the repository paths declared by the six claims in [claim-registry.md](claim-registry.md). Doc-gardening may consume only its explicit single-document manifest and allowlisted, non-sensitive repository evidence. OINK remains a presentation plane and receives neither synchronization nor model/production credentials.
+
+## Required Automation Evidence
+
+The documentation automation remains acceptable only while deterministic tests demonstrate that:
+
+1. the Phase 1 detector and report run without `.env`, Vault password files, Terraform state/secret files, network access or Notion credentials;
+2. doc-gardening manifests, recorded outputs and validators reject secret sentinels without echoing them;
+3. documentation CI uses read-only repository permission and contains no Notion, model or production secret path;
+4. generated reports/manifests contain only the fields and evidence allowed by their versioned contracts;
+5. no documentation workflow imports or invokes `scripts/sync-to-notion.py`.
+
+A failure at this isolation boundary is a hard failure. It must not become `unknown`, be hidden by masking, retry with broader credentials, or be published. This hard failure applies to documentation automation; it does not retroactively revoke the separately accepted manual Notion path.
+
+## Review Triggers
+
+Reassess this accepted risk before any of the following:
+
+- the repository, homelab operations or Notion database become shared with additional people;
+- the synchronizer gains an unattended trigger beyond the existing Jenkins post-deployment stage;
+- the Notion database, integration or credential fields gain broader access;
+- synchronization data is proposed as an AI/runtime oracle or enters an artifact, prompt, report, PR, OINK page or `llms.txt`;
+- a Notion account, integration-token, local-log or credential disclosure incident occurs;
+- the project moves beyond a personal homelab threat model.

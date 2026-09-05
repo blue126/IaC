@@ -37,9 +37,9 @@ context: []
 
 ## Code Map
 
-- `tools/check-doc-claims.py:289-489` -- Phase 1 closed claims/report v1 producer；Phase 2 仅消费 CLI JSON，不 import parser internals。
-- `tests/doc-claims/doc-claims-test.py:96-344` -- 22 项 fail-closed regression，Phase 2 验证前必须先通过。
-- `.github/workflows/doc-accuracy.yml:3-34` -- 始终只读的 Phase 1 trust plane；不加 AI/secret/write permission。
+- `tools/check-doc-claims.py:289-494` -- Phase 1 六条 known-claim consistency/report v1 producer；Phase 2 仅消费 CLI JSON，不 import parser internals，也不把 `verified` 当作生产事实。
+- `tests/doc-claims/doc-claims-test.py:142-444` -- fail-closed regression，包含独立六-ID baseline、accepted-risk isolation 与只读 offline workflow contract；Phase 2 验证前必须先通过。
+- `.github/workflows/doc-accuracy.yml:3-40` -- 始终只读的离线 trust plane；不运行 live AI，不加 secret/write permission。
 - `_bmad-output/specs/spec-doc-gardening-agent/evidence-model.md:5-65` -- complete evidence loop 仍阻止 apply/publisher；Phase 2 只产候选 artifact。
 - `_bmad-output/planning-artifacts/research/technical-oink-doc-accuracy-integration-2026-08-26/research.md:122-134` -- Phase 2 draft-only 与 Phase 3 runtime 边界。
 - `AGENTS.md:106-114,126-130` -- 禁止自动 commit/merge、secret 和外部写入。
@@ -65,14 +65,15 @@ context: []
 - `codex exec` 0.149.1 已本地安装；不添加 SDK/package dependency。Official OpenAI Docs 支持 non-interactive、ephemeral、read-only sandbox 和 `--output-schema`.
 - Controller 而非模型决定 gate。LLM 只能输出 `candidate_contradiction|possibly_stale|unknown`，不能签发事实或发布权限。
 - GitHub-hosted Action/publisher 后置：当前无 Actions secrets/variables，default token 只读且未允许 Actions 创建 PR。
+- 当前 documentation CI 只运行 known-claim regression suite、offline controller/contract suite、11 个 recorded accept/reject fixtures 和 repository consistency run；`run-analysis.py --live --confirm-live` 仍是人工入口，proposal 只被验证和记录，不会 apply、commit、push 或开 PR。
 
 ## Verification
 
 **Commands:**
 - `python3 tests/doc-gardening/doc-gardening-test.py` -- schema/manifest/validator/injection/stale/replay fixtures pass offline.
-- `python3 tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures` -- golden metrics and zero false-proposal/security leakage gates pass.
+- `python3 tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures` -- 11 个 recorded accept/reject fixtures 与 contract 预期一致；`false_proposals`/`security_leakage` 是 fixture mismatch counters，不是 live model precision/recall 或真实泄漏率。
 - `python3 -m py_compile tools/doc-gardening/*.py tests/doc-gardening/doc-gardening-test.py` -- syntax passes without new packages.
-- `python3 tests/doc-claims/doc-claims-test.py` -- Phase 1 regression remains 22/22.
+- `python3 tests/doc-claims/doc-claims-test.py` -- Phase 1 known-claim regression and isolation checks pass.
 - `git diff --check` -- no whitespace errors.
 
 ## Suggested Review Order
@@ -96,21 +97,21 @@ context: []
 **审计记录可信度 / Audit-record truthfulness**
 
 - 进入 live 前先认领 provenance，失败的 live run 不再记成离线回放。
-  [`run-analysis.py:229`](../../tools/doc-gardening/run-analysis.py#L229)
+  [`run-analysis.py:226`](../../tools/doc-gardening/run-analysis.py#L226)
 
 - 只要 manifest 已知就欠一条记录，不再因 prompt/schema 未加载而无记录。
-  [`run-analysis.py:264`](../../tools/doc-gardening/run-analysis.py#L264)
+  [`run-analysis.py:269`](../../tools/doc-gardening/run-analysis.py#L269)
 
 - 模型输出泄密与输入污染在记录里分开。
-  [`run-analysis.py:270`](../../tools/doc-gardening/run-analysis.py#L270)
+  [`run-analysis.py:274`](../../tools/doc-gardening/run-analysis.py#L274)
 
 - 空候选列表是干净的"没发现"，不再等同于"无法判定"。
-  [`run-analysis.py:245`](../../tools/doc-gardening/run-analysis.py#L245)
+  [`run-analysis.py:248`](../../tools/doc-gardening/run-analysis.py#L248)
 
 **Fail-closed 一致性 / Fail-closed consistency**
 
 - 非 UTF-8 文档走 blocked exit 2，不再抛 traceback 出 exit 1。
-  [`validate-contract.py:167`](../../tools/doc-gardening/validate-contract.py#L167)
+  [`validate-contract.py:168`](../../tools/doc-gardening/validate-contract.py#L168)
 
 - fixture 文件缺失不再被算作一次正确拒绝。
   [`evaluate.py:49`](../../tools/doc-gardening/evaluate.py#L49)
@@ -126,16 +127,16 @@ context: []
 **测试 / Tests**
 
 - 断言拒绝的具体原因；两个 mutation 现在都会被抓到。
-  [`doc-gardening-test.py:221`](../../tests/doc-gardening/doc-gardening-test.py#L221)
+  [`doc-gardening-test.py:222`](../../tests/doc-gardening/doc-gardening-test.py#L222)
 
 - 新增：密钥只存在于 base 侧时的拦截。
-  [`doc-gardening-test.py:256`](../../tests/doc-gardening/doc-gardening-test.py#L256)
+  [`doc-gardening-test.py:312`](../../tests/doc-gardening/doc-gardening-test.py#L312)
 
 - schema 枚举与 contract.py 常量的等价性断言。
-  [`doc-gardening-test.py:633`](../../tests/doc-gardening/doc-gardening-test.py#L633)
+  [`doc-gardening-test.py:788`](../../tests/doc-gardening/doc-gardening-test.py#L788)
 
 - fixture 跟随 main 的 claim 集改为 qwen3-tts；llm-server 已退役。
-  [`doc-gardening-test.py:51`](../../tests/doc-gardening/doc-gardening-test.py#L51)
+  [`doc-gardening-test.py:73`](../../tests/doc-gardening/doc-gardening-test.py#L73)
 
 - 隔离宿主 git 配置，避免 commit.gpgsign 之类影响 fixture。
-  [`doc-gardening-test.py:119`](../../tests/doc-gardening/doc-gardening-test.py#L119)
+  [`doc-gardening-test.py:166`](../../tests/doc-gardening/doc-gardening-test.py#L166)
