@@ -12,6 +12,6 @@
 
     - name: Upload snippet
       copy:
-        src: "{{ playbook_dir }}/../files/cloud-init-ubuntu.yml"
+        src: "{{ playbook_dir | dirname }}/files/cloud-init-ubuntu.yml"
         dest: /var/lib/vz/snippets/cloud-init-ubuntu.yml
         mode: '0640'
