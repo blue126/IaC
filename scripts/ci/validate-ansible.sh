@@ -10,7 +10,7 @@ ANSIBLE_GALAXY_BIN="${ANSIBLE_GALAXY_BIN:-ansible-galaxy}"
 ANSIBLE_LINT_BIN="${ANSIBLE_LINT_BIN:-ansible-lint}"
 ANSIBLE_PLAYBOOK_BIN="${ANSIBLE_PLAYBOOK_BIN:-ansible-playbook}"
 
-required_tools=("${PYTHON_BIN}" "${ANSIBLE_GALAXY_BIN}" "${ANSIBLE_LINT_BIN}" "${ANSIBLE_PLAYBOOK_BIN}")
+required_tools=("${PYTHON_BIN}")
 for tool in "${required_tools[@]}"; do
   if ! command -v "${tool}" >/dev/null 2>&1; then
     echo "Required tool is unavailable: ${tool}" >&2
@@ -29,6 +29,15 @@ export ANSIBLE_COLLECTIONS_PATH="${ANSIBLE_ROOT}/collections"
 export ANSIBLE_VAULT_PASSWORD_FILE="/dev/null"
 
 "${PYTHON_BIN}" -m pip install --disable-pip-version-check -r "${REPOSITORY_ROOT}/requirements.txt"
+
+required_ansible_tools=("${ANSIBLE_GALAXY_BIN}" "${ANSIBLE_LINT_BIN}" "${ANSIBLE_PLAYBOOK_BIN}")
+for tool in "${required_ansible_tools[@]}"; do
+  if ! command -v "${tool}" >/dev/null 2>&1; then
+    echo "Required tool is unavailable: ${tool}" >&2
+    exit 1
+  fi
+done
+
 "${ANSIBLE_GALAXY_BIN}" collection install -r "${ANSIBLE_ROOT}/requirements.yml" -p "${ANSIBLE_ROOT}/collections"
 "${PYTHON_BIN}" - "${ANSIBLE_ROOT}" <<'PY'
 from pathlib import Path
