@@ -3,7 +3,7 @@
 > 说明：本指南覆盖 Immich 在 Homelab 中的 Terraform 资源、Proxmox 规格、Ansible 角色部署、验证模式、运维与扩展。语言中文，代码注释英文。
 
 ## 1. 概述
-Immich 是自托管照片/视频管理与 AI 分类平台。本环境中通过：
+Immich 是自托管照片、视频管理与 AI 分类平台。本环境中通过：
 - Terraform：提供虚拟机 (VMID 101) 与资源规格。
 - Ansible：`immich` 角色 + `docker` 角色部署 Docker Compose 服务栈。
 - 验证：在部署 playbook 中使用 `--tags verify` 进行端口、容器、PostgreSQL、Redis 与 HTTP 状态检查。
