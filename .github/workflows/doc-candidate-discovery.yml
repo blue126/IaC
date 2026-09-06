@@ -108,7 +108,10 @@ jobs:
             and all(.[]; type == "object" and (keys == ["id"]) and (.id | test("^doc-[0-9a-f]{20}$")))
             and ([.[].id] | length == (unique | length))
           ' "${output_dir}/matrix.json" >/dev/null
-          runtime_bootstrapped="$(jq -er '.runtime_bootstrapped' "${output_dir}/preparation.json")"
+          # jq -e exits 1 when the output is false, and runtime_bootstrapped is
+          # false on every PR whose base lacks the merged Phase 2A runtime.
+          runtime_bootstrapped="$(jq -r '.runtime_bootstrapped' "${output_dir}/preparation.json")"
+          [[ "${runtime_bootstrapped}" == "true" || "${runtime_bootstrapped}" == "false" ]]
           printf 'base=%s\nhead=%s\nmatrix=%s\nruntime_bootstrapped=%s\n' \
             "${base}" "${head}" "${matrix}" "${runtime_bootstrapped}" >> "${GITHUB_OUTPUT}"
           if [[ "${selected}" -gt 0 ]]; then

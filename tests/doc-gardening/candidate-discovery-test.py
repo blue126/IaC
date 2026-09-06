@@ -561,6 +561,13 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertNotIn("gh pr", workflow)
         self.assertNotIn("create comment", workflow.lower())
 
+    def test_workflow_reads_runtime_bootstrapped_without_jq_exit_status(self) -> None:
+        # jq -e exits 1 when the output is false, so reading this boolean with
+        # it under `bash -e` fails the step on every not-yet-bootstrapped PR.
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("jq -r '.runtime_bootstrapped'", workflow)
+        self.assertNotIn("jq -er '.runtime_bootstrapped'", workflow)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
