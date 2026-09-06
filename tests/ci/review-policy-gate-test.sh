@@ -3,9 +3,6 @@
 set -euo pipefail
 
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUNTIME_DIR="${1:-}"
-EVALUATOR="${RUNTIME_DIR}/scripts/evaluate-ai-review-gate.sh"
-VALIDATOR="${RUNTIME_DIR}/scripts/validate-review-verdict.sh"
 WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/claude-review.yml"
 REPOSITORY_WORKFLOW="${REPOSITORY_ROOT}/.github/workflows/repo-validation.yml"
 FIXTURE_DIR="$(mktemp -d)"
@@ -25,6 +22,28 @@ assert_file_contains() {
   local expected="$2"
 
   grep -Fq -- "${expected}" "${path}" || fail "${path} must contain: ${expected}"
+}
+
+assert_file_lacks() {
+  local path="$1"
+  local pattern="$2"
+
+  if grep -Eq -- "${pattern}" "${path}"; then
+    fail "${path} must not reference: ${pattern}"
+  fi
+}
+
+assert_step_precedes() {
+  local first_step="$1"
+  local second_step="$2"
+  local first_line
+  local second_line
+
+  first_line="$(grep -nF "      - name: ${first_step}" "${WORKFLOW}" | cut -d: -f1 | sed -n '1p')"
+  second_line="$(grep -nF "      - name: ${second_step}" "${WORKFLOW}" | cut -d: -f1 | sed -n '1p')"
+  [[ -n "${first_line}" && -n "${second_line}" && "${first_line}" -lt "${second_line}" ]] || {
+    fail "${first_step} must precede ${second_step}"
+  }
 }
 
 assert_count() {
@@ -55,84 +74,30 @@ extract_run_step() {
   [[ -s "${output_path}" ]] || fail "unable to extract run step: ${step_name}"
 }
 
-write_verdict() {
-  local path="$1"
-  local status="$2"
-  local reviewed_sha="$3"
-  local findings="$4"
+run_validator() {
+  local verdict_path="$1"
+  local review_result="${2-success}"
+  local review_conclusion="${3-success}"
 
-  jq -n \
-    --arg repository "blue126/IaC" \
-    --argjson pull_request 27 \
-    --arg reviewed_sha "${reviewed_sha}" \
-    --arg status "${status}" \
-    --argjson findings "${findings}" \
-    '{repository:$repository,pull_request:$pull_request,reviewed_sha:$reviewed_sha,status:$status,findings:$findings}' \
-    > "${path}"
+  RUNNER_TEMP="${FIXTURE_DIR}" \
+    REVIEW_RESULT="${review_result}" \
+    REVIEW_CONCLUSION="${review_conclusion}" \
+    STRUCTURED_OUTPUT="$(<"${verdict_path}")" \
+    bash "${validator_script}"
 }
 
 run_evaluator() {
-  "${EVALUATOR}" \
-    --verdict "$1" \
-    --repo blue126/IaC \
-    --pr 27 \
-    --sha 0123456789abcdef0123456789abcdef01234567
+  STRUCTURED_OUTPUT="$(<"$1")" bash "${evaluator_script}"
 }
 
-[[ -x "${EVALUATOR}" ]] || fail "runtime evaluator is missing or not executable: ${EVALUATOR}"
-[[ -x "${VALIDATOR}" ]] || fail "runtime validator is missing or not executable: ${VALIDATOR}"
-command -v jq >/dev/null 2>&1 || fail "jq is required"
+write_verdict() {
+  local path="$1"
+  local status="$2"
+  local findings="$3"
 
-write_verdict "${FIXTURE_DIR}/pass.json" pass \
-  0123456789abcdef0123456789abcdef01234567 '[]'
-run_evaluator "${FIXTURE_DIR}/pass.json" >/dev/null || fail "pass verdict must pass"
-
-non_blocking_finding='[{"fingerprint":"advisory-1","severity":"non_blocking","actionable":true,"path":"docs/example.md","summary":"A non-blocking suggestion"}]'
-write_verdict "${FIXTURE_DIR}/pass-with-advisory.json" pass \
-  0123456789abcdef0123456789abcdef01234567 "${non_blocking_finding}"
-run_evaluator "${FIXTURE_DIR}/pass-with-advisory.json" >/dev/null || {
-  fail "pass verdict with only non-blocking findings must pass"
+  jq -n --arg status "${status}" --argjson findings "${findings}" \
+    '{status:$status,findings:$findings}' > "${path}"
 }
-
-blocking_finding='[{"fingerprint":"blocking-1","severity":"blocking","actionable":true,"path":"scripts/example.sh","summary":"A concrete blocking issue"}]'
-write_verdict "${FIXTURE_DIR}/needs-fix.json" needs_fix \
-  0123456789abcdef0123456789abcdef01234567 "${blocking_finding}"
-set +e
-run_evaluator "${FIXTURE_DIR}/needs-fix.json" >/dev/null 2>&1
-status=$?
-set -e
-[[ ${status} -eq 10 ]] || fail "needs_fix verdict must exit 10, got ${status}"
-
-write_verdict "${FIXTURE_DIR}/human-required.json" human_required \
-  0123456789abcdef0123456789abcdef01234567 '[]'
-set +e
-run_evaluator "${FIXTURE_DIR}/human-required.json" >/dev/null 2>&1
-status=$?
-set -e
-[[ ${status} -eq 11 ]] || fail "human_required verdict must exit 11, got ${status}"
-
-write_verdict "${FIXTURE_DIR}/stale.json" pass \
-  fedcba9876543210fedcba9876543210fedcba98 '[]'
-if run_evaluator "${FIXTURE_DIR}/stale.json" >/dev/null 2>&1; then
-  fail "a verdict for a stale SHA must fail"
-fi
-
-jq '.repository = "other/repository"' "${FIXTURE_DIR}/pass.json" \
-  > "${FIXTURE_DIR}/wrong-repository.json"
-if run_evaluator "${FIXTURE_DIR}/wrong-repository.json" >/dev/null 2>&1; then
-  fail "a verdict for another repository must fail"
-fi
-
-jq '.pull_request = 28' "${FIXTURE_DIR}/pass.json" \
-  > "${FIXTURE_DIR}/wrong-pull-request.json"
-if run_evaluator "${FIXTURE_DIR}/wrong-pull-request.json" >/dev/null 2>&1; then
-  fail "a verdict for another pull request must fail"
-fi
-
-printf '%s\n' '{"status":"pass"}' > "${FIXTURE_DIR}/malformed.json"
-if run_evaluator "${FIXTURE_DIR}/malformed.json" >/dev/null 2>&1; then
-  fail "a malformed verdict must fail"
-fi
 
 [[ -f "${WORKFLOW}" ]] || fail "Claude Review workflow is missing"
 [[ ! -e "${REPOSITORY_ROOT}/.github/workflows/claude-code-review.yml" ]] || {
@@ -141,6 +106,7 @@ fi
 [[ ! -e "${REPOSITORY_ROOT}/.github/workflows/ai-review-gate.yml" ]] || {
   fail "legacy AI review gate workflow must be removed"
 }
+command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 assert_file_contains "${WORKFLOW}" "name: Claude Review"
 assert_file_contains "${WORKFLOW}" "types: [opened, synchronize, ready_for_review, reopened]"
@@ -153,18 +119,26 @@ assert_file_contains "${WORKFLOW}" "needs: claude-review"
 assert_file_contains "${WORKFLOW}" 'verdict: ${{ steps.export-verdict.outputs.verdict }}'
 assert_file_contains "${WORKFLOW}" 'STRUCTURED_OUTPUT: ${{ needs.claude-review.outputs.verdict }}'
 assert_file_contains "${WORKFLOW}" 'REVIEW_RESULT: ${{ needs.claude-review.result }}'
-assert_file_contains "${WORKFLOW}" "repository: blue126/agent-project-bootstrap"
-assert_file_contains "${WORKFLOW}" "ref: 3c6e3ada5ebe3790b9bbecf44c594ffa03be716e"
+assert_file_contains "${WORKFLOW}" '${{ github.event.pull_request.base.sha }}'
+assert_file_contains "${WORKFLOW}" '"required":["status","findings"]'
+assert_file_lacks "${WORKFLOW}" '"repository"|"pull_request"|"reviewed_sha"'
 assert_file_contains "${WORKFLOW}" "maxItems\":20"
 assert_file_contains "${WORKFLOW}" "maxLength\":512"
 assert_file_contains "${WORKFLOW}" 'marker="<!-- claude-review-head:${HEAD_SHA} -->"'
 assert_file_contains "${WORKFLOW}" 'github-actions[bot]'
 assert_file_contains "${WORKFLOW}" "Claude verdict is empty or was redacted"
-assert_file_contains "${WORKFLOW}" "validate-review-verdict.sh"
 assert_file_contains "${WORKFLOW}" "persist-credentials: false"
+assert_file_contains "${WORKFLOW}" "Validated verdict has an unknown status"
 assert_file_contains "${WORKFLOW}" "not a required check"
 assert_count "${WORKFLOW}" 'uses: anthropics/claude-code-action@' 1
 assert_count "${WORKFLOW}" '^[[:space:]]+github_token:[[:space:]]+\$\{\{ github\.token \}\}' 1
+assert_file_lacks "${WORKFLOW}" 'agent-project-bootstrap|\.governance-runtime|validate-review-verdict\.sh|evaluate-ai-review-gate\.sh'
+assert_file_lacks "${REPOSITORY_WORKFLOW}" 'agent-project-bootstrap|\.governance-runtime'
+assert_step_precedes "Validate structured verdict" "Render current HEAD review comment"
+assert_file_contains "${REPOSITORY_WORKFLOW}" "Run review policy gate contract tests"
+grep -Fxq '        run: tests/ci/review-policy-gate-test.sh' "${REPOSITORY_WORKFLOW}" || {
+  fail "repository validation must invoke the local review policy gate test without arguments"
+}
 
 claude_job="$({
   sed -n '/^  claude-review:/,/^  review-policy-gate:/p' "${WORKFLOW}"
@@ -185,15 +159,119 @@ if grep -Eq '^[[:space:]]*uses:' "${WORKFLOW}" && \
   fail "all Claude Review actions must be pinned to full commit SHAs"
 fi
 
-assert_file_contains "${REPOSITORY_WORKFLOW}" "Run review policy gate contract tests"
-assert_file_contains "${REPOSITORY_WORKFLOW}" "tests/ci/review-policy-gate-test.sh .governance-runtime"
-
-renderer_script="${FIXTURE_DIR}/render-review-comment.sh"
 validator_script="${FIXTURE_DIR}/validate-structured-verdict.sh"
-extract_run_step "Render current HEAD review comment" "${renderer_script}"
+evaluator_script="${FIXTURE_DIR}/evaluate-structured-verdict.sh"
+renderer_script="${FIXTURE_DIR}/render-review-comment.sh"
 extract_run_step "Validate structured verdict" "${validator_script}"
-bash -n "${renderer_script}"
+extract_run_step "Evaluate structured verdict" "${evaluator_script}"
+extract_run_step "Render current HEAD review comment" "${renderer_script}"
 bash -n "${validator_script}"
+bash -n "${evaluator_script}"
+bash -n "${renderer_script}"
+
+pass_verdict="${FIXTURE_DIR}/pass.json"
+needs_fix_verdict="${FIXTURE_DIR}/needs-fix.json"
+human_required_verdict="${FIXTURE_DIR}/human-required.json"
+write_verdict "${pass_verdict}" pass '[]'
+write_verdict "${needs_fix_verdict}" needs_fix \
+  '[{"fingerprint":"blocking-1","severity":"blocking","actionable":true,"path":"scripts/example.sh","summary":"A concrete blocking issue"}]'
+write_verdict "${human_required_verdict}" human_required \
+  '[{"fingerprint":"ambiguous-1","severity":"blocking","actionable":false,"path":"docs/example.md","summary":"A blocking concern needs human judgment"}]'
+pass_with_advisory_verdict="${FIXTURE_DIR}/pass-with-advisory.json"
+write_verdict "${pass_with_advisory_verdict}" pass \
+  '[{"fingerprint":"advisory-1","severity":"non_blocking","actionable":true,"path":"docs/example.md","summary":"A non-blocking suggestion"}]'
+
+run_validator "${pass_verdict}" >/dev/null || fail "valid pass verdict must validate"
+run_evaluator "${pass_verdict}" >/dev/null || fail "pass verdict must exit 0"
+run_validator "${pass_with_advisory_verdict}" >/dev/null || fail "pass verdict with an advisory must validate"
+run_evaluator "${pass_with_advisory_verdict}" >/dev/null || fail "pass verdict with an advisory must exit 0"
+run_validator "${needs_fix_verdict}" >/dev/null || fail "valid needs_fix verdict must validate"
+set +e
+run_evaluator "${needs_fix_verdict}" >/dev/null 2>&1
+status=$?
+set -e
+[[ ${status} -eq 10 ]] || fail "needs_fix verdict must exit 10, got ${status}"
+run_validator "${human_required_verdict}" >/dev/null || fail "valid human_required verdict must validate"
+set +e
+run_evaluator "${human_required_verdict}" >/dev/null 2>&1
+status=$?
+set -e
+[[ ${status} -eq 11 ]] || fail "human_required verdict must exit 11, got ${status}"
+
+human_required_actionable_verdict="${FIXTURE_DIR}/human-required-actionable.json"
+jq '.status = "human_required"' "${needs_fix_verdict}" > "${human_required_actionable_verdict}"
+run_validator "${human_required_actionable_verdict}" >/dev/null || {
+  fail "human_required verdict may retain an actionable blocking finding"
+}
+
+invalid_verdict="${FIXTURE_DIR}/invalid.json"
+for invalid_case in extra-top-level invalid-finding unknown-severity duplicate-fingerprint absolute-path parent-path oversized-path oversized-fingerprint oversized-summary too-many-findings inconsistent-pass inconsistent-needs-fix malformed empty bad-upstream; do
+  case "${invalid_case}" in
+    extra-top-level)
+      jq '.repository = "blue126/IaC"' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    invalid-finding)
+      jq '.findings = [{"fingerprint":7,"severity":"blocking","actionable":"yes","path":"docs/example.md","summary":"Bad types"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    unknown-severity)
+      jq '.findings = [{"fingerprint":"unknown-severity","severity":"unexpected","actionable":false,"path":"docs/example.md","summary":"Unknown severity"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    duplicate-fingerprint)
+      jq '.findings = [
+        {"fingerprint":"duplicate","severity":"non_blocking","actionable":true,"path":"docs/one.md","summary":"One"},
+        {"fingerprint":"duplicate","severity":"non_blocking","actionable":false,"path":"docs/two.md","summary":"Two"}
+      ]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    absolute-path)
+      jq '.findings = [{"fingerprint":"absolute","severity":"non_blocking","actionable":true,"path":"/etc/passwd","summary":"Illegal path"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    parent-path)
+      jq '.findings = [{"fingerprint":"parent","severity":"non_blocking","actionable":true,"path":"docs/../secret","summary":"Illegal path"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    oversized-path)
+      jq --arg path "$(printf 'a%.0s' {1..513})" '.findings = [{"fingerprint":"oversized","severity":"non_blocking","actionable":true,"path":$path,"summary":"Oversized path"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    oversized-fingerprint)
+      jq --arg fingerprint "$(printf 'a%.0s' {1..257})" '.findings = [{"fingerprint":$fingerprint,"severity":"non_blocking","actionable":true,"path":"docs/example.md","summary":"Oversized fingerprint"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    oversized-summary)
+      jq --arg summary "$(printf 'a%.0s' {1..2001})" '.findings = [{"fingerprint":"summary","severity":"non_blocking","actionable":true,"path":"docs/example.md","summary":$summary}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    too-many-findings)
+      jq '.findings = [range(0; 21) | {fingerprint:("finding-" + tostring),severity:"non_blocking",actionable:true,path:"docs/example.md",summary:"Too many"}]' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    inconsistent-pass)
+      jq '.status = "pass"' "${needs_fix_verdict}" > "${invalid_verdict}"
+      ;;
+    inconsistent-needs-fix)
+      jq '.status = "needs_fix" | .findings = []' "${pass_verdict}" > "${invalid_verdict}"
+      ;;
+    malformed)
+      printf '%s\n' '{"status":"pass"}' > "${invalid_verdict}"
+      ;;
+    empty)
+      : > "${invalid_verdict}"
+      ;;
+    bad-upstream)
+      cp "${pass_verdict}" "${invalid_verdict}"
+      ;;
+  esac
+
+  if [[ "${invalid_case}" == "bad-upstream" ]]; then
+    if run_validator "${invalid_verdict}" failure success >/dev/null 2>&1; then
+      fail "failed upstream review must fail before validation"
+    fi
+  elif run_validator "${invalid_verdict}" >/dev/null 2>&1; then
+    fail "${invalid_case} verdict must fail local validation"
+  fi
+done
+
+for upstream_case in 'skipped|success' 'success|failure' 'success|' 'success|redacted'; do
+  IFS='|' read -r review_result review_conclusion <<< "${upstream_case}"
+  if run_validator "${pass_verdict}" "${review_result}" "${review_conclusion}" >/dev/null 2>&1; then
+    fail "upstream state must fail before local validation: ${upstream_case}"
+  fi
+done
 
 mock_bin="${FIXTURE_DIR}/bin"
 mock_log="${FIXTURE_DIR}/gh.log"
@@ -221,62 +299,25 @@ done
 SH
 chmod +x "${mock_bin}/gh"
 
-renderer_verdict='{"repository":"blue126/IaC","pull_request":27,"reviewed_sha":"0123456789abcdef0123456789abcdef01234567","status":"pass","findings":[{"fingerprint":"advisory-1","severity":"non_blocking","actionable":false,"path":"docs/<unsafe>.md","summary":"Review <img src=x> @octocat"}]}'
 : > "${mock_log}"
 PATH="${mock_bin}:${PATH}" MOCK_LOG="${mock_log}" MOCK_COMMENT_ID="" \
   RUNNER_TEMP="${FIXTURE_DIR}" REPOSITORY="blue126/IaC" PULL_REQUEST="27" \
   HEAD_SHA="0123456789abcdef0123456789abcdef01234567" \
-  STRUCTURED_OUTPUT="${renderer_verdict}" bash "${renderer_script}"
+  STRUCTURED_OUTPUT="$(<"${pass_verdict}")" bash "${renderer_script}"
 grep -Fq 'method=POST' "${mock_log}" || fail "renderer must create the first HEAD comment"
-grep -Fq '&lt;img src=x&gt;' "${mock_log}" || fail "renderer must HTML-escape finding content"
-grep -Fq '&amp;#64;octocat' "${mock_log}" || fail "renderer must neutralize user mentions"
-grep -Fq 'actionable: false' "${mock_log}" || fail "renderer must display actionable state"
 
+renderer_verdict="${FIXTURE_DIR}/renderer.json"
+write_verdict "${renderer_verdict}" pass \
+  '[{"fingerprint":"advisory-1","severity":"non_blocking","actionable":false,"path":"docs/unsafe.md","summary":"Review <img src=x> @octocat"}]'
+run_validator "${renderer_verdict}" >/dev/null || fail "renderer fixture must validate"
 : > "${mock_log}"
 PATH="${mock_bin}:${PATH}" MOCK_LOG="${mock_log}" MOCK_COMMENT_ID="123" \
   RUNNER_TEMP="${FIXTURE_DIR}" REPOSITORY="blue126/IaC" PULL_REQUEST="27" \
   HEAD_SHA="0123456789abcdef0123456789abcdef01234567" \
-  STRUCTURED_OUTPUT="${renderer_verdict}" bash "${renderer_script}"
+  STRUCTURED_OUTPUT="$(<"${renderer_verdict}")" bash "${renderer_script}"
 grep -Fq 'method=PATCH' "${mock_log}" || fail "renderer must update an existing HEAD comment"
-
-mkdir -p "${FIXTURE_DIR}/gate/.governance-runtime/scripts"
-cat > "${FIXTURE_DIR}/gate/.governance-runtime/scripts/validate-review-verdict.sh" <<'SH'
-#!/bin/bash
-printf '%s\n' called > "${VALIDATOR_LOG}"
-SH
-chmod +x "${FIXTURE_DIR}/gate/.governance-runtime/scripts/validate-review-verdict.sh"
-if (cd "${FIXTURE_DIR}/gate" && \
-  RUNNER_TEMP="${FIXTURE_DIR}" VALIDATOR_LOG="${FIXTURE_DIR}/validator.log" \
-  REVIEW_RESULT="failure" REVIEW_CONCLUSION="success" \
-  STRUCTURED_OUTPUT="${renderer_verdict}" REPOSITORY="blue126/IaC" PULL_REQUEST="27" \
-  HEAD_SHA="0123456789abcdef0123456789abcdef01234567" bash "${validator_script}") >/dev/null 2>&1; then
-  fail "gate preconditions must reject a failed Claude review job"
-fi
-[[ ! -e "${FIXTURE_DIR}/validator.log" ]] || fail "failed review must not reach the runtime validator"
-
-for rejected_case in \
-  'skipped|success|valid' \
-  'success|failure|valid' \
-  'success|success|empty'; do
-  IFS='|' read -r review_result review_conclusion output_kind <<< "${rejected_case}"
-  structured_output="${renderer_verdict}"
-  if [[ "${output_kind}" == "empty" ]]; then structured_output=""; fi
-  if (cd "${FIXTURE_DIR}/gate" && \
-    RUNNER_TEMP="${FIXTURE_DIR}" VALIDATOR_LOG="${FIXTURE_DIR}/validator.log" \
-    REVIEW_RESULT="${review_result}" REVIEW_CONCLUSION="${review_conclusion}" \
-    STRUCTURED_OUTPUT="${structured_output}" REPOSITORY="blue126/IaC" PULL_REQUEST="27" \
-    HEAD_SHA="0123456789abcdef0123456789abcdef01234567" \
-    bash "${validator_script}") >/dev/null 2>&1; then
-    fail "gate preconditions accepted rejected case: ${rejected_case}"
-  fi
-done
-[[ ! -e "${FIXTURE_DIR}/validator.log" ]] || fail "rejected inputs must not reach the runtime validator"
-
-(cd "${FIXTURE_DIR}/gate" && \
-  RUNNER_TEMP="${FIXTURE_DIR}" VALIDATOR_LOG="${FIXTURE_DIR}/validator.log" \
-  REVIEW_RESULT="success" REVIEW_CONCLUSION="success" \
-  STRUCTURED_OUTPUT="${renderer_verdict}" REPOSITORY="blue126/IaC" PULL_REQUEST="27" \
-  HEAD_SHA="0123456789abcdef0123456789abcdef01234567" bash "${validator_script}") >/dev/null
-[[ -s "${FIXTURE_DIR}/validator.log" ]] || fail "valid upstream output must reach the runtime validator"
+grep -Fq '&lt;img src=x&gt;' "${mock_log}" || fail "renderer must HTML-escape finding content"
+grep -Fq '&amp;#64;octocat' "${mock_log}" || fail "renderer must neutralize user mentions"
+grep -Fq 'actionable: false' "${mock_log}" || fail "renderer must display actionable state"
 
 echo "Review policy gate contract tests passed"

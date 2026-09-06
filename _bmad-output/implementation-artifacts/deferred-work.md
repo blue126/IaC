@@ -65,3 +65,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-doc-gardening-phase-2.md`
   summary: 在 `validate_run_record()` 中校验 status、reason、live、runtime、model 与 artifact 是否存在之间的允许组合，而不只是逐个查枚举。
   evidence: 目前 `status=completed` 配 `reason=timeout`、`live=false` 配 `reason=live_completed`、以及 blocked record 携带 artifact 都能通过。该 validator 是审计记录的确定性信任边界，自相矛盾的记录不应通过。Codex 在 PR #18 判为 P2。
+- source_spec: `_bmad-output/implementation-artifacts/spec-ai-review-local-evaluation.md`
+  summary: 在 review runtime 简化完成后，配置 GitHub Ruleset 的 current-SHA checks、普通 PR squash auto-merge 与已合并远端 head branch 删除。
+  evidence: 该外部治理变更依赖对 GitHub 权威平台、信任资格、治理敏感路径人工合并和仓库设置授权的后续决定；用户要求先完成当前 runtime 简化。

@@ -318,6 +318,12 @@ assert_file_contains "${workflow}" "persist-credentials: false"
 assert_file_contains "${workflow}" 'BASE_SHA: ${{ github.event.pull_request.base.sha }}'
 assert_file_contains "${workflow}" 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'
 assert_file_contains "${workflow}" 'scripts/ci/validate-repository.sh "${BASE_SHA}" "${HEAD_SHA}"'
+grep -Fxq '        run: tests/ci/review-policy-gate-test.sh' "${workflow}" || {
+  fail "repository validation must run the local review policy gate contract test without arguments"
+}
+if grep -Eq 'agent-project-bootstrap|\.governance-runtime|validate-review-verdict\.sh|evaluate-ai-review-gate\.sh' "${workflow}"; then
+  fail "repository validation workflow must not set up or invoke an external governance runtime"
+fi
 
 if grep -Eq '^[[:space:]]*uses:' "${workflow}" && \
   grep -Ev '^[[:space:]]*uses:[[:space:]]+[^@[:space:]]+@[0-9a-f]{40}([[:space:]]+#.*)?$' \

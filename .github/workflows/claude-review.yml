@@ -46,8 +46,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: |
-            Perform one independent, read-only code review of pull request
-            ${{ github.repository }}#${{ github.event.pull_request.number }} at exactly
+            Perform one independent, read-only code review of current pull request head
             ${{ github.event.pull_request.head.sha }} against base commit
             ${{ github.event.pull_request.base.sha }}.
 
@@ -62,11 +61,9 @@ jobs:
             include non-blocking findings. Use "human_required" if the review cannot be
             completed reliably or a blocking concern is ambiguous or not safely
             actionable. Fingerprints must be stable for the same underlying issue.
-
-            Set repository, pull_request, and reviewed_sha exactly to the values above.
           claude_args: >-
             --allowedTools "Read,Glob,Grep,Bash(git diff:*),Bash(git show:*),Bash(git status:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"required":["repository","pull_request","reviewed_sha","status","findings"],"properties":{"repository":{"type":"string","minLength":3,"maxLength":256,"pattern":"^[^/\\s]+/[^/\\s]+$"},"pull_request":{"type":"integer","minimum":1,"maximum":2147483647},"reviewed_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"status":{"enum":["pass","needs_fix","human_required"]},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["fingerprint","severity","actionable","path","summary"],"properties":{"fingerprint":{"type":"string","minLength":1,"maxLength":256},"severity":{"enum":["blocking","non_blocking"]},"actionable":{"type":"boolean"},"path":{"type":"string","minLength":1,"maxLength":512},"summary":{"type":"string","minLength":1,"maxLength":2000}}}}}}'
+            --json-schema '{"type":"object","additionalProperties":false,"required":["status","findings"],"properties":{"status":{"enum":["pass","needs_fix","human_required"]},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["fingerprint","severity","actionable","path","summary"],"properties":{"fingerprint":{"type":"string","minLength":1,"maxLength":256},"severity":{"enum":["blocking","non_blocking"]},"actionable":{"type":"boolean"},"path":{"type":"string","minLength":1,"maxLength":512},"summary":{"type":"string","minLength":1,"maxLength":2000}}}}}}'
 
       - name: Export bounded verdict
         id: export-verdict
@@ -101,27 +98,8 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - name: Check out governance runtime
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          repository: blue126/agent-project-bootstrap
-          ref: 3c6e3ada5ebe3790b9bbecf44c594ffa03be716e
-          path: .governance-runtime
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Verify governance runtime contract
-        env:
-          EXPECTED_RUNTIME_SHA: 3c6e3ada5ebe3790b9bbecf44c594ffa03be716e
-        run: |
-          actual_sha="$(git -C .governance-runtime rev-parse HEAD)"
-          [[ "${actual_sha}" == "${EXPECTED_RUNTIME_SHA}" ]]
-
       - name: Validate structured verdict
         env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
           REVIEW_CONCLUSION: ${{ needs.claude-review.outputs.conclusion }}
           REVIEW_RESULT: ${{ needs.claude-review.result }}
           STRUCTURED_OUTPUT: ${{ needs.claude-review.outputs.verdict }}
@@ -141,14 +119,34 @@ jobs:
 
           verdict_file="${RUNNER_TEMP}/review-verdict.json"
           printf '%s\n' "${STRUCTURED_OUTPUT}" > "${verdict_file}"
-          .governance-runtime/scripts/validate-review-verdict.sh \
-            --file "${verdict_file}" \
-            --repo "${REPOSITORY}" \
-            --pr "${PULL_REQUEST}" \
-            --sha "${HEAD_SHA}"
           jq -e '
-            (.findings | length <= 20)
-            and all(.findings[]; (.path | length) <= 512)
+            def valid_string($maximum):
+              if type == "string" then length >= 1 and length <= $maximum else false end;
+            def valid_path:
+              (valid_string(512))
+              and (startswith("/") | not)
+              and (split("/") | all(.[]; . != "" and . != "." and . != ".."));
+            def valid_finding:
+              type == "object"
+              and (keys | sort == ["actionable", "fingerprint", "path", "severity", "summary"])
+              and (.fingerprint | valid_string(256))
+              and (.severity == "blocking" or .severity == "non_blocking")
+              and (.actionable | type == "boolean")
+              and (.path | valid_path)
+              and (.summary | valid_string(2000));
+            type == "object"
+            and (keys | sort == ["findings", "status"])
+            and (.status == "pass" or .status == "needs_fix" or .status == "human_required")
+            and (.findings | type == "array" and length <= 20 and all(.[]; valid_finding))
+            and ([.findings[].fingerprint] | length == (unique | length))
+            and (
+              if .status == "pass" then
+                all(.findings[]; .severity != "blocking")
+              elif .status == "needs_fix" then
+                any(.findings[]; .severity == "blocking" and .actionable)
+              else true
+              end
+            )
           ' "${verdict_file}" >/dev/null
 
       - name: Render current HEAD review comment
@@ -210,18 +208,18 @@ jobs:
 
       - name: Evaluate structured verdict
         env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
           STRUCTURED_OUTPUT: ${{ needs.claude-review.outputs.verdict }}
         run: |
-          verdict_file="${RUNNER_TEMP}/review-verdict.json"
-          printf '%s\n' "${STRUCTURED_OUTPUT}" > "${verdict_file}"
-          .governance-runtime/scripts/evaluate-ai-review-gate.sh \
-            --verdict "${verdict_file}" \
-            --repo "${REPOSITORY}" \
-            --pr "${PULL_REQUEST}" \
-            --sha "${HEAD_SHA}"
+          status="$(jq -er '.status' <<< "${STRUCTURED_OUTPUT}")"
+          case "${status}" in
+            pass) exit 0 ;;
+            needs_fix) exit 10 ;;
+            human_required) exit 11 ;;
+            *)
+              echo "Validated verdict has an unknown status: ${status}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Record shadow status
         if: always()

@@ -68,20 +68,20 @@
 
 ### Scope
 
-把两个自动 AI workflow 收敛为一个 `Claude Review` workflow：`claude-review` 每个 HEAD 只调用一次 Claude 并输出有界 structured verdict；确定性 renderer 从该 verdict 创建或更新当前 SHA 评论；`review-policy-gate` 作为独立 job 复用固定 bootstrap evaluator。继续保持 shadow，不修改 Ruleset、Fixer、auto-merge 或 Jenkins。
+把两个自动 AI workflow 收敛为一个 `Claude Review` workflow：`claude-review` 每个 HEAD 只调用一次 Claude 并输出有界 structured verdict；确定性 renderer 从该 verdict 创建或更新当前 SHA 评论；`review-policy-gate` 作为独立 job 在本仓库以 `jq` 校验并判定 verdict。GitHub event 是 repository、PR 与 SHA 的身份事实来源。继续保持 shadow，不修改 Ruleset、Fixer、auto-merge 或 Jenkins。
 
 ### Files and actions
 
 1. `.github/workflows/claude-review.yml`
    - 合并并取代 `.github/workflows/claude-code-review.yml` 与 `.github/workflows/ai-review-gate.yml`。
    - 保留 opened、synchronize、ready_for_review、reopened、non-Draft 和 per-PR cancellation；明确拒绝 fork。
-   - Claude job 只读 PR 内容且恰好调用一次 SHA-pinned Claude Action；schema 限制 finding 数量和字段长度。
+   - Claude job 只读 PR 内容且恰好调用一次 SHA-pinned Claude Action；schema 的顶层字段仅为 `status` 与 `findings`，并限制 finding 数量和字段长度。
    - job output 仅通过 environment 交给 renderer/gate；空、redacted 或上游失败一律 fail closed。
    - renderer 不解析自然语言评论，以 HEAD marker 幂等创建或更新摘要；模型无 GitHub write tool。
-   - gate job 使用 `if: always()`，不持有模型凭据或 OIDC；它只获得 renderer 所需的 `pull-requests: write` 来发布 PR 评论，先校验上游结果和绑定当前 repo/PR/full HEAD SHA 的 verdict，再执行 policy 判定。
+   - gate job 使用 `if: always()`，不持有模型凭据或 OIDC；它只获得 renderer 所需的 `pull-requests: write` 来发布 PR 评论，先在本地用 `jq` 校验上游结果、verdict schema、相对路径、fingerprint 唯一性与 status/finding 语义，再执行确定性判定。它不从 verdict 读取 repository、PR 或 SHA。
 2. `tests/ci/review-policy-gate-test.sh`
-   - 保留 evaluator 的 pass、needs_fix、human_required、stale SHA 和 malformed fixtures。
-   - 断言单 workflow、单 Claude Action、两个稳定 job 名、job output、`needs`/`always()`、权限边界、immutable pins 和旧 workflow 已移除。
+   - 保留本地 evaluator 的 pass、needs_fix、human_required、malformed、重复 fingerprint、非法路径、语义冲突和上游失败 fixtures。
+   - 断言单 workflow、单 Claude Action、两个稳定 job 名、job output、`needs`/`always()`、权限边界、immutable pins、验证先于 renderer，以及不存在外部 runtime 引用。
 3. `docs/designs/cicd-architecture.md` 与 canonical spec companions
    - 将 Phase 2A 双调用记为历史 evidence，并记录 Phase 2B 单调用数据流、命名和 fallback 原因。
 
@@ -89,7 +89,7 @@
 
 - **AC-P2B-1:** Given 一个 Ready PR HEAD，when `Claude Review` 运行，then workflow 中恰好一次 Claude Action 调用，同时得到人类可读评论和机器 verdict。
 - **AC-P2B-2:** Given Draft PR，when opened，then该 review workflow 的所有 job 均 skipped；when 同一 HEAD 转 Ready，then首次执行；when push 新 HEAD，then旧 run 取消并重新审查。
-- **AC-P2B-3:** Given Claude 失败、output 为空/畸形/陈旧或身份不匹配，when policy job运行，then `review-policy-gate` fail closed 而不是 skipped。
+- **AC-P2B-3:** Given Claude 失败、output 为空/畸形、字段多余或缺失、finding 非法或 status/finding 语义矛盾，when policy job运行，then `review-policy-gate` fail closed 而不是 skipped。
 - **AC-P2B-4:** Given pass、needs_fix 或 human_required verdict，when renderer运行，then它只从该 JSON 幂等创建/更新当前 SHA 评论，不把评论文本作为 gate 输入。
 - **AC-P2B-5:** Given governance-sensitive workflow 变更，when Phase 2B 合入，then它仍处于 shadow，Ruleset、auto-merge、Fixer 和 Jenkins 行为均不变。
 
