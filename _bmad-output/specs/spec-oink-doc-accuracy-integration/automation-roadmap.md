@@ -75,7 +75,7 @@ AI owns semantic discovery and prose generation. The controller owns document al
 5. The validator rejects stale hashes, invented quotes/references, secret-bearing content, out-of-scope paths and multi-document outputs.
 6. Valid candidates are audit artifacts only. `unknown` and evidence conflicts remain no-change results.
 7. Credentialed jobs check out only the PR merge base, use trusted base code to reconstruct head Git-object provenance, and never execute PR-head code; the bootstrap PR records `runtime_not_bootstrapped` and makes zero model calls.
-8. Claude Opus 5 receives one inline manifest with all tools disallowed and one turn. Only `structured_output` enters the final report; prompts and execution logs are not uploaded as evidence artifacts.
+8. Claude Opus 5 receives one inline manifest with all tools disallowed and at most two turns. The first denied tool attempt is safe; only `structured_output` enters the final report, and prompts and execution logs are not uploaded as evidence artifacts.
 
 **Delivered Shadow evidence:** `.github/workflows/doc-candidate-discovery.yml` 自动运行只读候选发现，但结果仅为不阻塞 PR 的 evidence；它有固定 5-document/20-candidate limits、每文档 5 分钟 timeout、串行调用与 14 天 JSON retention。离线 synthetic/hostile fixtures 只验证 controller 和安全合同。模型质量、precision/recall、false-negative budget 与 labeled real-document corpus 仍未建立，因此不得据此进入 Phase 2B、应用 patch、发表评论或设置 required check。
 

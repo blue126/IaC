@@ -18,7 +18,7 @@ context: []
 
 ## Boundaries & Constraints
 
-**Always:** 仅处理 `docs/deployment/`、`docs/designs/` 的 changed `.md`；按 PR merge-base/head 固定 revision、稳定排序、串行，最多 5 次调用、每文档 job 5 分钟、`--max-turns 1`、每文档最多 20 candidates。`A/M` 每文档一个 manifest；`D/R`、空 added、超预算均记录 no-analysis 且零调用。模型 job 只 checkout base SHA，并用可信 base code 回验 head Git object；Claude 使用 `--model claude-opus-5 --disallowedTools "*"`。只有 Action step 获得既有 `CLAUDE_CODE_OAUTH_TOKEN`；权限仅 `contents/pull-requests: read`。所有结果都是非阻塞 Shadow evidence。
+**Always:** 仅处理 `docs/deployment/`、`docs/designs/` 的 changed `.md`；按 PR merge-base/head 固定 revision、稳定排序、串行，最多 5 次调用、每文档 job 5 分钟、`--max-turns 2`、每文档最多 20 candidates。`A/M` 每文档一个 manifest；`D/R`、空 added、超预算均记录 no-analysis 且零调用。模型 job 只 checkout base SHA，并用可信 base code 回验 head Git object；Claude 使用 `--model claude-opus-5 --disallowedTools "*"`。只有 Action step 获得既有 `CLAUDE_CODE_OAUTH_TOKEN`；权限仅 `contents/pull-requests: read`。所有结果都是非阻塞 Shadow evidence。
 
 **Ask First:** 提高 limits；允许 Draft/fork；更换模型/credential；增加 tools、评论/write permission、required check、schedule/full scan；上传 execution log；进入 Phase 2B；commit、push、PR 或 merge。
 
@@ -65,6 +65,7 @@ context: []
 
 ## Spec Change Log
 
+- 2026-09-07 human renegotiation: live Actions evidence established that the pinned Claude Code Action consumes a tool attempt before it can emit structured output. `--max-turns 1` therefore makes a no-tool Shadow invocation impossible. The bound is raised to 2; `--disallowedTools "*"`, base-only checkout, read-only permissions, serial execution and the 5-minute job limit remain unchanged.
 - 2026-09-06 review: `prepare` 在 PR head checkout 中运行 controller，因此矩阵与 disposition 集本身不可信。Shadow 结果不阻塞任何 gate，隐藏自己的文档不产生权限或门禁收益，凭据边界也仍由 base-only 的 `analyze`/`aggregate` 保证，故记录为 deferred，不在本 spec 内加固。进入 Phase 2B 前必须重新评估。
 
 ## Design Notes
