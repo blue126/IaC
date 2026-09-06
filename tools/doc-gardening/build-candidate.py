@@ -4,17 +4,19 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
 from contract import (
+    SCHEMA_VERSION,
+    SHADOW_SCHEMA_VERSION,
     ContractError,
     atomic_write_json,
     contains_secret,
     git,
     git_file,
+    parse_unified_hunks,
     payload_hash,
     read_json,
     require_identifier,
@@ -27,70 +29,7 @@ from contract import (
 )
 
 
-HUNK_HEADER = re.compile(
-    r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$"
-)
-
-
-def _parse_hunks(diff: str, head_lines: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    hunks: list[dict[str, Any]] = []
-    spans: list[dict[str, Any]] = []
-    current_header: re.Match[str] | None = None
-    current_lines: list[str] = []
-
-    def finish() -> None:
-        nonlocal current_header, current_lines
-        if current_header is None:
-            return
-        old_start = int(current_header.group(1))
-        old_count = int(current_header.group(2) or "1")
-        new_start = int(current_header.group(3))
-        new_count = int(current_header.group(4) or "1")
-        text = current_header.group(0) + "\n" + "\n".join(current_lines) + "\n"
-        digest = sha256_bytes(text.encode("utf-8"))
-        hunk_id = f"hunk-{len(hunks) + 1}-{digest[:12]}"
-        hunks.append(
-            {
-                "id": hunk_id,
-                "sha256": digest,
-                "old_start": old_start,
-                "old_count": old_count,
-                "new_start": new_start,
-                "new_count": new_count,
-                "text": text,
-            }
-        )
-        if new_count:
-            # new_start is 1-based whenever the hunk adds lines; 0 would slice
-            # from the end of the document and quote unrelated content.
-            if new_start < 1:
-                raise ContractError("document_diff_invalid")
-            quote = "\n".join(head_lines[new_start - 1 : new_start - 1 + new_count])
-            span_digest = sha256_bytes(quote.encode("utf-8"))
-            spans.append(
-                {
-                    "id": f"span-{len(spans) + 1}-{span_digest[:12]}",
-                    "hunk_id": hunk_id,
-                    "start_line": new_start,
-                    "end_line": new_start + new_count - 1,
-                    "quote": quote,
-                    "sha256": span_digest,
-                }
-            )
-        current_header = None
-        current_lines = []
-
-    for line in diff.splitlines():
-        match = HUNK_HEADER.match(line)
-        if match:
-            finish()
-            current_header = match
-        elif current_header is not None:
-            current_lines.append(line)
-    finish()
-    if not hunks or not spans:
-        raise ContractError("document_diff_missing")
-    return hunks, spans
+_parse_hunks = parse_unified_hunks
 
 
 def _redacted_evidence(
@@ -99,12 +38,18 @@ def _redacted_evidence(
     head: str,
     head_sha256: str,
     selected_ids: list[str],
+    *,
+    allow_empty: bool = False,
 ) -> list[dict[str, Any]]:
+    if not selected_ids:
+        if allow_empty:
+            return []
+        raise ContractError("evidence_ids_invalid")
     if not isinstance(report, dict) or set(report) != {"schema_version", "revision", "claims"}:
         raise ContractError("evidence_report_invalid")
     if report["schema_version"] != 1 or report["revision"] != head or not isinstance(report["claims"], list):
         raise ContractError("evidence_report_stale")
-    if not selected_ids or len(selected_ids) != len(set(selected_ids)):
+    if len(selected_ids) != len(set(selected_ids)):
         raise ContractError("evidence_ids_invalid")
     claims_by_id = {
         claim.get("id"): claim
@@ -157,33 +102,57 @@ def build_manifest(
     document: str,
     base_revision: str,
     head_revision: str,
-    evidence_report: Path,
+    evidence_report: Path | dict[str, Any] | None,
     evidence_ids: list[str],
+    *,
+    schema_version: int = SCHEMA_VERSION,
+    change_type: str | None = None,
+    require_head_checkout: bool = True,
 ) -> dict[str, Any]:
     document_path = safe_document_path(document)
     base = resolve_revision(root, base_revision)
     head = resolve_revision(root, head_revision)
-    if resolve_revision(root, "HEAD") != head:
+    if require_head_checkout and resolve_revision(root, "HEAD") != head:
         raise ContractError("head_revision_stale")
     require_revision(base, "base_revision")
-    base_data = git_file(root, base, document_path)
+    if schema_version not in {SCHEMA_VERSION, SHADOW_SCHEMA_VERSION}:
+        raise ContractError("manifest_version_invalid")
+    if schema_version == SHADOW_SCHEMA_VERSION:
+        if change_type not in {"A", "M"}:
+            raise ContractError("document_change_type_invalid")
+    elif change_type is not None:
+        raise ContractError("document_change_type_invalid")
+
     head_data = git_file(root, head, document_path)
+    base_data: bytes | None
+    if change_type == "A":
+        try:
+            git_file(root, base, document_path)
+        except ContractError:
+            base_data = None
+        else:
+            raise ContractError("added_document_base_present")
+    else:
+        base_data = git_file(root, base, document_path)
     try:
         head_text = head_data.decode("utf-8")
-        base_data.decode("utf-8")
+        if base_data is not None:
+            base_data.decode("utf-8")
     except UnicodeDecodeError as error:
         raise ContractError("document_not_utf8") from error
     if contains_secret(head_text):
         raise ContractError("unsafe_input")
-    working_path = root / document_path
-    try:
-        working_data = working_path.read_bytes()
-        resolved_root = root.resolve(strict=True)
-        working_path.resolve(strict=True).relative_to(resolved_root)
-    except (OSError, RuntimeError, ValueError) as error:
-        raise ContractError("working_document_unreadable") from error
-    if working_data != head_data:
-        raise ContractError("working_document_stale")
+    if require_head_checkout:
+        working_path = root / document_path
+        try:
+            resolved_root = root.resolve(strict=True)
+            resolved_working_path = working_path.resolve(strict=True)
+            resolved_working_path.relative_to(resolved_root)
+            working_data = resolved_working_path.read_bytes()
+        except (OSError, RuntimeError, ValueError) as error:
+            raise ContractError("working_document_unreadable") from error
+        if working_data != head_data:
+            raise ContractError("working_document_stale")
     diff_bytes = git(
         root,
         ["diff", "--no-ext-diff", "--unified=3", base, head, "--", document_path],
@@ -192,20 +161,37 @@ def build_manifest(
         diff = diff_bytes.decode("utf-8")
     except UnicodeDecodeError as error:
         raise ContractError("document_diff_not_utf8") from error
-    hunks, spans = _parse_hunks(diff, head_text.splitlines())
-    head_sha256 = sha256_bytes(head_data)
-    evidence = _redacted_evidence(
-        read_json(evidence_report), document_path, head, head_sha256, evidence_ids
+    hunks, spans = _parse_hunks(
+        diff,
+        head_text.splitlines(),
+        require_spans=schema_version == SCHEMA_VERSION,
     )
+    head_sha256 = sha256_bytes(head_data)
+    report = (
+        read_json(evidence_report)
+        if isinstance(evidence_report, Path)
+        else evidence_report
+    )
+    evidence = _redacted_evidence(
+        report,
+        document_path,
+        head,
+        head_sha256,
+        evidence_ids,
+        allow_empty=schema_version == SHADOW_SCHEMA_VERSION,
+    )
+    document_record: dict[str, Any] = {
+        "path": document_path,
+        "base_sha256": sha256_bytes(base_data) if base_data is not None else None,
+        "head_sha256": head_sha256,
+    }
+    if schema_version == SHADOW_SCHEMA_VERSION:
+        document_record["change_type"] = change_type
     manifest: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "kind": "analysis_input",
         "revision": {"base": base, "head": head},
-        "document": {
-            "path": document_path,
-            "base_sha256": sha256_bytes(base_data),
-            "head_sha256": head_sha256,
-        },
+        "document": document_record,
         "hunks": hunks,
         "spans": spans,
         "evidence": evidence,
@@ -223,7 +209,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--document", action="append", default=[], required=True)
     parser.add_argument("--base", required=True)
     parser.add_argument("--head", required=True)
-    parser.add_argument("--evidence-report", type=Path, required=True)
+    parser.add_argument(
+        "--schema-version",
+        type=int,
+        choices=(SCHEMA_VERSION, SHADOW_SCHEMA_VERSION),
+        default=SCHEMA_VERSION,
+    )
+    parser.add_argument("--change-type", choices=("A", "M"))
+    parser.add_argument("--evidence-report", type=Path)
     parser.add_argument("--evidence-id", action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
@@ -240,6 +233,8 @@ def main(argv: list[str] | None = None) -> int:
             arguments.head,
             arguments.evidence_report,
             arguments.evidence_id,
+            schema_version=arguments.schema_version,
+            change_type=arguments.change_type,
         )
         atomic_write_json(arguments.output, manifest)
     except ContractError as error:

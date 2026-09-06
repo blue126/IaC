@@ -24,6 +24,9 @@ jobs:
       - name: Run offline doc-gardening controller contract suite
         if: always()
         run: python3 tests/doc-gardening/doc-gardening-test.py
+      - name: Run offline candidate-discovery Shadow suite
+        if: always()
+        run: python3 tests/doc-gardening/candidate-discovery-test.py
       - name: Check recorded doc-gardening contract fixtures
         if: always()
         run: python3 tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures

@@ -18,8 +18,9 @@
 |---|---|---|---|
 | OINK/Hugo site | Delivered | Repository Markdown rendering and GitHub Pages workflow | Accuracy report is not publicly rendered |
 | Phase 1 consistency gate | Delivered | Six explicit Markdown/defaults comparisons, stable report, read-only PR check | Open-ended claim discovery, production truth or semantic repair |
-| Phase 2 AI controller prototype | Delivered | Single-document manifest, strict candidate/proposal schemas, recorded replay, explicitly confirmed local `codex exec` | CI/live model invocation, automatic scan, patch application or PR publication |
-| Automated repair loop | Not implemented | Contract and reusable validator primitives | Trigger, orchestration, isolated apply, write identity and Draft PR publisher |
+| Phase 2 AI controller prototype | Delivered | Single-document manifest, strict candidate/proposal schemas, recorded replay, explicitly confirmed local `codex exec` | Patch application or PR publication |
+| Phase 2A Shadow candidate discovery | Delivered | Deterministic changed-document selection, v2 manifests, trusted base-object validation, bounded read-only Claude matrix, numeric Summary and 14-day JSON evidence | Model-quality proof, unchanged-document inference, edits, comments or policy enforcement |
+| Automated repair loop | Not implemented | Contract and reusable validator primitives plus non-writing Shadow evidence | Isolated apply, write identity and Draft PR publisher |
 | Runtime evidence | Deferred | Policy and observation design | Credentialed collectors and production reconciliation |
 
 The current live implementation in `tools/doc-gardening/run-analysis.py` uses a locally installed Codex CLI only when both `--live` and `--confirm-live` are supplied. Its default model is an implementation detail, not a correctness authority. Existing CI never takes this path.
@@ -33,6 +34,10 @@ The current live implementation in `tools/doc-gardening/run-analysis.py` uses a 
 ### Doc-gardening controller/contract suite
 
 `tests/doc-gardening/doc-gardening-test.py` builds synthetic Git repositories and tests manifest packaging, single-document/path scope, source spans, hashes, evidence references, secret/stale rejection, strict model-output validation, proposal binding and recorded-output replay. Its live-mode test proves only that an unconfirmed call is blocked; the suite does not execute a model or assess model judgment.
+
+### Phase 2A Shadow candidate-discovery suite
+
+`tests/doc-gardening/candidate-discovery-test.py` 使用 synthetic Git repositories 与 fake structured output 覆盖 changed-path stable selection、A/M/D/R disposition、5-document/20-candidate limits、base-only trusted-object revalidation、无 Phase 1 evidence 时的 `unknown/missing_evidence`、secret/stale/action failure、bootstrap 与 workflow least-privilege contract。它不调用 Claude，也不证明模型能正确发现 stale claims。
 
 ### Recorded golden accept/reject fixtures
 
@@ -69,8 +74,10 @@ AI owns semantic discovery and prose generation. The controller owns document al
 4. The AI returns only schema-valid `candidate_contradiction`, `possibly_stale` or `unknown` entries bound to exact spans and evidence references.
 5. The validator rejects stale hashes, invented quotes/references, secret-bearing content, out-of-scope paths and multi-document outputs.
 6. Valid candidates are audit artifacts only. `unknown` and evidence conflicts remain no-change results.
+7. Credentialed jobs check out only the PR merge base, use trusted base code to reconstruct head Git-object provenance, and never execute PR-head code; the bootstrap PR records `runtime_not_bootstrapped` and makes zero model calls.
+8. Claude Opus 5 receives one inline manifest with all tools disallowed and one turn. Only `structured_output` enters the final report; prompts and execution logs are not uploaded as evidence artifacts.
 
-**Exit evidence:** before automated execution is enabled, its implementation SPEC must define a human-reviewed labeled real-document corpus, sampling method, candidate precision/recall thresholds and false-negative budget separately from contract fixtures, plus explicit cost/timeout bounds. No write token or patch apply exists in this phase.
+**Delivered Shadow evidence:** `.github/workflows/doc-candidate-discovery.yml` 自动运行只读候选发现，但结果仅为不阻塞 PR 的 evidence；它有固定 5-document/20-candidate limits、每文档 5 分钟 timeout、串行调用与 14 天 JSON retention。离线 synthetic/hostile fixtures 只验证 controller 和安全合同。模型质量、precision/recall、false-negative budget 与 labeled real-document corpus 仍未建立，因此不得据此进入 Phase 2B、应用 patch、发表评论或设置 required check。
 
 ## Phase 2B — Deterministic gate, minimal patch and Draft PR
 

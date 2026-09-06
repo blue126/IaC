@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Document gardening shadow claim candidates v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "manifest_sha256", "document_path", "revision", "candidates"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "kind": {"const": "claim_candidates"},
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "document_path": {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"},
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head"],
+      "properties": {
+        "base": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "classification", "reason", "hunk_id", "source", "evidence_refs", "edit"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+          "classification": {"enum": ["candidate_contradiction", "possibly_stale", "unknown"]},
+          "reason": {"enum": ["evidence_conflict", "possibly_outdated", "ambiguous_source", "missing_evidence", "hostile_input", "model_refusal"]},
+          "hunk_id": {"type": "string"},
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["span_id", "quote"],
+            "properties": {
+              "span_id": {"type": "string"},
+              "quote": {"type": "string"}
+            }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string"}
+          },
+          "edit": {"type": "null"}
+        }
+      }
+    }
+  }
+}
