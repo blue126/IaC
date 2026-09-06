@@ -100,6 +100,24 @@ output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sh
 assert_output "${output}" "governance_sensitive=true"
 
 base_sha="${head_sha}"
+commit_fixture ".github/CODEOWNERS" "/scripts/ci/ @blue126"
+head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
+output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
+assert_output "${output}" "governance_sensitive=true"
+
+base_sha="${head_sha}"
+commit_fixture ".github/actions/custom/action.yml" "name: custom"
+head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
+output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
+assert_output "${output}" "governance_sensitive=true"
+
+base_sha="${head_sha}"
+commit_fixture "terraform/proxmox/ordinary.tf" "terraform {}"
+head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
+output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
+assert_output "${output}" "governance_sensitive=false"
+
+base_sha="${head_sha}"
 git -C "${FIXTURE_REPOSITORY}" mv .github/workflows/repo-validation.yml moved-workflow.yml
 git -C "${FIXTURE_REPOSITORY}" commit -q -m "test: rename governance workflow"
 head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
@@ -300,6 +318,12 @@ assert_file_contains "${workflow}" "persist-credentials: false"
 assert_file_contains "${workflow}" 'BASE_SHA: ${{ github.event.pull_request.base.sha }}'
 assert_file_contains "${workflow}" 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'
 assert_file_contains "${workflow}" 'scripts/ci/validate-repository.sh "${BASE_SHA}" "${HEAD_SHA}"'
+grep -Fxq '        run: tests/ci/review-policy-gate-test.sh' "${workflow}" || {
+  fail "repository validation must run the local review policy gate contract test without arguments"
+}
+if grep -Eq 'agent-project-bootstrap|\.governance-runtime|validate-review-verdict\.sh|evaluate-ai-review-gate\.sh' "${workflow}"; then
+  fail "repository validation workflow must not set up or invoke an external governance runtime"
+fi
 
 if grep -Eq '^[[:space:]]*uses:' "${workflow}" && \
   grep -Ev '^[[:space:]]*uses:[[:space:]]+[^@[:space:]]+@[0-9a-f]{40}([[:space:]]+#.*)?$' \

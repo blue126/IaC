@@ -120,13 +120,13 @@ PR job/check 名固定为 `repo-validation`。同一 PR 出现新 commit 时会�
 
 ### `review-policy-gate` shadow
 
-Phase 2B 将 Phase 2A 的两个自动 AI workflow 收敛为单一 `Claude Review` workflow。`claude-review` 对每个 Ready PR HEAD 只调用一次 SHA-pinned Claude Code Action，并产生一个有界 structured verdict；`review-policy-gate` job 先用公共 governance runtime 校验该 JSON，再由其中的确定性 renderer 生成当前 HEAD 的人类可读评论并执行 policy 判定。评论不是 gate 输入，也不会触发第二次模型调用。
+Phase 2B 将 Phase 2A 的两个自动 AI workflow 收敛为单一 `Claude Review` workflow。`claude-review` 对每个 Ready PR HEAD 只调用一次 SHA-pinned Claude Code Action，并产生顶层字段仅为 `status` 与 `findings` 的有界 structured verdict；`review-policy-gate` job 在本仓库以 `jq` 校验该 JSON，再由确定性 renderer 生成当前 HEAD 的人类可读评论并执行 policy 判定。评论不是 gate 输入，也不会触发第二次模型调用。GitHub event 是 repository、PR number 与 HEAD SHA 的唯一身份来源，模型不回显这些事实。
 
 workflow 监听 `opened`、`synchronize`、`ready_for_review` 与 `reopened`，所有 job 仅在 PR 非 Draft 时运行：直接创建 Ready PR 时在 `opened` 首次审查；Draft PR 在 `ready_for_review` 首次审查；Ready 后的新 commit 通过 `synchronize` 复审。同一 PR 的新事件会取消旧 run。Fork PR 在模型步骤前明确失败，不获得模型凭据。
 
-模型只能读取 checkout 和执行受限的本地 Git 命令；Claude Action 显式接收当前 job 的只读 `github.token`，不申请 OIDC、GitHub write tool 或可持久化 checkout 凭据。`review-policy-gate` 不 checkout 或执行 PR head 代码，也不持有 Claude 凭据或 OIDC；它仅为确定性 renderer 获得 `pull-requests: write` 来创建或更新 PR 评论，先用固定 runtime 校验上游 job/conclusion、仓库、PR 编号和完整 HEAD SHA，再发布带完整 HEAD marker 的评论并执行 policy 判定。上游失败、空输出、GitHub redaction、畸形 JSON、身份不匹配、陈旧 SHA、`needs_fix` 与 `human_required` 都 fail closed。
+模型只能读取 checkout 和执行受限的本地 Git 命令；Claude Action 显式接收当前 job 的只读 `github.token`，不申请 OIDC、GitHub write tool 或可持久化 checkout 凭据。`review-policy-gate` 不 checkout 或执行 PR head 代码，也不持有 Claude 凭据或 OIDC；它仅为确定性 renderer 获得 `pull-requests: write` 来创建或更新 PR 评论。它先验证上游 job/conclusion，再以仓库自有 `jq` 检查 verdict 的完整 schema、finding 边界、相对路径、唯一 fingerprint 与 status/finding 语义；验证完成后才发布带完整 HEAD marker 的评论并执行 policy 判定。仓库、PR 编号与完整 HEAD SHA 从 GitHub event 取得，不从 verdict 读取或验证。上游失败、空输出、GitHub redaction、畸形 JSON、额外字段、非法路径、重复 fingerprint、语义矛盾、`needs_fix` 与 `human_required` 都 fail closed。
 
-公共 runtime 固定到 `blue126/agent-project-bootstrap@3c6e3ada5ebe3790b9bbecf44c594ffa03be716e`，Claude Code Action 和 checkout 也固定到完整 commit SHA。该阶段仍是观察模式：`review-policy-gate` 尚未加入 Ruleset required checks，不配置 Fixer、自动合并或 GitHub 设置，也不改变 Jenkins。Dedicated Fixer App 已延后，不作为后续 required checks 或 auto-merge 的前置条件；阻断 finding 当前由人工或交互式 agent 修复，新 HEAD 会自动重新进入完整流程。
+本仓库不 checkout 或执行外部 governance runtime；Claude Code Action 和 checkout 均固定到完整 commit SHA。本地 `jq` validator 与 shell exit branch 保留在 workflow 中，并由 repository contract fixtures 覆盖。该阶段仍是观察模式：`review-policy-gate` 尚未加入 Ruleset required checks，不配置 Fixer、自动合并或 GitHub 设置，也不改变 Jenkins。Dedicated Fixer App 已延后，不作为后续 required checks 或 auto-merge 的前置条件；阻断 finding 当前由人工或交互式 agent 修复，新 HEAD 会自动重新进入完整流程。
 
 ### Phase 2A rollout evidence
 
@@ -134,7 +134,7 @@ workflow 监听 `opened`、`synchronize`、`ready_for_review` 与 `reopened`，�
 - PR #30 再次证明 structured gate 对新的 HEAD 独立运行并返回无 finding 的 `pass`，同时全部确定性检查通过。
 - PR #32 以普通非 workflow 文档变更证明 Draft 生命周期：`opened` 时两个 AI job 均为 `skipped`，`repo-validation` 与适用的确定性检查通过；同一 HEAD 转为 Ready 后只有两个 AI workflow 新建 run，评论 reviewer 实际取得短期 App token 并完成审查，structured gate 对该 SHA 返回无 finding 的 `pass`，且 `repo-validation` 没有重复运行。
 
-这些证据验证了 structured output 与事件触发，但 Phase 2A 每个 HEAD 调用 Claude 两次。Phase 2B 保留其 schema、SHA 绑定和 Draft 生命周期合同，以单次调用加确定性 renderer 取代双调用。
+这些证据验证了 structured output 与事件触发，但 Phase 2A 每个 HEAD 调用 Claude 两次。Phase 2B 保留 Draft 生命周期和单次当前 HEAD 审查合同，将模型 schema 收窄为 `status` 与 `findings`，并以本仓库的确定性 renderer 与 `jq` 判定取代双调用和外部 runtime。
 
 ### Phase 2B rollout evidence
 
