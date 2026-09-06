@@ -544,6 +544,9 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertIn("--max-turns 1", workflow)
         self.assertIn('--disallowedTools "*"', workflow)
         self.assertIn("--json-schema", workflow)
+        schema = json.loads((TOOL_ROOT / "schemas/claim-candidates-v2.json").read_text())
+        # Claude Code's --json-schema validator rejects draft 2020-12.
+        self.assertEqual(schema["$schema"], "http://json-schema.org/draft-07/schema#")
         self.assertIn("max-parallel: 1", workflow)
         self.assertIn("timeout-minutes: 5", workflow)
         self.assertIn("retention-days: 14", workflow)
