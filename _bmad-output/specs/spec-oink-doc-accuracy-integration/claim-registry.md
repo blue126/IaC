@@ -1,8 +1,8 @@
-# Phase 1 Claim Registry
+# Phase 1 Known-Claim Consistency Registry
 
-此 registry 是 Phase 1 的闭集，不是自动发现机制。每条记录只允许一个 checked-in Markdown locator 和一个 checked-in YAML 标量 oracle；检测器不得从 runtime、Terraform state、Notion、Vault 或日志补全证据。
+此 registry 是 Phase 1 的闭集和回归基线，不是开放式文档扫描、AI 候选发现或生产事实认证机制。每条记录只允许一个 checked-in Markdown locator 和一个 checked-in YAML 标量 oracle；检测器不得从 runtime、Terraform state、Notion、Vault 或日志补全证据。
 
-**权威来源是 `tools/check-doc-claims.py` 的 `CLAIMS`。** 下表是它的投影，`CLAIMS` 变动时必须同步重新导出。方向是单向的：代码变了改这张表，不是反过来。此前两者曾各自漂移到互不相符而两边都不显得错，正是因为没有声明方向。
+**权威运行时来源是 `tools/check-doc-claims.py` 的 `CLAIMS`。** 下表是它的文档投影，`CLAIMS` 变动时必须同步重新导出。`tests/doc-claims/doc-claims-test.py` 另以独立、显式的六 ID tuple 锁定当前成员与顺序，避免代码与 report 互相引用同一列表而静默缩减。扩大、替换或重排闭集必须同时经过人工批准并更新三处。
 
 ## Status contract
 
@@ -12,13 +12,13 @@
 | `contradiction` | 两端均可唯一解析，但规范化后不相等 | 同上，以及两端值 |
 | `indeterminate` | source 缺失、不可解析、locator 缺失或多次匹配、key 缺失/重复/非标量 | failure reason、可用的 path/locator、revision/digest；不得编造值 |
 
-规范化只移除 Markdown code fence/table 的表示层并解析 YAML scalar；不得改写端口数字、版本字符串、大小写或语义等价关系。对于本 registry，原始标量的 exact equality 是唯一的 `verified` 条件。
+规范化只移除 Markdown code fence/table 的表示层并解析 YAML scalar；不得改写端口数字、版本字符串、大小写或语义等价关系。对于本 registry，原始标量的 exact equality 是唯一的 `verified` 条件。这里的 `verified` 只表示文档值与 checked-in defaults 值一致；它不证明生产状态、部署有效性或现实世界绝对正确性。如果两端同步变成同一个错误值，此 gate 仍可能通过。
 
 ## Closed claims
 
 闭集当前为 **6 条**。文档侧覆盖 `docs/deployment/` 与 `docs/designs/` 两类。
 
-| ID | Document and stable locator | Oracle | Expected value | Reader |
+| ID | Document and stable locator | Oracle | Registry display/redaction value (non-authoritative) | Reader |
 |---|---|---|---|---|
 | `service.netbox.port` | `docs/deployment/netbox-deployment.md` → `Configuration Variables` 表中 `netbox_port` 行 | `ansible/roles/netbox/defaults/main.yml` → `netbox_port` | `8080` | 表格 |
 | `service.netbox.image` | `docs/deployment/netbox-deployment.md` → `Configuration Variables` 表中 `netbox_image` 行 | `ansible/roles/netbox/defaults/main.yml` → `netbox_image` | `netboxcommunity/netbox:v4.1.11` | 表格 |
@@ -26,6 +26,8 @@
 | `service.qwen3-tts.gpu-ordinal` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_gpu_ordinal` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_gpu_ordinal` | `1` | fenced YAML |
 | `service.qwen3-tts.port` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_port` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_port` | `8100` | fenced YAML |
 | `service.qwen3-tts.min-free-vram-mib` | `docs/designs/qwen3-tts-openai-api-integration.md` → `关键配置值` 中 `qwen3_tts_min_free_vram_mib` | `ansible/roles/qwen3-tts/defaults/main.yml` → `qwen3_tts_min_free_vram_mib` | `512` | fenced YAML |
+
+表中第四列投影 `Claim.registry_value`，当前实现仅用它判断不匹配字符串是否应在报告中脱敏；它不参与 document/oracle equality，也不是第三事实源或独立 expected-value assertion。
 
 每条 claim 的依赖项均为"该文档 + 该 defaults 文件"。
 
@@ -41,11 +43,12 @@
 
 The test suite must cover all of the following without contacting external services:
 
-1. 每条 registry claim 的仓库 fixture 均评估为 `verified`。
-2. A changed Markdown scalar evaluates to `contradiction` and identifies the document locator.
-3. A changed YAML scalar evaluates to `contradiction` and identifies the oracle path/key.
-4. A missing source, zero-match locator, multi-match locator, missing key, duplicate key, or non-scalar oracle evaluates to `indeterminate` with a specific reason.
-5. Every serialised report uses only the values above and the structural fields in the status contract; it contains no secret-bearing field or unredacted input outside the registry.
+1. 测试中的独立 expected-ID tuple 恰好按上表顺序列出六个 ID；删除、替换、重排或增加任一运行时 claim 都会失败，直到人工同步基线。
+2. 每条 registry claim 的仓库 fixture 均评估为 `verified`。
+3. A changed Markdown scalar evaluates to `contradiction` and identifies the document locator.
+4. A changed YAML scalar evaluates to `contradiction` and identifies the oracle path/key.
+5. A missing source, zero-match locator, multi-match locator, missing key, duplicate key, or non-scalar oracle evaluates to `indeterminate` with a specific reason.
+6. Every serialised report uses only the values above and the structural fields in the status contract; it contains no secret-bearing field or unredacted input outside the registry.
 
 ## Excluded candidates
 

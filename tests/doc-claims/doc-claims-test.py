@@ -81,6 +81,18 @@ qwen3_tts_port: 8100
 qwen3_tts_min_free_vram_mib: 512
 """
 
+# This deliberately does not derive from CHECKER.CLAIMS. Expanding, retiring or
+# reordering the closed registry requires a reviewed update to this baseline as
+# well as the runtime definitions and their documentation projection.
+EXPECTED_CLAIM_IDS = (
+    "service.netbox.port",
+    "service.netbox.image",
+    "service.qwen3-tts.vllm-image",
+    "service.qwen3-tts.gpu-ordinal",
+    "service.qwen3-tts.port",
+    "service.qwen3-tts.min-free-vram-mib",
+)
+
 
 class Fixture:
     def __init__(self) -> None:
@@ -131,18 +143,13 @@ class DocClaimsTest(unittest.TestCase):
         report = CHECKER.build_report(REPOSITORY_ROOT)
         self.assertEqual(report["schema_version"], 1)
         self.assertRegex(report["revision"], r"^[0-9a-f]{40}$")
-        # Both comparisons below take CLAIMS as their own expected value, so an
-        # empty registry would satisfy them with two empty lists and this test
-        # would pass while checking nothing. Pin a lower bound: dropping the
-        # last claims has to be a deliberate edit here, not a silent green.
-        self.assertGreaterEqual(len(CHECKER.CLAIMS), 4)
-        self.assertEqual(
-            [claim["id"] for claim in report["claims"]],
-            [claim.claim_id for claim in CHECKER.CLAIMS],
-        )
+        runtime_ids = tuple(claim.claim_id for claim in CHECKER.CLAIMS)
+        report_ids = tuple(claim["id"] for claim in report["claims"])
+        self.assertEqual(runtime_ids, EXPECTED_CLAIM_IDS)
+        self.assertEqual(report_ids, EXPECTED_CLAIM_IDS)
         self.assertEqual(
             [claim["status"] for claim in report["claims"]],
-            ["verified"] * len(CHECKER.CLAIMS),
+            ["verified"] * len(EXPECTED_CLAIM_IDS),
         )
         for claim in report["claims"]:
             self.assertRegex(claim["document"]["sha256"], r"^[0-9a-f]{64}$")
@@ -348,7 +355,35 @@ fenced_sample_webui_port: 3000
         self.assertEqual(output.read_text(encoding="utf-8"), "old-complete-report\n")
         self.assertEqual(list(output.parent.glob(".report.json.*.tmp")), [])
 
-    def test_workflow_runs_on_every_pull_request_with_read_only_permissions(self) -> None:
+    def test_notion_accepted_risk_remains_outside_documentation_automation(self) -> None:
+        contract_root = (
+            REPOSITORY_ROOT / "_bmad-output/specs/spec-oink-doc-accuracy-integration"
+        )
+        boundary = (contract_root / "security-boundary.md").read_text(encoding="utf-8")
+        canonical = (contract_root / "SPEC.md").read_text(encoding="utf-8")
+        self.assertIn("**Status:** Accepted risk", boundary)
+        self.assertIn("existing Jenkins post-deployment stage", boundary)
+        self.assertIn("is **not** a prerequisite for OINK", boundary)
+        self.assertIn("不授权文档 AI/CI", canonical)
+
+        jenkins = (REPOSITORY_ROOT / "Jenkinsfile").read_text(encoding="utf-8")
+        self.assertIn("stage('Sync to Notion')", jenkins)
+        self.assertIn("NOTION_DRY_RUN=false python3 scripts/sync-to-notion.py", jenkins)
+
+        automation_paths = [
+            REPOSITORY_ROOT / "tools/check-doc-claims.py",
+            REPOSITORY_ROOT / "scripts/ci/validate-documentation.sh",
+            *sorted((REPOSITORY_ROOT / "tools/doc-gardening").glob("*.py")),
+            *sorted((REPOSITORY_ROOT / ".github/workflows").glob("*.yml")),
+            *sorted((REPOSITORY_ROOT / "docs-site/scripts").glob("*.py")),
+        ]
+        for path in automation_paths:
+            with self.subTest(path=path.relative_to(REPOSITORY_ROOT)):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("sync-to-notion", text)
+                self.assertNotIn("NOTION_TOKEN", text)
+
+    def test_workflow_runs_offline_on_every_pull_request_with_read_only_permissions(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/doc-accuracy.yml").read_text(encoding="utf-8")
         trigger_block = workflow.split("permissions:", 1)[0]
         self.assertIn("  pull_request:\n", trigger_block)
@@ -359,6 +394,13 @@ fenced_sample_webui_port: 3000
         self.assertNotIn("environment:", workflow)
         self.assertEqual(workflow.count("contents: read"), 2)
         self.assertGreaterEqual(workflow.count("if: always()"), 2)
+        self.assertIn("Run known-claim regression suite", workflow)
+        self.assertIn("Run offline doc-gardening controller contract suite", workflow)
+        self.assertIn("Check recorded doc-gardening contract fixtures", workflow)
+        self.assertIn("Check current known-claim consistency", workflow)
+        self.assertNotIn("run-analysis.py", workflow)
+        self.assertNotIn("codex", workflow.lower())
+        self.assertNotIn("--live", workflow)
 
     def test_report_schema_is_stable_and_does_not_echo_unrelated_input(self) -> None:
         sentinel = "SECRET_SENTINEL_DO_NOT_ECHO"

@@ -19,15 +19,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-      - name: Run fixture suite
+      - name: Run known-claim regression suite
         run: python3 tests/doc-claims/doc-claims-test.py
-      - name: Run doc-gardening fixture suite
+      - name: Run offline doc-gardening controller contract suite
         if: always()
         run: python3 tests/doc-gardening/doc-gardening-test.py
-      - name: Check doc-gardening golden metrics
+      - name: Check recorded doc-gardening contract fixtures
         if: always()
         run: python3 tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures
-      - name: Check repository documentation claims
+      - name: Check current known-claim consistency
         if: always()
         run: python3 tools/check-doc-claims.py --root . --output tmp/doc-accuracy/report.json
       - name: Upload documentation accuracy report
