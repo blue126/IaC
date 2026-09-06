@@ -21,8 +21,9 @@ fi
 cd "${REPOSITORY_ROOT}"
 # Deterministic regression for the six explicitly registered claim pairs.
 "${PYTHON_BIN}" tests/doc-claims/doc-claims-test.py
-# Offline controller/contract tests; this never invokes the live AI path.
+# Offline controller/contract tests; these never invoke a live AI path.
 "${PYTHON_BIN}" tests/doc-gardening/doc-gardening-test.py
+"${PYTHON_BIN}" tests/doc-gardening/candidate-discovery-test.py
 # Recorded accept/reject fixtures, not a live model quality evaluation.
 "${PYTHON_BIN}" tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures
 # Current repository consistency report for the known claim pairs.

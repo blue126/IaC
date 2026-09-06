@@ -1,0 +1,341 @@
+name: OINK Document Candidate Discovery
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: oink-doc-candidate-discovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  eligibility:
+    name: candidate-discovery-eligibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      eligible: ${{ steps.check.outputs.eligible }}
+    steps:
+      - name: Check Shadow eligibility
+        id: check
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          eligible=1
+          reason=eligible
+          if [[ "${DRAFT}" == "true" ]]; then
+            eligible=0
+            reason=draft
+          elif [[ "${HEAD_REPOSITORY}" != "${REPOSITORY}" ]]; then
+            eligible=0
+            reason=fork
+          fi
+          if [[ "${eligible}" == "1" ]]; then
+            echo "eligible=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "eligible=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo "## OINK candidate discovery eligibility"
+              echo
+              echo "- reason: \`${reason}\`"
+              echo "- eligible: \`${eligible}\`"
+              echo "- model_calls: \`0\`"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  prepare:
+    if: needs.eligibility.outputs.eligible == 'true'
+    needs: eligibility
+    name: candidate-discovery-prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      base: ${{ steps.prepare.outputs.base }}
+      head: ${{ steps.prepare.outputs.head }}
+      matrix: ${{ steps.prepare.outputs.matrix }}
+      has_selected: ${{ steps.prepare.outputs.has_selected }}
+      runtime_bootstrapped: ${{ steps.prepare.outputs.runtime_bootstrapped }}
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+
+      - name: Prepare bounded manifests
+        id: prepare
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          output_dir="${RUNNER_TEMP}/candidate-discovery"
+          mkdir -p "${output_dir}"
+          python3 tools/doc-gardening/scan-changed-docs.py prepare \
+            --root . \
+            --base "${BASE_SHA}" \
+            --head "${HEAD_SHA}" \
+            --output-dir "${output_dir}" \
+            --preparation "${output_dir}/preparation.json" \
+            --matrix "${output_dir}/matrix.json" \
+            --bootstrap-report "${output_dir}/bootstrap-report.json"
+          matrix="$(jq -ce . "${output_dir}/matrix.json")"
+          base="$(jq -er '.revision.base' "${output_dir}/preparation.json")"
+          head="$(jq -er '.revision.head' "${output_dir}/preparation.json")"
+          expected_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"
+          [[ "${base}" == "${expected_base}" && "${head}" == "${HEAD_SHA}" ]]
+          selected="$(jq -er '.include | length' "${output_dir}/matrix.json")"
+          [[ "${selected}" -le 5 ]]
+          jq -e '
+            .include | type == "array"
+            and all(.[]; type == "object" and (keys == ["id"]) and (.id | test("^doc-[0-9a-f]{20}$")))
+            and ([.[].id] | length == (unique | length))
+          ' "${output_dir}/matrix.json" >/dev/null
+          runtime_bootstrapped="$(jq -er '.runtime_bootstrapped' "${output_dir}/preparation.json")"
+          printf 'base=%s\nhead=%s\nmatrix=%s\nruntime_bootstrapped=%s\n' \
+            "${base}" "${head}" "${matrix}" "${runtime_bootstrapped}" >> "${GITHUB_OUTPUT}"
+          if [[ "${selected}" -gt 0 ]]; then
+            echo "has_selected=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "has_selected=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Transfer JSON preparation bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oink-candidate-preparation-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-discovery
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record bootstrap Shadow summary
+        if: steps.prepare.outputs.runtime_bootstrapped == 'false'
+        run: |
+          report="${RUNNER_TEMP}/candidate-discovery/bootstrap-report.json"
+          {
+            echo "## OINK candidate discovery (Shadow)"
+            echo
+            echo '| metric | count |'
+            echo '|---|---:|'
+            jq -r '.summary | to_entries[] | "| \(.key) | \(.value) |"' "${report}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload bootstrap 14-day JSON Shadow report
+        if: steps.prepare.outputs.runtime_bootstrapped == 'false'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oink-candidate-discovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-discovery/bootstrap-report.json
+          if-no-files-found: error
+          retention-days: 14
+
+  analyze:
+    if: needs.prepare.outputs.has_selected == 'true'
+    needs: prepare
+    name: candidate-discovery-${{ matrix.document.id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        document: ${{ fromJSON(needs.prepare.outputs.matrix).include }}
+    steps:
+      - name: Check out trusted merge base
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.base }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+
+      - name: Download untrusted preparation bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: oink-candidate-preparation-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-discovery
+
+      - name: Validate Git objects and render one inline manifest
+        id: trusted-input
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.base }}
+          DOCUMENT_ID: ${{ matrix.document.id }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head }}
+        run: |
+          manifest="${RUNNER_TEMP}/candidate-discovery/manifests/${DOCUMENT_ID}.json"
+          validated="${RUNNER_TEMP}/validated-manifest.json"
+          prompt="${RUNNER_TEMP}/shadow-prompt.md"
+          python3 tools/doc-gardening/scan-changed-docs.py verify-manifest \
+            --root . \
+            --manifest "${manifest}" \
+            --expected-base "${BASE_SHA}" \
+            --expected-head "${HEAD_SHA}" \
+            --expected-id "${DOCUMENT_ID}" \
+            --output "${validated}" \
+            --prompt-output "${prompt}"
+          delimiter="prompt-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+          while grep -Fq "${delimiter}" "${prompt}"; do
+            delimiter="prompt-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+          done
+          {
+            echo "prompt<<${delimiter}"
+            printf '%s\n' "$(cat "${prompt}")"
+            echo "${delimiter}"
+            printf 'schema=%s\n' "$(jq -c . tools/doc-gardening/schemas/claim-candidates-v2.json)"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Discover Shadow candidates
+        id: shadow-analysis
+        if: steps.trusted-input.outcome == 'success' && steps.trusted-input.outputs.prompt != '' && steps.trusted-input.outputs.schema != ''
+        continue-on-error: true
+        uses: anthropics/claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2 # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            ${{ steps.trusted-input.outputs.prompt }}
+          claude_args: >-
+            --model claude-opus-5
+            --max-turns 1
+            --disallowedTools "*"
+            --json-schema '${{ steps.trusted-input.outputs.schema }}'
+
+      - name: Finalize safe result envelope
+        if: always() && steps.trusted-input.outcome == 'success'
+        continue-on-error: true
+        env:
+          ACTION_CONCLUSION: ${{ steps.shadow-analysis.outputs.conclusion }}
+          ACTION_OUTCOME: ${{ steps.shadow-analysis.outcome }}
+          BASE_SHA: ${{ needs.prepare.outputs.base }}
+          DOCUMENT_ID: ${{ matrix.document.id }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head }}
+          STRUCTURED_OUTPUT: ${{ steps.shadow-analysis.outputs.structured_output }}
+        run: |
+          result_dir="${RUNNER_TEMP}/candidate-results"
+          mkdir -p "${result_dir}"
+          action_outcome=failure
+          output_args=()
+          if [[ "${ACTION_OUTCOME}" == "success" && "${ACTION_CONCLUSION}" == "success" && -n "${STRUCTURED_OUTPUT}" ]]; then
+            structured="${RUNNER_TEMP}/structured-output.json"
+            printf '%s\n' "${STRUCTURED_OUTPUT}" > "${structured}"
+            output_args=(--structured-output "${structured}")
+            action_outcome=success
+          fi
+          python3 tools/doc-gardening/scan-changed-docs.py finalize \
+            --root . \
+            --manifest "${RUNNER_TEMP}/candidate-discovery/manifests/${DOCUMENT_ID}.json" \
+            "${output_args[@]}" \
+            --action-outcome "${action_outcome}" \
+            --expected-base "${BASE_SHA}" \
+            --expected-head "${HEAD_SHA}" \
+            --prompt "${RUNNER_TEMP}/shadow-prompt.md" \
+            --schema tools/doc-gardening/schemas/claim-candidates-v2.json \
+            --model claude-opus-5 \
+            --runtime claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2 \
+            --run-record "${result_dir}/${DOCUMENT_ID}.run.json" \
+            --output "${result_dir}/${DOCUMENT_ID}.json"
+
+      - name: Transfer validated JSON result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oink-candidate-result-${{ matrix.document.id }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/candidate-results/${{ matrix.document.id }}.json
+            ${{ runner.temp }}/candidate-results/${{ matrix.document.id }}.run.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  aggregate:
+    if: always() && needs.eligibility.outputs.eligible == 'true' && needs.prepare.result == 'success' && needs.prepare.outputs.runtime_bootstrapped == 'true'
+    needs: [eligibility, prepare, analyze]
+    name: candidate-discovery-aggregate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted merge base
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.base }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+
+      - name: Download preparation bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: oink-candidate-preparation-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-discovery
+
+      - name: Download available result envelopes
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: oink-candidate-result-*-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-results
+          merge-multiple: true
+
+      - name: Aggregate non-blocking Shadow evidence
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.base }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/candidate-results" "${RUNNER_TEMP}/candidate-report"
+          python3 tools/doc-gardening/scan-changed-docs.py aggregate \
+            --root . \
+            --preparation "${RUNNER_TEMP}/candidate-discovery/preparation.json" \
+            --results-dir "${RUNNER_TEMP}/candidate-results" \
+            --run-records-output-dir "${RUNNER_TEMP}/candidate-report/run-records" \
+            --output "${RUNNER_TEMP}/candidate-report/report.json"
+          jq -e --arg base "${BASE_SHA}" --arg head "${HEAD_SHA}" \
+            '.revision == {base: $base, head: $head}' \
+            "${RUNNER_TEMP}/candidate-report/report.json" >/dev/null
+          {
+            echo "## OINK candidate discovery (Shadow)"
+            echo
+            echo '| metric | count |'
+            echo '|---|---:|'
+            jq -r '.summary | to_entries[] | "| \(.key) | \(.value) |"' \
+              "${RUNNER_TEMP}/candidate-report/report.json"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload 14-day JSON Shadow report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oink-candidate-discovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/candidate-report
+          if-no-files-found: warn
+          retention-days: 14

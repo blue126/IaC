@@ -16,10 +16,10 @@ from typing import Any
 from contract import (
     ContractError,
     atomic_write_json,
+    build_run_record,
     canonical_json,
     contains_secret,
     read_json,
-    sha256_bytes,
 )
 
 
@@ -42,7 +42,10 @@ def _prompt(
     validator: Any,
     manifest: dict[str, Any],
 ) -> tuple[bytes, dict[str, Any] | None]:
-    prompt_path = TOOL_ROOT / "prompts" / f"{mode}-v1.md"
+    version = manifest["schema_version"]
+    if version == 2 and mode != "analyze":
+        raise ContractError("shadow_proposal_forbidden")
+    prompt_path = TOOL_ROOT / "prompts" / f"{mode}-v{version}.md"
     try:
         prompt = prompt_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
@@ -62,6 +65,10 @@ def _prompt(
         )
     elif candidate_path is not None:
         raise ContractError("candidate_not_allowed")
+    if version == 2:
+        prompt = prompt.replace(
+            "{{MANIFEST_JSON}}", canonical_json(manifest).decode("utf-8")
+        )
     return prompt.encode("utf-8"), selected
 
 
@@ -95,20 +102,20 @@ def _record(
     artifact_kind: str,
     live: bool,
 ) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "kind": "run_record",
-        "status": status,
-        "reason": reason,
-        "manifest_sha256": manifest["manifest_sha256"],
-        "prompt_sha256": sha256_bytes(prompt_data),
-        "schema_sha256": sha256_bytes(schema_data),
-        "model": model,
-        "runtime": runtime,
-        "output_sha256": sha256_bytes(output_data or b""),
-        "artifact_kind": artifact_kind,
-        "live": live,
-    }
+    return build_run_record(
+        status=status,
+        reason=reason,
+        manifest=manifest,
+        prompt_data=prompt_data,
+        schema_data=schema_data,
+        model=model,
+        runtime=runtime,
+        output_data=output_data,
+        artifact_kind=(
+            "claim_candidates" if manifest["schema_version"] == 2 else artifact_kind
+        ),
+        live=live,
+    )
 
 
 def _codex_version() -> str:
@@ -203,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-record", type=Path, required=True)
     arguments = parser.parse_args(argv)
     artifact_kind = "claim_candidates" if arguments.mode == "analyze" else "edit_proposal"
-    schema_path = TOOL_ROOT / "schemas" / f"{artifact_kind.replace('_', '-')}-v1.json"
+    schema_path: Path | None = None
     prompt_data = b""
     schema_data = b""
     manifest: dict[str, Any] | None = None
@@ -215,6 +222,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         validator = _load_validator()
         manifest = validator.validate_manifest_structure(read_json(arguments.manifest))
+        if manifest["schema_version"] == 2 and arguments.live:
+            raise ContractError("shadow_live_runner_forbidden")
+        schema_path = (
+            TOOL_ROOT
+            / "schemas"
+            / f"{artifact_kind.replace('_', '-')}-v{manifest['schema_version']}.json"
+        )
         prompt_data, selected_candidate = _prompt(
             arguments.mode, arguments.candidate_artifact, validator, manifest
         )

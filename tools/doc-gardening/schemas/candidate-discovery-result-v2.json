@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Document gardening shadow result v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "revision", "document_path", "change_type", "previous_path", "status", "reason", "manifest_sha256", "run_record_sha256", "candidate_count", "candidates"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "kind": {"const": "candidate_discovery_result"},
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head"],
+      "properties": {
+        "base": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "document_path": {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"},
+    "change_type": {"enum": ["A", "M", "D", "R"]},
+    "previous_path": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"}
+      ]
+    },
+    "status": {"enum": ["completed", "unknown", "blocked", "no_analysis"]},
+    "reason": {"enum": ["analysis_completed", "missing_evidence", "deleted", "renamed", "empty_added", "budget_exhausted", "runtime_not_bootstrapped", "validation_failed", "timeout", "refusal", "stale_input", "unsafe_input", "unsafe_output", "execution_failed", "action_failed"]},
+    "manifest_sha256": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      ]
+    },
+    "run_record_sha256": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      ]
+    },
+    "candidate_count": {"type": "integer", "minimum": 0, "maximum": 20},
+    "candidates": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"$ref": "claim-candidates-v2.json#/properties/candidates/items"}
+    }
+  }
+}

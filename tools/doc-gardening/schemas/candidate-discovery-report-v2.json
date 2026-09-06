@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Document gardening shadow report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "revision", "summary", "results"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "kind": {"const": "candidate_discovery_report"},
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head"],
+      "properties": {
+        "base": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documents", "selected", "completed", "unknown", "blocked", "no_analysis", "candidates"],
+      "properties": {
+        "documents": {"type": "integer", "minimum": 0},
+        "selected": {"type": "integer", "minimum": 0, "maximum": 5},
+        "completed": {"type": "integer", "minimum": 0},
+        "unknown": {"type": "integer", "minimum": 0},
+        "blocked": {"type": "integer", "minimum": 0},
+        "no_analysis": {"type": "integer", "minimum": 0},
+        "candidates": {"type": "integer", "minimum": 0}
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {"$ref": "candidate-discovery-result-v2.json"}
+    }
+  }
+}
