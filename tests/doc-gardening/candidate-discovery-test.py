@@ -546,7 +546,8 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertNotIn("--system-prompt", workflow)
         self.assertNotIn('--tools ""', workflow)
         self.assertNotIn("--strict-mcp-config", workflow)
-        self.assertIn('--disallowedTools "*"', workflow)
+        self.assertIn('--allowedTools "Read"', workflow)
+        self.assertNotIn("--disallowedTools", workflow)
         self.assertIn("--json-schema", workflow)
         schema = json.loads((TOOL_ROOT / "schemas/claim-candidates-v2.json").read_text())
         # Claude Code's --json-schema validator rejects draft 2020-12.
@@ -560,6 +561,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertIn("candidate-report/run-records", workflow)
         self.assertNotIn("execution_file", workflow)
         analyze = workflow.split("\n  analyze:\n", 1)[1].split("\n  aggregate:\n", 1)[0]
+        self.assertNotIn("Bash(", analyze)
         self.assertIn("ref: ${{ needs.prepare.outputs.base }}", analyze)
         self.assertNotIn("ref: ${{ needs.prepare.outputs.head }}", analyze)
         self.assertNotIn("git checkout", analyze)
