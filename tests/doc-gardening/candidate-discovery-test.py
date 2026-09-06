@@ -542,6 +542,8 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertEqual(workflow.count("CLAUDE_CODE_OAUTH_TOKEN"), 1)
         self.assertIn("--model claude-opus-5", workflow)
         self.assertIn("--max-turns 1", workflow)
+        self.assertIn('--tools ""', workflow)
+        self.assertIn("--strict-mcp-config", workflow)
         self.assertIn('--disallowedTools "*"', workflow)
         self.assertIn("--json-schema", workflow)
         schema = json.loads((TOOL_ROOT / "schemas/claim-candidates-v2.json").read_text())
