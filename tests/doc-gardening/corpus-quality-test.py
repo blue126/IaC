@@ -34,6 +34,7 @@ CONFIGURATION = {
     "runtime": "claude-code-action@pinned",
     "schema_sha256": "c" * 64,
 }
+COMMITTED_CORPUS = REPOSITORY_ROOT / "tests/doc-gardening/corpus/v3"
 
 
 class CorpusQualityTest(unittest.TestCase):
@@ -226,6 +227,13 @@ class CorpusQualityTest(unittest.TestCase):
         corpus["cases"][0]["result_file"] = "../outside.json"
         with self.assertRaisesRegex(contract.ContractError, "corpus_case_invalid"):
             EVALUATOR.evaluate(corpus, self.results_dir)
+
+    def test_committed_corpus_v3_matches_its_promotion_report(self) -> None:
+        corpus = json.loads((COMMITTED_CORPUS / "corpus.json").read_text(encoding="utf-8"))
+        expected = json.loads((COMMITTED_CORPUS / "report.json").read_text(encoding="utf-8"))
+        report = EVALUATOR.evaluate(corpus, COMMITTED_CORPUS / "results")
+        self.assertTrue(report["promotion_eligible"])
+        self.assertEqual(report, expected)
 
 
 if __name__ == "__main__":

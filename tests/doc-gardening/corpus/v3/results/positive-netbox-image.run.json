@@ -1,0 +1,14 @@
+{
+  "artifact_kind": "claim_candidates",
+  "kind": "run_record",
+  "live": true,
+  "manifest_sha256": "7030f49632d0fbb4a5ec4a3dd4899b082ae73f42df262a3ef73890dd0f67f2c9",
+  "model": "claude-opus-5",
+  "output_sha256": "3e1a86604ffe3a3ab56baec3d0a24ba6c542c23e898c2dd576e617af12357e2e",
+  "prompt_sha256": "1b9a4a1d777b1023b3de81d9cfb3eadeb3829ff917c6ed847c8fa1a3262d9469",
+  "reason": "shadow_completed",
+  "runtime": "claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2",
+  "schema_sha256": "bfd8917e9ab7ca0323facd889c3b282b36304ff27ec1e28c5f9976a8ab01bd27",
+  "schema_version": 2,
+  "status": "completed"
+}
