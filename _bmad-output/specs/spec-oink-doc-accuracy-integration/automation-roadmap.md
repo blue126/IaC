@@ -75,7 +75,7 @@ AI owns semantic discovery and prose generation. The controller owns document al
 5. The validator rejects stale hashes, invented quotes/references, secret-bearing content, out-of-scope paths and multi-document outputs.
 6. Valid candidates are audit artifacts only. `unknown` and evidence conflicts remain no-change results.
 7. Credentialed jobs check out only the PR merge base, use trusted base code to reconstruct head Git-object provenance, and never execute PR-head code; the bootstrap PR records `runtime_not_bootstrapped` and makes zero model calls.
-8. Claude Opus 5 receives one inline manifest and at most two turns. It may use only `Read` against a path named in that manifest from the trusted merge-base checkout; no command, network, write, MCP or PR-head access is allowed. Only `structured_output` enters the final report, and prompts and execution logs are not uploaded as evidence artifacts.
+8. Claude Opus 5 receives one inline manifest and at most three turns. It may use only `Read` against a path named in that manifest from the trusted merge-base checkout; no command, network, write, MCP or PR-head access is allowed. Only `structured_output` enters the final report, and prompts and execution logs are not uploaded as evidence artifacts.
 
 **Delivered Shadow evidence:** `.github/workflows/doc-candidate-discovery.yml` 自动运行只读候选发现，但结果仅为不阻塞 PR 的 evidence；它有固定 5-document/20-candidate limits、每文档 5 分钟 timeout、串行调用与 14 天 JSON retention。离线 synthetic/hostile fixtures 只验证 controller 和安全合同。Phase 2A.1 的 strict corpus evaluator 现定义六个 closed-claim 正样本与两个负样本：只有 `6 TP / 0 FN / 0 FP / 0 execution-or-integrity failure` 才可 promotion；Action 缺失/无效输出单列 `not_evaluable` 并阻止 promotion。语料尚未收集完成，因此不得据此进入 Phase 2B、应用 patch、发表评论或设置 required check。
 
