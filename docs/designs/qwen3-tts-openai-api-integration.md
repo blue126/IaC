@@ -56,7 +56,7 @@ Base profile 保留两个客户端的固定 OpenAI voice 名称兼容性；Voice
 ```yaml
 qwen3_tts_vllm_image: "vllm/vllm-omni:v0.28.0"
 qwen3_tts_gpu_ordinal: 1
-qwen3_tts_port: 8100
+qwen3_tts_port: 8101
 qwen3_tts_min_free_vram_mib: 512
 ```
 
