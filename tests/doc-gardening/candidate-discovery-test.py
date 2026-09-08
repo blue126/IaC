@@ -865,6 +865,8 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertIn("pull-requests: write", workflow)
         self.assertIn("validate-proposal.py", workflow)
         self.assertIn("apply-proposal.py", workflow)
+        self.assertIn("actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6", workflow)
+        self.assertIn("peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3", workflow)
         self.assertIn("idempotency_conflict", workflow)
         self.assertIn("gh pr create --repo", workflow)
         self.assertIn("--body-file", workflow)
