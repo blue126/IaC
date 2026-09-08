@@ -237,6 +237,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         )
         prompt_text = prompt.read_text(encoding="utf-8")
         self.assertEqual(prompt_text.count("UNTRUSTED_MANIFEST_JSON:"), 1)
+        self.assertIn("complete text of the referenced manifest `span.quote`", prompt_text)
         self.assertTrue(
             prompt_text.endswith(contract.canonical_json(manifest).decode("utf-8") + "\n")
         )
