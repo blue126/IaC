@@ -15,6 +15,10 @@ on:
         description: Trusted candidate head SHA
         required: true
         type: string
+      source_branch:
+        description: Trusted source branch that must resolve to expected head
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -93,12 +97,15 @@ jobs:
       - name: Create or recover one Draft PR
         env:
           EXPECTED_HEAD: ${{ inputs.expected_head }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           GH_TOKEN: ${{ github.token }}
         run: |
           proposal_dir="${RUNNER_TEMP}/proposal"
           receipt_sha="$(jq -er '.receipt_sha256' "${proposal_dir}/apply-receipt.json")"
           document_path="$(jq -er '.document_path' "${proposal_dir}/apply-receipt.json")"
           post_sha="$(jq -er '.post_sha256' "${proposal_dir}/apply-receipt.json")"
+          source_head="$(git ls-remote origin "refs/heads/${SOURCE_BRANCH}" | cut -f1)"
+          [[ "${source_head}" == "${EXPECTED_HEAD}" ]] || { echo "source_branch_head_mismatch" >&2; exit 2; }
           branch="oink/doc-${receipt_sha:0:16}"
           worktree="${RUNNER_TEMP}/publisher-checkout"
           git worktree add --detach "${worktree}" "${EXPECTED_HEAD}"
@@ -135,7 +142,7 @@ jobs:
             git -C "${worktree}" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
             git -C "${worktree}" push origin "${branch}"
           fi
-          existing="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --state open --json url --jq '.[0].url // empty')"
+          existing="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --base "${SOURCE_BRANCH}" --state open --json url --jq '.[0].url // empty')"
           if [[ -z "${existing}" ]]; then
             body_file="${RUNNER_TEMP}/draft-pr-body.md"
             {
@@ -147,7 +154,7 @@ jobs:
               echo
               echo "This Draft PR was independently rebuilt and validated by the trusted publisher. It must not be auto-merged."
             } > "${body_file}"
-            gh pr create --repo "${GITHUB_REPOSITORY}" --draft --head "${branch}" --base "${GITHUB_REF_NAME}" \
+            gh pr create --repo "${GITHUB_REPOSITORY}" --draft --head "${branch}" --base "${SOURCE_BRANCH}" \
               --title "fix(oink): repair ${document_path}" \
               --body-file "${body_file}"
           fi
