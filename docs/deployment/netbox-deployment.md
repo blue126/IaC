@@ -91,7 +91,7 @@ You can override these defaults in `ansible/roles/netbox/defaults/main.yml` or v
 |----------|---------|-------------|
 | `netbox_git_version` | `"3.0.2"` | netbox-docker version (controls docker-compose structure) |
 | `netbox_image` | `"netboxcommunity/netbox:v4.1.11"` | Netbox application image version |
-| `netbox_port` | `8080` | Host port to expose Netbox on |
+| `netbox_port` | `8081` | Host port to expose Netbox on |
 | `netbox_install_dir` | `"/opt/netbox-docker"` | Installation directory on target |
 | `netbox_superuser_name` | `"admin"` | Admin username |
 | `netbox_superuser_email` | `"admin@example.com"` | Admin email |
