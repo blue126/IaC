@@ -62,7 +62,7 @@ terraform apply
 ```
 
 ### 2. Application Deployment (Ansible)
-Once the VM is running, deploy the Netbox application stack.
+After the VM is running, deploy the Netbox application stack.
 - **Playbook**: `ansible/playbooks/deploy-netbox.yml`
 - **Role**: `ansible/roles/netbox`
 - **Key Features**:
