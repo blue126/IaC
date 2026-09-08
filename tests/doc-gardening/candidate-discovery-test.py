@@ -32,6 +32,7 @@ def load_script(name: str) -> Any:
     return module
 
 
+BRIDGE = load_script("bridge-candidate.py")
 CONTROLLER = load_script("scan-changed-docs.py")
 VALIDATOR = load_script("validate-contract.py")
 
@@ -71,6 +72,7 @@ RUNTIME_PATHS = (
     "tools/check-doc-claims.py",
     "tools/doc-gardening/contract.py",
     "tools/doc-gardening/build-candidate.py",
+    "tools/doc-gardening/bridge-candidate.py",
     "tools/doc-gardening/validate-contract.py",
     "tools/doc-gardening/scan-changed-docs.py",
     "tools/doc-gardening/prompts/analyze-v2.md",
@@ -531,6 +533,165 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertEqual(record["reason"], "recorded_replay")
         self.assertFalse(record["live"])
         VALIDATOR.validate_run_record(record, manifest, json.loads(artifact_path.read_text()))
+
+    def test_bridge_revalidates_one_closed_claim_contradiction(self) -> None:
+        path = "docs/deployment/netbox-deployment.md"
+        self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
+        self.fixture.commit_head()
+        output, preparation, _ = self.fixture.prepare()
+        item = next(item for item in preparation["items"] if item["document_path"] == path)
+        manifest_path = output / item["manifest_file"]
+        manifest = self._manifest_for_item(output, item)
+        artifact = self._artifact(
+            manifest,
+            classification="candidate_contradiction",
+            reason="evidence_conflict",
+            evidence_refs=["service.netbox.port"],
+        )
+        structured = output / "structured.json"
+        structured.write_text(json.dumps(artifact), encoding="utf-8")
+        self.fixture.git("checkout", "-q", self.fixture.base)
+        prompt = output / "prompt.md"
+        CONTROLLER.verify_manifest(
+            self.fixture.root,
+            manifest_path,
+            self.fixture.base,
+            self.fixture.head,
+            output / "validated.json",
+            prompt,
+        )
+        result_path = output / "result.json"
+        record_path = output / "result.run.json"
+        CONTROLLER.finalize(
+            self.fixture.root,
+            manifest_path,
+            structured,
+            "success",
+            self.fixture.base,
+            self.fixture.head,
+            prompt,
+            TOOL_ROOT / "schemas/claim-candidates-v2.json",
+            "claude-opus-5",
+            "claude-code-action@pinned",
+            record_path,
+            result_path,
+        )
+        v1_manifest, v1_candidate = BRIDGE.bridge(
+            self.fixture.root,
+            json.loads(manifest_path.read_text(encoding="utf-8")),
+            json.loads(result_path.read_text(encoding="utf-8")),
+            json.loads(record_path.read_text(encoding="utf-8")),
+            "candidate-shadow",
+            self.fixture.base,
+            self.fixture.head,
+        )
+        self.assertEqual(v1_manifest["schema_version"], 1)
+        self.assertEqual(v1_candidate["schema_version"], 1)
+        self.assertEqual(v1_candidate["candidates"][0]["evidence_refs"], ["service.netbox.port"])
+        VALIDATOR.validate_artifact(v1_candidate, v1_manifest)
+
+    def test_bridge_rejects_unknown_or_multi_candidate_inputs(self) -> None:
+        path = "docs/deployment/netbox-deployment.md"
+        self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
+        self.fixture.commit_head()
+        output, preparation, _ = self.fixture.prepare()
+        item = next(item for item in preparation["items"] if item["document_path"] == path)
+        manifest_path = output / item["manifest_file"]
+        manifest = self._manifest_for_item(output, item)
+        self.fixture.git("checkout", "-q", self.fixture.base)
+        candidate = self._artifact(
+            manifest,
+            classification="unknown",
+            reason="ambiguous_source",
+            evidence_refs=[],
+        )
+        record = contract.build_run_record(
+            status="completed",
+            reason="shadow_completed",
+            manifest=manifest,
+            prompt_data=b"prompt",
+            schema_data=b"schema",
+            model="claude-opus-5",
+            runtime="claude-code-action@pinned",
+            output_data=json.dumps(candidate).encode("utf-8"),
+            artifact_kind="claim_candidates",
+            live=True,
+        )
+        result = {
+            "schema_version": 2,
+            "kind": "candidate_discovery_result",
+            "revision": manifest["revision"],
+            "document_path": path,
+            "change_type": "M",
+            "previous_path": None,
+            "status": "completed",
+            "reason": "analysis_completed",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "run_record_sha256": contract.sha256_bytes(contract.canonical_json(record)),
+            "candidate_count": 1,
+            "candidates": candidate["candidates"],
+        }
+        with self.assertRaisesRegex(contract.ContractError, "bridge_candidate_ineligible"):
+            BRIDGE.bridge(
+                self.fixture.root,
+                manifest,
+                result,
+                record,
+                "candidate-shadow",
+                self.fixture.base,
+                self.fixture.head,
+            )
+
+    def test_bridge_rejects_untrusted_expected_head(self) -> None:
+        path = "docs/deployment/netbox-deployment.md"
+        self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
+        self.fixture.commit_head()
+        output, preparation, _ = self.fixture.prepare()
+        item = next(item for item in preparation["items"] if item["document_path"] == path)
+        manifest = self._manifest_for_item(output, item)
+        candidate = self._artifact(
+            manifest,
+            classification="candidate_contradiction",
+            reason="evidence_conflict",
+            evidence_refs=["service.netbox.port"],
+        )
+        record = contract.build_run_record(
+            status="completed",
+            reason="shadow_completed",
+            manifest=manifest,
+            prompt_data=b"prompt",
+            schema_data=b"schema",
+            model="claude-opus-5",
+            runtime="claude-code-action@pinned",
+            output_data=json.dumps(candidate).encode("utf-8"),
+            artifact_kind="claim_candidates",
+            live=True,
+        )
+        result = {
+            "schema_version": 2,
+            "kind": "candidate_discovery_result",
+            "revision": manifest["revision"],
+            "document_path": path,
+            "change_type": "M",
+            "previous_path": None,
+            "status": "completed",
+            "reason": "analysis_completed",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "run_record_sha256": contract.sha256_bytes(contract.canonical_json(record)),
+            "candidate_count": 1,
+            "candidates": candidate["candidates"],
+        }
+        self.fixture.git("checkout", "-q", self.fixture.base)
+        with self.assertRaisesRegex(contract.ContractError, "manifest_head_unexpected"):
+            BRIDGE.bridge(
+                self.fixture.root,
+                manifest,
+                result,
+                record,
+                "candidate-shadow",
+                self.fixture.base,
+                self.fixture.base,
+            )
 
     def test_workflow_is_read_only_bounded_base_only_and_non_target(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
