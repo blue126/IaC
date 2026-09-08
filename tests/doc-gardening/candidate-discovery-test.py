@@ -32,6 +32,7 @@ def load_script(name: str) -> Any:
     return module
 
 
+APPLY = load_script("apply-proposal.py")
 BRIDGE = load_script("bridge-candidate.py")
 CONTROLLER = load_script("scan-changed-docs.py")
 VALIDATOR = load_script("validate-contract.py")
@@ -73,6 +74,7 @@ RUNTIME_PATHS = (
     "tools/doc-gardening/contract.py",
     "tools/doc-gardening/build-candidate.py",
     "tools/doc-gardening/bridge-candidate.py",
+    "tools/doc-gardening/apply-proposal.py",
     "tools/doc-gardening/validate-contract.py",
     "tools/doc-gardening/scan-changed-docs.py",
     "tools/doc-gardening/prompts/analyze-v2.md",
@@ -589,6 +591,86 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertEqual(v1_candidate["schema_version"], 1)
         self.assertEqual(v1_candidate["candidates"][0]["evidence_refs"], ["service.netbox.port"])
         VALIDATOR.validate_artifact(v1_candidate, v1_manifest)
+
+    def test_apply_changes_only_selected_document_and_restores_claim(self) -> None:
+        path = "docs/deployment/netbox-deployment.md"
+        self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
+        self.fixture.commit_head()
+        output, preparation, _ = self.fixture.prepare()
+        item = next(item for item in preparation["items"] if item["document_path"] == path)
+        manifest_path = output / item["manifest_file"]
+        manifest = self._manifest_for_item(output, item)
+        artifact = self._artifact(
+            manifest,
+            classification="candidate_contradiction",
+            reason="evidence_conflict",
+            evidence_refs=["service.netbox.port"],
+        )
+        structured = output / "structured.json"
+        structured.write_text(json.dumps(artifact), encoding="utf-8")
+        self.fixture.git("checkout", "-q", self.fixture.base)
+        prompt = output / "prompt.md"
+        CONTROLLER.verify_manifest(
+            self.fixture.root,
+            manifest_path,
+            self.fixture.base,
+            self.fixture.head,
+            output / "validated.json",
+            prompt,
+        )
+        result_path = output / "result.json"
+        record_path = output / "result.run.json"
+        CONTROLLER.finalize(
+            self.fixture.root,
+            manifest_path,
+            structured,
+            "success",
+            self.fixture.base,
+            self.fixture.head,
+            prompt,
+            TOOL_ROOT / "schemas/claim-candidates-v2.json",
+            "claude-opus-5",
+            "claude-code-action@pinned",
+            record_path,
+            result_path,
+        )
+        v1_manifest, v1_candidate = BRIDGE.bridge(
+            self.fixture.root,
+            json.loads(manifest_path.read_text(encoding="utf-8")),
+            json.loads(result_path.read_text(encoding="utf-8")),
+            json.loads(record_path.read_text(encoding="utf-8")),
+            "candidate-shadow",
+            self.fixture.base,
+            self.fixture.head,
+        )
+        candidate = v1_candidate["candidates"][0]
+        proposal = {
+            "schema_version": 1,
+            "kind": "edit_proposal",
+            "manifest_sha256": v1_manifest["manifest_sha256"],
+            "document_path": path,
+            "revision": v1_manifest["revision"],
+            "candidate_id": candidate["id"],
+            "hunk_id": candidate["hunk_id"],
+            "source": candidate["source"],
+            "evidence_refs": candidate["evidence_refs"],
+            "edit": {
+                "find": "| `netbox_port` | `8081` | Port |",
+                "replace": "| `netbox_port` | `8080` | Port |",
+            },
+        }
+        receipt = APPLY.apply(
+            self.fixture.root,
+            v1_manifest,
+            v1_candidate,
+            proposal,
+            self.fixture.base,
+            self.fixture.head,
+            validation_runner=lambda _: None,
+        )
+        self.assertEqual(receipt["document_path"], path)
+        self.assertEqual(receipt["claim_id"], "service.netbox.port")
+        self.assertRegex(receipt["receipt_sha256"], r"^[0-9a-f]{64}$")
 
     def test_bridge_rejects_unknown_or_multi_candidate_inputs(self) -> None:
         path = "docs/deployment/netbox-deployment.md"
