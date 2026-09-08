@@ -24,6 +24,7 @@ cd "${REPOSITORY_ROOT}"
 # Offline controller/contract tests; these never invoke a live AI path.
 "${PYTHON_BIN}" tests/doc-gardening/doc-gardening-test.py
 "${PYTHON_BIN}" tests/doc-gardening/candidate-discovery-test.py
+"${PYTHON_BIN}" tests/doc-gardening/corpus-quality-test.py
 # Recorded accept/reject fixtures, not a live model quality evaluation.
 "${PYTHON_BIN}" tools/doc-gardening/evaluate.py --fixtures tests/doc-gardening/fixtures
 # Current repository consistency report for the known claim pairs.
