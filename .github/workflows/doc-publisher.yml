@@ -1,0 +1,141 @@
+name: OINK Document Draft Publisher
+
+on:
+  workflow_dispatch:
+    inputs:
+      proposal_run_id:
+        description: Validated no-write proposal workflow run ID
+        required: true
+        type: string
+      expected_base:
+        description: Trusted candidate merge-base SHA
+        required: true
+        type: string
+      expected_head:
+        description: Trusted candidate head SHA
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  publish:
+    name: document-draft-publisher
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted merge base
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.expected_base }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+
+      - name: Download validated proposal artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROPOSAL_RUN_ID: ${{ inputs.proposal_run_id }}
+        run: |
+          proposal_dir="${RUNNER_TEMP}/proposal"
+          mkdir -p "${proposal_dir}"
+          gh run download "${PROPOSAL_RUN_ID}" --repo "${GITHUB_REPOSITORY}" \
+            --name "oink-document-proposal-${PROPOSAL_RUN_ID}" \
+            --dir "${proposal_dir}"
+
+      - name: Revalidate proposal and isolated apply
+        env:
+          EXPECTED_BASE: ${{ inputs.expected_base }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: |
+          proposal_dir="${RUNNER_TEMP}/proposal"
+          python3 tools/doc-gardening/validate-proposal.py \
+            --root . \
+            --manifest "${proposal_dir}/manifest.json" \
+            --candidate "${proposal_dir}/candidate.json" \
+            --proposal "${proposal_dir}/proposal.json" \
+            --expected-base "${EXPECTED_BASE}" \
+            --expected-head "${EXPECTED_HEAD}" \
+            --output "${proposal_dir}/revalidated-proposal-receipt.json"
+          cmp "${proposal_dir}/receipt.json" "${proposal_dir}/revalidated-proposal-receipt.json"
+          python3 tools/doc-gardening/apply-proposal.py \
+            --root . \
+            --manifest "${proposal_dir}/manifest.json" \
+            --candidate "${proposal_dir}/candidate.json" \
+            --proposal "${proposal_dir}/proposal.json" \
+            --expected-base "${EXPECTED_BASE}" \
+            --expected-head "${EXPECTED_HEAD}" \
+            --output "${proposal_dir}/apply-receipt.json"
+
+      - name: Create or recover one Draft PR
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          proposal_dir="${RUNNER_TEMP}/proposal"
+          receipt_sha="$(jq -er '.receipt_sha256' "${proposal_dir}/apply-receipt.json")"
+          document_path="$(jq -er '.document_path' "${proposal_dir}/apply-receipt.json")"
+          post_sha="$(jq -er '.post_sha256' "${proposal_dir}/apply-receipt.json")"
+          branch="oink/doc-${receipt_sha:0:16}"
+          worktree="${RUNNER_TEMP}/publisher-checkout"
+          git worktree add --detach "${worktree}" "${EXPECTED_HEAD}"
+          trap 'git worktree remove --force "${worktree}"' EXIT
+          python3 - "${worktree}" "${document_path}" "${proposal_dir}/proposal.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          document = root / sys.argv[2]
+          proposal = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+          find = proposal["edit"]["find"]
+          replace = proposal["edit"]["replace"]
+          text = document.read_text(encoding="utf-8")
+          if text.count(find) != 1:
+              raise SystemExit("publisher_find_not_unique")
+          document.write_text(text.replace(find, replace, 1), encoding="utf-8")
+          PY
+          [[ "$(sha256sum "${worktree}/${document_path}" | cut -d ' ' -f1)" == "${post_sha}" ]]
+          changed="$(git -C "${worktree}" diff --name-only)"
+          [[ "${changed}" == "${document_path}" ]]
+          git -C "${worktree}" diff --check
+          if git ls-remote --exit-code origin "refs/heads/${branch}" >/dev/null 2>&1; then
+            git fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+            remote_sha="$(git show "origin/${branch}:${document_path}" | sha256sum | cut -d ' ' -f1)"
+            [[ "${remote_sha}" == "${post_sha}" ]] || { echo "idempotency_conflict" >&2; exit 2; }
+          else
+            git -C "${worktree}" switch -c "${branch}"
+            git -C "${worktree}" config user.name "github-actions[bot]"
+            git -C "${worktree}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git -C "${worktree}" add -- "${document_path}"
+            git -C "${worktree}" commit -m "fix(oink): repair ${document_path}" -m "OINK-Receipt: ${receipt_sha}"
+            git -C "${worktree}" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            git -C "${worktree}" push origin "${branch}"
+          fi
+          existing="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${branch}" --state open --json url --jq '.[0].url // empty')"
+          if [[ -z "${existing}" ]]; then
+            body_file="${RUNNER_TEMP}/draft-pr-body.md"
+            {
+              echo "## OINK validated repair"
+              echo
+              echo "- receipt: \`${receipt_sha}\`"
+              echo "- document: \`${document_path}\`"
+              echo "- source head: \`${EXPECTED_HEAD}\`"
+              echo
+              echo "This Draft PR was independently rebuilt and validated by the trusted publisher. It must not be auto-merged."
+            } > "${body_file}"
+            gh pr create --repo "${GITHUB_REPOSITORY}" --draft --head "${branch}" --base "${GITHUB_REF_NAME}" \
+              --title "fix(oink): repair ${document_path}" \
+              --body-file "${body_file}"
+          fi

@@ -20,6 +20,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 TOOL_ROOT = REPOSITORY_ROOT / "tools/doc-gardening"
 WORKFLOW = REPOSITORY_ROOT / ".github/workflows/doc-candidate-discovery.yml"
 PROPOSAL_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/doc-proposal.yml"
+PUBLISHER_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/doc-publisher.yml"
 sys.path.insert(0, str(TOOL_ROOT))
 import contract  # noqa: E402
 
@@ -851,9 +852,31 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertNotIn("git push", workflow)
         self.assertNotIn("gh pr", workflow)
 
+    def test_manual_publisher_is_idempotent_and_has_only_job_level_write(self) -> None:
+        workflow = PUBLISHER_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("proposal_run_id:", workflow)
+        self.assertIn("expected_base:", workflow)
+        self.assertIn("expected_head:", workflow)
+        self.assertNotIn("pull_request_target", workflow)
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", workflow)
+        self.assertIn("actions: read", workflow)
+        self.assertIn("contents: write", workflow)
+        self.assertIn("pull-requests: write", workflow)
+        self.assertIn("validate-proposal.py", workflow)
+        self.assertIn("apply-proposal.py", workflow)
+        self.assertIn("idempotency_conflict", workflow)
+        self.assertIn("gh pr create --repo", workflow)
+        self.assertIn("--body-file", workflow)
+        self.assertNotIn("--body \"## OINK", workflow)
+        self.assertIn("--draft", workflow)
+        self.assertNotIn("gh pr merge", workflow)
+        self.assertNotIn("gh pr close", workflow)
+        self.assertNotIn("pulls/{", workflow)
+
     def test_workflow_reads_runtime_bootstrapped_without_jq_exit_status(self) -> None:
-        # jq -e exits 1 when the output is false, so reading this boolean with
-        # it under `bash -e` fails the step on every not-yet-bootstrapped PR.
+        # jq -e exits 1 when the output is false, so reading this boolean
+        # under `bash -e` fails the step on every not-yet-bootstrapped PR.
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("jq -r '.runtime_bootstrapped'", workflow)
         self.assertNotIn("jq -er '.runtime_bootstrapped'", workflow)
