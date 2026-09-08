@@ -19,6 +19,7 @@ from typing import Any
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 TOOL_ROOT = REPOSITORY_ROOT / "tools/doc-gardening"
 WORKFLOW = REPOSITORY_ROOT / ".github/workflows/doc-candidate-discovery.yml"
+PROPOSAL_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/doc-proposal.yml"
 sys.path.insert(0, str(TOOL_ROOT))
 import contract  # noqa: E402
 
@@ -33,6 +34,8 @@ def load_script(name: str) -> Any:
 
 
 APPLY = load_script("apply-proposal.py")
+RENDER = load_script("render-proposal.py")
+PROPOSAL = load_script("validate-proposal.py")
 BRIDGE = load_script("bridge-candidate.py")
 CONTROLLER = load_script("scan-changed-docs.py")
 VALIDATOR = load_script("validate-contract.py")
@@ -75,6 +78,8 @@ RUNTIME_PATHS = (
     "tools/doc-gardening/build-candidate.py",
     "tools/doc-gardening/bridge-candidate.py",
     "tools/doc-gardening/apply-proposal.py",
+    "tools/doc-gardening/render-proposal.py",
+    "tools/doc-gardening/validate-proposal.py",
     "tools/doc-gardening/validate-contract.py",
     "tools/doc-gardening/scan-changed-docs.py",
     "tools/doc-gardening/prompts/analyze-v2.md",
@@ -659,6 +664,16 @@ class CandidateDiscoveryTest(unittest.TestCase):
                 "replace": "| `netbox_port` | `8080` | Port |",
             },
         }
+        proposal_receipt = PROPOSAL.validate(
+            self.fixture.root,
+            v1_manifest,
+            v1_candidate,
+            proposal,
+            self.fixture.base,
+            self.fixture.head,
+        )
+        self.assertEqual(proposal_receipt["claim_id"], "service.netbox.port")
+        self.assertIn("UNTRUSTED_PROPOSAL_INPUT:", RENDER.render(v1_manifest, v1_candidate))
         receipt = APPLY.apply(
             self.fixture.root,
             v1_manifest,
@@ -814,6 +829,27 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertNotIn("git push", workflow)
         self.assertNotIn("gh pr", workflow)
         self.assertNotIn("create comment", workflow.lower())
+
+    def test_manual_proposal_workflow_is_read_only_and_bounded(self) -> None:
+        workflow = PROPOSAL_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("pull_request_target", workflow)
+        self.assertIn("source_run_id:", workflow)
+        self.assertIn("document_id:", workflow)
+        self.assertIn("candidate_id:", workflow)
+        self.assertIn("expected_base:", workflow)
+        self.assertIn("expected_head:", workflow)
+        self.assertIn("actions: read", workflow)
+        self.assertIn("contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("pull-requests: write", workflow)
+        self.assertEqual(workflow.count("CLAUDE_CODE_OAUTH_TOKEN"), 1)
+        self.assertIn('--allowedTools "Read"', workflow)
+        self.assertIn("--max-turns 3", workflow)
+        self.assertIn("bridge-candidate.py", workflow)
+        self.assertIn("validate-proposal.py", workflow)
+        self.assertNotIn("git push", workflow)
+        self.assertNotIn("gh pr", workflow)
 
     def test_workflow_reads_runtime_bootstrapped_without_jq_exit_status(self) -> None:
         # jq -e exits 1 when the output is false, so reading this boolean with
