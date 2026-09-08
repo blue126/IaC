@@ -1,0 +1,49 @@
+{
+  "counters": {
+    "action_failures": 0,
+    "correct_positives": 6,
+    "evaluable_negatives": 2,
+    "evaluable_positives": 6,
+    "false_negatives": 0,
+    "false_positives": 0,
+    "integrity_failures": 0,
+    "output_failures": 0
+  },
+  "kind": "shadow_quality_report",
+  "outcomes": [
+    {
+      "id": "positive-netbox-port",
+      "outcome": "true_positive"
+    },
+    {
+      "id": "positive-netbox-image",
+      "outcome": "true_positive"
+    },
+    {
+      "id": "positive-qwen-image",
+      "outcome": "true_positive"
+    },
+    {
+      "id": "positive-qwen-ordinal",
+      "outcome": "true_positive"
+    },
+    {
+      "id": "positive-qwen-port",
+      "outcome": "true_positive"
+    },
+    {
+      "id": "positive-qwen-vram",
+      "outcome": "true_positive"
+    },
+    {
+      "id": "negative-registered",
+      "outcome": "true_negative"
+    },
+    {
+      "id": "negative-external",
+      "outcome": "true_negative"
+    }
+  ],
+  "promotion_eligible": true,
+  "schema_version": 1
+}
