@@ -54,7 +54,7 @@ Base profile 保留两个客户端的固定 OpenAI voice 名称兼容性；Voice
 以下取值由 `tools/check-doc-claims.py` 对照仓库中的实际配置校验，改动其一而不改另一会使检查失败。
 
 ```yaml
-qwen3_tts_vllm_image: "vllm/vllm-omni:v0.28.0"
+qwen3_tts_vllm_image: "vllm/vllm-omni:v0.28.1"
 qwen3_tts_gpu_ordinal: 1
 qwen3_tts_port: 8100
 qwen3_tts_min_free_vram_mib: 512
