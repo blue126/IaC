@@ -181,6 +181,8 @@ chmod +x "${MOCK_BIN}/classifier"
 export MOCK_LOG
 TERRAFORM_BIN="${MOCK_BIN}/terraform" \
   "${TERRAFORM_VALIDATOR}" terraform/oci terraform/proxmox >/dev/null
+grep -Fq "terraform -chdir=${REPOSITORY_ROOT} fmt -check -recursive terraform/modules" "${MOCK_LOG}" || \
+  fail "Terraform modules formatting command was not executed"
 grep -Fq "terraform -chdir=${REPOSITORY_ROOT} fmt -check -recursive terraform/oci" "${MOCK_LOG}" || \
   fail "Terraform OCI formatting command was not executed"
 grep -Fq "terraform -chdir=${REPOSITORY_ROOT} fmt -check -recursive terraform/proxmox" "${MOCK_LOG}" || \
