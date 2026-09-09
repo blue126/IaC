@@ -28,9 +28,8 @@ for root in "$@"; do
   esac
 done
 
-"${TERRAFORM_BIN}" -chdir="${REPOSITORY_ROOT}" fmt -check -recursive terraform
-
 for root in "${selected_roots[@]}"; do
+  "${TERRAFORM_BIN}" -chdir="${REPOSITORY_ROOT}" fmt -check -recursive "${root}"
   "${TERRAFORM_BIN}" -chdir="${REPOSITORY_ROOT}/${root}" init -backend=false -input=false
   "${TERRAFORM_BIN}" -chdir="${REPOSITORY_ROOT}/${root}" validate
 done
