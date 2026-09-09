@@ -6,7 +6,7 @@ module "immich" {
   vmid        = 101
   cores       = 2
   memory      = 8192
-  disk_size   = "300G"
+  disk_size   = "500G"
 
   # Legacy VM Settings
   bios            = "ovmf"
