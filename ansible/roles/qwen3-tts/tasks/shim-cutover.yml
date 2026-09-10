@@ -1,0 +1,547 @@
+---
+- name: Validate shim-only cutover authorization and scope
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+      - qwen3_tts_shim_cutover_confirm == qwen3_tts_shim_cutover_confirmation
+      - qwen3_tts_shim_image_repository == 'ghcr.io/blue126/qwen3-tts-service-shim'
+      - qwen3_tts_shim_image_digest == 'sha256:37cabe5713613ba719e47bc9c535d0443c58243fdd0e4404f560ba3b60b231a5'
+      - qwen3_tts_shim_image == qwen3_tts_shim_image_repository ~ '@' ~ qwen3_tts_shim_image_digest
+      - qwen3_tts_profile_bootstrap_image == 'python:3.12-slim'
+      - qwen3_tts_service_name == 'qwen3-tts.service'
+      - qwen3_tts_compose_project == 'qwen3-tts'
+      - qwen3_tts_install_dir == '/opt/qwen3-tts'
+      - qwen3_tts_bind_address == (ansible_host | default(inventory_hostname))
+      - qwen3_tts_bind_address not in ['0.0.0.0', '::', '*']
+      - qwen3_tts_port | int == 8100
+      - qwen3_tts_container_port | int == 8880
+      - qwen3_tts_shim_container_port | int == 8090
+      - qwen3_tts_model_repository == 'Qwen/Qwen3-TTS-12Hz-1.7B-Base'
+      - qwen3_tts_voice_catalog_path == '/opt/qwen3-tts/voice-catalog.json'
+      - qwen3_tts_shim_cutover_stage_dir == '/opt/qwen3-tts/.shim-cutover-stage'
+      - qwen3_tts_shim_rollback_dir == '/opt/qwen3-tts/shim-cutover-rollback'
+      - qwen3_tts_shim_cutover_lock_path == '/run/lock/qwen3-tts-shim-cutover.lock'
+      - qwen3_tts_voice_catalog_sha256 == '841bffa3cc473b9b220dbd91af8603bc85a6233b9ceaf26760af8e3c157a9fca'
+      - qwen3_tts_service_source_commit == 'ea79dff642f7be5e12bccf88167b0b30373f82cd'
+    fail_msg: Shim-only cutover requires the reviewed confirmation and immutable artifact boundary
+
+- name: Acquire the shim-only cutover lock
+  ansible.builtin.command:
+    argv: [mkdir, "{{ qwen3_tts_shim_cutover_lock_path }}"]
+  changed_when: true
+
+- name: Initialize shim cutover state
+  ansible.builtin.set_fact:
+    qwen3_tts_cutover_activation_started: false
+
+- name: Run shim-only preflight and cutover
+  block:
+    - name: Check cutover prerequisites
+      ansible.builtin.command:
+        argv: ["{{ item }}", --version]
+      loop: [docker, sha256sum, mv, mkdir]
+      changed_when: false
+
+    - name: Check Qwen3-TTS owner state
+      ansible.builtin.command:
+        argv: [systemctl, is-active, "{{ qwen3_tts_service_name }}"]
+      register: qwen3_tts_cutover_owner_state
+      changed_when: false
+
+    - name: Check Qwen3.8 remains inactive
+      ansible.builtin.command:
+        argv: [systemctl, is-active, qwen38.service]
+      register: qwen3_tts_cutover_qwen38_state
+      changed_when: false
+      failed_when: false
+
+    - name: Assert expected non-target service states
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_cutover_owner_state.stdout == 'active'
+          - qwen3_tts_cutover_qwen38_state.stdout == 'inactive'
+        fail_msg: Base owner must be active and Qwen3.8 must remain inactive for shim-only cutover
+
+    - name: Snapshot Base server state
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.State.Health.Status}}|{{.RestartCount}}' }}"
+          - "{{ qwen3_tts_compose_project }}-server-1"
+      register: qwen3_tts_cutover_server_before
+      changed_when: false
+      no_log: true
+
+    - name: Snapshot VoiceDesign state
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.RestartCount}}' }}"
+          - "{{ qwen3_tts_compose_project }}-voice-design-1"
+      register: qwen3_tts_cutover_voice_design_before
+      changed_when: false
+      no_log: true
+
+    - name: Snapshot existing shim state
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.State.Health.Status}}|{{.RestartCount}}' }}"
+          - "{{ qwen3_tts_compose_project }}-shim-1"
+      register: qwen3_tts_cutover_shim_before
+      changed_when: false
+      no_log: true
+
+    - name: Assert Base server and VoiceDesign are running
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_cutover_server_before.stdout.split('|')[3] == 'true'
+          - qwen3_tts_cutover_server_before.stdout.split('|')[4] == 'healthy'
+          - qwen3_tts_cutover_voice_design_before.stdout.split('|')[3] == 'true'
+        fail_msg: Base server and VoiceDesign must be running before shim-only cutover
+
+    - name: Read existing public shim health
+      ansible.builtin.uri:
+        url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/health"
+        method: GET
+        status_code: 200
+      changed_when: false
+
+    - name: Inspect current catalog presence
+      ansible.builtin.stat:
+        path: "{{ qwen3_tts_voice_catalog_path }}"
+        checksum_algorithm: sha256
+      register: qwen3_tts_cutover_catalog_before
+
+    - name: Inspect current Compose checksum
+      ansible.builtin.stat:
+        path: "{{ qwen3_tts_install_dir }}/compose.yml"
+        checksum_algorithm: sha256
+      register: qwen3_tts_cutover_compose_before
+
+    - name: Create root-only cutover staging directory
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_shim_cutover_stage_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create root-only rollback directory
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_shim_rollback_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Snapshot current Compose definition for rollback
+      ansible.builtin.copy:
+        src: "{{ qwen3_tts_install_dir }}/compose.yml"
+        dest: "{{ qwen3_tts_shim_rollback_dir }}/compose.yml"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Snapshot current catalog for rollback
+      ansible.builtin.copy:
+        src: "{{ qwen3_tts_voice_catalog_path }}"
+        dest: "{{ qwen3_tts_shim_rollback_dir }}/voice-catalog.json"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      when: qwen3_tts_cutover_catalog_before.stat.exists
+
+    - name: Record whether rollback has a previous catalog
+      ansible.builtin.copy:
+        content: "{{ qwen3_tts_cutover_catalog_before.stat.exists | ternary('present', 'absent') }}\n"
+        dest: "{{ qwen3_tts_shim_rollback_dir }}/catalog-state"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Pull pinned shim image before activation
+      ansible.builtin.command:
+        argv: [docker, pull, "{{ qwen3_tts_shim_image }}"]
+      register: qwen3_tts_cutover_image_pull
+      changed_when: true
+      no_log: true
+
+    - name: Inspect pinned shim image repository digests
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - inspect
+          - --format
+          - "{{ '{{json .RepoDigests}}' }}"
+          - "{{ qwen3_tts_shim_image }}"
+      register: qwen3_tts_cutover_image_digests
+      changed_when: false
+      no_log: true
+
+    - name: Assert pinned shim image was pulled
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_shim_image_digest in qwen3_tts_cutover_image_digests.stdout
+        fail_msg: Pulled shim image does not expose the reviewed immutable digest
+
+    - name: Stage pure runtime voice catalog
+      ansible.builtin.copy:
+        src: voice-catalog.json
+        dest: "{{ qwen3_tts_shim_cutover_stage_dir }}/voice-catalog.json"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Stage candidate Compose definition
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ qwen3_tts_shim_cutover_stage_dir }}/compose.yml"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Validate staged Compose definition
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_shim_cutover_stage_dir }}/compose.yml"
+          - config
+          - --quiet
+      changed_when: false
+
+    - name: Verify catalog mount target in the pinned shim image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --read-only
+          - --mount
+          - "type=bind,src={{ qwen3_tts_shim_cutover_stage_dir }}/voice-catalog.json,dst=/etc/qwen3-tts/voice-catalog.json,readonly"
+          - --entrypoint
+          - python
+          - "{{ qwen3_tts_shim_image }}"
+          - -c
+          - "from pathlib import Path; assert Path('/etc/qwen3-tts/voice-catalog.json').is_file()"
+      changed_when: false
+
+    - name: Check all catalog profiles exist on the private Base backend
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --read-only
+          - --network
+          - "{{ qwen3_tts_compose_project }}_default"
+          - --mount
+          - "type=bind,src={{ qwen3_tts_shim_cutover_stage_dir }}/voice-catalog.json,dst=/etc/qwen3-tts/voice-catalog.json,readonly"
+          - --entrypoint
+          - python
+          - "{{ qwen3_tts_shim_image }}"
+          - -m
+          - qwen3_tts_service.profile_tool
+          - check-profiles
+          - --catalog
+          - /etc/qwen3-tts/voice-catalog.json
+          - --backend-url
+          - "http://server:{{ qwen3_tts_container_port }}"
+      register: qwen3_tts_cutover_profile_check
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Parse profile completeness result
+      ansible.builtin.set_fact:
+        qwen3_tts_cutover_profile_report: "{{ qwen3_tts_cutover_profile_check.stdout | from_json }}"
+      no_log: true
+
+    - name: Assert all 13 catalog profiles are present
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_cutover_profile_check.rc == 0
+          - qwen3_tts_cutover_profile_report.ok | bool
+          - qwen3_tts_cutover_profile_report.missing | length == 0
+        fail_msg: >-
+          Profile completeness failed; missing aliases:
+          {{ (qwen3_tts_cutover_profile_report.missing.keys() | list | sort | join(', '))
+             or 'backend or catalog validation failed' }}. Shim was not changed.
+
+    - name: Recheck staged catalog checksum before activation
+      ansible.builtin.stat:
+        path: "{{ qwen3_tts_shim_cutover_stage_dir }}/voice-catalog.json"
+        checksum_algorithm: sha256
+      register: qwen3_tts_cutover_catalog_candidate
+
+    - name: Recheck staged Compose checksum before activation
+      ansible.builtin.stat:
+        path: "{{ qwen3_tts_shim_cutover_stage_dir }}/compose.yml"
+        checksum_algorithm: sha256
+      register: qwen3_tts_cutover_compose_candidate
+
+    - name: Assert staged artifacts remain intact
+      ansible.builtin.assert:
+        that:
+          - qwen3_tts_cutover_catalog_candidate.stat.checksum == qwen3_tts_voice_catalog_sha256
+          - qwen3_tts_cutover_compose_candidate.stat.exists
+        fail_msg: Shim cutover staging changed after validation
+
+    - name: Mark shim activation as started
+      ansible.builtin.set_fact:
+        qwen3_tts_cutover_activation_started: true
+
+    - name: Activate catalog atomically
+      ansible.builtin.command:
+        argv:
+          - mv
+          - "{{ qwen3_tts_shim_cutover_stage_dir }}/voice-catalog.json"
+          - "{{ qwen3_tts_voice_catalog_path }}"
+      changed_when: true
+
+    - name: Activate Compose definition atomically
+      ansible.builtin.command:
+        argv:
+          - mv
+          - "{{ qwen3_tts_shim_cutover_stage_dir }}/compose.yml"
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+      changed_when: true
+
+    - name: Recreate only the shim using the pinned image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+          - up
+          - --detach
+          - --no-deps
+          - --pull
+          - never
+          - --force-recreate
+          - shim
+      changed_when: true
+
+    - name: Verify the shim-only cutover
+      ansible.builtin.include_tasks: shim-cutover-verify.yml
+
+  rescue:
+    - name: Restore previous Compose definition after shim cutover failure
+      ansible.builtin.copy:
+        src: "{{ qwen3_tts_shim_rollback_dir }}/compose.yml"
+        dest: "{{ qwen3_tts_install_dir }}/compose.yml"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+      register: qwen3_tts_cutover_rollback_compose
+      failed_when: false
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Restore previous catalog after shim cutover failure
+      ansible.builtin.copy:
+        src: "{{ qwen3_tts_shim_rollback_dir }}/voice-catalog.json"
+        dest: "{{ qwen3_tts_voice_catalog_path }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+      register: qwen3_tts_cutover_rollback_catalog
+      when:
+        - qwen3_tts_cutover_activation_started
+        - qwen3_tts_cutover_catalog_before.stat.exists | default(false)
+      failed_when: false
+
+    - name: Remove newly created catalog after failed first cutover
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_voice_catalog_path }}"
+        state: absent
+      register: qwen3_tts_cutover_rollback_catalog_removal
+      when:
+        - qwen3_tts_cutover_activation_started
+        - not (qwen3_tts_cutover_catalog_before.stat.exists | default(false))
+      failed_when: false
+
+    - name: Recreate only the previous shim after cutover failure
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ qwen3_tts_compose_project }}"
+          - --file
+          - "{{ qwen3_tts_install_dir }}/compose.yml"
+          - up
+          - --detach
+          - --no-deps
+          - --pull
+          - never
+          - --force-recreate
+          - shim
+      register: qwen3_tts_cutover_rollback_shim
+      changed_when: false
+      failed_when: false
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Wait for previous shim health after rollback
+      ansible.builtin.uri:
+        url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/health"
+        method: GET
+        status_code: 200
+      register: qwen3_tts_cutover_rollback_health
+      retries: 30
+      delay: 2
+      until: qwen3_tts_cutover_rollback_health.status | default(0) == 200
+      changed_when: false
+      failed_when: false
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Smoke the restored alloy path without retaining audio
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --silent
+          - --show-error
+          - --connect-timeout
+          - '5'
+          - --max-time
+          - '300'
+          - --output
+          - /dev/null
+          - --dump-header
+          - '-'
+          - --write-out
+          - 'qwen3_tts_download_size=%{size_download}'
+          - --header
+          - Content-Type: application/json
+          - --data
+          - >-
+            {{ {'model': 'tts-1', 'voice': 'alloy', 'input': qwen3_tts_shim_smoke_input,
+                'response_format': 'wav'} | to_json }}
+          - "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/v1/audio/speech"
+      register: qwen3_tts_cutover_rollback_alloy
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Snapshot protected services after rollback
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.State.Health.Status}}|{{.RestartCount}}' }}"
+          - "{{ qwen3_tts_compose_project }}-server-1"
+      register: qwen3_tts_cutover_rollback_server_after
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Snapshot VoiceDesign after rollback
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.RestartCount}}' }}"
+          - "{{ qwen3_tts_compose_project }}-voice-design-1"
+      register: qwen3_tts_cutover_rollback_voice_design_after
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Recheck Qwen3.8 state after rollback
+      ansible.builtin.command:
+        argv: [systemctl, is-active, qwen38.service]
+      register: qwen3_tts_cutover_rollback_qwen38_after
+      changed_when: false
+      failed_when: false
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Assert rollback restored the previous shim and catalog
+      ansible.builtin.assert:
+        that:
+          - not (qwen3_tts_cutover_rollback_compose.failed | default(true))
+          - not (qwen3_tts_cutover_rollback_catalog.failed | default(true))
+          - qwen3_tts_cutover_rollback_shim.rc | default(1) == 0
+          - qwen3_tts_cutover_rollback_health.status | default(0) == 200
+          - qwen3_tts_cutover_rollback_alloy.rc | default(1) == 0
+          - qwen3_tts_cutover_rollback_alloy.stdout is search('(?im)^content-type: audio/wav\\s*$')
+          - qwen3_tts_cutover_rollback_alloy.stdout is search('(?m)^qwen3_tts_download_size=[1-9][0-9]*$')
+          - qwen3_tts_cutover_rollback_server_after.stdout == qwen3_tts_cutover_server_before.stdout
+          - qwen3_tts_cutover_rollback_voice_design_after.stdout == qwen3_tts_cutover_voice_design_before.stdout
+          - qwen3_tts_cutover_rollback_qwen38_after.stdout == 'inactive'
+        fail_msg: >-
+          Shim cutover and rollback both failed; shim service state is unknown.
+          Inspect the retained root-only rollback snapshot before any further action.
+      when:
+        - qwen3_tts_cutover_activation_started
+        - qwen3_tts_cutover_catalog_before.stat.exists | default(false)
+
+    - name: Assert rollback removed the newly created catalog
+      ansible.builtin.assert:
+        that:
+          - not (qwen3_tts_cutover_rollback_compose.failed | default(true))
+          - not (qwen3_tts_cutover_rollback_catalog_removal.failed | default(true))
+          - qwen3_tts_cutover_rollback_shim.rc | default(1) == 0
+          - qwen3_tts_cutover_rollback_health.status | default(0) == 200
+          - qwen3_tts_cutover_rollback_alloy.rc | default(1) == 0
+          - qwen3_tts_cutover_rollback_alloy.stdout is search('(?im)^content-type: audio/wav\\s*$')
+          - qwen3_tts_cutover_rollback_alloy.stdout is search('(?m)^qwen3_tts_download_size=[1-9][0-9]*$')
+          - qwen3_tts_cutover_rollback_server_after.stdout == qwen3_tts_cutover_server_before.stdout
+          - qwen3_tts_cutover_rollback_voice_design_after.stdout == qwen3_tts_cutover_voice_design_before.stdout
+          - qwen3_tts_cutover_rollback_qwen38_after.stdout == 'inactive'
+        fail_msg: >-
+          Shim cutover and rollback both failed; shim service state is unknown.
+          Inspect the retained root-only rollback snapshot before any further action.
+      when:
+        - qwen3_tts_cutover_activation_started
+        - not (qwen3_tts_cutover_catalog_before.stat.exists | default(false))
+
+    - name: Fail after verified shim-only rollback
+      ansible.builtin.fail:
+        msg: >-
+          Shim cutover failed after activation. The previous shim configuration and
+          health were restored without changing Base, VoiceDesign, Qwen3.8, profiles,
+          models, or caches.
+      when: qwen3_tts_cutover_activation_started
+
+    - name: Fail after preflight without live mutation
+      ansible.builtin.fail:
+        msg: >-
+          Shim cutover preflight failed before activation; production Compose, catalog,
+          and containers were not changed.
+      when: not qwen3_tts_cutover_activation_started
+
+  always:
+    - name: Remove disposable shim cutover staging directory
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_shim_cutover_stage_dir }}"
+        state: absent
+      failed_when: false
+
+    - name: Release the shim-only cutover lock
+      ansible.builtin.file:
+        path: "{{ qwen3_tts_shim_cutover_lock_path }}"
+        state: absent
+      failed_when: false
