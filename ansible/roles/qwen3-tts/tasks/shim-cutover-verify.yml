@@ -1,0 +1,137 @@
+---
+- name: Wait for the new shim health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/health"
+    method: GET
+    status_code: 200
+  register: qwen3_tts_cutover_health
+  retries: 30
+  delay: 2
+  until: qwen3_tts_cutover_health.status == 200
+  changed_when: false
+
+- name: Verify the new shim models endpoint
+  ansible.builtin.uri:
+    url: "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/v1/models"
+    method: GET
+    status_code: 200
+    return_content: true
+  register: qwen3_tts_cutover_models
+  changed_when: false
+  no_log: true
+
+- name: Inspect the running shim image identity
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.Config.Image}}|{{.Image}}|{{.State.Running}}|{{.State.Health.Status}}|{{.RestartCount}}' }}"
+      - "{{ qwen3_tts_compose_project }}-shim-1"
+  register: qwen3_tts_cutover_shim_after
+  changed_when: false
+  no_log: true
+
+- name: Snapshot Base server after shim cutover
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.State.Health.Status}}|{{.RestartCount}}' }}"
+      - "{{ qwen3_tts_compose_project }}-server-1"
+  register: qwen3_tts_cutover_server_after
+  changed_when: false
+  no_log: true
+
+- name: Snapshot VoiceDesign after shim cutover
+  ansible.builtin.command:
+    argv:
+      - docker
+      - inspect
+      - --format
+      - "{{ '{{.Id}}|{{.Image}}|{{.State.StartedAt}}|{{.State.Running}}|{{.RestartCount}}' }}"
+      - "{{ qwen3_tts_compose_project }}-voice-design-1"
+  register: qwen3_tts_cutover_voice_design_after
+  changed_when: false
+  no_log: true
+
+- name: Recheck Qwen3.8 inactive state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, qwen38.service]
+  register: qwen3_tts_cutover_qwen38_after
+  changed_when: false
+  failed_when: false
+
+- name: Validate non-target service preservation and new shim health
+  ansible.builtin.assert:
+    that:
+      - qwen3_tts_cutover_shim_image_digest in qwen3_tts_cutover_shim_after.stdout
+      - qwen3_tts_cutover_shim_after.stdout.split('|')[2] == 'true'
+      - qwen3_tts_cutover_shim_after.stdout.split('|')[3] == 'healthy'
+      - qwen3_tts_cutover_shim_after.stdout.split('|')[4] == '0'
+      - qwen3_tts_cutover_server_after.stdout == qwen3_tts_cutover_server_before.stdout
+      - qwen3_tts_cutover_voice_design_after.stdout == qwen3_tts_cutover_voice_design_before.stdout
+      - qwen3_tts_cutover_qwen38_after.stdout == 'inactive'
+      - qwen3_tts_cutover_models.json.object == 'list'
+      - qwen3_tts_cutover_models.json.data | length > 0
+    fail_msg: Shim cutover changed a protected service or the pinned shim is unhealthy
+
+- name: Read canonical aliases from the immutable runtime catalog
+  ansible.builtin.set_fact:
+    qwen3_tts_cutover_aliases: >-
+      {{ (lookup('ansible.builtin.file', role_path ~ '/files/voice-catalog.json') |
+          from_json).voices.keys() | list | sort }}
+
+- name: Smoke every reviewed alias without retaining audio
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --connect-timeout
+      - '5'
+      - --max-time
+      - '300'
+      - --output
+      - /dev/null
+      - --dump-header
+      - '-'
+      - --write-out
+      - 'qwen3_tts_download_size=%{size_download}'
+      - --header
+      - Content-Type: application/json
+      - --data
+      - >-
+        {{ {'model': 'tts-1', 'voice': item, 'input': qwen3_tts_shim_smoke_input,
+            'response_format': 'wav'} | to_json }}
+      - "http://{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}/v1/audio/speech"
+  loop: "{{ qwen3_tts_cutover_aliases }}"
+  loop_control:
+    label: "{{ item }}"
+  register: qwen3_tts_cutover_alias_smokes
+  changed_when: false
+  no_log: true
+
+- name: Assert all reviewed aliases synthesize valid WAV responses
+  ansible.builtin.assert:
+    that:
+      - qwen3_tts_cutover_aliases | length == 13
+      - qwen3_tts_cutover_alias_smokes.results | length == 13
+      - qwen3_tts_cutover_alias_smokes.results | selectattr('rc', 'ne', 0) | list | length == 0
+      - >-
+        qwen3_tts_cutover_alias_smokes.results |
+        selectattr('stdout', 'search', '(?im)^content-type: audio/wav\s*$') |
+        list | length == 13
+      - >-
+        qwen3_tts_cutover_alias_smokes.results |
+        selectattr('stdout', 'search', '(?m)^qwen3_tts_download_size=[1-9][0-9]*$') |
+        list | length == 13
+    fail_msg: One or more reviewed aliases did not return a non-empty WAV response
+
+- name: Report shim-only cutover smoke aggregate
+  ansible.builtin.debug:
+    msg: >-
+      Shim-only cutover passed: 13/13 aliases synthesized through the pinned image;
+      Base server and VoiceDesign identities were unchanged and Qwen3.8 remained inactive.

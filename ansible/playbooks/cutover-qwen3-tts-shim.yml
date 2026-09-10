@@ -1,0 +1,17 @@
+---
+# Explicitly gated, shim-only production cutover. Do not use deploy-qwen3-tts.yml
+# for this operation: its normal lifecycle restarts the Base backend.
+- name: Cut over Qwen3-TTS voice-catalog shim
+  hosts: llm-workstation
+  become: true
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  tags: [never, qwen3-tts-shim-cutover]
+  vars:
+    qwen3_tts_shim_cutover_confirm: ""
+  tasks:
+    - name: Load the shim-only cutover
+      ansible.builtin.import_role:
+        name: qwen3-tts
+        tasks_from: shim-cutover

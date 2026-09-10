@@ -120,7 +120,13 @@ pipeline {
                             def roleMatcher = (file =~ /^ansible\/roles\/([^\/]+)\//)
                             def roleName = roleMatcher ? roleMatcher[0][1] : null
                             roleMatcher = null  // Discard Matcher before CPS checkpoint
-                            if (roleName) {
+                            if (roleName == 'qwen3-tts') {
+                                // The one-to-one alias cutover is intentionally shim-only and
+                                // needs an explicit confirmation variable. The normal deploy role
+                                // restarts Base server, so it must never be selected by file mapping.
+                                unmatchedFiles.add(file)
+                                matched = true
+                            } else if (roleName) {
                                 def candidate = "deploy-${roleName}.yml"
                                 if (fileExists("ansible/playbooks/${candidate}")) {
                                     playbooks.add(candidate)

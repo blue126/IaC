@@ -32,6 +32,7 @@ export ANSIBLE_ROLES_PATH="${ANSIBLE_ROOT}/roles"
 # password file such as /dev/null is rejected even when no Vault data is read.
 unset ANSIBLE_VAULT_PASSWORD_FILE ANSIBLE_VAULT_IDENTITY_LIST
 
+"${PYTHON_BIN}" "${REPOSITORY_ROOT}/tests/ci/qwen3-tts-shim-cutover-test.py"
 "${PYTHON_BIN}" -m pip install --disable-pip-version-check -r "${REPOSITORY_ROOT}/requirements.txt"
 
 required_ansible_tools=("${ANSIBLE_GALAXY_BIN}" "${ANSIBLE_LINT_BIN}" "${ANSIBLE_PLAYBOOK_BIN}")

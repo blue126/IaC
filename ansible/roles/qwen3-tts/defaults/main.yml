@@ -6,7 +6,6 @@
 # and its role are gone, and neither constraint survives here.
 qwen3_tts_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-Base
 qwen3_tts_base_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-Base
-qwen3_tts_mode: base
 qwen3_tts_voice_design_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
 qwen3_tts_backend: vllm_omni
 # GPU1, the same ordinal the retired llm-server used.
@@ -60,18 +59,18 @@ qwen3_tts_candidate_profiles:
 qwen3_tts_vllm_deploy_config_path: /opt/qwen3-tts/vllm-deploy-config.yaml
 qwen3_tts_service_name: qwen3-tts.service
 qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
-qwen3_tts_shim_image: python:3.12-slim
-qwen3_tts_voice_aliases:
-  alloy: Uncle_Fu
-  echo: Dylan
-  fable: Aiden
-  onyx: Uncle_Fu
-  ash: Eric
-  ballad: Dylan
-  cedar: Uncle_Fu
-  verse: Ryan
-  coral: Vivian
-  marin: Serena
-  nova: Sohee
-  sage: Serena
-  shimmer: Ono_Anna
+qwen3_tts_shim_image_repository: ghcr.io/blue126/qwen3-tts-service-shim
+qwen3_tts_shim_image_digest: sha256:37cabe5713613ba719e47bc9c535d0443c58243fdd0e4404f560ba3b60b231a5
+qwen3_tts_shim_image: "{{ qwen3_tts_shim_image_repository }}@{{ qwen3_tts_shim_image_digest }}"
+qwen3_tts_profile_bootstrap_image: python:3.12-slim
+# Pure runtime catalog derived from qwen3-tts-service commit
+# ea79dff642f7be5e12bccf88167b0b30373f82cd. The service repository owns
+# selection metadata; IaC deploys only its generated runtime catalog.
+qwen3_tts_voice_catalog_path: /opt/qwen3-tts/voice-catalog.json
+qwen3_tts_voice_catalog_sha256: 841bffa3cc473b9b220dbd91af8603bc85a6233b9ceaf26760af8e3c157a9fca
+qwen3_tts_shim_cutover_stage_dir: /opt/qwen3-tts/.shim-cutover-stage
+qwen3_tts_shim_rollback_dir: /opt/qwen3-tts/shim-cutover-rollback
+qwen3_tts_shim_cutover_lock_path: /run/lock/qwen3-tts-shim-cutover.lock
+qwen3_tts_service_source_commit: ea79dff642f7be5e12bccf88167b0b30373f82cd
+qwen3_tts_shim_cutover_confirmation: I_UNDERSTAND_SHIM_ONLY_CUTOVER
+qwen3_tts_shim_smoke_input: 切换验证。

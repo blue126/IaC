@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "default_alias": "alloy",
+  "voices": {
+    "alloy": "audiobook_narrator_zh",
+    "ash": "voice_yunyang_zh_a49b1902cb45",
+    "ballad": "voice_gdg_zh_29a6150487d8",
+    "cedar": "voice_cedar_zh_ref_5fb0b64ef7",
+    "coral": "voice_coral_zh_ref_5fb0b64ef7",
+    "echo": "voice_jianghu_zh_adfcd2e45b5a",
+    "fable": "voice_cctv_zh_d02515811467",
+    "marin": "voice_xw_zh_5c4d736fc24d",
+    "nova": "voice_nova_zh_2c3d176a377c",
+    "onyx": "voice_gxs_zh_16fee2fe9d56",
+    "sage": "voice_nzb_zh_b5f8baaaa43b",
+    "shimmer": "voice_shimmer_zh_c514bd4e7968",
+    "verse": "voice_111_zh_0e48961bbc7e"
+  }
+}

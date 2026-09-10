@@ -64,23 +64,15 @@ qwen3_tts_min_free_vram_mib: 512
 
 `files/vllm-deploy-config.yaml` 中的取值（`gpu_memory_utilization`、`max_num_seqs`、`kv_cache_memory_bytes`、`silence_ban_frames`）尚未纳入校验：claim 的 oracle 读取会跳过首字符为空白的行，而这些键位于 `stages:` 之下均为缩进行，因此根本不会被收集，判定停在 `oracle_key_missing`。每个 stage 各出现一次所导致的 `oracle_key_duplicate` 轮不到触发。本文中关于它们的描述目前只能靠人工核对。
 
-## 3. 本地 shim
+## 3. 已发布 shim 与 13 音色 catalog
 
-shim 以当前 Cloudflare Worker 的映射目的为基准，但使用 `python:3.12-slim` 和 Python 标准库在本地 Compose 中运行。它把客户端模型 `tts-1` 改写为实际 Qwen 模型，并转换 `POST /v1/audio/speech` JSON 的 `voice` 字段；其他 OpenAI-compatible 字段透明转发。Speech Central 请求 vLLM-Omni 不支持的 `response_format=aac` 时，shim 改为请求兼容性更好的 MP3，并将上游的 `audio/mpeg` 响应原样返回。`stream=true` 时若客户端没有提供格式，shim 补充 `response_format=pcm` 和 `stream_format=audio`。普通音频和 streaming PCM 响应均增量转发，不完整缓冲。
+shim 使用服务仓库发布的不可变镜像，而不是 IaC bind-mount 的 Python 源码：`ghcr.io/blue126/qwen3-tts-service-shim@sha256:37cabe5713613ba719e47bc9c535d0443c58243fdd0e4404f560ba3b60b231a5`。该 release 对应服务仓库 commit `ea79dff642f7be5e12bccf88167b0b30373f82cd`；服务仓库负责 shim 行为、catalog schema 与 alias/profile 选择，IaC 只部署其纯 runtime catalog。
 
-当前旁白 profile 使用受控的一次性流程：VoiceDesign 只生成非真人的中文参考 WAV，随后由 Base 的公开 `/v1/audio/voices` 接口以准确转写注册 `audiobook_narrator_zh`。参考 WAV 与持久化 profile 仅保存在 `/data/models/qwen3-tts/profiles`，不得提交、公开或写入日志。所有 Speech Central voice alias 都会被 shim 忽略并固定到该 profile；profile 缺失时 shim 返回 503，不会退回预设 speaker。
+shim 将客户端模型 `tts-1` 改写为实际 Qwen Base 模型，并将 `POST /v1/audio/speech` 的 13 个 OpenAI/Speech Central alias 路由到各自的持久 Base profile。Speech Central 请求 vLLM-Omni 不支持的 `response_format=aac` 时，shim 改为请求 MP3；`stream=true` 时未指定格式则补充 PCM/audio。普通音频和 streaming PCM 均增量代理，不完整缓冲。
 
-切换到 VoiceDesign 或 Base 都需要单独授权，并使用 `--tags bootstrap`。该流程先停止现有服务、仅启动临时 VoiceDesign 生成参考，再停止 VoiceDesign 后启动 Base 注册 profile，因此同一 GPU 不会并行运行两种模型。0.6B 仅在连续试听仍不可接受时作为最后回退选择，不是当前模型。
+IaC 挂载的 `voice-catalog.json` 只有 `schema_version`、`default_alias` 与 `voices` 三个字段，不含 reference 音频、转写、selection metadata、来源 hash 或 pending 状态。shim 不挂载 profile、模型或 cache；只有 Base `server` 保留 profile volume。未知、空白、null 或非字符串 voice 回退到 `alloy`。已知 alias 的目标 profile 不存在时，shim 返回 `503 profile_unavailable`，绝不静默改用其他声音。
 
-所有 alias 都固定到同一 Base ICL profile `audiobook_narrator_zh`；不再选择 CustomVoice preset，也不再区分男声或女声 alias。alias 仅为 Speech Central 的兼容输入，空值和未知值也使用同一个 profile。
-
-| OpenAI voice | Base profile |
-|---|---|
-| all 13 supported aliases | `audiobook_narrator_zh` |
-
-Base request 固定为 `task_type=Base`、`voice=audiobook_narrator_zh`、`language=Chinese`。客户端 `instructions` 会删除，而不是沿用 CustomVoice instruction；profile 不存在时 shim 返回明确 503，绝不静默改用 preset。
-
-VoiceDesign 只在经单独授权的 `--tags bootstrap` 流程中生成描述为“成熟、沉稳、低起伏、自然的中文有声书旁白”的合成参考 WAV。它停止后才启动 Base，并通过公开 `/v1/audio/voices` 持久注册含准确转写的 ICL profile。Talker/Subtalker 采样仍为 `0.6/50`。
+切换到 VoiceDesign 或 Base、注册/替换 profile 和任何音频操作都需要独立授权。本次 catalog cutover 只重建 shim：先在私有 Base endpoint 检查 13 个 profile 全部存在，再用 `docker compose up --no-deps --pull never --force-recreate shim` 切换。它不重启 Base `server`、不改变 VoiceDesign 或 Qwen3.8 状态，也不改模型、GPU、vLLM deploy config、profile 或 cache。失败时仅恢复旧 catalog/Compose 并重建 shim。正式生产结果必须在切换执行后单独记录。
 
 ### 候选配对试听
 
@@ -98,21 +90,24 @@ shim 不实现 Worker 的 `url_override`、`model_override`、`/admin/clone`，�
 
 ```text
 ansible/playbooks/deploy-qwen3-tts.yml
+ansible/playbooks/cutover-qwen3-tts-shim.yml
 ansible/roles/qwen3-tts/defaults/main.yml
 ansible/roles/qwen3-tts/tasks/main.yml
+ansible/roles/qwen3-tts/tasks/shim-cutover.yml
+ansible/roles/qwen3-tts/tasks/shim-cutover-verify.yml
 ansible/roles/qwen3-tts/tasks/verify.yml
 ansible/roles/qwen3-tts/templates/docker-compose.yml.j2
 ansible/roles/qwen3-tts/templates/qwen3-tts.service.j2
-ansible/roles/qwen3-tts/files/qwen3-tts-shim.py
+ansible/roles/qwen3-tts/files/voice-catalog.json
 ansible/roles/qwen3-tts/files/qwen3-tts-profile-bootstrap.py
 ansible/roles/qwen3-tts/files/vllm-deploy-config.yaml
-scripts/test-qwen3-tts-shim.py
+scripts/test-qwen3-tts-profile-bootstrap.py
 ```
 
 playbook 采用薄编排模式：Deploy play 调用 `qwen3-tts` role，Verify play 只加载 role 的 `verify.yml`。role 管理以下内容：
 
 - `server` 直接使用 pinned 官方 vLLM-Omni 镜像，不 checkout 上游源码、不做本地镜像构建，只通过 Compose `expose` 提供 `8880`；
-- `shim` 使用独立的 `python:3.12-slim` 镜像，挂载仓库提供的 shim 文件，并发布 `192.168.1.191:8100`；
+- `shim` 使用已发布且按 digest 固定的非 root 服务镜像，仅读取 IaC 部署的纯 13-alias catalog，并发布 `192.168.1.191:8100`；
 - Talker 保持 FULL/PIECEWISE CUDA Graph，Code2Wav 保持增量解码和 CUDA Graph；
 - 官方 H100 配置的 `max_num_seqs=64` 会在 RTX 3090 的 Code2Wav CUDA Graph warmup 阶段 OOM，因此两个 stage 都限制在 `max_num_seqs: 3`，并把连接器的 `decode_cudagraph_batch_sizes` 固定为 `[1]` 以约束 Code2Wav 的图捕获规模；
 - 两个 stage 的 `gpu_memory_utilization` 均为 `0.3`。0.6B CustomVoice 时期 Talker 用的是 `0.17`，换成 1.7B Base 后权重加开销实测已占 4.04 GiB，超过 `0.17 × 23.56 = 4.0 GiB` 的预算，因此必须上调。stage 1 是 Code2Wav 解码器，**没有 KV cache**，实测 3.24 GiB 全是权重与激活，它的 `0.3` 是够不到的天花板：启动时会记录 "Capping requested memory to available free memory"，无害；
@@ -130,24 +125,18 @@ playbook 采用薄编排模式：Deploy play 调用 `qwen3-tts` role，Verify pl
 本地安全验证：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-qwen3-tts-shim.py
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-qwen3-tts-profile-bootstrap.py
+python3 tests/ci/qwen3-tts-shim-cutover-test.py
 cd ansible
 ansible-playbook playbooks/deploy-qwen3-tts.yml --syntax-check
+ansible-playbook playbooks/cutover-qwen3-tts-shim.yml --syntax-check
 ```
 
-标准库测试覆盖全部 13 个 alias 和未知 alias 的同一 Base 请求载荷、profile 缺失时的 speech/health 503、普通 WAV、chunked PCM、AAC 兼容、health/models 代理，以及无效 input 在到达 upstream 前被拒绝。
+静态 catalog contract test 验证不可变 image、纯 catalog schema/13 个精确映射、Compose 挂载边界以及 cutover task 的禁止操作。profile-bootstrap 标准库测试继续覆盖候选 profile 不能覆盖生产 profile 的约束。服务镜像自身的发布测试负责 alias 解析、fallback、readiness 与代理行为。
 
-部署后的 `verify` play 检查：
+`cutover-qwen3-tts-shim.yml` 的真实主机预检在切换前读取 Base `/v1/audio/voices`，要求 catalog 中全部 13 个 profile 存在；切换后只检查 shim 的 `/health`、`/v1/models`、新 image identity、13 个 alias 的非持久 WAV smoke、shim restart count，以及 Base/VoiceDesign/Qwen3.8 状态未变。它不调用旧 `verify.yml` 的 Base restart-recovery 路径。旧 verify play 仍是单独的恢复演练，不是 shim cutover 的无扰动验收。
 
-- systemd active，Compose 的 `server` 与 `shim` 均运行；
-- `/health` 和 `/v1/models` 可用；
-- `alloy`、`marin` 和未知 alias 都以同一 Base profile 返回有效 WAV；
-- Speech Central 的 `response_format=aac` 请求被兼容转换并返回有效 MP3；
-- `stream=true` 返回有效的 chunked PCM 音频；
-- 两个容器均为 healthy，且无异常 restart；
-- GPU 1 在部署完成后仍留有至少 `qwen3_tts_min_free_vram_mib` 的空闲显存。
-
-这些是快速冒烟检查，不替代用户试听。
+这些是程序化冒烟检查，不替代用户试听。
 
 ### 单请求实测
 

@@ -48,24 +48,20 @@ services:
 
   shim:
     image: "{{ qwen3_tts_shim_image }}"
-    command:
-      - python
-      - /opt/qwen3-tts-shim.py
     depends_on:
       server:
         condition: service_healthy
     environment:
       HOST: 0.0.0.0
       PORT: "{{ qwen3_tts_shim_container_port }}"
+      LOG_LEVEL: INFO
+      VOICE_CATALOG_PATH: /etc/qwen3-tts/voice-catalog.json
       UPSTREAM_MODEL: "{{ qwen3_tts_model_repository }}"
       UPSTREAM_URL: "http://server:{{ qwen3_tts_container_port }}"
-      VOICE_ALIASES_JSON: '{{ qwen3_tts_voice_aliases | to_json }}'
-      BASE_PROFILE: "{{ qwen3_tts_profile_name }}"
-      TTS_MODE: "{{ qwen3_tts_mode }}"
     ports:
       - "{{ qwen3_tts_bind_address }}:{{ qwen3_tts_port }}:{{ qwen3_tts_shim_container_port }}"
     volumes:
-      - "{{ qwen3_tts_install_dir }}/qwen3-tts-shim.py:/opt/qwen3-tts-shim.py:ro"
+      - "{{ qwen3_tts_voice_catalog_path }}:/etc/qwen3-tts/voice-catalog.json:ro"
     healthcheck:
       test:
         - CMD
@@ -114,7 +110,7 @@ services:
     restart: "no"
 
   profile-bootstrap:
-    image: "{{ qwen3_tts_shim_image }}"
+    image: "{{ qwen3_tts_profile_bootstrap_image }}"
     command: [python, /opt/qwen3-tts-profile-bootstrap.py]
     environment:
       BASE_PROFILE: "{{ qwen3_tts_profile_name }}"
