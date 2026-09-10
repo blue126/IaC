@@ -120,6 +120,8 @@ def main() -> int:
         assert forbidden not in cutover
 
     verify = (ROLE_ROOT / "tasks" / "shim-cutover-verify.yml").read_text(encoding="utf-8")
+    assert "qwen3_tts_shim_image_digest in qwen3_tts_cutover_shim_after.stdout" in verify
+    assert "qwen3_tts_cutover_shim_image_digest" not in verify
     assert "--connect-timeout" in verify
     assert "--max-time" in verify
 
