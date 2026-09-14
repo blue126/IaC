@@ -1,0 +1,82 @@
+# BMAD Team v4 (audit revision 1) — bmad-review uses lenses keyed by code, not review_layers.
+[workflow]
+activation_steps_prepend = [
+  "Require a current external G0 receipt before activation; this hook is not a substitute for the launcher gate. Read {project-root}/docs/bmad-multica-contract.md only after its control-file hash has been verified. If unavailable, stop with an explicit configuration failure. Resolve the active customization including team, personal and invocation layers before execution; do not fall back to shipped defaults when this project's cross-model requirements would be lost. Confirm actual worktree, task authorization and code/data egress permissions. This is an execution policy, not a new BMAD routing rule.",
+  "Run only after an explicit review request or a native skill:bmad-review directive. Confirm the actual content and requested lenses. Report-only: the host may stage input and write a review report to an authorized artifact location, but neither host nor reviewers may edit the reviewed product/code/spec. Resolve the configured lenses successfully before proceeding; do not accept the skill's shipped-default fallback when it would remove Claude execution."
+]
+activation_steps_append = [
+  "After the native lens selection, verify each selected lens has the intended CR-1 execution recipe. Preserve applies_to, when and after behavior; do not add an otherwise-unselected lens merely to satisfy a model policy. A new or unmapped selected lens blocks the unattended run until explicitly configured. Stage absolute content/claims paths as the original skill prescribes. Prepare the required per-lens context only, and preserve an exact caller output contract."
+]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-multica-contract.md",
+  "H-CR1 is the shared host execution recipe in the approved contract. Execute the trusted Python, stage only permitted per-layer bytes and method copies, pass key inputs as targets, preserve the native synchronization point, and return findings.txt verbatim after syntax validation. structured_output status is transport control, not BMAD findings or approval. persistent_facts are host context, not automatically inherited by Claude.",
+  "For each selected lens, use actual native staged content/claims variables; introduce no new template keys. Expand source method references to approved copies under that lens staging directory. Supply only effective also_consider/review_guidance and the native allowed dependencies. Preserve selection, applies_to, when and after. No other findings or host conversation reach the child."
+]
+review_guidance = [
+  "Report substantiated issues within the requested scope. Zero findings is valid; do not enforce a minimum finding count, including the adversarial lens. Preserve the approved product intent and distinguish a real defect from optional new scope. Do not emit severity, priority or ranking.",
+  "Keep independent lenses' inputs separate. Only a dependent lens receives the predecessor findings permitted by after. The edge-case lens alone receives claims at the original reading step. Editorial suggestions must preserve meaning and respect the requested audience."
+]
+on_complete = '''
+Keep the native findings contract and report presentation intact. The host records lens execution metadata and the exact target version as a separate run artifact, not extra text inside raw findings. Do not apply fixes, push, merge, mark the parent Issue done or start a second review. Execution errors remain visible and prevent acceptance.
+'''
+
+[[workflow.lenses]]
+code = "adversarial"
+name = "Adversarial \u2014 Claude"
+applies_to = "any"
+when = "always"
+instruction = '''
+Execute CR-1 / H-CR1 from the approved shared contract; apply the child task below in a per-layer private staging directory.
+
+Child task:
+Read {skill-root}/references/lens-adversarial.md and apply its substantive review method to the staged content. Explicit project override: ignore its minimum-ten-findings and nonempty-list requirements. Preserve canonical finding fields and no severity/ranking; return valid zero findings when warranted. Include only the requested also_consider and standing review guidance. Do not receive claims or other lenses' findings.
+'''
+
+[[workflow.lenses]]
+code = "edge-case-hunter"
+name = "Edge-Case Hunter \u2014 Claude"
+applies_to = "any"
+when = "Content has behavior to trace: code, diffs, specs, requirements, plans or stories; not prose with no behavioral surface."
+instruction = '''
+Execute CR-1 / H-CR1 from the approved shared contract; apply the child task below in a per-layer private staging directory.
+
+Child task:
+Read {skill-root}/references/lens-edge-case-hunter.md fully. Use the staged review content's absolute path. Only this lens may receive the separately staged claims path, left unread until its original instructions require it. Keep original scope, sequence, findings fields and any kind/confidence extras. Do not preload claims bytes. Include also_consider and standing review guidance, but no other findings.
+'''
+
+[[workflow.lenses]]
+code = "verification-gap"
+name = "Verification Gap \u2014 Claude"
+applies_to = "code"
+when = "Reviewed inside a repo where tests can be searched and read."
+instruction = '''
+Execute CR-1 / H-CR1 from the approved shared contract; apply the child task below in a per-layer private staging directory.
+
+Child task:
+Read {skill-root}/references/lens-verification-gap.md fully. Use the staged content and curated source/test/consumer snapshot to read/search actual tests and callers. No raw repo-root authorization; missing essential context fails the review. Retain the method and its gap_shape/consumer/evidence fields as applicable. Do not receive claims or other findings. No testing or shell execution by this child; the host handles test execution separately. Missing read/search capability is an execution failure, not proof of coverage.
+'''
+
+[[workflow.lenses]]
+code = "structure"
+name = "Editorial Structure \u2014 Claude"
+applies_to = "docs"
+when = "Documents whose shape is the author's to change."
+instruction = '''
+Execute CR-1 / H-CR1 from the approved shared contract; apply the child task below in a per-layer private staging directory.
+
+Child task:
+Read {skill-root}/references/lens-structure.md, {skill-root}/references/editorial-common.md and the original structure models reference required by them. Use staged content, purpose/audience/length inputs, effective reader_type/style_guide/output_preferences and standing review guidance. The host supplies original word_metrics output once for the editorial group, or a clearly identified unavailability so the native estimation fallback is explicit. Preserve the native editorial findings table and meaning; propose, do not edit. No claims or other lens findings.
+'''
+
+[[workflow.lenses]]
+code = "prose"
+name = "Editorial Prose \u2014 Claude"
+applies_to = "docs"
+when = "Documents being copy-edited."
+after = "structure"
+instruction = '''
+Execute CR-1 / H-CR1 from the approved shared contract; apply the child task below in a per-layer private staging directory.
+
+Child task:
+Read {skill-root}/references/lens-prose.md and {skill-root}/references/editorial-common.md. Use staged content and the effective editorial settings/word metrics supplied by the host. When structure actually ran, receive its findings and honor them; when it was not selected or produced no findings, proceed as the original method specifies with no prior findings. Receive no other lenses' findings or claims. Preserve the native editorial findings table and author meaning; do not rewrite the source file.
+'''
