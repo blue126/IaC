@@ -1,0 +1,19 @@
+# BMAD Team v4 (audit revision 1) — QA boundary overrides; no invented qa_required/owner keys.
+[workflow]
+activation_steps_prepend = [
+  "Require the external G0 launcher check before activation; keep QA boundaries even during review-channel rollback. Read {project-root}/docs/bmad-multica-contract.md only after its control-file hash is verified. If unavailable, stop with an explicit configuration failure. Resolve the active customization including team, personal and invocation layers before execution; do not fall back to shipped defaults when this project's cross-model requirements would be lost. Confirm actual worktree, task authorization and code/data egress permissions. This is an execution policy, not a new BMAD routing rule.",
+  "Before doing any edits, confirm the task supplies an implemented target version, approved behavior/acceptance, specific API/E2E scope, allowed test paths and the available test environment. Read existing test/framework configuration. If requirements, environment, authorization or framework choice are missing, report exactly what is blocked and stop. Do not implicitly start full implementation, broaden scope or install a framework."
+]
+activation_steps_append = [
+  "Honor the already provided feature and scope rather than asking the same question again. Record the target revision/snapshot and initial worktree state. Use existing test commands and explicitly allowed test/fixture/config paths. Plan real test execution before writing tests. If this conflicts with an original automatic framework-selection or failure-fixing instruction, the authorized test-only boundary wins; when it cannot be maintained, stop and report instead of editing product code."
+]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-multica-contract.md",
+  "This run generates tests for implemented behavior. It is not code review or Story acceptance. Required implementation tests remain the Developer's responsibility. Never modify production code, Spec, acceptance criteria, data migrations or unrelated dependencies under this QA task.",
+  "Reuse the existing framework and helpers. Do not weaken/delete valid assertions, replace expected behavior with the current bug, or silently skip a failing required test. Fix test-code defects only within the allowed scope; real product defects require a reproduction and handoff; environment failures require an explicit blocked report.",
+  "Report actual commands, exit codes, target version, test counts where available, passed/failed/skipped/not-run distinctions and remaining coverage gaps. No execution means unverified. Preserve failure evidence when stopping: on_complete may never run on failure, so do not defer failure reporting to it.",
+  "The original workflow's default summary path may be shared across runs. Keep a run-specific copy in the authorized artifact location or original Issue before another run can overwrite it. Do not introduce a new test status database or automatically create a new Squad."
+]
+on_complete = '''
+After the original successful test execution and summary save, report the summary path, test changes, exact target/snapshot, commands and results, untouched production scope and any explicitly excluded coverage. Check that the success preconditions really occurred; otherwise report incomplete rather than success. Do not mark the Story or Issue accepted, push/merge, deploy, invoke code review or start another Story. If tests changed, return them for the approved incremental review and verification path.
+'''
