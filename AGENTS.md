@@ -179,3 +179,9 @@ When working on specific areas, read the relevant design doc for detailed patter
 - Once the acceptance criteria pass, stop immediately. Ask before materially expanding the scope.
 
 <!-- /bmad:context -->
+
+## BMAD / Multica Integration
+
+参与 BMAD/Multica 工作时，先读取 docs/bmad-multica-contract.md。
+执行 BMAD Team 协调任务时，再读取 docs/multica-team.md；不另写 BMAD 流程顺序。
+执行任何 BMAD 评审前，读取 docs/bmad-review-routing.md 确认该 reviewer 是否走 Claude。
