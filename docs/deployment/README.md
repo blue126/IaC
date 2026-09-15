@@ -9,6 +9,7 @@
 - **Samba File Server** (`SAMBA_VM_DEPLOYMENT.md`): 匿名共享服务器自动化创建、权限设计、故障排查与变量规范化经验。
 - **Immich Deployment** (`immich-deployment.md`): 照片/视频管理栈部署（Postgres/Redis/ML）、验证模式、性能与扩展建议。
 - **[Immich Upgrade MOP](immich-upgrade-mop.md)**: 面向 agent 的 Homelab 六步升级流程，包含整机备份、基本验证和恢复边界。
+- **[n8n Upgrade MOP](n8n-upgrade-mop.md)**: 面向 npm + systemd LXC 部署的六步升级流程，包含 workflow 保持未发布、SQLite 异常排障和恢复边界。
 - **Tailscale Deployment** (`TAILSCALE_DEPLOYMENT.md`): 跨平台 VPN 组网部署，包含 Proxmox 宿主机、LXC 容器（Passthrough/DNS修复）及 OCI 实例的统一管理。
 
 ## 结构约定

@@ -15,35 +15,68 @@
   tags: [verify]
   tasks:
     - name: Wait for n8n to start
-      wait_for:
+      ansible.builtin.wait_for:
         port: 5678
         delay: 5
         timeout: 60
 
-    - name: Check service status
-      systemd:
+    - name: Check n8n service status
+      ansible.builtin.systemd:
         name: n8n
-      register: service_status
+      register: n8n_service_status
 
-    - name: Assert service is active
-      assert:
+    - name: Assert n8n service is active
+      ansible.builtin.assert:
         that:
-          - service_status.status.ActiveState == "active"
-        success_msg: "✅ n8n service is running"
-        fail_msg: "❌ n8n service is not running"
+          - n8n_service_status.status.ActiveState == "active"
+          - n8n_service_status.status.SubState == "running"
+        success_msg: "✅ n8n service is active and running"
+        fail_msg: "❌ n8n service is not active and running"
 
-    - name: Test HTTP accessibility
-      uri:
-        url: http://localhost:5678/
+    - name: Get installed Node.js version
+      ansible.builtin.command:
+        cmd: node --version
+      register: n8n_installed_nodejs_version
+      changed_when: false
+
+    - name: Assert installed Node.js version
+      ansible.builtin.assert:
+        that:
+          - n8n_installed_nodejs_version.stdout == "v" + n8n_nodejs_version
+        fail_msg: >-
+          Expected Node.js v{{ n8n_nodejs_version }}, but found
+          {{ n8n_installed_nodejs_version.stdout }}.
+
+    - name: Get installed n8n version
+      ansible.builtin.command:
+        cmd: /usr/bin/n8n --version
+      register: n8n_installed_version
+      changed_when: false
+
+    - name: Assert installed n8n version
+      ansible.builtin.assert:
+        that:
+          - n8n_installed_version.stdout == n8n_version
+        fail_msg: >-
+          Expected n8n {{ n8n_version }}, but found
+          {{ n8n_installed_version.stdout }}.
+
+    - name: Check n8n readiness endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:5678/healthz/readiness
         status_code: 200
         timeout: 5
-      register: http_check
-      ignore_errors: yes
+      register: n8n_readiness
+      until: n8n_readiness.status == 200
+      retries: 6
+      delay: 5
 
-    - name: Display connection info
-      debug:
+    - name: Display n8n verification summary
+      ansible.builtin.debug:
         msg: |
           ======================================
-          ✅ n8n Deployment Complete
+          ✅ n8n verification complete
           URL: http://{{ ansible_host }}:5678
+          Node.js: {{ n8n_installed_nodejs_version.stdout }}
+          n8n: {{ n8n_installed_version.stdout }}
           ======================================
