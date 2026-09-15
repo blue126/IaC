@@ -33,7 +33,7 @@
 
     - name: Download NodeSource repository installer
       ansible.builtin.get_url:
-        url: https://deb.nodesource.com/setup_20.x
+        url: "https://deb.nodesource.com/setup_{{ n8n_nodejs_version.split('.')[0] }}.x"
         dest: "{{ n8n_nodesource_installer.path }}"
         force: true
         mode: "0700"
@@ -41,6 +41,7 @@
     - name: Run NodeSource repository installer
       ansible.builtin.command:
         argv: [/bin/bash, "{{ n8n_nodesource_installer.path }}"]
+      changed_when: false
   always:
     - name: Remove NodeSource installer file
       ansible.builtin.file:
@@ -48,26 +49,48 @@
         state: absent
       when: n8n_nodesource_installer.path is defined
 
-- name: Upgrade Node.js
-  apt:
-    name: "nodejs=20.*"
+- name: Install approved Node.js version
+  ansible.builtin.apt:
+    name: "nodejs={{ n8n_nodejs_version }}*"
     state: present
     update_cache: yes
+  notify: Restart n8n
 
 - name: Check Node.js version
-  command: node --version
-  register: node_version
+  ansible.builtin.command:
+    cmd: node --version
+  register: n8n_installed_nodejs_version
   changed_when: false
 
-- name: Display Node.js version
-  debug:
-    msg: "Node.js version: {{ node_version.stdout }}"
+- name: Assert approved Node.js version
+  ansible.builtin.assert:
+    that:
+      - n8n_installed_nodejs_version.stdout == "v" + n8n_nodejs_version
+    fail_msg: >-
+      Expected Node.js v{{ n8n_nodejs_version }}, but found
+      {{ n8n_installed_nodejs_version.stdout }}.
 
-- name: Install n8n globally
-  npm:
+- name: Install approved n8n version globally
+  community.general.npm:
     name: n8n
-    global: yes
+    version: "{{ n8n_version }}"
+    global: true
     state: present
+  notify: Restart n8n
+
+- name: Check n8n version
+  ansible.builtin.command:
+    cmd: /usr/bin/n8n --version
+  register: n8n_installed_version
+  changed_when: false
+
+- name: Assert approved n8n version
+  ansible.builtin.assert:
+    that:
+      - n8n_installed_version.stdout == n8n_version
+    fail_msg: >-
+      Expected n8n {{ n8n_version }}, but found
+      {{ n8n_installed_version.stdout }}.
 
 - name: Create systemd service for n8n
   template:
