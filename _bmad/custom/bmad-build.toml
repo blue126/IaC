@@ -1,0 +1,32 @@
+# BMAD cross-model review r7: Claude review routing; native workflow timing unchanged.
+# DEFAULT OFF. bmad-build is the everyday implementation workflow; these layers run only when the
+# task explicitly asks for cross-model review. See docs/bmad-review-routing.md R1.2.
+[workflow]
+activation_steps_prepend = [
+  "Load {project-root}/docs/bmad-review-routing.md for the selective CR-1 policy and {project-root}/docs/bmad-cross-model-review.md for the transport protocol. These review layers are OPT-IN: run them only when the task text explicitly requests cross-model review for this build. Otherwise keep the native behavior unchanged and state in the report that no cross-model review was executed — never phrase that as reviewed. Keep planning, extraction, generation, mechanical checks and original opt-in/skip semantics unchanged. Missing routing or Claude prerequisites blocks only the selected review, never ordinary discovery; never fall back to a same-provider reviewer or inline self-review and claim cross-model completion."
+]
+persistent_facts = [
+  "file:{project-root}/docs/bmad-cross-model-review.md",
+  "CR-1: independent review uses a real Claude Code process, claude-opus-5 with effort high, not a same-provider subagent. Preserve original method and output schema, stage permitted inputs, confirm this workflow's override actually resolved (core doc X6 preflight) and the X2 environment is set, and report CLI/modelUsage evidence with the CR-1 summary line. See docs/bmad-review-routing.md R0-R5. Do not change unrelated workflow models or add review passes.",
+  "A review recorded as not-executed must stay visible in the report and the handoff. The upstream work item may not enter acceptance while a required review is unexecuted. Distinguish reviewed / zero findings / not executed."
+]
+
+[[workflow.review_layers]]
+id = "blind-hunter"
+name = "Blind Hunter — Claude"
+instruction = "Opt-in layer: skip unless this build was explicitly asked for cross-model review. Execute CR-1 / H-CR1 per docs/bmad-review-routing.md R0. Stage the exact {diff_output} as diff.txt, including the relevant tracked and untracked changes; do not introduce a diff_file placeholder and retain the workflow's actual scope. Stage the method copy and the minimum source/test/consumer evidence this layer requires in a private directory outside the project, and pass staged absolute paths. Execute a separate blocking Claude Code process for this layer and await the entire active group before triage; do not spawn a same-provider reviewer. Return validated findings.txt in the original workflow contract. Child review method: Examine the staged changes for real missing behavior and defects within the approved scope. Preserve the native Markdown findings list with no severity/ranking. Zero real findings is valid; do not manufacture a minimum count."
+
+[[workflow.review_layers]]
+id = "edge-case-hunter"
+name = "Edge Case Hunter — Claude"
+instruction = "Opt-in layer: skip unless this build was explicitly asked for cross-model review. Execute CR-1 / H-CR1 per docs/bmad-review-routing.md R0. Stage the exact {diff_output} as diff.txt, including the relevant tracked and untracked changes; do not introduce a diff_file placeholder and retain the workflow's actual scope. Host preparation: copy review-prompts/edge-case-hunter.md from the installed skill root into this layer's staging directory, verify it against the source bytes, and give the child its staged absolute path. Execute a separate blocking Claude Code process for this layer and await the entire active group before triage; do not spawn a same-provider reviewer. Return validated findings.txt in the original workflow contract. Child review method: Read the staged copy of the edge-case-hunter method file completely, apply that exact method and preserve its native findings schema. Missing required evidence is an incomplete review, not a zero-findings result."
+
+[[workflow.review_layers]]
+id = "verification-gap"
+name = "Verification Gap Reviewer — Claude"
+instruction = "Opt-in layer: skip unless this build was explicitly asked for cross-model review. Execute CR-1 / H-CR1 per docs/bmad-review-routing.md R0. Stage the exact {diff_output} as diff.txt, including the relevant tracked and untracked changes; do not introduce a diff_file placeholder and retain the workflow's actual scope. Host preparation: copy review-prompts/verification-gap.md into this layer's staging directory alongside the curated source/test/consumer view, and give the child staged absolute paths only. Execute a separate blocking Claude Code process for this layer and await the entire active group before triage; do not spawn a same-provider reviewer. Return validated findings.txt in the original workflow contract. Child review method: Read the staged copy of the verification-gap method file completely, apply that exact method and preserve its native findings schema. Missing required evidence is an incomplete review, not proof of coverage."
+
+[[workflow.oneshot_review_layers]]
+id = "blind-hunter"
+name = "Blind Hunter — Claude"
+instruction = "Opt-in layer: skip unless this one-shot operation was explicitly asked for cross-model review. Execute CR-1 / H-CR1 per docs/bmad-review-routing.md R0. Stage the changed files and exact before/after evidence for this one-shot operation; do not infer an unrelated diff or require a nonexistent prewritten Spec. Stage the method copy and the minimum source/test/consumer evidence this layer requires in a private directory outside the project, and pass staged absolute paths. Execute a separate blocking Claude Code process for this layer and await the entire active group before triage; do not spawn a same-provider reviewer. Return validated findings.txt in the original workflow contract. Child review method: Examine the staged changes for real missing behavior and defects within the approved scope. Preserve the native Markdown findings list with no severity/ranking. Zero real findings is valid; do not manufacture a minimum count."
