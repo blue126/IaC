@@ -10,14 +10,21 @@ qwen3_tts_voice_design_model_repository: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
 qwen3_tts_backend: vllm_omni
 # GPU1, the same ordinal the retired llm-server used.
 #
-# This host's first SFF-8654 cable to GPU1 was faulty: the card reported PCIe
-# non-fatal errors (GPU0 did not) and under load stage 0 wedged inside a CUDA
-# stream synchronize with the GPU at 0% utilisation, starving stage 1 so every
-# later request hung until the container restarted. The same config on GPU0 ran
-# clean, which isolated it to that link rather than the card or the software.
-# After the cable was replaced GPU1 reports no PCIe errors at all, even under
-# load, and passes the same burst. Keep an eye on `lspci -vv` DevSta for that
-# device if the hang symptom ever returns.
+# This host's SFF-8654 link to GPU1 is not stable at Gen4: the card reported
+# PCIe non-fatal errors (GPU0 did not) and under load stage 0 wedged inside a
+# CUDA stream synchronize with the GPU at 0% utilisation, starving stage 1 so
+# every later request hung until the container restarted. The same config on
+# GPU0 ran clean, which isolated it to that link rather than the card or the
+# software.
+#
+# What fixed it was pinning that link to PCIe Gen3 in the host BIOS, not
+# replacing the cable. At Gen3 GPU1 reports no PCIe errors even under load and
+# passes the same burst. Treat this as a standing constraint of the riser, not
+# a one-off repair: the setting lives in firmware, so a BIOS update, a CMOS
+# reset, or loading optimised defaults silently puts the link back to Gen4 and
+# brings the hang back. Confirm the negotiated speed with `lspci -vv` (LnkSta
+# should read 8GT/s, not 16GT/s) before blaming the software, and watch DevSta
+# on that device if the hang symptom ever returns.
 qwen3_tts_gpu_ordinal: 1
 # This card is shared, not exclusive: Qwen3.8 splits across both GPUs and holds
 # ~12 GB here. The llm-server role had a qwen3_tts_exclusive_gpu flag backed by
