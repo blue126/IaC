@@ -1,0 +1,81 @@
+---
+- name: Install QEMU Guest Agent
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Start QEMU Guest Agent
+  ansible.builtin.systemd:
+    name: qemu-guest-agent
+    state: started
+
+- name: Read guest SSH host public key over authenticated connection
+  ansible.builtin.slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  register: ubuntu_vm_host_key
+
+- name: Pin guest host key for independent key verification
+  ansible.builtin.known_hosts:
+    path: "{{ ubuntu_vm_known_hosts }}"
+    name: "{{ hostvars[inventory_hostname].ansible_host }}"
+    key: "{{ hostvars[inventory_hostname].ansible_host }} {{ ubuntu_vm_host_key.content | b64decode | trim }}"
+  delegate_to: "{{ ubuntu_vm_verifier }}"
+
+- name: Verify fresh key-only SSH and passwordless sudo before hardening
+  ansible.builtin.command:
+    argv:
+      - ssh
+      - -F
+      - /dev/null
+      - -o
+      - BatchMode=yes
+      - -o
+      - ControlMaster=no
+      - -o
+      - PasswordAuthentication=no
+      - -o
+      - KbdInteractiveAuthentication=no
+      - -o
+      - StrictHostKeyChecking=yes
+      - -o
+      - "UserKnownHostsFile={{ ubuntu_vm_known_hosts }}"
+      - -o
+      - ConnectTimeout=15
+      - "ubuntu@{{ hostvars[inventory_hostname].ansible_host }}"
+      - sudo -n true
+  delegate_to: "{{ ubuntu_vm_verifier }}"
+  register: ubuntu_vm_key_check
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Validate existing SSH configuration before changing it
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+
+- name: Disable SSH password authentication after verified key access
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-ansible-key-only.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # Managed by Ansible after independent key-only SSH verification.
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+  when:
+    - not ansible_check_mode
+    - ubuntu_vm_key_check.rc | default(1) == 0
+  notify: Reload SSH
+
+- name: Validate and schedule reload of complete SSH configuration
+  ansible.builtin.command: /usr/sbin/sshd -t
+  # Reconcile a previous run interrupted after writing the policy file.
+  changed_when: true
+  when: not ansible_check_mode
+  notify: Reload SSH
+
+- name: Apply SSH authentication changes
+  ansible.builtin.meta: flush_handlers

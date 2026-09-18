@@ -3,6 +3,9 @@
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
+# Saved plans include resolved sensitive inputs.
+*.tfplan
+*.plan
 # Ignore sensitive tfvars (secrets), but allow non-sensitive terraform.auto.tfvars
 *.tfvars
 !terraform.auto.tfvars

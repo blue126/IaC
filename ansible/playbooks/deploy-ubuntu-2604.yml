@@ -1,0 +1,171 @@
+---
+- name: Deploy Ubuntu 26.04 baseline
+  hosts: ubuntu-2604
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for initial SSH access
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Wait for Cloud-Init to finish
+      ansible.builtin.command: cloud-init status --wait --format json
+      register: ubuntu_vm_cloud_init
+      async: 900
+      poll: 5
+      changed_when: false
+      failed_when: ubuntu_vm_cloud_init.rc not in [0, 2]
+      when: not ansible_check_mode
+
+    - name: Reject Cloud-Init errors except the known PVE user deprecation
+      ansible.builtin.assert:
+        that:
+          - ubuntu_vm_cloud_status.status == 'done'
+          - ubuntu_vm_cloud_status.errors | length == 0
+          - ubuntu_vm_cloud_status.recoverable_errors.keys() | list | difference(['DEPRECATED']) | length == 0
+          - ubuntu_vm_cloud_status.recoverable_errors.get('DEPRECATED', []) | difference([ubuntu_vm_known_deprecation]) | length == 0
+      vars:
+        ubuntu_vm_cloud_status: "{{ ubuntu_vm_cloud_init.stdout | from_json }}"
+        ubuntu_vm_known_deprecation: >-
+          'user' of type string is deprecated in 22.2 and scheduled to be removed in 27.2. Use 'users' list instead.
+      when: not ansible_check_mode
+
+    - name: Gather guest facts
+      ansible.builtin.setup:
+
+    - name: Verify expected Ubuntu release and virtualization
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == 'Ubuntu'
+          - ansible_facts.distribution_version == '26.04'
+          - ansible_facts.virtualization_role == 'guest'
+  roles:
+    - common
+    - ubuntu-vm
+
+- name: Verify Ubuntu 26.04 baseline through independent key access
+  hosts: ubuntu-2604
+  gather_facts: false
+  tags: [verify]
+  vars:
+    ubuntu_vm_verifier: pve0
+    ubuntu_vm_known_hosts: /root/.ssh/known_hosts-ubuntu-2604
+  tasks:
+    - name: Check guest OS and SSH policy through a fresh key-only connection
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -F
+          - /dev/null
+          - -o
+          - BatchMode=yes
+          - -o
+          - ControlMaster=no
+          - -o
+          - PasswordAuthentication=no
+          - -o
+          - KbdInteractiveAuthentication=no
+          - -o
+          - StrictHostKeyChecking=yes
+          - -o
+          - "UserKnownHostsFile={{ ubuntu_vm_known_hosts }}"
+          - -o
+          - ConnectTimeout=15
+          - "ubuntu@{{ hostvars[inventory_hostname].ansible_host }}"
+          - >-
+            set -eu;
+            . /etc/os-release;
+            test "$VERSION_ID" = 26.04;
+            test "$(nproc)" = 4;
+            systemctl is-active --quiet qemu-guest-agent;
+            python3 -c 'import os; assert os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") > 30 * 1024**3; s = os.statvfs("/"); assert s.f_blocks * s.f_frsize > 95 * 1024**3';
+            ip -4 -o addr show | grep -F '192.168.1.108/24';
+            ip -4 route show default | grep -F 'default via 192.168.1.1 ';
+            resolvectl dns | grep -F '192.168.1.1';
+            set -- $SSH_CONNECTION;
+            sudo -n /usr/sbin/sshd -T -C "user=ubuntu,addr=$1,host=$1,laddr=$3,lport=$4"
+      delegate_to: "{{ ubuntu_vm_verifier }}"
+      register: ubuntu_vm_verify
+      changed_when: false
+      check_mode: false
+
+    - name: Assert SSH password and interactive authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - "'passwordauthentication no' in ubuntu_vm_verify.stdout_lines"
+          - "'kbdinteractiveauthentication no' in ubuntu_vm_verify.stdout_lines"
+          - "'pubkeyauthentication yes' in ubuntu_vm_verify.stdout_lines"
+
+    - name: Probe live SSH authentication methods without sending a password
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -vF
+          - /dev/null
+          - -o
+          - BatchMode=yes
+          - -o
+          - ControlMaster=no
+          - -o
+          - PubkeyAuthentication=no
+          - -o
+          - PreferredAuthentications=password,keyboard-interactive
+          - -o
+          - NumberOfPasswordPrompts=0
+          - -o
+          - StrictHostKeyChecking=yes
+          - -o
+          - "UserKnownHostsFile={{ ubuntu_vm_known_hosts }}"
+          - -o
+          - ConnectTimeout=15
+          - "ubuntu@{{ hostvars[inventory_hostname].ansible_host }}"
+          - 'true'
+      delegate_to: "{{ ubuntu_vm_verifier }}"
+      environment:
+        LC_ALL: C
+      register: ubuntu_vm_auth_methods
+      changed_when: false
+      failed_when: >-
+        ubuntu_vm_auth_methods.rc != 255 or
+        'Authentications that can continue: publickey' not in ubuntu_vm_auth_methods.stderr or
+        ubuntu_vm_auth_methods.stderr is search('Authentications that can continue:.*(password|keyboard-interactive)')
+      check_mode: false
+
+    - name: Read exact PVE hardware configuration
+      ansible.builtin.command:
+        argv: [pvesh, get, /nodes/pve0/qemu/108/config, --output-format, json]
+      delegate_to: "{{ ubuntu_vm_verifier }}"
+      register: ubuntu_vm_pve_config
+      changed_when: false
+      no_log: true
+      check_mode: false
+
+    - name: Verify requested PVE identity and hardware
+      ansible.builtin.assert:
+        that:
+          - ubuntu_vm_hardware.name == 'ubuntu-2604'
+          - ubuntu_vm_hardware.cores | int == 4
+          - ubuntu_vm_hardware.sockets | int == 1
+          - ubuntu_vm_hardware.memory | int == 32768
+          - "'size=100G' in ubuntu_vm_hardware.scsi0"
+      vars:
+        ubuntu_vm_hardware: "{{ ubuntu_vm_pve_config.stdout | from_json }}"
+      no_log: true
+
+    - name: Bind inventory IP to the QGA guest identity
+      ansible.builtin.command:
+        argv: [qm, guest, cmd, '108', network-get-interfaces]
+      delegate_to: "{{ ubuntu_vm_verifier }}"
+      register: ubuntu_vm_qga_network
+      changed_when: false
+      failed_when: >-
+        ubuntu_vm_qga_network.rc != 0 or
+        hostvars[inventory_hostname].ansible_host not in ubuntu_vm_qga_network.stdout
+      check_mode: false
+
+    - name: Verify PVE guest identity and QGA response
+      ansible.builtin.command:
+        argv: [qm, guest, cmd, '108', ping]
+      delegate_to: "{{ ubuntu_vm_verifier }}"
+      changed_when: false
+      check_mode: false
