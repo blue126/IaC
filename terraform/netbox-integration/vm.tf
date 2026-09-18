@@ -6,9 +6,9 @@ resource "netbox_virtual_machine" "netbox" {
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   role_id      = netbox_device_role.vm.id
-  vcpus        = 2        # 来源: terraform/proxmox/netbox.tf cores=2
-  memory_mb    = 4096     # 来源: terraform/proxmox/netbox.tf memory=4096
-  disk_size_mb = 20480    # 20G => 20*1024 MB, 来源: disk_size="20G"
+  vcpus        = 2     # 来源: terraform/proxmox/netbox.tf cores=2
+  memory_mb    = 4096  # 来源: terraform/proxmox/netbox.tf memory=4096
+  disk_size_mb = 20480 # 20G => 20*1024 MB, 来源: disk_size="20G"
   comments     = "Netbox IPAM/DCIM (6 containers) bridge=vmbr1 target_node=pve0"
 
   lifecycle {
@@ -39,9 +39,9 @@ resource "netbox_virtual_machine" "immich" {
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   role_id      = netbox_device_role.vm.id
-  vcpus        = 2         # 来源: terraform/proxmox/immich.tf cores=2
-  memory_mb    = 8192      # 来源: terraform/proxmox/immich.tf memory=8192
-  disk_size_mb = 307200    # 300G => 300*1024 MB, 来源: disk_size="300G"
+  vcpus        = 2      # 来源: terraform/proxmox/immich.tf cores=2
+  memory_mb    = 8192   # 来源: terraform/proxmox/immich.tf memory=8192
+  disk_size_mb = 307200 # 300G => 300*1024 MB, 来源: disk_size="300G"
   comments     = "Immich (4 containers) bridge=vmbr1 target_node=pve0"
 
   lifecycle {
