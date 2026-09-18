@@ -322,6 +322,12 @@ assert_file_contains "${workflow}" "persist-credentials: false"
 assert_file_contains "${workflow}" 'BASE_SHA: ${{ github.event.pull_request.base.sha }}'
 assert_file_contains "${workflow}" 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'
 assert_file_contains "${workflow}" 'scripts/ci/validate-repository.sh "${BASE_SHA}" "${HEAD_SHA}"'
+assert_file_contains "${workflow}" 'scripts/ci/classify-pr.sh "${BASE_SHA}" "${HEAD_SHA}"'
+assert_file_contains "${workflow}" "if: steps.classify.outputs.terraform_applicable == 'true'"
+assert_file_contains "${workflow}" "if: steps.classify.outputs.hugo_applicable == 'true'"
+assert_file_contains "${workflow}" "if: steps.classify.outputs.ansible_applicable == 'true'"
+assert_file_contains "${workflow}" "path: ansible/collections"
+assert_file_contains "${workflow}" "key: \${{ runner.os }}-ansible-collections-\${{ hashFiles('ansible/requirements.yml') }}"
 grep -Fxq '        run: tests/ci/review-policy-gate-test.sh' "${workflow}" || {
   fail "repository validation must run the local review policy gate contract test without arguments"
 }
@@ -344,6 +350,18 @@ if grep -Eiq 'terraform[[:space:]]+(plan|apply)|ansible-playbook|deploy-pages|up
   "${workflow}"; then
   fail "repository validation workflow contains a deploy, publish, plan, or apply command"
 fi
+
+# The collections cache is keyed on this manifest's hash, so every entry must
+# pin its version; a floating requirement would let the cache freeze whatever
+# version happened to be resolved first.
+unpinned_collections="$(awk '
+  /^[[:space:]]*-[[:space:]]*name:/ { name = $0; pinned = 0; next }
+  /^[[:space:]]*version:/ { pinned = 1; next }
+  { if (name != "" && !pinned) print name; name = "" }
+  END { if (name != "" && !pinned) print name }
+' "${REPOSITORY_ROOT}/ansible/requirements.yml")"
+[[ -z "${unpinned_collections}" ]] || \
+  fail "every Ansible collection must pin a version: ${unpinned_collections}"
 
 assert_file_contains "${jenkinsfile}" "stage('Approval - Terraform Apply')"
 assert_file_contains "${jenkinsfile}" "Review the Terraform plan above. Proceed with apply?"
