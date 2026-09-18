@@ -161,10 +161,11 @@ module "netbox" {
 
 ```
 Proxmox VE Cluster
-├── QEMU VMs (Ubuntu 22.04/24.04 + Windows Server)
+├── QEMU VMs (Ubuntu 22.04/24.04/26.04 + Windows Server)
 │   ├── immich (VMID 101)        # 照片管理
 │   ├── rustdesk (VMID 102)      # 远程桌面
 │   ├── netbox (VMID 104)        # IPAM/DCIM
+│   ├── ubuntu-2604 (VMID 108)   # Ubuntu 26.04 基础 VM
 │   └── windows-server (VMID 112) # AD DS + Veeam VBR
 │
 └── LXC Containers (Debian 12)
@@ -179,6 +180,11 @@ Proxmox VE Cluster
 > **退役状态（2026-08-12）**：pve0 的 LXC 109 `claude-agent` 已通过
 > Terraform 定向 saved plan 销毁，手工 VM 110 `claude-desktop` 已在优雅关机后
 > 通过 Proxmox 原生命令销毁。两者已从活动备份作业移除，对应 PBS 恢复点也已删除。
+>
+> **实测状态（2026-09-11）**：原 Veeam worker VMID 108 与手工 PNET4.2.4 VMID 110
+> 已退役；VMID 108 已由 Terraform 直接重建为 `ubuntu-2604`（4 CPU、32 GiB、100 GiB系统盘），
+> 地址 `192.168.1.108`。Ubuntu 26.04、QGA、密钥登录和禁用 SSH 密码认证均已验收；
+> VMID 109 保持不变，VMID 110 已释放。
 
 ### 存储架构
 
@@ -727,11 +733,12 @@ terraform/netbox-integration/
 │        ▲                                                     │
 └────────┼─────────────────────────────────────────────────────┘
          │ PBS Client（每日 02:00，snapshot + zstd）
-   pve0 上的活动备份目标（退役完成后的期望集合）：100–107
+   pve0 实测活动备份目标（2026-09-11）：100–107；新增 108 待同步
 ```
 
-> 109/110 已于 2026-08-12 完成仓库与生产退役。Proxmox 活动作业只包含
-> 100–107，PBS 中 `ct/109`、`vm/110` 的全部恢复点已删除。
+> 旧109/110的2026-08-12退役记录保持不变。2026-09-11原Veeam worker108和
+> 手工PNET4.2.4 110已退役；新Ubuntu108已验收。生产备份目标仍为100–107，
+> 新增108的备份同步与恢复点验证尚未完成；本次未删除任何既有备份。
 
 **pve1 不加入 PBS 备份作业** —— 它是 ESXi 虚机备份的落点，若再被 T7910 的 PBS 备份会形成循环备份。
 
@@ -747,7 +754,7 @@ terraform/netbox-integration/
 
 保留策略：daily 7 / weekly 4 / monthly 6。
 
-`pbs_backup_vmids` 需在新增 guest 时手工同步 —— VMID 107/109/110 曾因漏加而长期未备份，直到 2026-08-05 事故才暴露；这是必须保留的历史事实。109/110 于 2026-08-12 获准连同 PBS 恢复点永久退役，当前活动集合的期望值因此收缩为 100–107。有两个 VMID 是**故意排除**的：`108` veeam-worker（Veeam 的 PVE 插件临时部署，不由本仓库管理）、`9000` 模板（可从 Terraform/Ansible 重建）。
+`pbs_backup_vmids` 需在新增 guest 时手工同步 —— VMID 107/109/110 曾因漏加而长期未备份，直到 2026-08-05 事故才暴露；这是必须保留的历史事实。109/110 于 2026-08-12 获准连同 PBS 恢复点永久退役；原 Veeam worker 108 与手工 PNET4.2.4 110 已于2026-09-11退役，新 `ubuntu-2604` 108已验收；生产备份目标仍为100–107，源码中的108条目尚未部署到作业。`9000` 模板继续排除；当前 `mcp-gateway`（109）也不在现有备份白名单中，本变更不调整其策略。
 
 #### 遗留限制与下一阶段
 
