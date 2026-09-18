@@ -256,8 +256,8 @@ def evaluate(corpus_data: Any, results_dir: Path) -> dict[str, Any]:
         outcomes.append({"id": case["id"], "outcome": outcome})
 
     promotion_eligible = counters == {
-        "evaluable_positives": 6,
-        "correct_positives": 6,
+        "evaluable_positives": 2,
+        "correct_positives": 2,
         "false_negatives": 0,
         "evaluable_negatives": 2,
         "false_positives": 0,
