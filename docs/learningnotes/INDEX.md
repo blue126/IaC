@@ -27,12 +27,6 @@
 | 2026-08-11 | [PBS 从 ESXi V2V 迁移到 PVE 的经验教训](./2026-08-11-pbs-v2v-migration-lessons.md) | PBS, ESXi, PVE, V2V, ZFS, Migration | **Active** | V2V 搬不走 datastore；MAC 冲突与接口命名连锁；重建 datastore 丢 ACL；备份组 owner 不匹配；62 MiB/s 的瓶颈在元数据随机 I/O 而非网络 |
 | 2026-08-11 | [ESXi 链路抖动抑制导致的"插回原端口也不恢复"故障](./2026-08-11-esxi-link-flapping-dampening.md) | ESXi, Networking, Troubleshooting, NTP, vSwitch | **Active** | 抖动抑制主动停用网卡且不自动恢复；NTP 未启用导致日志时间偏差 11 小时；排查中多个基于不完整信息的错误判断 |
 
-### 2026-02-16
-
-| 日期 | 标题 | 标签 | 状态 | 摘要 |
-|------|------|------|------|------|
-| 2026-02-16 | [MiniMax M2.5 LLM Server 部署经验教训](./2026-02-16-llm-server-deployment-lessons.md) | LLM, Ansible, ESXi, GPU, Deployment, ik_llama.cpp | **Active** | 模型仓库变更、Ansible 模块兼容性、VM 环境特殊性、大文件下载幂等性 |
-
 ### 2026-01-31
 
 | 日期 | 标题 | 标签 | 状态 | 摘要 |
@@ -242,9 +236,6 @@
 **ESXi 集成**
 - [ESXi 集成与 Ansible 虚拟环境实践笔记](./2025-12-21-esxi-integration-and-venv.md) - ESXi 与 Ansible
 
-**LLM 推理服务**
-- [MiniMax M2.5 LLM Server 部署经验教训](./2026-02-16-llm-server-deployment-lessons.md) - GPU Passthrough + CPU-MoE 部署
-
 ---
 
 ### 其他专题
@@ -370,9 +361,6 @@
 - ✓ 2025-12-04-zfs-pool-migration-and-expansion.md - ZFS 操作
 - ✓ 2025-12-11-elk-vs-lpg-comparison.md - 架构对比
 
-**LLM 推理服务**
-- ✓ 2026-02-16-llm-server-deployment-lessons.md - MiniMax M2.5 部署经验
-
 ---
 
 ## 元数据统计
@@ -405,7 +393,6 @@
 | Cloud-Init | 3 |
 | Storage | 2 |
 | GPU | 1 |
-| LLM | 1 |
 | Monitoring | 1 |
 
 ### 按年份分类

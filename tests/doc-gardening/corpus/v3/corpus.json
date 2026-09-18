@@ -24,38 +24,6 @@
       "claim_id": "service.netbox.image"
     },
     {
-      "id": "positive-qwen-image",
-      "kind": "positive",
-      "document_path": "docs/designs/qwen3-tts-openai-api-integration.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "e54118867dd994eb260a531ff3485c4319c7d22d"},
-      "result_file": "positive-qwen-image.json",
-      "claim_id": "service.qwen3-tts.vllm-image"
-    },
-    {
-      "id": "positive-qwen-ordinal",
-      "kind": "positive",
-      "document_path": "docs/designs/qwen3-tts-openai-api-integration.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "3afb1dfcc14dabe6a16323d91913637f85dbf6b9"},
-      "result_file": "positive-qwen-ordinal.json",
-      "claim_id": "service.qwen3-tts.gpu-ordinal"
-    },
-    {
-      "id": "positive-qwen-port",
-      "kind": "positive",
-      "document_path": "docs/designs/qwen3-tts-openai-api-integration.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "e341f85e13ace0a3d8def21e78af50bbe2a80057"},
-      "result_file": "positive-qwen-port.json",
-      "claim_id": "service.qwen3-tts.port"
-    },
-    {
-      "id": "positive-qwen-vram",
-      "kind": "positive",
-      "document_path": "docs/designs/qwen3-tts-openai-api-integration.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "f1f94ac83cb62fa111c50d259c0973a47dfc50c6"},
-      "result_file": "positive-qwen-vram.json",
-      "claim_id": "service.qwen3-tts.min-free-vram-mib"
-    },
-    {
       "id": "negative-registered",
       "kind": "negative",
       "document_path": "docs/deployment/netbox-deployment.md",

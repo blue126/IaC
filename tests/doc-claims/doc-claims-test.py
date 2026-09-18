@@ -56,41 +56,16 @@ fenced_sample_engine_version: "f7923739"
 fenced_sample_webui_port: 3000
 """
 
-# The fixture root stands in for the whole repository, so it must satisfy every
-# registered claim: the CLI test asserts a clean exit before it introduces a
-# contradiction, and a claim whose document or oracle is absent is reported as
-# indeterminate, which is also a non-zero exit. Values here mirror the real
-# ones so a change to either side of a claim shows up as a test failure rather
-# than a silently reshaped fixture.
-QWEN3_TTS_DOCUMENT = """# Qwen3-TTS
-
-### 关键配置值
-
-```yaml
-qwen3_tts_vllm_image: "vllm/vllm-omni:v0.28.0"
-qwen3_tts_gpu_ordinal: 1
-qwen3_tts_port: 8100
-qwen3_tts_min_free_vram_mib: 512
-```
-"""
-
-QWEN3_TTS_DEFAULTS = """---
-qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
-qwen3_tts_gpu_ordinal: 1
-qwen3_tts_port: 8100
-qwen3_tts_min_free_vram_mib: 512
-"""
-
 # This deliberately does not derive from CHECKER.CLAIMS. Expanding, retiring or
 # reordering the closed registry requires a reviewed update to this baseline as
 # well as the runtime definitions and their documentation projection.
+#
+# The qwen3-tts claims (service.qwen3-tts.*) were retired when the qwen3-tts
+# role and its design doc moved to the separate llm-ops repo, following the
+# same pattern as the earlier llm-server retirement above.
 EXPECTED_CLAIM_IDS = (
     "service.netbox.port",
     "service.netbox.image",
-    "service.qwen3-tts.vllm-image",
-    "service.qwen3-tts.gpu-ordinal",
-    "service.qwen3-tts.port",
-    "service.qwen3-tts.min-free-vram-mib",
 )
 
 
@@ -100,13 +75,6 @@ class Fixture:
         self.root = Path(self.temporary_directory.name)
         self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT)
         self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
-        self.write(
-            "docs/designs/qwen3-tts-openai-api-integration.md", QWEN3_TTS_DOCUMENT
-        )
-        self.write(
-            "ansible/roles/qwen3-tts/defaults/main.yml",
-            QWEN3_TTS_DEFAULTS,
-        )
 
     def write(self, relative_path: str, content: str) -> None:
         path = self.root / relative_path
