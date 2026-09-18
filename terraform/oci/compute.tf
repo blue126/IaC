@@ -10,8 +10,8 @@ resource "oci_core_instance" "oracle_cloud_ubuntu2404" {
   }
 
   source_details {
-    source_id   = "ocid1.image.oc1.ap-sydney-1.aaaaaaaay46dnss2xv46ueh6osq5q6u33h5bateig3az4e6eo24ru2vb4zea"
-    source_type = "image"
+    source_id               = "ocid1.image.oc1.ap-sydney-1.aaaaaaaay46dnss2xv46ueh6osq5q6u33h5bateig3az4e6eo24ru2vb4zea"
+    source_type             = "image"
     boot_volume_size_in_gbs = 200
   }
 
