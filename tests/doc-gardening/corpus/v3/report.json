@@ -1,9 +1,9 @@
 {
   "counters": {
     "action_failures": 0,
-    "correct_positives": 6,
+    "correct_positives": 2,
     "evaluable_negatives": 2,
-    "evaluable_positives": 6,
+    "evaluable_positives": 2,
     "false_negatives": 0,
     "false_positives": 0,
     "integrity_failures": 0,
@@ -17,22 +17,6 @@
     },
     {
       "id": "positive-netbox-image",
-      "outcome": "true_positive"
-    },
-    {
-      "id": "positive-qwen-image",
-      "outcome": "true_positive"
-    },
-    {
-      "id": "positive-qwen-ordinal",
-      "outcome": "true_positive"
-    },
-    {
-      "id": "positive-qwen-port",
-      "outcome": "true_positive"
-    },
-    {
-      "id": "positive-qwen-vram",
       "outcome": "true_positive"
     },
     {

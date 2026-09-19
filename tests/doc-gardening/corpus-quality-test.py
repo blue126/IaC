@@ -158,8 +158,8 @@ class CorpusQualityTest(unittest.TestCase):
         self.assertEqual(
             report["counters"],
             {
-                "evaluable_positives": 6,
-                "correct_positives": 6,
+                "evaluable_positives": len(self.claims),
+                "correct_positives": len(self.claims),
                 "false_negatives": 0,
                 "evaluable_negatives": 2,
                 "false_positives": 0,

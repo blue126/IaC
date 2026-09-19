@@ -33,6 +33,13 @@ if ! grep -qx 'version: "1.3.0"' .sandbox-kit/spec.yaml; then
   printf 'ERROR: Re-verify this driver and its Sandbox naming for the current Kit version.\n' >&2
   exit 1
 fi
+terraform_credentials_dir="${HOME}/.terraform.d"
+terraform_credentials_file="${terraform_credentials_dir}/credentials.tfrc.json"
+if [[ ! -f "$terraform_credentials_file" || ! -r "$terraform_credentials_file" ]]; then
+  printf 'ERROR: HCP Terraform credentials are unavailable: %s\n' "$terraform_credentials_file" >&2
+  printf 'Restore or provide approved HCP Terraform credentials, then retry.\n' >&2
+  exit 1
+fi
 sbx version
 sbx kit validate ./.sandbox-kit
 
@@ -42,7 +49,7 @@ if printf '%s\n' "$existing" | grep -Fxq "$name"; then
   printf 'ERROR: Refusing to reuse existing Sandbox %s.\n' "$name" >&2
   exit 1
 fi
-printf 'Task branch: %s\nWorkspace: %s\nNew Sandbox: %s\n' "$branch" "$root" "$name"
+printf 'Task branch: %s\nWorkspace: %s\nTerraform credentials: %s (read-only)\nNew Sandbox: %s\n' "$branch" "$root" "$terraform_credentials_dir" "$name"
 created=false
 stop_created_sandbox() {
   result=$?
@@ -61,6 +68,9 @@ stop_created_sandbox() {
 }
 trap stop_created_sandbox EXIT
 
-sbx create --name "$name" --kit ./.sandbox-kit claude "$root"
+sbx create --name "$name" --kit ./.sandbox-kit \
+  --env "IAC_TERRAFORM_CREDENTIALS_DIR=${terraform_credentials_dir}" \
+  claude "$root" "${terraform_credentials_dir}:ro"
 created=true
+sbx policy allow network --sandbox "$name" "192.168.1.0/24"
 sbx exec --workdir "$root" "$name" bash "$script_dir/smoke.sh"

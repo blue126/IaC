@@ -17,6 +17,7 @@ permissions:
       - download.docker.com
       - releases.hashicorp.com
       - registry.terraform.io
+      - app.terraform.io
       - pypi.org
       - files.pythonhosted.org
       - galaxy.ansible.com

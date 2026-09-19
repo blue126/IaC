@@ -1,0 +1,3 @@
+---
+ubuntu_vm_verifier: pve0
+ubuntu_vm_known_hosts: /root/.ssh/known_hosts-ubuntu-2604

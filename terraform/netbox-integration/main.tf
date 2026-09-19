@@ -4,8 +4,8 @@ provider "netbox" {
 }
 
 resource "netbox_site" "homelab" {
-  name   = "HomeLab"      # 创建一个名为 "HomeLab" 的站点
-  slug   = "homelab"      # URL 友好的标识符
+  name   = "HomeLab" # 创建一个名为 "HomeLab" 的站点
+  slug   = "homelab" # URL 友好的标识符
   status = "active"
 }
 

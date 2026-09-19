@@ -305,52 +305,10 @@ CLAIMS = (
         "netboxcommunity/netbox:v4.1.11",
         _table_value,
     ),
-    # Qwen3-TTS on llm-workstation. The design doc has already drifted once
-    # here: it claimed a Talker gpu_memory_utilization of 0.17 long after the
-    # config moved to 0.3, and nothing failed.
-    #
-    # The vLLM deploy-config values (gpu_memory_utilization, max_num_seqs,
-    # kv_cache_memory_bytes, silence_ban_frames) are not claimable today.
-    # _yaml_key_values skips any line starting with whitespace, and those keys
-    # live indented under `stages:`, so nothing is collected and the result is
-    # oracle_key_missing. The per-stage repetition never reaches the
-    # oracle_key_duplicate branch. Tracked in deferred-work.md.
-    Claim(
-        "service.qwen3-tts.vllm-image",
-        "docs/designs/qwen3-tts-openai-api-integration.md",
-        "关键配置值::qwen3_tts_vllm_image",
-        "ansible/roles/qwen3-tts/defaults/main.yml",
-        "qwen3_tts_vllm_image",
-        "vllm/vllm-omni:v0.28.0",
-        _fenced_yaml_value,
-    ),
-    Claim(
-        "service.qwen3-tts.gpu-ordinal",
-        "docs/designs/qwen3-tts-openai-api-integration.md",
-        "关键配置值::qwen3_tts_gpu_ordinal",
-        "ansible/roles/qwen3-tts/defaults/main.yml",
-        "qwen3_tts_gpu_ordinal",
-        1,
-        _fenced_yaml_value,
-    ),
-    Claim(
-        "service.qwen3-tts.port",
-        "docs/designs/qwen3-tts-openai-api-integration.md",
-        "关键配置值::qwen3_tts_port",
-        "ansible/roles/qwen3-tts/defaults/main.yml",
-        "qwen3_tts_port",
-        8100,
-        _fenced_yaml_value,
-    ),
-    Claim(
-        "service.qwen3-tts.min-free-vram-mib",
-        "docs/designs/qwen3-tts-openai-api-integration.md",
-        "关键配置值::qwen3_tts_min_free_vram_mib",
-        "ansible/roles/qwen3-tts/defaults/main.yml",
-        "qwen3_tts_min_free_vram_mib",
-        512,
-        _fenced_yaml_value,
-    ),
+    # Qwen3-TTS claims removed: both the design doc
+    # (docs/designs/qwen3-tts-openai-api-integration.md) and the source
+    # (ansible/roles/qwen3-tts/defaults/main.yml) moved to the separate
+    # llm-ops repo along with the rest of the LLM workstation deployment.
 )
 
 

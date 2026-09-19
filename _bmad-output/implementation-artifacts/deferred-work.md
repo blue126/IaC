@@ -68,3 +68,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-ai-review-local-evaluation.md`
   summary: 在 review runtime 简化完成后，配置 GitHub Ruleset 的 current-SHA checks、普通 PR squash auto-merge 与已合并远端 head branch 删除。
   evidence: 该外部治理变更依赖对 GitHub 权威平台、信任资格、治理敏感路径人工合并和仓库设置授权的后续决定；用户要求先完成当前 runtime 简化。
+- source_spec: `_bmad-output/implementation-artifacts/spec-ubuntu-2604-vm-108.md`
+  summary: 为生产PBS备份作业增加精确成员集合验收，并在恢复可达后单独同步新108。
+  evidence: 2026-09-11实测生产作业仍为100–107，PBS不可达；setup-pbs-backup.yml现有verify只检查作业存在，不能检测漏掉新108。本任务未修改生产备份作业。
+- source_spec: `_bmad-output/implementation-artifacts/spec-ubuntu-2604-vm-108.md`
+  summary: 为共享common角色补齐SSH公钥撤销策略与明确的长期管理入口。
+  evidence: common角色现有authorized_key仅增加公钥，不撤销旧公钥；密码禁用后的控制端需要获准的私钥或agent。此次只验证已有pve0密钥和部署用户公钥，不复制个人私钥到Sandbox。
+- source_spec: `_bmad-output/implementation-artifacts/spec-ubuntu-2604-vm-108.md`
+  summary: 单独改善仓库现有首次SSH主机身份验证。
+  evidence: ansible.cfg在本任务之前已关闭host_key_checking；本次在已连接guest后将公钥固定到pve0专用known_hosts并验证后续连接，尚未建立独立于首次SSH连接的主机公钥引导链。

@@ -8,7 +8,22 @@ fi
 
 export TMPDIR="${TMPDIR:-$(python3 -c 'import tempfile; print(tempfile.gettempdir())')}"
 work_dir=$(mktemp -d "${TMPDIR%/}/iac-smoke.XXXXXX")
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+project_root=$(cd -- "$script_dir/../../.." && pwd -P)
 printf 'Smoke workspace: %s\n' "$work_dir"
+
+terraform_credentials_dir="${IAC_TERRAFORM_CREDENTIALS_DIR:-}"
+terraform_credentials_file="${terraform_credentials_dir}/credentials.tfrc.json"
+if [[ -z "$terraform_credentials_dir" || ! -r "$terraform_credentials_file" ]]; then
+  printf 'ERROR: Readable HCP Terraform credentials are required inside the Sandbox.\n' >&2
+  exit 1
+fi
+install -d -m 0700 /home/agent/.terraform.d
+if [[ -e /home/agent/.terraform.d/credentials.tfrc.json ]]; then
+  printf 'ERROR: Refusing to replace existing Sandbox Terraform credentials.\n' >&2
+  exit 1
+fi
+ln -s "$terraform_credentials_file" /home/agent/.terraform.d/credentials.tfrc.json
 
 export CHECKPOINT_DISABLE=1
 export ANSIBLE_CONFIG="$work_dir/ansible.cfg"
@@ -40,6 +55,10 @@ if [[ "$result" != '"IAC-SANDBOX-READY"' ]]; then
   exit 1
 fi
 printf 'PASS: Terraform evaluated a local expression without a backend.\n'
+
+TF_DATA_DIR="$work_dir/terraform-data" terraform -chdir="$project_root/terraform/proxmox" \
+  init -input=false -no-color -lockfile=readonly
+printf 'HCP_TERRAFORM_AUTH_OK\n'
 
 (
   cd "$work_dir"

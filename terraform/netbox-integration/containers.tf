@@ -6,9 +6,9 @@ resource "netbox_virtual_machine" "anki" {
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   role_id      = netbox_device_role.lxc.id
-  vcpus        = 1        # 来源: terraform/proxmox/anki.tf cores=1
-  memory_mb    = 2048     # 来源: terraform/proxmox/anki.tf memory=2048
-  disk_size_mb = 8192     # 8G => 8*1024 MB, 来源: rootfs_size="8G"
+  vcpus        = 1    # 来源: terraform/proxmox/anki.tf cores=1
+  memory_mb    = 2048 # 来源: terraform/proxmox/anki.tf memory=2048
+  disk_size_mb = 8192 # 8G => 8*1024 MB, 来源: rootfs_size="8G"
   comments     = "Anki Sync (LXC) bridge=vmbr1 target_node=pve0"
 
   lifecycle {
