@@ -65,12 +65,6 @@
         components: pdm-no-subscription
         signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
         state: present
-      register: pdm_repository
-
-    - name: Update APT cache after configuring the PDM repository
-      apt:
-        update_cache: true
-      when: pdm_repository.changed
 
     - name: Keep GRUB unconfigured on the cloud VM
       debconf:
@@ -88,7 +82,14 @@
         name: proxmox-datacenter-manager-container-meta
         state: present
         install_recommends: false
+        update_cache: true
 
+- name: Verify Proxmox Datacenter Manager
+  hosts: proxmox-datacenter-manager
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
     - name: Verify PDM API services are active
       command:
         argv:
