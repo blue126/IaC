@@ -3,8 +3,9 @@
 # lists. network_appliance is excluded by name: it holds the border router,
 # which has no Python interpreter for the common role to run through and whose
 # configuration needs explicit authorization before any change.
-- name: Apply common baseline to all hosts
-  hosts: all:!network_appliance
+# Windows and ESXi hosts cannot use the Linux common role.
+- name: Apply common baseline to all Linux hosts
+  hosts: all:!network_appliance:!windows:!esxi_hosts
   become: true
   roles:
     - common

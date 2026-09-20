@@ -30,8 +30,14 @@ variable "image_url" {
 }
 
 variable "image_checksum" {
-  description = "SHA-256 checksum of the cloud image"
+  description = "Checksum of the cloud image"
   type        = string
+}
+
+variable "image_checksum_algorithm" {
+  description = "Checksum algorithm used for the cloud image"
+  type        = string
+  default     = "sha256"
 }
 
 variable "cores" {

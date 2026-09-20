@@ -1,0 +1,109 @@
+---
+- name: Wait for Proxmox Datacenter Manager VM
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Wait for PDM SSH service
+      wait_for:
+        host: 192.168.1.117
+        port: 22
+        delay: 5
+        timeout: 300
+
+    - name: Add PDM VM to the one-off inventory
+      add_host:
+        name: proxmox-datacenter-manager
+        groups: pdm
+        ansible_host: 192.168.1.117
+        ansible_user: debian
+
+- name: Install Proxmox Datacenter Manager
+  hosts: pdm
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Assert the PDM host uses Debian 13
+      assert:
+        that:
+          - ansible_facts["distribution"] == "Debian"
+          - ansible_facts["distribution_major_version"] == "13"
+        fail_msg: "PDM requires Debian 13; refusing to install on {{ ansible_facts[\"distribution\"] }} {{ ansible_facts[\"distribution_version\"] }}."
+
+    - name: Check whether the PDM enterprise repository exists
+      stat:
+        path: /etc/apt/sources.list.d/pdm-enterprise.sources
+      register: pdm_enterprise_repository
+
+    - name: Disable the PDM enterprise repository without a subscription
+      lineinfile:
+        path: /etc/apt/sources.list.d/pdm-enterprise.sources
+        line: "Enabled: false"
+        insertafter: EOF
+      when: pdm_enterprise_repository.stat.exists
+
+    - name: Install APT repository prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - python3-debian
+        state: present
+        update_cache: true
+
+    - name: Install the Proxmox archive keyring
+      get_url:
+        url: https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg
+        dest: /usr/share/keyrings/proxmox-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Configure the PDM no-subscription repository
+      deb822_repository:
+        name: proxmox-datacenter-manager
+        types: deb
+        uris: http://download.proxmox.com/debian/pdm
+        suites: trixie
+        components: pdm-no-subscription
+        signed_by: /usr/share/keyrings/proxmox-archive-keyring.gpg
+        state: present
+
+    - name: Keep GRUB unconfigured on the cloud VM
+      debconf:
+        name: grub-pc
+        question: grub-pc/install_devices_empty
+        value: "true"
+        vtype: boolean
+
+    - name: Repair incomplete APT package configuration
+      apt:
+        state: fixed
+
+    - name: Install Proxmox Datacenter Manager
+      apt:
+        name: proxmox-datacenter-manager-container-meta
+        state: present
+        install_recommends: false
+        update_cache: true
+
+- name: Verify Proxmox Datacenter Manager
+  hosts: proxmox-datacenter-manager
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify PDM API services are active
+      command:
+        argv:
+          - systemctl
+          - is-active
+          - --quiet
+          - "{{ item }}"
+      loop:
+        - proxmox-datacenter-privileged-api.service
+        - proxmox-datacenter-api.service
+      changed_when: false
+
+    - name: Verify the PDM API port is listening
+      wait_for:
+        host: 127.0.0.1
+        port: 8443
+        timeout: 60
