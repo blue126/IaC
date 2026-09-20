@@ -13,6 +13,8 @@
   when: ansible_os_family == "Alpine"
 
 - name: Setup authorized keys for the primary user
+  tags:
+    - ssh_keys
   authorized_key:
     user: "{{ ansible_user }}"
     key: "{{ item }}"
