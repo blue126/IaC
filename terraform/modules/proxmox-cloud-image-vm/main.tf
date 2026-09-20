@@ -13,7 +13,7 @@ resource "proxmox_virtual_environment_download_file" "image" {
   file_name          = var.image_file_name
   url                = var.image_url
   checksum           = var.image_checksum
-  checksum_algorithm = "sha256"
+  checksum_algorithm = var.image_checksum_algorithm
 }
 
 resource "proxmox_virtual_environment_vm" "vm" {
