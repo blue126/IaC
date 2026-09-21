@@ -1,12 +1,8 @@
 terraform {
   required_version = ">= 1.0.0"
 
-  cloud {
-    organization = "homelab-roseville"
-    workspaces {
-      name = "iac-esxi-lab"
-    }
-  }
+  # Historical configuration only. The retired HCP workspace was deleted;
+  # do not reintroduce a cloud block that could recreate it during init.
 
   required_providers {
     vsphere = {

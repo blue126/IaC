@@ -65,7 +65,7 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 - **Module structure**: `main.tf`, `variables.tf`, `outputs.tf` (3-file standard)
 - **Sensitive variables**: Always mark `sensitive = true`
 - **Backend**: HCP Terraform Cloud (`cloud { organization = "homelab-roseville" }`), **Local execution mode** — plan/apply run on this machine, HCP only stores state
-- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/`, `iac-esxi-lab` → `terraform/esxi/`, `iac-oci` → `terraform/oci/`. The two `-lab` suffixes are real -- they have been in `versions.tf` since the HCP migration and were never renamed. Only OCI lacks one. Read the `cloud` block rather than trusting this line.
+- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/`, `iac-oci` → `terraform/oci/`. The retired `iac-esxi-lab` workspace was backed up and deleted with user approval on 2026-09-21; `terraform/esxi/` is historical and has no cloud binding. Do not recreate it during init. Read active `cloud` blocks rather than assuming workspace names.
 - **Lifecycle blocks**: Use `ignore_changes` for clone, full_clone, efidisk, ostemplate, description
 
 ### Ansible
