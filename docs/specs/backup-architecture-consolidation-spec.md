@@ -1,8 +1,12 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.13
-> **日期**: 2026-09-11
-> **状态**: 阶段一完成（步骤 1–9）；**阶段二方案已定、前置条件已满足**；旧108/110退役及新Ubuntu108部署已验收，新增108的生产备份作业待单独同步
+> **版本**: 1.14
+> **日期**: 2026-09-21
+> **状态**: 阶段一完成（步骤 1–9）；**PBS 已迁至 pve2 并重建 datastore**，D16 的 zvol 方案被 [D18](#d18--pbs-回到直通盘客机内-zfs推翻-d16) 推翻；108/109 已进入生产备份作业
+>
+> **v1.14 变更（2026-09-21，现场配置对账）**：用户确认 T7910 已改为独立 **pve2**（`192.168.1.52`，`vmbr0`，不存在 `corosync.conf`），不属于原集群。PBS 为 **pve2 VM 100**，IP `192.168.1.249`，4 核、配置内存刚调至 16 GiB（客机生效未核实）；系统盘 `mainpool`/80 GiB，EFI 盘 `local-lvm`，1 HBA + 2 NVMe 仍直通。PBS 内 `tank` 为两块原 WWN 的 HITACHI 8TB HDD mirror，无 special vdev；datastore **`backup`** 使用池根 `/mnt/datastore/tank`，属性为 `compression=on`、`atime=on`、`recordsize=128K`。PVE 存储 ID 为 **`pbs`**，pve0 作业 **00:00**、成员 **100–109**、保留 **last 3 / daily 7 / weekly 4 / monthly 3**。独立 pve2/100 与 pve0 LXC100 无关；pve0/109 现为 `mcp-gateway`。代码和文档修订不等于生产部署或 state 已同步。
+>
+> **管理边界（追加确认）**：ESXi 宿主已退役；备份作业、保留、GC/verify 计划归 PVE/PBS 管理。仓库已删除 `setup-pbs-backup.yml` 和 `pbs-client`，不再下发这些业务配置。现有 PVE 存储以 `root@pam` 认证，本次不更改。PBS `verify-all` 的 store 为旧名 `backup-storage`、schedule 为空、`ignore-verified=0`；修正 store 不等于配置了周期校验。PBS prune 作业指向 `backup`，每日执行，保留 3/7/4/3；sync 列表为空。未取得 GC schedule、备份/校验成功历史、恢复测试或当前集群 quorum 证据，不断言它们正常或完全未运行。
 >
 > **v1.13 变更（2026-09-11）**：旧 Veeam worker 108 与手工 PNET4.2.4 110 已退役，既有备份未删除。Terraform 已直接从固定版本 Cloud Image 创建 `ubuntu-2604`（108，4 CPU、32 GiB，系统盘随后按用户要求在线扩至100 GiB），原生 Cloud-Init 配合 Ansible 完成初始化、QGA及密钥登录验收。110已释放；生产备份白名单仍为100–107，仓库新增108尚未部署到备份作业。
 >
@@ -54,9 +58,9 @@
 
 ### 1.3 目标
 
-1. ZFS 由宿主机原生持有，消除 HBA 直通给客机的结构
+1. ~~ZFS 由宿主机原生持有，消除 HBA 直通给客机的结构~~ —— **2026-09-21 起不再成立**，见 [D18](#d18--pbs-回到直通盘客机内-zfs推翻-d16)
 2. 主备份目标常开，解除备份频率对冷备机开机窗口的依赖
-3. 备份系统离开 ESXi，ESXi 仅作为备份**来源**
+3. 备份系统离开 ESXi；2026-09-21 用户确认 ESXi 宿主已退役，不再作为活动备份来源
 4. 建立两级副本（3-2-1）
 5. 全部配置纳入 Ansible/Terraform 管理
 
@@ -288,6 +292,8 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 ### D11 — pve1 保留在集群内，pve2 退役
 
+> **2026-09-21 更新**：本节记录 2026-08-07 的退役事件。当前 `pve2` 是用户确认的 T7910 独立节点，见 D18；下表保留为历史集群记录，本次未重新读取 pve0/pve1 的 corosync 配置，不能据此断言票数至今未变。
+
 **选择**：M920Q（即 pve1）继续作为 `HomePVECluster` 成员。
 
 **已核实的集群现状**：
@@ -377,6 +383,8 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 ### D16 — PBS datastore 以 zvol 形式承载
 
+> **历史方案**：PBS 部分已被 2026-09-21 的 D18 替代；以下保留当时决策，不再作为当前 PBS 的实施指令。
+
 **选择**：PBS 作为**虚机**从 ESXi V2V 迁入 pve1，datastore 落在 `tank` 上的一个 **zvol**，由 PBS 内部格式化为 ext4/xfs。**不采用** [D8](#d8--pbs-以-lxc--bind-mount-部署而非虚机) 的 LXC + bind mount 方案。
 
 **理由**：V2V 保留既有 PBS 的全部配置与 datastore 结构，避免重装后手工重建用户、token、ACL 与作业——而规范 §2.4 记录了"**PBS 未备份自身配置**"，重装的代价因此比通常更高。
@@ -445,9 +453,29 @@ backup-pool
 
 **建议评估顺序**：先实测定位瓶颈 → 确认确为元数据写入受限 → 再考虑 special vdev（记住它必须镜像且不可移除）。
 
+### D18 — PBS 回到直通盘 + 客机内 ZFS，推翻 D16
+
+**状态**：已实施（2026-09-21），长期方案。
+
+**选择**：PBS 作为虚机运行在 **pve2**（VM 100），两块 HITACHI 8TB SAS 盘**直通给客机**，ZFS 池 `tank` 建在**客机内部**，datastore `backup` 直接落在池根 `/mnt/datastore/tank`。**推翻 [D16](#d16--pbs-datastore-以-zvol-形式承载) 的 zvol 方案**，也使 [§1.3 目标 1](#13-目标) 作废。
+
+**理由来源**：用户确认这是长期方案，但未提供详细决策理由。本记录不将旧 D6 或硬件位置推导成用户此次选择的动机。以下只说明该拓扑的技术取舍。
+
+**因此重新付出的代价**（即 §1.2 当初列为问题的那些）：
+
+- 宿主机看不到自己的数据盘，SMART 与池健康必须进 PBS 客机才能查
+- `zpool scrub`、ZED、`smartd` 的统一策略无法由宿主机侧覆盖这两块盘，[Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md) 需为其单列一条路径
+- PBS 客机一旦无法启动，datastore 随之不可达 —— 尽管数据本身仍在物理盘上，可由任意能识别该池的系统导入
+
+**层次变化**：datastore 不再经过宿主 zvol + 客机文件系统这一层；池和文件可在 PBS 内查看，但不因此对宿主可见。当前 datastore 没有 D16 那块 zvol 的 `refreservation` 问题；实际压缩收益、容量护栏和性能仍须实测，不能宣称自动改善。
+
+**NVMe 后续用途（用户确认）**：两个 NVMe 仍通过 PCI 直通给 PBS，当前未加入 `tank`，并非废弃设备。后续计划将它们组成 special vdev；本次仅解决漂移，不执行建池、加盘或修改 vdev。D10/D17 记录的是旧硬件条件与性能评估，不能当成已批准的本次磁盘操作指令。
+
 ---
 
 ## 4. 目标架构
+
+> **版本边界**：本节图表保留迁移阶段的旧设计。当前 PBS 拓扑以 v1.14 与 D18 为准；其中 T7910/ESXi、旧 backup-pool 和 pve1/zvol 的 PBS 落点均不再代表现状。
 
 分两个阶段。**阶段一不迁移 PBS**——先把 Windows/Veeam 和文件共享迁到 M920Q，实测内存占用后再决定 PBS 去留（见 D12）。
 
@@ -781,6 +809,8 @@ pvesm add zfspool tank --pool tank --content rootdir,images --nodes pve1
 
 ### 6.2 PBS（阶段二才迁移）
 
+> 本节是旧阶段设计，已由D18替代，不是当前部署入口。当前PBS位于独立pve2/100，业务作业不归Ansible管理。
+
 阶段一 PBS 留在 T7910 不动。迁移时：
 
 - 以 **LXC + bind mount** 部署，bind mount `tank/pbs-datastore`（见 D8）
@@ -797,11 +827,13 @@ pvesm add zfspool tank --pool tank --content rootdir,images --nodes pve1
 |---|---|
 | hostname / VMID | `fileserver` / `111` |
 | 节点 / IP | `pve1` / `192.168.1.111/24` |
-| rootfs | `vmdata`，8G |
+| rootfs | `local-lvm:vm-111-disk-0`，8G（2026-09-21 pct config） |
 | CPU / 内存 / swap | 1 core / 512MB / 512MB |
 | 网络 | `vmbr1`，网关与 DNS `192.168.1.1` |
 | 权限模式 | unprivileged LXC |
-| 数据挂载 | `/tank/timemachine` → `/srv/timemachine` (`mp0`) |
+| 数据挂载 | `mp0: nvme-lvm:vm-111-disk-0,mp=/srv/timemachine,size=900G` |
+| PVE 存储 / VG / thin pool | `nvme-lvm`（LVM-thin）/ `nvme-vg` / `data` |
+| 文件系统 / 容器内可用容量 | ext4 / 约840GB（用户提供；900G为配置容量） |
 
 #### 一次性初始化配置（TurnKey 不含）
 
@@ -832,11 +864,11 @@ fruit:time machine max size = 1T
 
 #### 存储挂载
 
-- 从 `backup-pool/timemachine` 以 ZFS snapshot + `zfs send/receive` 迁移至 `tank/timemachine`，不创建空白新库
-- 接收完成后保留源端实测的 `quota=1T`
-- 容器内 `timemachine` 固定 UID/GID 2000；默认非特权映射下，宿主所有权为 UID/GID 102000
-- 容器配置 bind mount：`mp0: /tank/timemachine,mp=/srv/timemachine`
-- **不需要注册 PVE 存储**——bind mount 不经 PVE 存储层（见 6.1.1）
+- **当前托管卷**：`mp0: nvme-lvm:vm-111-disk-0,mp=/srv/timemachine,size=900G`。PVE存储`nvme-lvm`为LVM-thin，VG/thin pool为`nvme-vg/data`，content为`images,rootdir`。
+- **根盘**：`rootfs: local-lvm:vm-111-disk-0,size=8G`；不再使用代码中旧的vmdata配置。
+- 数据卷文件系统ext4、容器内可用约840GB来自用户提供的信息；900G是PVE配置容量。当前挂载条目没有额外backup/ACL等标志，不擅自添加。
+- `unused0: nvme-lvm:900G`是现场另一个未使用引用，本次不删除、不回收、不纳入mp0。
+- 旧的`/tank/timemachine` bind mount、ZFS quota和宿主UID映射说明仅适用于历史方案；不能套用到当前LVM-thin托管卷。存储已在PVE登记，不创建或格式化新卷。
 
 #### 两个 LXC 特有的坑（未验证，实施时注意）
 
@@ -848,6 +880,8 @@ fruit:time machine max size = 1T
 [`configure-fileserver-timemachine.yml`](../../ansible/playbooks/configure-fileserver-timemachine.yml) 是明确的一次性引导 playbook，不加入 `site.yml` 或常规部署自动化。它创建固定 UID/GID 用户、验证 bind mount 权限、写入 `vfs_fruit`/共享参数及 Avahi 通告。执行并验收后，所有 Samba 用户与共享变更均通过 Webmin 完成；不得把该 playbook 当成持续配置反复运行。
 
 ### 6.4 Windows Server VM（AD DS + Veeam VBR CE）
+
+> **已退役（2026-09-21）**：用户授权销毁pve1/112及其未引用磁盘清理。首次销毁因不存在的tank存储失败，仅移除inventory记录；确认所有三条磁盘引用均失效后，在PVE配置锁内备份并清理引用，再以仅含VM112 delete的saved plan完成销毁。HCP state serial60已无VM112及其inventory，PVE列表确认VM不存在。PDM117与Fileserver111仍running，备份作业成员未变。下文保留历史设计，不再是部署入口。
 
 - 由 ESXi V2V 迁移而来（PVE 8.2+ 自带 ESXi 导入向导）
 - 系统盘放 `mainpool` 池；Veeam 仓库为 `tank/veeam-vol` zvol → 虚机内格式化 ReFS（64K 分配单元）
@@ -877,6 +911,8 @@ fruit:time machine max size = 1T
 ---
 
 ## 7. 迁移计划
+
+> **历史实施记录**：下列阶段二 PBS 迁往 pve1/zvol 的步骤已被 D18 替代；不得再按“前置条件已满足”执行它们。当前 PBS 位于独立 pve2/100，源码纳管与 state 写入是另行审阅的事项。
 
 > **安全线：阶段一第 7 步之前，T7910 上所有现有数据与服务原样不动。**任一步骤出问题均可回退。
 

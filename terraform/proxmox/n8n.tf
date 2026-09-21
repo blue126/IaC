@@ -6,7 +6,7 @@ module "n8n" {
   vmid           = 106
   ostemplate     = "local:vztmpl/debian-12-turnkey-nodejs_18.0-1_amd64.tar.gz"
   cores          = 2
-  memory         = 2048
+  memory         = 4096
   swap           = 512
   rootfs_storage = "vmdata"
   rootfs_size    = "8G"

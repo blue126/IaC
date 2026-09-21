@@ -16,7 +16,7 @@
 - **[immich-deployment.md](./deployment/immich-deployment.md)** - Immich deployment guide covering Terraform, Ansible, and Docker.
 - **[immich-upgrade-mop.md](./deployment/immich-upgrade-mop.md)** - 面向 agent 的 Homelab 六步升级流程，包含整机备份、基本验证和恢复边界。
 - **[netbox-deployment.md](./deployment/netbox-deployment.md)** - Netbox deployment architecture, infrastructure provisioning, and application setup.
-- **[pbs-esxi-deployment.md](./deployment/pbs-esxi-deployment.md)** - Proxmox Backup Server on ESXi deployment with ZFS/PCIe passthrough.
+- **[pbs-esxi-deployment.md](./deployment/pbs-esxi-deployment.md)** - 已退役的 ESXi/PBS 历史部署记录，不适用于当前 pve2；保留路径供历史引用。
 - **[proxmox-vm-deployment.md](./deployment/proxmox-vm-deployment.md)** - Guide for managing Proxmox VMs using Terraform.
 - **[README.md](./deployment/README.md)** - Index and overview of deployment guides.
 

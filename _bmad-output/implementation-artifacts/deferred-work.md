@@ -5,10 +5,10 @@
   summary: 把 llm-workstation 已有的"主机基线 + 服务部署"两层结构推广到其余节点。
   evidence: 19 个 deploy playbook 中 13 个开头手抄同一段 `common + tailscale + docker + <服务>`；新增 host_vars 本身不会触发 `install-tailscale.yml`，忘记补这几行不会报错，只是静默不做。`deploy-llm-workstation.yml`（主机基线）与 `deploy-qwen38.yml`/`deploy-qwen3-tts.yml`（服务）已是正确形态：Tailscale 属于主机，模型只是主机上的服务，两者不应混在一个 playbook 里。
   note: 原条目表述为"统一入口同时执行 common、Tailscale 和服务 role"，方向相反——那会把已分对的层次重新搅浑。另：先前统计"6 个 playbook 缺 common、8 个缺 tailscale"不可直接当作遗漏清单，其中 open-webui-gateway（网关无 Python）、anki-oci 与 unified-proxy（OCI 静态 inventory）、jenkins-agent（与 jenkins 同机）都是有意为之。可选做法：把基线并入 `site.yml`（爆炸半径从 16 台升到 16+15 台，且引入可能重启 LXC 的逻辑），或维持约定并在新节点检查中断言"在 tailscale 组却未连上"。
-- source_spec: `terraform/README.md`
-  summary: 把 pve1 上的 Proxmox Backup Server import 进 Terraform，使其重新进入动态 inventory。
-  evidence: `b438075` 把 PBS 从 ESXi 迁到 pve1 并删除了 `terraform/esxi/pbs.tf`，提交信息明确记录"The backup server on pve1 has no Terraform definition yet"。因此 `ansible pbs --list-hosts` 匹配不到任何主机，而 `ansible/roles/pbs`、`roles/pbs-client`、`deploy-pbs.yml`、`setup-pbs-backup.yml` 四者仍在仓库中，目前是指向不存在目标的孤儿。补主机基线（common/tailscale）在 import 之前没有意义。
-  note: import 的是一台在跑的生产备份机，plan 写错可能提议重建，需谨慎并单独授权。
+- source_spec: `docs/specs/backup-architecture-consolidation-spec.md`
+  summary: 修正 PBS verify-all 的旧 store 引用，并明确周期校验计划。
+  evidence: 2026-09-21 verify-all 的 store=backup-storage、schedule为空、ignore-verified=0；当前datastore=backup。未提供运行历史，不能断言没有手动校验或备份已成功。单改store不会自动产生周期计划。PBS prune已有daily/3-7-4-3配置，GC计划未核实；role目前不管理既有prune/verify job。
+  note: 由操作者在PBS管理；按用户新边界，不为Ansible新增verify-job/业务调度管理任务。任何生产修正仍需单独授权。
 - source_spec: `_bmad-output/implementation-artifacts/spec-enable-tailscale-on-n8n.md`
   summary: 为包含 Proxmox snapshot 区段的 LXC 设计安全的 TUN 配置管理和重复执行验证。
   evidence: 当前简化的 `lineinfile` 适用于没有 snapshot 的 VMID 106，但不理解配置文件中的 snapshot 区段；缺少连续执行与重启后的自动验证。
@@ -69,8 +69,8 @@
   summary: 在 review runtime 简化完成后，配置 GitHub Ruleset 的 current-SHA checks、普通 PR squash auto-merge 与已合并远端 head branch 删除。
   evidence: 该外部治理变更依赖对 GitHub 权威平台、信任资格、治理敏感路径人工合并和仓库设置授权的后续决定；用户要求先完成当前 runtime 简化。
 - source_spec: `_bmad-output/implementation-artifacts/spec-ubuntu-2604-vm-108.md`
-  summary: 为生产PBS备份作业增加精确成员集合验收，并在恢复可达后单独同步新108。
-  evidence: 2026-09-11实测生产作业仍为100–107，PBS不可达；setup-pbs-backup.yml现有verify只检查作业存在，不能检测漏掉新108。本任务未修改生产备份作业。
+  summary: 由操作者在 PVE/PBS 检查业务备份覆盖和成功恢复点。
+  evidence: 2026-09-21 现场作业已有100–109；用户随后决定业务备份不由Ansible控制，相关playbook、role和策略断言已删除。此项不再要求恢复Ansible自动化；实际备份和恢复证据仍需在PVE/PBS核验，配置入列不等于成功。
 - source_spec: `_bmad-output/implementation-artifacts/spec-ubuntu-2604-vm-108.md`
   summary: 为共享common角色补齐SSH公钥撤销策略与明确的长期管理入口。
   evidence: common角色现有authorized_key仅增加公钥，不撤销旧公钥；密码禁用后的控制端需要获准的私钥或agent。此次只验证已有pve0密钥和部署用户公钥，不复制个人私钥到Sandbox。

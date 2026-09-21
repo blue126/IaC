@@ -30,10 +30,23 @@
     - Proxmox Backup Server:
         icon: proxmox.png
         href: https://192.168.1.249:8007
-        description: Backup and Recovery
         ping: 192.168.1.249
+{% if homepage_pve2_api_token_id | default('') and homepage_pve2_api_token_secret | default('') %}
+        description: Backup and Recovery (pve2 / VM 100)
+        proxmoxNode: pve2
+        proxmoxVMID: 100
+        proxmoxType: qemu
+{% else %}
+        description: Backup and Recovery (pve2 / VM 100; monitoring unconfigured)
+{% endif %}
+
+    - Proxmox Datacenter Manager:
+        icon: proxmox.png
+        href: https://192.168.1.117:8443
+        description: Multi-node management (pve1 / VM 117)
+        ping: 192.168.1.117
         proxmoxNode: pve1
-        proxmoxVMID: 113
+        proxmoxVMID: 117
         proxmoxType: qemu
 
 - Applications:

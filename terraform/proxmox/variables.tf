@@ -17,6 +17,37 @@ variable "pm_api_token_secret" {
   default     = null
 }
 
+# pve2 is a standalone node outside HomePVECluster, so it needs its own
+# endpoint and its own token -- the cluster credentials above do not reach it.
+variable "pm_api_url_pve2" {
+  description = "Proxmox API URL for the standalone pve2 node"
+  type        = string
+}
+
+variable "pm_api_token_id_pve2" {
+  description = "Proxmox API Token ID for the standalone pve2 node"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.pm_api_token_id_pve2)) > 0
+    error_message = "Provide the standalone pve2 token ID through the approved Vault bridge before planning."
+  }
+}
+
+variable "pm_api_token_secret_pve2" {
+  description = "Proxmox API Token Secret for the standalone pve2 node"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.pm_api_token_secret_pve2)) > 0
+    error_message = "Provide the standalone pve2 token secret through the approved Vault bridge before planning."
+  }
+}
+
 variable "target_node" {
   description = "Target Proxmox Node"
   type        = string

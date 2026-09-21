@@ -98,32 +98,36 @@ variable "features" {
   default     = []
 }
 
-variable "bind_mounts" {
-  description = "Host directories bind-mounted into the LXC container"
+variable "mount_points" {
+  description = "Existing host paths or PVE volumes mounted into the LXC container"
   type = list(object({
     volume = string
     path   = string
+    size   = optional(string)
   }))
   default = []
 
   validation {
-    condition     = length(var.bind_mounts) <= 8
-    error_message = "A container supports at most eight bind mounts."
+    condition     = length(var.mount_points) <= 8
+    error_message = "A container supports at most eight mount points."
   }
 
   validation {
     condition = alltrue([
-      for mount in var.bind_mounts :
-      startswith(mount.volume, "/") && startswith(mount.path, "/")
+      for mount in var.mount_points :
+      startswith(mount.path, "/") && (
+        startswith(mount.volume, "/") ||
+        (can(regex("^[^/: ]+:[^ ]+$", mount.volume)) && mount.size != null)
+      )
     ])
-    error_message = "Bind mount volume and path must be absolute paths."
+    error_message = "Mount paths must be absolute; use a host path or an existing storage:volume ID with size."
   }
 
   validation {
     condition = length(distinct([
-      for mount in var.bind_mounts : mount.path
-    ])) == length(var.bind_mounts)
-    error_message = "Each container bind mount path must be unique."
+      for mount in var.mount_points : mount.path
+    ])) == length(var.mount_points)
+    error_message = "Each container mount point path must be unique."
   }
 }
 

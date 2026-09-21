@@ -1,7 +1,7 @@
 pipeline {
     agent any
     parameters {
-        string(name: 'MANUAL_PLATFORM', defaultValue: '', description: 'Manual platform override (proxmox/esxi/physical)')
+        string(name: 'MANUAL_PLATFORM', defaultValue: '', description: 'Manual platform override (proxmox/physical; ESXi retired)')
         string(name: 'MANUAL_OBJECT_ID', defaultValue: '', description: 'Manual object ID for testing')
         string(name: 'MANUAL_OBJECT_NAME', defaultValue: '', description: 'Manual object name for testing')
     }
@@ -57,7 +57,7 @@ pipeline {
                     }
                     
                     // Validate platform value
-                    def validPlatforms = ['proxmox', 'esxi', 'physical']
+                    def validPlatforms = ['proxmox', 'physical']
                     if (!validPlatforms.contains(env.PLATFORM)) {
                         error "Unknown platform: ${env.PLATFORM}. Expected: ${validPlatforms.join(', ')}"
                     }
@@ -77,16 +77,6 @@ pipeline {
                                 string(name: 'NETBOX_VM_ID', value: env.netbox_object_id),
                                 string(name: 'NETBOX_VM_NAME', value: env.netbox_object_name),
                                 string(name: 'PLATFORM', value: 'proxmox'),
-                                string(name: 'AUTOMATION_LEVEL', value: env.automation_level)
-                            ], wait: false
-                            break
-                        case 'esxi':
-                            echo "→ Routing to ESXi-Provisioning"
-                            build job: 'ESXi-Provisioning', parameters: [
-                                string(name: 'NETBOX_EVENT', value: env.netbox_event),
-                                string(name: 'NETBOX_VM_ID', value: env.netbox_object_id),
-                                string(name: 'NETBOX_VM_NAME', value: env.netbox_object_name),
-                                string(name: 'PLATFORM', value: 'esxi'),
                                 string(name: 'AUTOMATION_LEVEL', value: env.automation_level)
                             ], wait: false
                             break

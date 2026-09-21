@@ -1,52 +1,37 @@
 ---
-# ZFS packages are installed by the pbs role (install.yml)
-
-- name: Check if ZFS pool exists
-  command: "zpool list {{ pbs_zfs_pool_name }}"
-  register: zpool_check
-  failed_when: false
+# Adopt the existing PBS pool. Missing/unimported pools require manual recovery;
+# a failed query must never authorize pool creation, import, or remounting.
+- name: Require the existing ZFS pool
+  ansible.builtin.command:
+    argv: [zpool, list, -H, -o, name, "{{ pbs_zfs_pool_name }}"]
+  register: pbs_pool_check
   changed_when: false
+  check_mode: false
 
-# HDD-only mode (current configuration)
-- name: Create ZFS pool (HDD mirror only)
-  command: >
-    zpool create -f -o ashift={{ pbs_zfs_ashift }}
-    -O compression={{ pbs_zfs_compression }}
-    -O atime={{ pbs_zfs_atime }}
-    -O xattr=sa
-    -O dnodesize=auto
-    -O recordsize={{ pbs_zfs_recordsize }}
-    {{ pbs_zfs_pool_name }}
-    mirror {{ pbs_zfs_hdd_devices | join(' ') }}
-  when:
-    - zpool_check.rc != 0
-    - not pbs_zfs_use_special_vdev
+- name: Read existing ZFS pool properties
+  ansible.builtin.command:
+    argv:
+      - zfs
+      - get
+      - -H
+      - -o
+      - property,value
+      - mountpoint,compression,recordsize,atime
+      - "{{ pbs_zfs_pool_name }}"
+  register: pbs_pool_properties
+  changed_when: false
+  check_mode: false
 
-# HDD + NVMe special vdev mode (for future use)
-- name: Create ZFS pool (HDD mirror + NVMe special vdev)
-  command: >
-    zpool create -f -o ashift={{ pbs_zfs_ashift }}
-    -O compression={{ pbs_zfs_compression }}
-    -O atime={{ pbs_zfs_atime }}
-    -O xattr=sa
-    -O dnodesize=auto
-    -O recordsize={{ pbs_zfs_recordsize }}
-    {{ pbs_zfs_pool_name }}
-    mirror {{ pbs_zfs_hdd_devices | join(' ') }}
-    special mirror {{ pbs_zfs_nvme_devices | join(' ') }}
-  when:
-    - zpool_check.rc != 0
-    - pbs_zfs_use_special_vdev
-
-- name: Set Special Small Blocks
-  command: "zfs set special_small_blocks={{ pbs_zfs_special_small_blocks }} {{ pbs_zfs_pool_name }}"
-  register: small_blocks_result
-  changed_when: small_blocks_result.rc == 0
-  when: pbs_zfs_use_special_vdev
-
-- name: Create Datastore Dataset
-  zfs:
-    name: "{{ pbs_zfs_pool_name }}/datastore"
-    state: present
-    extra_zfs_properties:
-      mountpoint: "{{ pbs_zfs_mount_point }}/datastore"
+- name: Verify existing ZFS pool properties without modifying storage
+  ansible.builtin.assert:
+    that:
+      - item.split('\t') | length == 2
+      - item.split('\t')[1] == pbs_expected_properties[item.split('\t')[0]]
+    fail_msg: "Existing PBS pool differs from inventory: {{ item }}. Reconcile explicitly; no storage changes were made."
+  vars:
+    pbs_expected_properties:
+      mountpoint: "{{ pbs_zfs_mount_point }}"
+      compression: "{{ pbs_zfs_compression }}"
+      recordsize: "{{ pbs_zfs_recordsize }}"
+      atime: "{{ pbs_zfs_atime }}"
+  loop: "{{ pbs_pool_properties.stdout_lines }}"

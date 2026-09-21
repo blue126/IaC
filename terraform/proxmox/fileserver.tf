@@ -12,7 +12,7 @@ module "fileserver" {
   cores          = 1
   memory         = 512
   swap           = 512
-  rootfs_storage = "vmdata"
+  rootfs_storage = "local-lvm"
   rootfs_size    = "8G"
   network_bridge = "vmbr1"
   ip_address     = "192.168.1.111/24"
@@ -20,10 +20,11 @@ module "fileserver" {
   unprivileged   = true
   ostype         = "debian"
 
-  bind_mounts = [
+  mount_points = [
     {
-      volume = "/tank/timemachine"
+      volume = "nvme-lvm:vm-111-disk-0"
       path   = "/srv/timemachine"
+      size   = "900G"
     }
   ]
 

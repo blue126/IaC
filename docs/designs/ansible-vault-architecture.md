@@ -242,7 +242,7 @@ ansible/inventory/group_vars/all/vault.yml
 
 **变量分类**:
 - **Terraform-only**: 仅 `vault_proxmox_password` — 没有 Ansible 消费者
-- **共享**: `vault_proxmox_api_token_id/secret` — Terraform 和 Ansible (pbs-client) 都用
+- **Proxmox API**: `vault_proxmox_api_token_id/secret` 供集群 Terraform 使用；独立 pve2 使用 `vault_proxmox_api_token_id_pve2/secret_pve2`。原 pbs-client 消费者已退役，未删除 Vault 内任何现有凭据。
 - **Ansible-only**: 其余 13 个 — Terraform 不需要
 
 **工作流**:
@@ -299,12 +299,6 @@ vault.yml (18 个变量)
 │   │   ├── pbs_root_password        ← vault_pbs_root_password
 │   │   └── pbs_backup_user_password ← vault_pbs_backup_user_password
 │   │         └──> pbs role (tasks/users.yml)
-│   │
-│   ├── roles/pbs-client/defaults/main.yml
-│   │   ├── pbs_api_token_value      ← vault_pbs_api_token_value
-│   │   ├── proxmox_api_token_id     ← vault_proxmox_api_token_id
-│   │   └── proxmox_api_token_secret ← vault_proxmox_api_token_secret
-│   │         └──> pbs-client role (tasks/*.yml)
 │   │
 │   ├── roles/immich/defaults/main.yml
 │   │   └── immich_db_password ← vault_immich_db_password

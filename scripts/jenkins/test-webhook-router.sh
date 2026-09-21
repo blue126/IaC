@@ -106,8 +106,9 @@ send_webhook "Test 1: Proxmox VM Creation" '{
   }
 }' "triggered"
 
-# Test 2: ESXi VM Update
-send_webhook "Test 2: ESXi VM Update" '{
+# Test 2: Retired ESXi must fail platform validation, never reach provisioning.
+# A triggered webhook response alone does not prove the pipeline result.
+send_webhook "Test 2: Retired ESXi (expect pipeline validation failure)" '{
   "event": "updated",
   "model": "virtualmachine",
   "data": {

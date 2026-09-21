@@ -58,14 +58,12 @@ resource "proxmox_virtual_environment_container" "lxc" {
   }
 
   dynamic "mount_point" {
-    for_each = var.bind_mounts
+    for_each = var.mount_points
 
     content {
-      volume    = mount_point.value.volume
-      path      = mount_point.value.path
-      backup    = false
-      replicate = false
-      shared    = false
+      volume = mount_point.value.volume
+      path   = mount_point.value.path
+      size   = mount_point.value.size
     }
   }
 
@@ -82,6 +80,8 @@ resource "proxmox_virtual_environment_container" "lxc" {
 
   lifecycle {
     ignore_changes = [
+      # Preserve operator-maintained notes on existing containers.
+      description,
       # ForceNew + not readable via API. Password and SSH keys are
       # injected at "pct create" time only; Proxmox never returns them,
       # so state is always null after import/refresh → every plan sees

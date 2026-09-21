@@ -1,6 +1,6 @@
 # Homelab Infrastructure as Code
 
-Production-grade IaC managing a hybrid homelab across **Proxmox VE**, **VMware ESXi**, and **Oracle Cloud (OCI)** — using Terraform for provisioning and Ansible for configuration management.
+本仓库使用 Terraform 与 Ansible 管理 **Proxmox VE（pve0/pve1 集群及独立 pve2）** 和 **Oracle Cloud（OCI）**。原 T7910 ESXi 宿主已退役并改为 pve2；保留的 ESXi 代码仅供历史与 state 对账，不代表仍有运行中的 ESXi 主机。备份作业及保留策略由 PVE/PBS 管理，不由 Ansible 下发。
 
 ## Architecture
 
@@ -13,8 +13,8 @@ Production-grade IaC managing a hybrid homelab across **Proxmox VE**, **VMware E
               +--------------------+--------------------+
               |                    |                     |
      +--------v-------+  +--------v--------+  +--------v--------+
-     |   Proxmox VE   |  |   VMware ESXi   |  |   Oracle Cloud  |
-     |   (3-node HA)  |  |   (standalone)  |  |   (Free Tier)   |
+     |   Proxmox VE   |  | Proxmox pve2    |  |   Oracle Cloud  |
+     |  (pve0/pve1)   |  | (standalone)    |  |   (Free Tier)   |
      +--------+-------+  +--------+--------+  +--------+--------+
               |                    |                     |
               +--------------------+--------------------+
@@ -43,8 +43,8 @@ Production-grade IaC managing a hybrid homelab across **Proxmox VE**, **VMware E
 
 | Layer | Tools |
 |-------|-------|
-| **Provisioning** | Terraform (bpg/proxmox, vmware/vsphere, oracle/oci) |
-| **Configuration** | Ansible 2.16+ with 22 custom roles |
+| **Provisioning** | Terraform (bpg/proxmox, oracle/oci；vSphere 配置已退役) |
+| **Configuration** | Ansible 2.16+ with custom service roles |
 | **CI/CD** | Jenkins pipelines with change-based routing |
 | **Networking** | Tailscale mesh VPN, Caddy reverse proxy, Cloudflare Tunnel |
 | **Secret Management** | Ansible Vault + Terraform secrets bridge |
@@ -57,14 +57,14 @@ Production-grade IaC managing a hybrid homelab across **Proxmox VE**, **VMware E
 .
 ├── terraform/
 │   ├── proxmox/              # Proxmox VE VMs and LXCs
-│   ├── esxi/                 # ESXi virtual machines
+│   ├── esxi/                 # Retired ESXi configuration (history/state reference)
 │   ├── oci/                  # Oracle Cloud instances
 │   ├── netbox-integration/   # IPAM/DCIM data push
 │   └── modules/              # Reusable modules (proxmox-vm, proxmox-lxc, esxi-vm)
 ├── ansible/
 │   ├── inventory/            # Split inventory (groups, host_vars, group_vars)
-│   ├── roles/                # 22 service roles (see below)
-│   ├── playbooks/            # 25 deploy/utility playbooks
+│   ├── roles/                # Service roles (see below)
+│   ├── playbooks/            # Deploy/utility playbooks
 │   └── files/                # Cloud-init templates, config files
 ├── scripts/
 │   ├── get-secrets.sh        # Vault → Terraform secrets bridge
@@ -75,7 +75,7 @@ Production-grade IaC managing a hybrid homelab across **Proxmox VE**, **VMware E
 └── Jenkinsfile-webhook-router # Webhook event routing
 ```
 
-## Services (22 Ansible Roles)
+## Services
 
 | Service | Platform | Deployment | Description |
 |---------|----------|------------|-------------|
@@ -88,8 +88,8 @@ Production-grade IaC managing a hybrid homelab across **Proxmox VE**, **VMware E
 | **Homepage** | Proxmox LXC | Docker Compose | Service dashboard |
 | **Caddy** | Proxmox LXC | Native binary | Reverse proxy + auto TLS |
 | **Anki Sync** | Proxmox LXC | Systemd | Flashcard synchronization |
-| **PBS** | ESXi VM | Native | Proxmox Backup Server |
-| **LLM Server** | ESXi VM | Systemd | GPU inference (llama.cpp + Open WebUI) |
+| **PBS** | Proxmox VM (pve2) | Native | Proxmox Backup Server |
+| **Proxmox Datacenter Manager** | Proxmox VM (pve1 / 117) | Native | 多节点管理，192.168.1.117:8443 |
 | **Unified Proxy** | OCI | Docker Compose | Public-facing Caddy relay |
 | **Tailscale** | All nodes | Native | Mesh VPN connectivity |
 | **Cloudflared** | Proxmox VM | Service | Cloudflare tunnel |
@@ -103,7 +103,6 @@ The Jenkins pipeline provides **change-based routing** — only affected infrast
 ```
 Git Push → Jenkins → Detect Changes → Route to Workspace
                                         ├── terraform/proxmox/* → Proxmox Plan
-                                        ├── terraform/esxi/*    → ESXi Plan
                                         ├── ansible/roles/*     → Lint + Syntax Check
                                         └── ansible/playbooks/* → Service Deploy
 ```
@@ -114,7 +113,7 @@ Pipeline stages: **Change Detection → Terraform Lint → Terraform Plan → An
 
 ### Prerequisites
 
-- Proxmox VE 8.x / ESXi / OCI account
+- Proxmox VE / OCI account（ESXi 已退役）
 - Terraform 1.14+
 - Ansible 2.16+
 - Python 3.8+

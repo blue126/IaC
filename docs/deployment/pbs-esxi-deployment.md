@@ -1,5 +1,7 @@
 # Proxmox Backup Server on ESXi 8.x - Deployment Guide
 
+> **已退役／仅作历史记录（2026-09-21）**：ESXi 宿主已退役，T7910 现为独立 pve2，PBS 为 VM100。下文的部署命令、NVMe special vdev 状态和 Ansible 备份作业入口属于旧环境，不可用于重建当前环境。当前两块 NVMe 已直通，special vdev 留待后续实施；备份业务策略改由 PVE/PBS 管理。现状见[备份架构规范 v1.14 / D18](../specs/backup-architecture-consolidation-spec.md)。保留此路径以兼容历史链接。
+
 > **说明**：本指南覆盖在 ESXi 8.x 环境中通过 Infrastructure as Code 方式部署 Proxmox Backup Server，包含 LSI 3008 HBA 直通、ZFS 分层存储（special vdev）配置、Terraform 与 Ansible 集成的完整实施流程。
 
 **文档版本**: 1.1  
