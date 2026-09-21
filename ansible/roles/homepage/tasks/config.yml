@@ -8,41 +8,56 @@
     mode: '0755'
 
 - name: Deploy Homepage settings
+  no_log: true
+  diff: false
   ansible.builtin.template:
     src: settings.yaml.j2
     dest: "{{ homepage_install_dir }}/config/settings.yaml"
     owner: "{{ homepage_user }}"
     group: "{{ homepage_group }}"
-    mode: '0644'
+    mode: '0600'
+  notify: Restart Homepage
 
 - name: Deploy Homepage services
+  no_log: true
+  diff: false
   ansible.builtin.template:
     src: services.yaml.j2
     dest: "{{ homepage_install_dir }}/config/services.yaml"
     owner: "{{ homepage_user }}"
     group: "{{ homepage_group }}"
-    mode: '0644'
+    mode: '0600'
+  notify: Restart Homepage
 
 - name: Deploy Homepage widgets
+  no_log: true
+  diff: false
   ansible.builtin.template:
     src: widgets.yaml.j2
     dest: "{{ homepage_install_dir }}/config/widgets.yaml"
     owner: "{{ homepage_user }}"
     group: "{{ homepage_group }}"
-    mode: '0644'
+    mode: '0600'
+  notify: Restart Homepage
 
 - name: Deploy Homepage proxmox config
+  no_log: true
+  diff: false
   ansible.builtin.template:
     src: proxmox.yaml.j2
     dest: "{{ homepage_install_dir }}/config/proxmox.yaml"
     owner: "{{ homepage_user }}"
     group: "{{ homepage_group }}"
-    mode: '0644'
+    mode: '0600'
+  notify: Restart Homepage
 
 - name: Deploy Homepage bookmarks
+  no_log: true
+  diff: false
   ansible.builtin.template:
     src: bookmarks.yaml.j2
     dest: "{{ homepage_install_dir }}/config/bookmarks.yaml"
     owner: "{{ homepage_user }}"
     group: "{{ homepage_group }}"
-    mode: '0644'
+    mode: '0600'
+  notify: Restart Homepage
