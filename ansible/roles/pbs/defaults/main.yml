@@ -17,31 +17,37 @@ pbs_backup_user_password: "{{ vault_pbs_backup_user_password }}"  # vault indire
 pbs_zfs_pool_name: "tank"
 pbs_zfs_mount_point: "/mnt/datastore/tank"
 
-# HDD Devices (passed through to the PBS guest by its Proxmox host)
-# Anchored by WWN: kernel names (sdX) shift whenever disks are added or removed.
-# The observed sdb/sdc disks retain the same WWNs as the earlier configuration.
+# Data HDD devices passed through to the PBS guest by its Proxmox host.
+# The pool has two mirrored data vdevs: two 8 TB SAS disks and two 6 TB SATA disks.
+# Anchored by stable IDs: kernel names (sdX) shift whenever disks are added or removed.
 #   wwn-0x5000cca2610d9c1c  HITACHI HUH72808CLAR8000  8TB SAS  serial VJG7H10X
 #   wwn-0x5000cca261372330  HITACHI HUH72808CLAR8000  8TB SAS  serial VJGZA11X
+#   ata-WDC_WD60EFPX-68JH4N1_WD-WC3K20AE5KA2  WDC WD60EFPX-68JH4N1  6TB SATA
+#   ata-WDC_WD60EFPX-68JH4N1_WD-WC3K20AE5KA9  WDC WD60EFPX-68JH4N1  6TB SATA
 pbs_zfs_hdd_devices:
   - /dev/disk/by-id/wwn-0x5000cca2610d9c1c
   - /dev/disk/by-id/wwn-0x5000cca261372330
+  - /dev/disk/by-id/ata-WDC_WD60EFPX-68JH4N1_WD-WC3K20AE5KA2
+  - /dev/disk/by-id/ata-WDC_WD60EFPX-68JH4N1_WD-WC3K20AE5KA9
 
-# No NVMe belongs to the current pool. Two NVMe devices remain PCI-passthrough
-# devices of the VM; this list does not describe all hardware in the guest.
-# Reserved for a future special vdev; changing these values does not create or extend a pool.
-pbs_zfs_nvme_devices: []
+# Samsung SM963 NVMe devices passed through to the PBS guest. They form tank's
+# mirrored special vdev. EUI paths remain stable when Linux kernel names change.
+pbs_zfs_nvme_devices:
+  - /dev/disk/by-id/nvme-eui.002538c171009240
+  - /dev/disk/by-id/nvme-eui.002538c2710104e2
 
 # ZFS Pool Mode
-# false = HDD mirror only
-# true  = HDD mirror + NVMe special vdev (requires pbs_zfs_nvme_devices)
-pbs_zfs_use_special_vdev: false
+# true = HDD mirror + NVMe special vdev (requires pbs_zfs_nvme_devices)
+pbs_zfs_use_special_vdev: true
 
 # ZFS Parameters
 pbs_zfs_ashift: 12
 pbs_zfs_compression: "on"
 pbs_zfs_atime: "on"
 pbs_zfs_recordsize: "128K"
-pbs_zfs_special_small_blocks: "128K"
+# Keep ordinary PBS backup blocks on the HDD mirror; the special vdev stores
+# metadata only, preserving its 238 GiB mirrored capacity for metadata growth.
+pbs_zfs_special_small_blocks: "0"
 
 # PBS Datastore
 pbs_datastore_name: "backup"

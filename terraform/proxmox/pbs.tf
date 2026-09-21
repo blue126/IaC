@@ -58,7 +58,8 @@ resource "proxmox_virtual_environment_vm" "pbs" {
     mac_address = "BC:24:11:00:01:13"
   }
 
-  # One HBA and two NVMe devices; their address-to-device mapping is unverified.
+  # Passthrough mapping verified on pve2 after its 2026-09-21 reboot:
+  # host 0000:01:00.0 (SAS3008) -> guest 0000:01:00.0 -> tank data HDDs.
   hostpci {
     device = "hostpci0"
     id     = "0000:01:00.0"
@@ -66,6 +67,8 @@ resource "proxmox_virtual_environment_vm" "pbs" {
     rombar = true
   }
 
+  # host 0000:0d:00.0 (Samsung SM963) -> guest 0000:02:00.0
+  # -> serial S34ENY0J231801 / nvme-eui.002538c2710104e2.
   hostpci {
     device = "hostpci1"
     id     = "0000:0d:00.0"
@@ -73,9 +76,11 @@ resource "proxmox_virtual_environment_vm" "pbs" {
     rombar = true
   }
 
+  # host 0000:0a:00.0 (Samsung SM963) -> guest 0000:03:00.0
+  # -> serial S34ENY0J112117 / nvme-eui.002538c171009240.
   hostpci {
     device = "hostpci2"
-    id     = "0000:10:00.0"
+    id     = "0000:0a:00.0"
     pcie   = true
     rombar = true
   }
