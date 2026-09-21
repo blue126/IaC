@@ -32,3 +32,19 @@ provider "proxmox" {
     agent = true
   }
 }
+
+# Cloud-image disk import requires an explicit SSH password fallback because
+# the standalone pve2 provider cannot consume the Sandbox SSH agent identity.
+provider "proxmox" {
+  alias    = "pve2_root"
+  endpoint = var.pm_api_url_pve2
+  username = "root@pam"
+  password = var.proxmox_ssh_password
+  insecure = true
+
+  ssh {
+    agent    = false
+    username = "root"
+    password = var.proxmox_ssh_password
+  }
+}

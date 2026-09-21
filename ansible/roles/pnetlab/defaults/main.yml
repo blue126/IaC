@@ -1,0 +1,11 @@
+---
+pnetlab_install_authorized: false
+pnetlab_install_completed: false
+pnetlab_bundle_stage: /root/pnetlab-bundle
+pnetlab_installer_name: install-pnetlab-27H1-v8.2-resolute.sh
+pnetlab_manifest_source: "{{ role_path }}/../../files/pnetlab-27h1-v8.2-resolute.sha256"
+pnetlab_manifest_stage: "{{ pnetlab_bundle_stage }}/pnetlab-27h1-v8.2-resolute.sha256"
+pnetlab_manifest_validator_source: "{{ role_path }}/files/validate_pnetlab_manifest.py"
+pnetlab_manifest_validator_stage: /usr/local/lib/pnetlab/validate_pnetlab_manifest.py
+pnetlab_rotate_root_password: false
+pnetlab_root_password: ""

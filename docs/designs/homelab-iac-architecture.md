@@ -730,7 +730,9 @@ pve1承载Fileserver；原T7910 ESXi已退役，现为独立pve2并承载PBS。�
 │      └─ 客机内 ZFS 池 tank（mirror，无 special vdev）        │
 │         └─ datastore「backup」→ /mnt/datastore/tank          │
 │  VM 101/102/103 网络实验虚机（手工管理，不在 IaC 内）        │
+│  VM 250 pnetlab（计划：Terraform/Ansible 专用 appliance）    │
 │  存储：mainpool 899G / local / local-lvm                     │
+│  VMID250及IP .250已由操作者确认可用                         │
 │        ▲                                                     │
 └────────┼─────────────────────────────────────────────────────┘
          │ PBS Client（每日 00:00，snapshot + zstd）

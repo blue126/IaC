@@ -1,0 +1,12 @@
+---
+pnetlab_node: pve2
+pnetlab_vmid: 250
+pnetlab_ip: 192.168.1.250
+pnetlab_network_mac: "02:50:00:00:00:FA"
+pnetlab_cores: 16
+pnetlab_memory_mb: 65536
+pnetlab_disk_size_gb: 400
+pnetlab_bundle_source: ""
+pnetlab_bundle_stage: /root/pnetlab-bundle
+# The operator explicitly accepts the installer-managed local root password.
+pnetlab_rotate_root_password: false

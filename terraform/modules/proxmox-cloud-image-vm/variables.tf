@@ -139,8 +139,33 @@ variable "efidisk_storage" {
   nullable    = true
 }
 
+variable "efi_pre_enrolled_keys" {
+  description = "Whether the EFI disk enrolls Microsoft Secure Boot keys"
+  type        = bool
+  default     = true
+}
+
+variable "network_mac_address" {
+  description = "Fixed MAC address for the VirtIO network device, or null to auto-generate"
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "on_boot" {
   description = "Whether to start the VM on host boot"
+  type        = bool
+  default     = true
+}
+
+variable "protection" {
+  description = "Whether Proxmox protects the VM from deletion"
+  type        = bool
+  default     = false
+}
+
+variable "started" {
+  description = "Whether the VM should be running"
   type        = bool
   default     = true
 }

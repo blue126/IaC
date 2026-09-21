@@ -1,0 +1,91 @@
+---
+- name: Deploy PNetLab appliance without rebooting
+  hosts: pnetlab
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for initial SSH access
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Wait for Cloud-Init to finish
+      ansible.builtin.command: cloud-init status --wait --format json
+      register: pnetlab_cloud_init
+      async: 900
+      poll: 5
+      changed_when: false
+      failed_when: pnetlab_cloud_init.rc not in [0, 2]
+      when: not pnetlab_install_completed | bool
+
+    - name: Reject Cloud-Init errors
+      ansible.builtin.assert:
+        that:
+          - pnetlab_cloud_status.status == 'done'
+          - pnetlab_cloud_status.errors | length == 0
+          - pnetlab_cloud_status.recoverable_errors.keys() | list | difference(['DEPRECATED']) | length == 0
+      vars:
+        pnetlab_cloud_status: "{{ pnetlab_cloud_init.stdout | from_json }}"
+      when: not pnetlab_install_completed | bool
+
+    - name: Gather PNetLab guest facts
+      ansible.builtin.setup:
+  roles:
+    - common
+    - pnetlab
+
+- name: Verify PNetLab pre-reboot appliance
+  hosts: pnetlab
+  gather_facts: false
+  tags: [verify]
+  vars:
+    pnetlab_install_completed: true
+  tasks:
+    - name: Verify nested virtualization and appliance services
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -lc
+          - >-
+            test -c /dev/kvm &&
+            grep -qE 'vmx|svm' /proc/cpuinfo &&
+            systemctl is-active --quiet apache2 &&
+            systemctl is-active --quiet mysql &&
+            systemctl is-active --quiet docker &&
+            systemctl is-active --quiet qemu-guest-agent &&
+            test -d /opt/unetlab &&
+            curl --fail --insecure --silent --output /dev/null https://127.0.0.1/
+      changed_when: false
+      when: pnetlab_install_completed | bool
+
+    - name: Read PNetLab VM configuration from pve2
+      ansible.builtin.command:
+        argv: [pvesh, get, /nodes/pve2/qemu/250/config, --output-format, json]
+      delegate_to: pve2
+      register: pnetlab_pve_config
+      changed_when: false
+      no_log: true
+      when: pnetlab_install_completed | bool
+
+    - name: Assert PNetLab VM identity and hardware
+      ansible.builtin.assert:
+        that:
+          - pnetlab_hardware.name == 'pnetlab'
+          - pnetlab_hardware.cores | int == 16
+          - pnetlab_hardware.memory | int == 65536
+          - "'size=400G' in pnetlab_hardware.scsi0"
+          - "'bridge=vmbr0' in pnetlab_hardware.net0"
+          - "'02:50:00:00:00:FA' in pnetlab_hardware.net0"
+          - pnetlab_hardware.protection | int == 1
+      vars:
+        pnetlab_hardware: "{{ pnetlab_pve_config.stdout | from_json }}"
+      no_log: true
+      when: pnetlab_install_completed | bool
+
+    - name: Verify PNetLab static address through QEMU Guest Agent
+      ansible.builtin.command:
+        argv: [qm, guest, cmd, '250', network-get-interfaces]
+      delegate_to: pve2
+      register: pnetlab_qga_network
+      changed_when: false
+      failed_when: "'192.168.1.250' not in pnetlab_qga_network.stdout"
+      when: pnetlab_install_completed | bool

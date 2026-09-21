@@ -1,0 +1,4 @@
+---
+# Bootstrap-only connection fallback for the standalone PVE node.
+# The encrypted value stays in group_vars/all/vault.yml.
+ansible_ssh_pass: "{{ vault_proxmox_password }}"

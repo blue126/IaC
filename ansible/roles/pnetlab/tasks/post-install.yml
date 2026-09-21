@@ -1,0 +1,96 @@
+---
+- name: Verify PNetLab pre-reboot services
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - "{{ item }}"
+  loop:
+    - apache2
+    - mysql
+    - docker
+    - qemu-guest-agent
+  changed_when: false
+
+- name: Verify PNetLab pre-reboot runtime files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /opt/unetlab
+    - /etc/network/interfaces
+    - /dev/kvm
+  register: pnetlab_runtime_files
+
+- name: Assert PNetLab pre-reboot runtime files
+  ansible.builtin.assert:
+    that:
+      - pnetlab_runtime_files.results | map(attribute='stat.exists') | select('equalto', true) | list | length == 3
+
+- name: Check PNetLab management bridge configuration
+  ansible.builtin.slurp:
+    src: /etc/network/interfaces
+  register: pnetlab_interfaces
+
+- name: Assert PNetLab DHCP management bridge is intact
+  ansible.builtin.assert:
+    that:
+      - pnetlab_interfaces.content | b64decode is search('allow-hotplug pnet0\\niface pnet0 inet manual')
+    fail_msg: >-
+      The installer did not produce the expected DHCP pnet0 bridge. Refusing
+      to replace appliance networking without reviewing the guest config.
+
+- name: Configure static PNetLab management bridge for the reboot
+  ansible.builtin.replace:
+    path: /etc/network/interfaces
+    regexp: >-
+      allow-hotplug pnet0\niface pnet0 inet manual\n    up dhcpcd -b pnet0\n    down dhcpcd -k pnet0 \|\| true\n    pre-up ip link set dev eth0 up\n    bridge_ports eth0\n    bridge_stp off
+    replace: |-
+      allow-hotplug pnet0
+      iface pnet0 inet static
+          address {{ pnetlab_ip }}
+          netmask 255.255.255.0
+          gateway 192.168.1.1
+          dns-nameservers 192.168.1.1
+          pre-up ip link set dev eth0 up
+          bridge_ports eth0
+          bridge_stp off
+    backup: true
+
+- name: Rotate the appliance root password when configured
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s:%s\n' root {{ pnetlab_root_password | quote }} | chpasswd
+    touch /etc/pnetlab/root-password-rotated
+  args:
+    creates: /etc/pnetlab/root-password-rotated
+    executable: /bin/bash
+  no_log: true
+  when: pnetlab_rotate_root_password | bool
+
+- name: Disable remote root and password SSH access
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/20-pnetlab-hardening.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # Managed by Ansible after PNetLab installation.
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+  notify: Reload SSH
+
+- name: Validate PNetLab SSH configuration
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+
+- name: Apply PNetLab SSH hardening
+  ansible.builtin.meta: flush_handlers
+
+- name: Mark PNetLab pre-reboot installation complete
+  ansible.builtin.file:
+    path: /etc/pnetlab/install-complete
+    state: touch
+    owner: root
+    group: root
+    mode: '0600'
