@@ -14,7 +14,7 @@ pipelineJob('Webhook-Router') {
     
     // Parameters (also defined in Jenkinsfile, but including here for UI visibility)
     parameters {
-        stringParam('MANUAL_PLATFORM', '', 'Manual platform override for testing (proxmox/esxi/physical)')
+        stringParam('MANUAL_PLATFORM', '', 'Manual platform override for testing (proxmox/physical; ESXi retired)')
         stringParam('MANUAL_OBJECT_ID', '', 'Manual NetBox object ID for testing')
         stringParam('MANUAL_OBJECT_NAME', '', 'Manual NetBox object name for testing')
     }

@@ -48,7 +48,7 @@
                                   │
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    基础设施层 (Infrastructure Layer)                  │
-│  Proxmox VE Cluster • VMware ESXi • Oracle Cloud Infrastructure      │
+│  Proxmox VE Cluster + 独立 pve2 • Oracle Cloud Infrastructure       │
 │  • Physical Servers  • Network  • Storage                            │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
@@ -103,7 +103,7 @@ module "netbox" {
 | **密码凭证** | Ansible Vault (`vault.yml`) | `scripts/get-secrets.sh` → Terraform |
 | **基础设施状态** | Terraform State (HCP Cloud) | Dynamic Inventory → Ansible |
 | **网络/IPAM** | Netbox | Terraform → Netbox (push), 未来计划 pull |
-| **备份配置** | Proxmox Backup Server | Ansible roles 配置 |
+| **备份业务策略** | PVE / PBS | 操作者管理；Ansible不下发作业和保留/GC/verify计划 |
 
 ### 4. 自动化验证 (Automated Verification)
 
@@ -140,9 +140,9 @@ module "netbox" {
         ┌──────────────────────┼──────────────────────┐
         │                      │                      │
 ┌───────┴────────┐   ┌─────────┴────────┐   ┌────────┴────────┐
-│   Proxmox VE   │   │   VMware ESXi    │   │  Oracle Cloud   │
+│   Proxmox VE   │   │ 独立 Proxmox VE │   │  Oracle Cloud   │
 │   Cluster      │   │   Host           │   │  Infrastructure │
-│   (pve0, ...)  │   │   (esxi-01)      │   │  (oci-01)       │
+│   (pve0/pve1)  │   │     (pve2)      │   │  (oci-01)       │
 └────────────────┘   └──────────────────┘   └─────────────────┘
       │
       ├── vmbr0: Management Network (192.168.1.0/24)
@@ -154,7 +154,8 @@ module "netbox" {
 | 平台 | 用途 | 管理工具 | Terraform Provider |
 |------|------|----------|-------------------|
 | **Proxmox VE** | 主要虚拟化平台，运行大部分服务 | Web UI (8006), CLI | `bpg/proxmox` 0.70.0 |
-| **VMware ESXi** | PBS 备份服务器 + llm-server 等实验室虚机（T7910，手动开机） | vSphere Client | `vmware/vsphere` |
+| **独立 Proxmox pve2** | T7910，PBS VM100；实验 VM 不在本次纳管范围 | Web UI (.52:8006), CLI | `bpg/proxmox` 0.70.0，独立 alias |
+| **VMware ESXi（已退役）** | 用户确认宿主退役，T7910 已改为 pve2；仅保留历史代码/state依据 | 无活动部署入口 | 历史 `vmware/vsphere` |
 | **Oracle Cloud** | 公有云实例（未来扩展） | OCI Console | `oracle/oci` |
 
 ### 虚拟机类型
@@ -166,7 +167,7 @@ Proxmox VE Cluster
 │   ├── rustdesk (VMID 102)      # 远程桌面
 │   ├── netbox (VMID 104)        # IPAM/DCIM
 │   ├── ubuntu-2604 (VMID 108)   # Ubuntu 26.04 基础 VM
-│   └── windows-server (VMID 112) # AD DS + Veeam VBR
+│   └── proxmox-datacenter-manager (VMID 117) # pve1 多节点管理
 │
 └── LXC Containers (Debian 12)
     ├── anki (VMID 100)          # Anki 同步服务器
@@ -193,7 +194,7 @@ Proxmox VE Cluster
 | `local` | directory | ISO、模板、片段 | 不备份 |
 | `vmdata` | LVM/ZFS | VM 磁盘 | PBS 每日备份 |
 | `local:vztmpl` | directory | LXC 模板 | 不备份 |
-| `pbs-storage` | Proxmox Backup Server | 备份存储 | 异地复制（未来） |
+| `pbs` | Proxmox Backup Server | pve0 → PBS datastore `backup` | 每日00:00，100–109；没有第二副本（D15） |
 
 ## 编排层架构 (Terraform)
 
@@ -205,7 +206,8 @@ terraform/
 │   ├── versions.tf              # Terraform + Provider 版本
 │   ├── provider.tf              # Proxmox provider 配置
 │   ├── variables.tf             # 输入变量定义
-│   ├── pve-cluster.tf           # 集群资源
+│   ├── pve-cluster.tf           # PVE宿主inventory（含独立pve2）
+│   ├── pbs.tf                   # pve2 VM100 + import声明 + PBS inventory
 │   ├── netbox.tf                # Netbox VM + Ansible 主机
 │   ├── immich.tf                # Immich VM + Ansible 主机
 │   ├── homepage.tf              # Homepage LXC + Ansible 主机
@@ -216,10 +218,9 @@ terraform/
 │   ├── caddy.tf                 # Caddy LXC + Ansible 主机
 │   └── provisioning.tf          # 共享资源（如 cloud-init 片段）
 │
-├── esxi/                         # ESXi 环境
+├── esxi/                         # 已退役；保留历史配置/state对账依据
 │   ├── versions.tf
 │   ├── provider.tf
-│   ├── pbs.tf                   # Proxmox Backup Server VM
 │   └── variables.tf
 │
 ├── oci/                          # Oracle Cloud 环境
@@ -361,7 +362,6 @@ ansible/inventory/
 │   ├── pve_vms.yml              # QEMU VM 通用配置
 │   ├── pve_lxc.yml              # LXC 通用配置
 │   ├── tailscale.yml            # Tailscale VPN 配置
-│   ├── esxi_hosts.yml           # ESXi 主机配置
 │   └── oci.yml                  # OCI 实例配置
 │
 └── host_vars/                    # 主机特定变量
@@ -373,24 +373,19 @@ ansible/inventory/
 ### 组层次结构
 
 ```yaml
-# groups.yml
+# Active groups; see inventory/groups.yml for the full hierarchy.
 all:
   children:
-    proxmox_cluster:             # Proxmox 物理节点
-    esxi_hosts:                  # ESXi 主机
-    oci:                         # Oracle Cloud 实例
-    
-    tailscale:                   # Tailscale VPN 网络
+    proxmox_cluster:             # Host configuration group, includes standalone pve2
+    oci:
+    tailscale:
       children:
         proxmox_cluster:
         pve_lxc:
         pve_vms:
-        esxi_vms:
         oci:
-    
-    pve_vms:                     # Proxmox QEMU 虚拟机
-    pve_lxc:                     # Proxmox LXC 容器
-    esxi_vms:                    # ESXi 虚拟机
+    pve_vms:
+    pve_lxc:
 ```
 
 ### Ansible Playbook 模式
@@ -477,7 +472,6 @@ ansible/roles/
 │   │   └── users.yml
 │   └── defaults/main.yml
 │
-├── pbs-client/                  # PBS 客户端（备份任务）
 │   ├── tasks/main.yml
 │   └── defaults/main.yml
 │
@@ -521,7 +515,8 @@ ansible/roles/
 | **Anki Sync** | LXC | 27701 | Anki 卡片同步 | ❌ Systemd | ✅ |
 | **Homepage** | LXC | 3000 | 服务 Dashboard | ✅ | ✅ |
 | **Caddy** | LXC | 80/443 | 反向代理 + SSL | ❌ Native | ✅ |
-| **PBS** | ESXi VM | 8007 | Proxmox 备份服务器 | ❌ Native | ❌ |
+| **PBS** | pve2 VM100 | 8007 | Proxmox 备份服务器；state/inventory已纳管，恢复后完整plan无变更 | ❌ Native | ❌ |
+| **Proxmox Datacenter Manager** | pve1 VM117 | 8443 | 多节点管理；192.168.1.117，2核/4GiB/local-lvm 40G | ❌ Native | ❌ |
 
 ### 服务依赖图
 
@@ -646,7 +641,7 @@ Tailscale Network (100.x.x.x/32)
 #### 数据流向
 
 ```
-Proxmox/ESXi 实际基础设施
+Proxmox 实际基础设施（ESXi 已退役）
          │
          │ Terraform 读取状态
          ▼
@@ -672,9 +667,9 @@ Site (homelab)
       │    │    │    └── 192.168.1.10/24 (IP)
       │    │    └── vmbr1 (interface)
       │    │         └── 192.168.1.11/24 (IP)
-      │    └── esxi-01
-      │         └── vmnic0
-      │              └── 192.168.1.20/24
+      │    └── pve1
+      │         └── vmbr1
+      │              └── 192.168.1.51/24
       │
       └── Virtual Machines
            ├── netbox (role: vm)
@@ -711,87 +706,75 @@ terraform/netbox-integration/
 > [备份架构整合规范](../specs/backup-architecture-consolidation-spec.md)（含关键决策记录）。
 > 本节只描述当前形态，细节与理由以该规范为准。
 
-#### 备份拓扑（阶段一，实施中）
+#### 备份拓扑（2026-09-21 配置快照）
 
-备份职责分散在两台宿主机上：**pve1 常开、承载文件与 ESXi 虚机备份**；**T7910 手动开机、承载 PBS**。
+pve1承载Fileserver；原T7910 ESXi已退役，现为独立pve2并承载PBS。旧ESXi备份路径不再列为活动来源。业务计划在PVE/PBS管理，本次不更改。
 
 ```
 ┌──── M920Q / pve1（常开，PVE，10GbE）────────────────────────┐
-│  VM 112  Windows Server 2022                                │
-│   ├─ AD DS（长期驻留）                                       │
-│   └─ Veeam VBR CE → tank/vm-112-disk-1（2T zvol / ReFS）     │
+│  VM 117 Proxmox Datacenter Manager（保留）                  │
+│  原 Windows Server VM112 已于2026-09-21退役                 │
 │  LXC 111 TurnKey Fileserver  192.168.1.111                  │
-│   └─ Samba + vfs_fruit → tank/timemachine                   │
-│  存储：mainpool 928G（虚机）/ tank 5.45T（备份数据，mirror）  │
+│   └─ mp0: nvme-lvm:vm-111-disk-0 → /srv/timemachine        │
+│      900G / ext4；VG nvme-vg / thin pool data              │
+│      rootfs: local-lvm:vm-111-disk-0（8G）                  │
 └─────────────────────────────────────────────────────────────┘
-      ▲ SMB              ▲ SMB (Agent)      ▲ vSphere API (NBD)
-   MacBook           Windows 物理机       ESXi 虚机
+      ▲ SMB              ▲ SMB (Agent)
+   MacBook           Windows 物理机
+   （旧 ESXi 备份来源已退役，历史恢复点不在本次清理范围）
 
-┌──── T7910（手动开机，ESXi 8.0.3）───────────────────────────┐
-│  PBS 虚机 192.168.1.249:8007（直通 SAS3008 + 2×NVMe）        │
-│   └─ backup-pool 7.5T → datastore「backup-storage」          │
+┌──── pve2（原 T7910，Proxmox VE，独立节点，非集群成员）───────┐
+│  vmbr0 192.168.1.52                                         │
+│  VM 100 proxmox-backup-server  192.168.1.249:8007            │
+│   └─ 两块 HITACHI 8TB SAS 直通给客机                          │
+│      └─ 客机内 ZFS 池 tank（mirror，无 special vdev）        │
+│         └─ datastore「backup」→ /mnt/datastore/tank          │
+│  VM 101/102/103 网络实验虚机（手工管理，不在 IaC 内）        │
+│  存储：mainpool 899G / local / local-lvm                     │
 │        ▲                                                     │
 └────────┼─────────────────────────────────────────────────────┘
-         │ PBS Client（每日 02:00，snapshot + zstd）
-   pve0 实测活动备份目标（2026-09-11）：100–107；新增 108 待同步
+         │ PBS Client（每日 00:00，snapshot + zstd）
+   pve0 实测活动备份目标（2026-09-21）：100–109
 ```
 
-> 旧109/110的2026-08-12退役记录保持不变。2026-09-11原Veeam worker108和
-> 手工PNET4.2.4 110已退役；新Ubuntu108已验收。生产备份目标仍为100–107，
-> 新增108的备份同步与恢复点验证尚未完成；本次未删除任何既有备份。
+> pve2 的 VMID 空间独立于集群：它的 VM 100 是 PBS，与 pve0 的 LXC 100
+> `anki-sync-server` 无关。2026-08-07 的 pve2 退役记录是历史事件，
+> 不能作为当前 T7910/pve2 的在线状态或集群成员证据。
 
-**pve1 不加入 PBS 备份作业** —— 它是 ESXi 虚机备份的落点，若再被 T7910 的 PBS 备份会形成循环备份。
+此次读取的备份作业只覆盖 pve0 的100–109；不据此推断 pve1 是否另有任务。ESXi 已退役，不再用旧循环备份理由替代当前业务决策；pve1 的备份范围由操作者决定。
 
 #### 备份职责划分
 
 | 备份对象 | 机制 | 落点 | 频率 |
 |---|---|---|---|
-| pve0 的 VM/LXC | PBS 原生 | T7910 `backup-storage` | 每日 02:00，但**受限于手动开机** |
-| Mac | Time Machine over SMB | pve1 `tank/timemachine` | 每小时 |
+| pve0 的 VM/LXC | PBS 原生 | pve2 datastore `backup` | 每日 00:00 |
+| Mac | Time Machine over SMB | pve1 LXC111 的 `nvme-lvm:vm-111-disk-0`（900G） | 按客户端计划 |
 | Windows 物理机 | Veeam Agent 免费版 → SMB | pve1 | 按 Agent 计划 |
-| ESXi 虚机 | Veeam VBR CE（NBD） | pve1 zvol / ReFS | 每周 |
-| Linux 主机 | `proxmox-backup-client` | T7910 `backup-storage` | 受限于手动开机 |
+| ESXi 虚机（已退役） | 历史 Veeam VBR CE（NBD） | 历史恢复点保留，不在本次清理范围 | 不再列为活动备份来源 |
+| Linux 主机 | `proxmox-backup-client` | pve2 datastore `backup` | 按主机计划 |
 
-保留策略：daily 7 / weekly 4 / monthly 6。
+保留策略：last 3 / daily 7 / weekly 4 / monthly 3。
 
-`pbs_backup_vmids` 需在新增 guest 时手工同步 —— VMID 107/109/110 曾因漏加而长期未备份，直到 2026-08-05 事故才暴露；这是必须保留的历史事实。109/110 于 2026-08-12 获准连同 PBS 恢复点永久退役；原 Veeam worker 108 与手工 PNET4.2.4 110 已于2026-09-11退役，新 `ubuntu-2604` 108已验收；生产备份目标仍为100–107，源码中的108条目尚未部署到作业。`9000` 模板继续排除；当前 `mcp-gateway`（109）也不在现有备份白名单中，本变更不调整其策略。
+> ⚠️ `verify-all` 仍指向旧 datastore `backup-storage`，schedule 为空，
+> `ignore-verified=0`。需单独修正引用并决定周期计划；本次没有任务历史证据，
+> 不能断言没有手动校验，也不把备份作业配置存在当成成功备份。
+
+2026-09-21 现场作业成员为 **100–109**，模板9000未入列；109现为 `mcp-gateway`，不是2026-08-12退役的 `claude-agent`。过去曾因漏加VMID而没有备份的事故记录仍保留；今后由操作者在PVE/PBS维护备份范围，不再维护Ansible白名单。
 
 #### 遗留限制与下一阶段
 
-- **pve0 的备份仍依赖 T7910 手动开机**，每日计划实际无法闭环。WOL 只是过渡手段。
-- **阶段一没有第二份副本**，3-2-1 依赖 PBS 迁移后建立。
-- 阶段二：若 pve1 实测尚有 3–4GB 内存余量，PBS 迁到 pve1（LXC + bind mount），T7910 的 PBS 降级为 sync 目标。**迁移前必须重新实测容量** —— 事故恢复后 datastore 已从 81G 增至约 373.7 GiB，原 130G 基线作废。
+- **没有第二份副本**，3-2-1 未建立。这已由
+  [D15](../specs/backup-architecture-consolidation-spec.md) 转为**永久性设计选择**，不再是待办。
+- **校验配置有残留**：`verify-all` 的 store 为旧名，且没有 schedule；运行历史、GC计划和恢复证据待核实。PBS端prune/verify目前不由role纳管。
+- **PBS 的 ZFS 池重新住回客机内**（[D18](../specs/backup-architecture-consolidation-spec.md)），宿主机 pve2 看不到这两块盘的 SMART 与池健康，统一存储监控需为其单列路径。
 
-#### PBS 集成方式
+#### PBS 管理边界
 
-`pbs-client` role 拆成三步：`pbs-token.yml` 建 API token、`storage.yml` 挂存储后端、`backup-jobs.yml` 配作业。认证走 **API token**（`backup@pbs!automation`），不用密码。
+2026-09-21 用户决定：备份作业、VMID选择、时间、保留策略以及 GC/verify 等计划属于业务配置，由 PVE/PBS 管理，不再由 Ansible 下发。`setup-pbs-backup.yml` 及其唯一使用的 `pbs-client` role 已退役，相关变量和配置入口已删除；不在别的 role 重建同一套自动化。
 
-```yaml
-# ansible/roles/pbs-client/tasks/storage.yml
-- name: Check if PBS storage backend already exists
-  ansible.builtin.command:
-    cmd: pvesm status --storage {{ pbs_storage_name }}
-  register: pbs_storage_check
-  failed_when: false
-  changed_when: false
+保留的 `pbs` role 负责服务配置、已有 ZFS 存储检查和 datastore 基础配置；`deploy-pbs.yml` 的 verify 仅核对服务/API/存储健康，不管理业务任务。现场 PVE 存储 `pbs` 使用 `root@pam`，本次不改变认证。
 
-- name: Add PBS storage backend to Proxmox
-  ansible.builtin.command:
-    cmd: >-
-      pvesm add pbs {{ pbs_storage_name }}
-      --server {{ pbs_host }} --port {{ pbs_port }}
-      --datastore {{ pbs_datastore }}
-      --username {{ pbs_backup_user }}!{{ pbs_api_token_name }}
-      --password {{ pbs_api_token_value }}
-      --fingerprint {{ pbs_fingerprint }}
-      --content backup
-  when: pbs_storage_check.rc != 0
-  no_log: true
-```
-
-只需在集群中**一个**节点上执行 —— `/etc/pve/storage.cfg` 由 pmxcfs 自动同步。
-
-> PBS 存储参数（server / port / datastore / password）创建后**不可修改**，要改必须先 `pvesm remove` 再重跑。
+前文的任务时间、成员及保留值只是此次现场快照，不是 Ansible 期望状态。后续由操作者在 PVE/PBS 调整，并按需记录关键决策；文档记录不等于生产执行成功。
 
 ## 密码管理架构
 
@@ -916,7 +899,7 @@ ss -tlnp | grep <port>                # 端口监听
 | **IaC 编排** | Terraform | 1.14+ | 基础设施即代码 |
 | **配置管理** | Ansible | 2.16+ | 自动化配置 |
 | **虚拟化** | Proxmox VE | 8.x | 主要虚拟化平台 |
-| **虚拟化** | VMware ESXi | 8.0.3 | 备份服务器 + 实验室虚机 |
+| **历史虚拟化（已退役）** | VMware ESXi | 8.0.3 | T7910 已改为独立 pve2 |
 | **容器化** | Docker + Compose | 27.x | 应用容器化 |
 | **VPN** | Tailscale | latest | 安全远程访问 |
 | **反向代理** | Caddy | 2.x | HTTPS + 自动 SSL |
@@ -969,7 +952,7 @@ collections:
 | 层次 | 认证方式 | 授权机制 |
 |------|----------|----------|
 | **Proxmox VE** | API Token (root@pam!terraform) | Role-based ACL |
-| **ESXi** | Username/Password | vSphere Roles |
+| **ESXi（历史／已退役）** | 历史 Username/Password | 本次未修改旧凭据 |
 | **Ansible** | SSH Key | sudo / become |
 | **Tailscale** | Auth Key | ACL Tags |
 | **Netbox** | API Token | Object Permissions |

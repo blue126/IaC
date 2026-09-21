@@ -70,7 +70,7 @@ main.tf → pvecluster.tf → infrastructure.tf → vm.tf & containers.tf → se
 - `netbox_site`: 地理或逻辑站点归属。
 - `netbox_cluster_type`: 集群类型（此处为 Proxmox）。
 - `netbox_cluster`: 虚拟化集群抽象，设备/VM 可挂靠其上。
-- `netbox_device`: 物理服务器节点 (pve0/pve1)。
+- `netbox_device`: 物理服务器节点 pve0/pve1，以及独立 pve2（不挂原集群）。pve2 的 `.52` 位于 vmbr0，不套用下文 vmbr1 约定；本次只准备设备/网桥/IP源码，未写入NetBox。PBS的VM/IP/service完整建模与现有对象对账尚未完成。
 - `netbox_device_interface`: 物理设备的网络接口（含 Linux bridge 抽象 vmbrX）。
 - `netbox_virtual_machine`: 虚拟计算单元（QEMU VM 与 LXC 容器在建模上统一处理）。
 - `netbox_interface`: 虚拟机网络接口（eth0）。
@@ -105,7 +105,7 @@ main.tf → pvecluster.tf → infrastructure.tf → vm.tf & containers.tf → se
 所有虚拟计算节点通过同一二层广播域 `vmbr1` 获得独立 IP（192.168.1.100/101/102/104）。目前仅在设备接口侧（dcim.interface）记录桥接拓扑；虚拟机接口的 cable 建模因 provider 限制暂不启用。
 
 ## 七、与 Ansible 的对应关系
-- Ansible 中的宿主组：`proxmox_cluster`（包含 pve0/pve1） ↔ 本目录 `infrastructure.tf` 物理节点。
+- Ansible 中的宿主组：`proxmox_cluster`（源码包含 pve0/pve1/pve2） ↔ 本目录 `infrastructure.tf` 物理节点。该组承载主机配置，不表示 corosync 成员关系；pve2 独立，新 inventory 尚未写入远端 state。
 - 部署的服务（Samba, Immich, Netbox, Anki）↔ `services.tf` 的端口/协议建模。
 - 验证命令（Ansible `--tags verify` 输出）可与 NetBox 中服务端口对比，检验运行状态与配置一致性。
 

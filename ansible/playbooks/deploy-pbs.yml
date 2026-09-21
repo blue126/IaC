@@ -14,6 +14,11 @@
   become: true
   tags: [verify]
   tasks:
+    - name: Load verification fallbacks without overriding inventory
+      ansible.builtin.include_vars:
+        file: ../roles/pbs/defaults/main.yml
+        name: pbs_verify_defaults
+
     - name: Wait for PBS web interface
       wait_for:
         port: 8007
@@ -37,22 +42,31 @@
         fail_msg: "PBS service is not running"
 
     - name: Check ZFS pool health
-      command: zpool status backup-pool
+      command: "zpool list -H -o health {{ pbs_zfs_pool_name | default(pbs_verify_defaults.pbs_zfs_pool_name) }}"
       register: zpool_status
       changed_when: false
 
     - name: Assert ZFS pool is ONLINE
       assert:
         that:
-          - "'ONLINE' in zpool_status.stdout"
-          - "'DEGRADED' not in zpool_status.stdout"
-          - "'FAULTED' not in zpool_status.stdout"
+          - zpool_status.stdout | trim == 'ONLINE'
         fail_msg: "ZFS pool is not healthy"
 
     - name: Check PBS datastore status
-      command: proxmox-backup-manager datastore list
+      command: proxmox-backup-manager datastore list --output-format json
       register: ds_list
       changed_when: false
+
+    - name: Verify the configured datastore and path
+      ansible.builtin.assert:
+        that:
+          - pbs_matching_datastores | length == 1
+          - pbs_matching_datastores[0].path == (pbs_zfs_mount_point | default(pbs_verify_defaults.pbs_zfs_mount_point))
+      vars:
+        pbs_matching_datastores: >-
+          {{ ds_list.stdout | from_json
+             | selectattr('name', 'equalto', pbs_datastore_name | default(pbs_verify_defaults.pbs_datastore_name))
+             | list }}
 
     - name: Show deployment summary
       debug:

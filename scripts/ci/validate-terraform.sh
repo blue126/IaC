@@ -18,7 +18,7 @@ fi
 selected_roots=()
 for root in "$@"; do
   case "${root}" in
-    terraform/proxmox | terraform/esxi | terraform/oci | terraform/netbox-integration)
+    terraform/proxmox | terraform/oci | terraform/netbox-integration)
       selected_roots+=("${root}")
       ;;
     *)

@@ -20,3 +20,15 @@ provider "proxmox" {
     agent = true
   }
 }
+
+# Standalone node -- not reachable through the cluster endpoint above.
+provider "proxmox" {
+  alias     = "pve2"
+  endpoint  = var.pm_api_url_pve2
+  api_token = "${var.pm_api_token_id_pve2}=${var.pm_api_token_secret_pve2}"
+  insecure  = true
+
+  ssh {
+    agent = true
+  }
+}

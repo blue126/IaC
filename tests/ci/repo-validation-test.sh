@@ -76,7 +76,16 @@ base_sha="${head_sha}"
 commit_fixture "terraform/modules/proxmox-vm/main.tf" "variable \"name\" {}"
 head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
 output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
-assert_output "${output}" "terraform_roots=terraform/proxmox,terraform/esxi,terraform/oci,terraform/netbox-integration"
+assert_output "${output}" "terraform_roots=terraform/proxmox,terraform/oci,terraform/netbox-integration"
+
+for retired_path in terraform/esxi/main.tf terraform/modules/esxi-vm/main.tf; do
+  base_sha="${head_sha}"
+  commit_fixture "${retired_path}" "# retained historical configuration"
+  head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
+  output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
+  assert_output "${output}" "terraform_applicable=false"
+  assert_output "${output}" "terraform_roots="
+done
 
 base_sha="${head_sha}"
 commit_fixture "ansible/playbooks/example.yml" "---"
@@ -179,6 +188,9 @@ EOF
 chmod +x "${MOCK_BIN}/classifier"
 
 export MOCK_LOG
+if TERRAFORM_BIN="${MOCK_BIN}/terraform" "${TERRAFORM_VALIDATOR}" terraform/esxi >/dev/null 2>&1; then
+  fail "retired ESXi must be rejected by the Terraform validator"
+fi
 TERRAFORM_BIN="${MOCK_BIN}/terraform" \
   "${TERRAFORM_VALIDATOR}" terraform/oci terraform/proxmox >/dev/null
 grep -Fq "terraform -chdir=${REPOSITORY_ROOT} fmt -check -recursive terraform/modules" "${MOCK_LOG}" || \
@@ -369,5 +381,12 @@ assert_file_contains "${jenkinsfile}" "stage('Approval - Ansible Deploy')"
 assert_file_contains "${jenkinsfile}" "Proceed with Ansible deployment?"
 input_count="$(grep -c 'input message:' "${jenkinsfile}")"
 [[ "${input_count}" -eq 2 ]] || fail "Jenkinsfile must retain exactly two deployment input gates"
+
+if grep -Eq 'NEEDS_TF_ESXI|workspaces.add\('\''esxi'\''\)' "${jenkinsfile}"; then
+  fail "retired ESXi must not be initialized or refreshed by Jenkins"
+fi
+if grep -Fq "build job: 'ESXi-Provisioning'" "${REPOSITORY_ROOT}/Jenkinsfile-webhook-router"; then
+  fail "retired ESXi must not route to provisioning"
+fi
 
 echo "PASS: repository validation fixtures"

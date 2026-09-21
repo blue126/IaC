@@ -25,7 +25,6 @@ if ! git cat-file -e "${head_sha}^{commit}" 2>/dev/null; then
 fi
 
 terraform_proxmox=false
-terraform_esxi=false
 terraform_oci=false
 terraform_netbox=false
 ansible_applicable=false
@@ -48,17 +47,16 @@ while IFS= read -r -d '' changed_file; do
   changed_files_count=$((changed_files_count + 1))
 
   case "${changed_file}" in
+    terraform/esxi/* | terraform/modules/esxi-vm/*)
+      # Retired; do not initialize providers or select an execution root.
+      ;;
     terraform/modules/*)
       terraform_proxmox=true
-      terraform_esxi=true
       terraform_oci=true
       terraform_netbox=true
       ;;
     terraform/proxmox/*)
       terraform_proxmox=true
-      ;;
-    terraform/esxi/*)
-      terraform_esxi=true
       ;;
     terraform/oci/*)
       terraform_oci=true
@@ -120,7 +118,6 @@ done <"${changed_files_path}"
 
 terraform_roots=()
 [[ "${terraform_proxmox}" == true ]] && terraform_roots+=("terraform/proxmox")
-[[ "${terraform_esxi}" == true ]] && terraform_roots+=("terraform/esxi")
 [[ "${terraform_oci}" == true ]] && terraform_roots+=("terraform/oci")
 [[ "${terraform_netbox}" == true ]] && terraform_roots+=("terraform/netbox-integration")
 

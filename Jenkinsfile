@@ -31,7 +31,10 @@ pipeline {
 
                     echo "Changed files:\n${changes}"
 
-                    def changedFiles = changes.split('\n').findAll { it.trim() }
+                    // Retired ESXi code is retained for history/state inspection only.
+                    def changedFiles = changes.split('\n').findAll {
+                        it.trim() && !it.startsWith('terraform/esxi/') && !it.startsWith('terraform/modules/esxi-vm/')
+                    }
 
                     // Deletions must stay in changedFiles: a commit that only
                     // removes terraform/<env>/<service>.tf is exactly the commit
@@ -68,10 +71,7 @@ pipeline {
                     env.NEEDS_TF_PROXMOX = changedFiles.any {
                         it.startsWith('terraform/proxmox/') || it.startsWith('terraform/modules/')
                     }.toString()
-                    env.NEEDS_TF_ESXI = changedFiles.any {
-                        it.startsWith('terraform/esxi/') || it.startsWith('terraform/modules/')
-                    }.toString()
-                    env.NEEDS_TF = (env.NEEDS_TF_PROXMOX == 'true' || env.NEEDS_TF_ESXI == 'true').toString()
+                    env.NEEDS_TF = env.NEEDS_TF_PROXMOX
                     env.NEEDS_ANSIBLE_LINT = changedFiles.any { it.startsWith('ansible/') }.toString()
 
                     // Broad-impact paths: only syntax-check, no auto-deploy
@@ -99,7 +99,7 @@ pipeline {
                         def matched = false
 
                         // 1. Terraform service file: <service>.tf -> deploy-<service>.yml
-                        def tfMatcher = (file =~ /^terraform\/(?:proxmox|esxi)\/([^\/]+)\.tf$/)
+                        def tfMatcher = (file =~ /^terraform\/proxmox\/([^\/]+)\.tf$/)
                         def tfServiceName = tfMatcher ? tfMatcher[0][1] : null
                         tfMatcher = null  // Discard Matcher before CPS checkpoint
                         if (tfServiceName) {
@@ -202,17 +202,13 @@ pipeline {
                 }
                 // Initialize Terraform providers
                 // - For TF changes: only init the affected directory
-                // - For Ansible deploy: both needed (dynamic inventory depends on terraform show)
+                // - For Ansible deploy: initialize the active Proxmox inventory only
                 script {
                     def initProxmox = (env.NEEDS_TF_PROXMOX == 'true' || env.ANSIBLE_PLAYBOOKS?.trim())
-                    def initEsxi = (env.NEEDS_TF_ESXI == 'true' || env.ANSIBLE_PLAYBOOKS?.trim())
                     if (initProxmox) {
                         dir('terraform/proxmox') { sh 'terraform init -input=false' }
                     }
-                    if (initEsxi) {
-                        dir('terraform/esxi') { sh 'terraform init -input=false' }
-                    }
-                    if (!initProxmox && !initEsxi) {
+                    if (!initProxmox) {
                         echo 'Skipping Terraform init: no TF changes and no playbooks to deploy.'
                     }
                 }
@@ -318,9 +314,6 @@ pipeline {
                     def workspaces = []
                     if (env.NEEDS_TF_PROXMOX == 'true' || env.ANSIBLE_PLAYBOOKS?.trim()) {
                         workspaces.add('proxmox')
-                    }
-                    if (env.NEEDS_TF_ESXI == 'true') {
-                        workspaces.add('esxi')
                     }
                     if (workspaces) {
                         sh "./scripts/refresh-terraform-state.sh ${workspaces.join(' ')}"

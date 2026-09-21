@@ -108,3 +108,32 @@ resource "netbox_ip_address" "pve1_ip" {
   interface_id = netbox_device_interface.pve1_vmbr0.id
   object_type  = "dcim.interface"
 }
+
+# pve2 (the former T7910, rebuilt as a Proxmox host on 2026-09-21).
+#
+# Deliberately has no cluster_id: it is a standalone node, not a member of
+# HomeLab Cluster. The observed vmbr0 carries the host IP .52 and the guests,
+# which differs from pve0/pve1 where vmbr0 is
+# management (.20/.21) and vmbr1 carries guests (.50/.51).
+resource "netbox_device" "pve2" {
+  name           = "pve2"
+  device_type_id = netbox_device_type.server.id
+  role_id        = netbox_device_role.server.id
+  site_id        = netbox_site.homelab.id
+  status         = "active"
+}
+
+resource "netbox_device_interface" "pve2_vmbr0" {
+  name        = "vmbr0"
+  device_id   = netbox_device.pve2.id
+  type        = "virtual"
+  description = "Management and VM bridge on standalone pve2"
+}
+
+resource "netbox_ip_address" "pve2_ip" {
+  ip_address   = "192.168.1.52/24"
+  status       = "active"
+  interface_id = netbox_device_interface.pve2_vmbr0.id
+  object_type  = "dcim.interface"
+  description  = "Bridge vmbr0 management IP"
+}

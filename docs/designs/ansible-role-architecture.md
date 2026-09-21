@@ -34,7 +34,6 @@ ansible/
 │   ├── anki/            # 应用服务
 │   ├── rustdesk/        # 应用服务
 │   ├── pbs/             # 应用服务（含 ZFS 存储配置）
-│   └── pbs-client/      # 工具 —— 配置 Proxmox 节点连接 PBS
 └── inventory/           # 数据层：主机定义、变量赋值、vault 密钥
 ```
 
@@ -75,7 +74,6 @@ ansible/
 | Role | 职责 | 触发方式 |
 |------|------|----------|
 | `netbox-sync` | 将 Ansible facts 同步到 Netbox | `sync-netbox.yml`（按需运行） |
-| `pbs-client` | 配置 Proxmox 节点连接 PBS | `setup-pbs-backup.yml`（一次性配置） |
 
 ---
 
@@ -116,7 +114,6 @@ roles/<role_name>/
 | anki | ✅ | ✅ | ✅ | ✅ (1) | |
 | rustdesk | ✅ | ✅ | — | ✅ (1) | |
 | pbs | ✅ | ✅ | — | — | tasks 含 ZFS 配置（zfs-verify/zfs-pool/zfs-datastore） |
-| pbs-client | ✅ | ✅ | — | — | tasks 拆分为 storage/backup-jobs/pbs-token |
 
 ---
 
@@ -252,16 +249,16 @@ role defaults (优先级 2)          → 可覆盖的默认值
 | `pbs_backup_user_email` | `"fanweiblue@gmail.com"` | 备份用户邮箱 |
 | `pbs_root_password` | vault 间接引用 | root 密码 |
 | `pbs_backup_user_password` | vault 间接引用 | 备份用户密码 |
-| `pbs_zfs_pool_name` | `"backup-pool"` | ZFS 池名称 |
-| `pbs_zfs_mount_point` | `"/mnt/backup-pool"` | ZFS 挂载点 |
-| `pbs_zfs_hdd_devices` | `[]` | HDD 设备列表 |
+| `pbs_zfs_pool_name` | `"tank"` | ZFS 池名称（客机内） |
+| `pbs_zfs_mount_point` | `"/mnt/datastore/tank"` | 池挂载点，同时即 datastore 路径 |
+| `pbs_datastore_name` | `"backup"` | PBS datastore 名称 |
+| `pbs_zfs_hdd_devices` | 两个 `/dev/disk/by-id/wwn-*` 路径 | 已有 HITACHI 8TB 镜像盘；见 defaults |
 | `pbs_zfs_nvme_devices` | `[]` | NVMe 设备列表（special vdev） |
-| `pbs_zfs_compression` | `"zstd"` | 压缩算法 |
+| `pbs_zfs_compression` | `"on"` | 已有池的实测配置 |
+| `pbs_zfs_atime` | `"on"` | 已有池属性；挂载选项含 relatime |
 | *(另有 10+ ZFS 配置变量)* | | 详见 `roles/pbs/defaults/main.yml` |
 
-**pbs-client**（20 个变量，详见 `roles/pbs-client/defaults/main.yml`）
-
-主要包括：PBS 连接信息、Proxmox API 凭据、备份调度、保留策略、VM ID 列表等。
+**备份业务策略不属于 Ansible**：`pbs-client` 与 `setup-pbs-backup.yml` 已于2026-09-21退役。PVE/PBS负责作业、VMID范围、保留和GC/verify计划；`pbs`仅保留服务与存储基础配置，不下发这些计划。
 
 #### 工具 Role
 
@@ -300,11 +297,7 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
     ┌─────┐
     │ pbs │    （deploy-pbs.yml，含 ZFS 存储配置）
     └─────┘
-        │
-        ▼ （需要 PBS 先部署完成）
-  ┌────────────┐
-  │ pbs-client │  （setup-pbs-backup.yml）
-  └────────────┘
+    备份业务作业由 PVE/PBS 管理，不经过 Ansible role。
 
     独立 Role（无依赖）:
     ┌───────┐  ┌──────────────────┐  ┌──────────────┐
@@ -360,7 +353,6 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 | `deploy-n8n.yml` | n8n | n8n | npm 全局安装 |
 | `install-tailscale.yml` | tailscale | tailscale | 脚本安装 |
 | `deploy-cloudflared.yml` | jenkins | common → tailscale → cloudflared | 系统包 + 可选本机 Tunnel 配置 |
-| `setup-pbs-backup.yml` | pbs, pve0 | pbs-client | API 配置 |
 | `sync-netbox.yml` | pve_lxc:pve_vms:proxmox_cluster | netbox-sync | API 同步 |
 
 ---
@@ -387,13 +379,14 @@ Internet
     ▼               ▼               ▼
  Proxmox        RustDesk         OCI VM
  Cluster        :21116          (Sydney)
- pve0/1/2
+ pve0/1 (+ standalone pve2)
 
                 PBS (192.168.1.249:8007)
+                 —— pve2 上的 VM 100
                     ▲
                     │ (proxmox-backup-client)
                  pve0 备份任务
-                 VMID: 100-106
+                 VMID: 100-109
 ```
 
 ---
@@ -418,4 +411,4 @@ Internet
 - [Ansible Vault Architecture Design](./ansible-vault-architecture.md) — 密钥管理架构
 - [Ansible Role 重构历程](../learningnotes/2026-01-31-ansible-role-refactoring.md) — 重构过程记录
 - [Ansible Patterns and Best Practices](../guides/ansible-patterns-and-best-practices.md) — 最佳实践指南
-- [PBS ESXi Deployment Guide](../deployment/pbs-esxi-deployment.md) — PBS 部署指南
+- [PBS ESXi Deployment Guide](../deployment/pbs-esxi-deployment.md) — 已退役的ESXi/PBS历史部署指南

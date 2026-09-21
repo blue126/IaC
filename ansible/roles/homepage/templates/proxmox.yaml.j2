@@ -11,8 +11,10 @@ pve1:
   secret: {{ proxmox_api_password | default('') }}
   insecure: true
 
+{% if homepage_pve2_api_token_id | default('') and homepage_pve2_api_token_secret | default('') %}
 pve2:
   url: https://192.168.1.52:8006
-  token: {{ proxmox_api_user | default('') }}
-  secret: {{ proxmox_api_password | default('') }}
+  token: {{ homepage_pve2_api_token_id | to_json }}
+  secret: {{ homepage_pve2_api_token_secret | to_json }}
   insecure: true
+{% endif %}

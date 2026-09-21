@@ -94,7 +94,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
     datastore_id = var.storage_pool
     size         = local.disk_size_gb
     interface    = "scsi0"
-    discard      = "on"
+    discard      = var.disk_discard
     file_format  = "raw"
   }
 
@@ -135,6 +135,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
       # hidden drift. Safe to ignore — clone source is irrelevant after
       # the VM exists.
       clone,
+
+      # Existing EFI key enrollment is create-time state; do not replace a VM
+      # merely to match the default used when creating a new EFI disk.
+      efi_disk[0].pre_enrolled_keys,
 
       # Cloud-init SSH keys are create-time credentials. Changing this list
       # forces VM replacement; Ansible manages keys after provisioning.

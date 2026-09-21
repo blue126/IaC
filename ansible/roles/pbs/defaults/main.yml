@@ -10,40 +10,40 @@ pbs_root_password: "{{ vault_pbs_root_password }}"  # vault indirect reference
 pbs_backup_user_password: "{{ vault_pbs_backup_user_password }}"  # vault indirect reference
 
 # ZFS Pool Configuration
-pbs_zfs_pool_name: "backup-pool"
-pbs_zfs_mount_point: "/mnt/backup-pool"
+# The pool root *is* the datastore directory -- there is no child dataset.
+# PBS lays a pool-backed datastore out as /mnt/datastore/<pool>, and the
+# 2026-09-21 rebuild on pve2 adopted that layout instead of the old
+# backup-pool/datastore child dataset.
+pbs_zfs_pool_name: "tank"
+pbs_zfs_mount_point: "/mnt/datastore/tank"
 
-# HDD Devices (via LSI 3008 HBA passthrough)
+# HDD Devices (passed through to the PBS guest by its Proxmox host)
 # Anchored by WWN: kernel names (sdX) shift whenever disks are added or removed.
-# Two WD Red Plus 6TB SATA disks now share this HBA and took over sdb/sdc, which
-# pushed the pool members out to sdd/sde -- the old /dev/sdb,/dev/sdc defaults
-# pointed at the wrong disks.
+# The observed sdb/sdc disks retain the same WWNs as the earlier configuration.
 #   wwn-0x5000cca2610d9c1c  HITACHI HUH72808CLAR8000  8TB SAS  serial VJG7H10X
 #   wwn-0x5000cca261372330  HITACHI HUH72808CLAR8000  8TB SAS  serial VJGZA11X
 pbs_zfs_hdd_devices:
   - /dev/disk/by-id/wwn-0x5000cca2610d9c1c
   - /dev/disk/by-id/wwn-0x5000cca261372330
 
-# NVMe Devices for special vdev (Samsung SM963)
-# Requires ESXi .vmx resetMethod = "d3d0" to avoid FLR crash
-# Anchored by serial for the same reason: nvme0/nvme1 enumeration order is not
-# guaranteed (the live pool already has nvme1n1 ordered ahead of nvme0n1).
-pbs_zfs_nvme_devices:
-  - /dev/disk/by-id/nvme-SAMSUNG_MZVPW256HEGL-000H1_S34ENY0J112117
-  - /dev/disk/by-id/nvme-SAMSUNG_MZVPW256HEGL-000H1_S34ENY0J231801
+# No NVMe belongs to the current pool. Two NVMe devices remain PCI-passthrough
+# devices of the VM; this list does not describe all hardware in the guest.
+# Reserved for a future special vdev; changing these values does not create or extend a pool.
+pbs_zfs_nvme_devices: []
 
 # ZFS Pool Mode
 # false = HDD mirror only
 # true  = HDD mirror + NVMe special vdev (requires pbs_zfs_nvme_devices)
-pbs_zfs_use_special_vdev: true
+pbs_zfs_use_special_vdev: false
 
 # ZFS Parameters
 pbs_zfs_ashift: 12
-pbs_zfs_compression: "zstd"
-pbs_zfs_atime: "off"
+pbs_zfs_compression: "on"
+pbs_zfs_atime: "on"
 pbs_zfs_recordsize: "128K"
 pbs_zfs_special_small_blocks: "128K"
 
 # PBS Datastore
-pbs_datastore_name: "backup-storage"
-pbs_gc_schedule: "daily"
+pbs_datastore_name: "backup"
+# Backup jobs, retention, GC and verification schedules are managed in PVE/PBS,
+# not by Ansible. This role only configures the service and existing storage.

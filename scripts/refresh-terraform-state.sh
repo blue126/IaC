@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ALL_WORKSPACES=(esxi proxmox oci)
+ALL_WORKSPACES=(proxmox oci)
 STATE_FILE="terraform.tfstate"
 
 if ! command -v terraform &> /dev/null; then
@@ -27,6 +27,10 @@ echo "Project root: $PROJECT_ROOT"
 echo "Workspaces to refresh: ${WORKSPACES[*]}"
 
 for ws in "${WORKSPACES[@]}"; do
+    if [[ "$ws" == "esxi" ]]; then
+        printf 'Error: ESXi is retired; its archived state must not feed active inventory.\n' >&2
+        exit 1
+    fi
     dir="${PROJECT_ROOT}/terraform/${ws}"
     if [ ! -d "$dir" ]; then
         echo "⚠ Skipping ${ws}: directory not found"

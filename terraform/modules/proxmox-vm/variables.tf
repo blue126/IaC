@@ -50,6 +50,17 @@ variable "disk_size" {
   default     = "50G"
 }
 
+variable "disk_discard" {
+  description = "Discard behavior for the VM system disk"
+  type        = string
+  default     = "on"
+
+  validation {
+    condition     = contains(["on", "ignore"], var.disk_discard)
+    error_message = "disk_discard must be on or ignore."
+  }
+}
+
 variable "network_bridge" {
   description = "Network bridge to attach to"
   type        = string
