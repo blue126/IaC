@@ -1,0 +1,117 @@
+---
+- name: Assert PNetLab installation is explicitly authorized
+  ansible.builtin.assert:
+    that:
+      - pnetlab_install_authorized | bool
+      - pnetlab_bundle_source | length > 0
+    fail_msg: >-
+      Set pnetlab_install_authorized=true and provide pnetlab_bundle_source
+      only after separately approving the destructive guest installation.
+
+- name: Gather PNetLab guest facts
+  ansible.builtin.setup:
+
+- name: Assert fresh nested-virtualization guest prerequisites
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '26.04'
+      - ansible_facts.virtualization_role == 'guest'
+      - ansible_facts.processor_cores | int == pnetlab_cores | int
+
+- name: Check PNetLab installation preconditions
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /dev/kvm
+    - /opt/unetlab
+    - /etc/pnetlab/install-complete
+  register: pnetlab_preconditions
+
+- name: Reject a non-fresh or non-KVM PNetLab guest
+  ansible.builtin.assert:
+    that:
+      - pnetlab_preconditions.results[0].stat.ischr | default(false)
+      - not pnetlab_preconditions.results[1].stat.exists
+      - not pnetlab_preconditions.results[2].stat.exists
+    fail_msg: >-
+      PNetLab requires a fresh Ubuntu guest with /dev/kvm. Do not install it
+      over an existing appliance or without nested virtualization.
+
+- name: Install and start QEMU Guest Agent
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable QEMU Guest Agent
+  ansible.builtin.systemd:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+
+- name: Validate external PNetLab bundle on the controller
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ pnetlab_manifest_validator_source }}"
+      - "{{ pnetlab_manifest_source }}"
+      - "{{ pnetlab_bundle_source }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: Create root-only PNetLab staging directory
+  ansible.builtin.file:
+    path: "{{ pnetlab_bundle_stage }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Copy verified PNetLab bundle to the guest
+  ansible.builtin.copy:
+    src: "{{ pnetlab_bundle_source }}/"
+    dest: "{{ pnetlab_bundle_stage }}/"
+    owner: root
+    group: root
+    mode: preserve
+    directory_mode: '0700'
+
+- name: Copy PNetLab artifact manifest to the guest
+  ansible.builtin.copy:
+    src: "{{ pnetlab_manifest_source }}"
+    dest: "{{ pnetlab_manifest_stage }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Create PNetLab validator directory
+  ansible.builtin.file:
+    path: /usr/local/lib/pnetlab
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Install PNetLab artifact validator on the guest
+  ansible.builtin.copy:
+    src: "{{ pnetlab_manifest_validator_source }}"
+    dest: "{{ pnetlab_manifest_validator_stage }}"
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Validate staged PNetLab bundle
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ pnetlab_manifest_validator_stage }}"
+      - "{{ pnetlab_manifest_stage }}"
+      - "{{ pnetlab_bundle_stage }}"
+  changed_when: false
+
+- name: Run post-installation configuration after the external installer
+  ansible.builtin.include_tasks: post-install.yml
+  when: pnetlab_install_completed | bool

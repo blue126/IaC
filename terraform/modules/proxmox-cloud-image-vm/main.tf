@@ -29,10 +29,12 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   boot_order = ["scsi0"]
 
-  bios    = var.bios
-  machine = var.machine
-  on_boot = var.on_boot
-  tags    = var.tags
+  bios       = var.bios
+  machine    = var.machine
+  on_boot    = var.on_boot
+  protection = var.protection
+  started    = var.started
+  tags       = var.tags
 
   cpu {
     cores = var.cores
@@ -52,7 +54,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
       datastore_id      = var.efidisk_storage != null ? var.efidisk_storage : var.storage_pool
       file_format       = "raw"
       type              = "4m"
-      pre_enrolled_keys = true
+      pre_enrolled_keys = var.efi_pre_enrolled_keys
     }
   }
 
@@ -65,8 +67,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   network_device {
-    model  = "virtio"
-    bridge = var.network_bridge
+    model       = "virtio"
+    bridge      = var.network_bridge
+    mac_address = var.network_mac_address
   }
 
   disk {

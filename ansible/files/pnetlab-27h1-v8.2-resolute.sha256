@@ -1,0 +1,33 @@
+# PNetLab 27H1 v8.2 Resolute bundle identity manifest.
+# Generated from the approved external bundle directory on 2026-09-21.
+# This proves the local deployment input's identity, not vendor provenance.
+08f383cde450a587bcbb788d225a8bc8c022d06173b7fd78961ba4c0e6cea1ab  deps/lib32gcc1_jammy-compat.deb
+7cf39d70a639017d1dd7c8d36daa2258063608688e449fddf40ffdd46f992a78  deps/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+7289e81a2cdec4399d4e8b71fd77b367f2b4c0ca2bf712d59862fb5d61e56e1c  deps/qemu-compat-libs.tgz
+f25502595ae521e37958a73299ae5ad8afaa47152ae47b96ff62cd1971123f2a  docker-store/pnet-wifi-spike-1-0.tar.gz
+9fa750928c1d4284ebb3e9e3a637c7a0da51516c82a795b85c50e05f449bd298  docker-store/pnet-wireshark-1-0.tar.gz
+5eda3cb51e02d9db9b94dae140676e886f3d85bb184fecc9dffe612fe3a49060  fix-db-migrations.sh
+d6e4a76cdb613ead9ec08e2d1fda1d84ab5d2c6f9cc20c0e2cf3c5f5540d714b  guac/README.txt
+bb38ff53e03c2ffcd2a1aa38e042eb56e2953f596debcc02395b93e1f23e5ae4  install-pnetlab-27H1-v8.2-resolute.sh
+eb0d08485216754121a6d43a696b82d100e17f46aa920f63879a5053fe9db783  install-resolute-satellite.sh
+6e071d494d6ae4775d1efcb89cf4ef7b9b0eb78f19912b33e768db36add6eb78  iol-cmd.py
+abb97a31fc0b7d71b432d962b83a3a1035c39da669e3d11304459d3945978435  patch-27H1-v8.2-resolute.sh
+ec17d6592b761d2b750abb34fe2f6acbef36819d573a35116daa71328f8d750b  pnetlab-debs/Packages
+9f62f37ad02c2734cafe4dd7b681ee9763c02b46629a13a88d3e6ed1390c8974  pnetlab-debs/Packages.gz
+a96d0eefe1ed8bbbcd536a6d132dad6a19b39cae9f39fcabbb85ee37e0422e00  pnetlab-debs/Release
+7ca88edc71bd17fe415be91ec3b397cdf04a3b109559b616ab1577cf388c159a  pnetlab-debs/php8.5-fpm_8.5.4-0ubuntu1.1_amd64.deb
+f5ce1c325ca71913540b30d9a4dce39ca54cfeb496684492b96fe1355f32b60c  pnetlab-debs/pnetlab-bridge-dkms_1.0v8r1_all.deb
+104dec8aa15b240a497ce1dacac2e3019f16d0c39585d8b166fb818a4144bb44  pnetlab-debs/pnetlab-custom_1.1_amd64.deb
+e2fbc493efa6fe4073d54665fcbbac190a930373c57168a9dbd2149046266d58  pnetlab-debs/pnetlab-docker_6.0.0-30_amd64.deb
+d0b809e5eab2e1244e0765d50e8621d9fc6514c998fc389188514e797e7f59c6  pnetlab-debs/pnetlab-dynamips_6.0.0-30_amd64.deb
+c2d96bdcb9f22d7c81903a6b81346153c8413055551a70eedf8ab5309e66591d  pnetlab-debs/pnetlab-guacd_1.6.0v8r1_amd64.deb
+ce9989ff9dd04e96fadd5a5cdaec9028704caf6bfdd60bf51d4aea1551744b60  pnetlab-debs/pnetlab-qemu_6.0.0-30noble2_amd64.deb
+48fb5b8ca63154b7b20a27661e11663e4d1c71658099383dbaebf0e280de8e11  pnetlab-debs/pnetlab-satellite_6.8.62resolute1_amd64.deb
+77a6bd3f8edfc1864e038c43d50b3f040076de6edd7524b3ee3a94d3bd65b9e6  pnetlab-debs/pnetlab-schema_6.0.0-30_amd64.deb
+739079e26adf8f05b947452f7219819c42bbb63d20b268ebc0a55f9f51f051f9  pnetlab-debs/pnetlab-vpcs_6.8.62resolute1_amd64.deb
+49e0f58542f77aeb81ed624e49025d82673d836c12db3a9a5b1c17e068e15377  pnetlab-debs/pnetlab_6.8.62resolute1_amd64.deb
+5f8df346e5e268565bab0f1b04443f4bdceb8735d064247f3407ec1de9fffd47  schema/guacdb-1.6.0-schema.sql
+1c02cfd041952135f1d539e449f7536fa155617e5df7460248301f19ab687398  schema/pnetlab_db-schema.sql
+b7681e83afed575da521e7134f12ad8c688df456320fa6be5e060b50fc58db95  web/customizations-6.5.tgz
+41fc6860faeba0f4b02a839f6c0e1a7cfb5ca5be17f2dda2be2f4377d1999aba  web-console/wheels/telnetlib3-4.0.4-py3-none-any.whl
+f453740b1e4a4f3291faa37944c555d71056c4da08d59809b307ef4feba695c8  web-console/wheels/wcwidth-0.8.1-py3-none-any.whl
