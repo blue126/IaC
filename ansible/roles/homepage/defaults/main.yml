@@ -11,6 +11,8 @@ homepage_allowed_hosts: "{{ ansible_host }}:{{ homepage_port }}"
 # API Keys and Credentials (override in inventory/vault)
 proxmox_api_user: "root@pam"
 proxmox_api_password: ""
+homepage_pbs_api_token_id: ""
+homepage_pbs_api_token_secret: ""
 netbox_api_token: ""
 immich_api_key: ""
 tailscale_api_key: ""

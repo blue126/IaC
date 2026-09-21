@@ -27,6 +27,7 @@
     owner: "{{ homepage_user }}"
     group: "{{ homepage_group }}"
     mode: '0600'
+    backup: true
   notify: Restart Homepage
 
 - name: Deploy Homepage widgets

@@ -31,6 +31,19 @@
         icon: proxmox.png
         href: https://192.168.1.249:8007
         ping: 192.168.1.249
+{% if homepage_pbs_api_token_id | default('') and homepage_pbs_api_token_secret | default('') %}
+        widget:
+          type: proxmoxbackupserver
+          url: https://192.168.1.249:8007
+          username: {{ homepage_pbs_api_token_id | to_json }}
+          password: {{ homepage_pbs_api_token_secret | to_json }}
+          datastore: backup
+          fields:
+            - datastore_usage
+            - cpu_usage
+            - memory_usage
+            - failed_tasks_24h
+{% endif %}
 {% if homepage_pve2_api_token_id | default('') and homepage_pve2_api_token_secret | default('') %}
         description: Backup and Recovery (pve2 / VM 100)
         proxmoxNode: pve2
