@@ -37,6 +37,7 @@
     fail_msg: >-
       PNetLab requires a fresh Ubuntu guest with /dev/kvm. Do not install it
       over an existing appliance or without nested virtualization.
+  when: not pnetlab_install_completed | bool
 
 - name: Install and start QEMU Guest Agent
   ansible.builtin.apt:
