@@ -11,7 +11,7 @@
 
 最初候选 `.104` 虽然在 pve2 不存在，但会响应 ICMP；该地址已被 pve0 的 NetBox VM 使用。因此独立 PVE 的 VMID 可以复用，但同一 LAN 上的 IP 不能复用。
 
-候选 `192.168.1.250` 在 pve2 的邻居表中没有 MAC、两次 ICMP 也无响应，但这不足以证明地址空闲。Terraform apply 前仍必须核对路由器 DHCP/static lease 与 NetBox，避免静态地址和睡眠设备冲突。
+候选 `192.168.1.250` 在 pve2 的邻居表中没有 MAC、两次 ICMP 也无响应；操作者随后确认路由器与 NetBox 分配无冲突，才将其作为 Terraform allocation gate 的最终地址。
 
 ## PNetLab appliance 边界
 

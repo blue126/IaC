@@ -38,7 +38,7 @@
   gather_facts: false
   tags: [verify]
   vars:
-    pnetlab_install_completed: false
+    pnetlab_install_completed: true
   tasks:
     - name: Verify nested virtualization and appliance services
       ansible.builtin.command:

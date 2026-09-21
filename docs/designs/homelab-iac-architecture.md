@@ -732,7 +732,7 @@ pve1承载Fileserver；原T7910 ESXi已退役，现为独立pve2并承载PBS。�
 │  VM 101/102/103 网络实验虚机（手工管理，不在 IaC 内）        │
 │  VM 250 pnetlab（计划：Terraform/Ansible 专用 appliance）    │
 │  存储：mainpool 899G / local / local-lvm                     │
-│  注意：VMID250已在PVE侧空闲；IP .250仍待路由器/NetBox确认     │
+│  VMID250及IP .250已由操作者确认可用                         │
 │        ▲                                                     │
 └────────┼─────────────────────────────────────────────────────┘
          │ PBS Client（每日 00:00，snapshot + zstd）
