@@ -12,7 +12,7 @@ This directory contains the Infrastructure as Code (IaC) definitions for the hom
     Reusable Terraform modules (e.g., `proxmox-vm`, `proxmox-lxc`). These are consumed by the configurations in `proxmox/`.
 
 *   **`esxi/`**:  
-    已退役。仅保留历史代码/state对账依据；默认inventory及仓库CI入口已停用，远端workspace未删除。
+    已退役。仅保留历史代码；默认inventory及仓库CI入口已停用。HCP `iac-esxi-lab` 于2026-09-21经授权备份后删除，cloud绑定已移除，详见 `esxi/README.md`。
 
 *   **`oci/`**:  
     Configuration for Oracle Cloud Infrastructure.
