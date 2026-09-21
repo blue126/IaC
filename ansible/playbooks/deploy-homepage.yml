@@ -16,6 +16,10 @@
       ansible.builtin.uri:
         url: "http://{{ ansible_host }}:{{ homepage_port }}"
         status_code: 200
+      register: homepage_verify_response
+      until: homepage_verify_response.status == 200
+      retries: 15
+      delay: 2
 
     - name: Get Tailscale IPv4
       ansible.builtin.command:
