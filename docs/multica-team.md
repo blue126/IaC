@@ -9,7 +9,7 @@
 **包 1 · 跨模型评审（宿主无关，8 个文件）** —— 不依赖 Multica，换 agent 时原样可用：
 
 ```text
-docs/bmad-cross-model-review.md        CR-1 协议、环境变量、边界、预检、冒烟、账单对账
+docs/bmad-cross-model-review.md        PAL 调用层、runtime 配置、边界、预检、冒烟、账单对账
 docs/bmad-review-routing.md            哪些 reviewer 走 Claude、哪些保留原生
 _bmad/custom/bmad-build-auto.toml
 _bmad/custom/bmad-review.toml
@@ -37,7 +37,7 @@ docs/multica-team.md                   本文件：Profile / Squad / 模型档�
 5. Issue 设置 Project 和 BMAD Team；Chat 则先选择 Agent，并通过 + → Project context 关联项目。对"继续旧需求"先验证能找到旧记录、选择实际 Skill、恢复模式并提出下一问。
 6. 将已批准的文件更新通过项目既有 Git 流程交付，并确认后续 Run 获取的版本包含它们。只把 ZIP 解压到人工目录，不保证远端 checkout 能读到。
 
-**审核专项另行接入**：要执行跨模型 Claude 评审，按包 1 的 `docs/bmad-cross-model-review.md` 完成环境变量（X2）、配置预检（X6）和实机冒烟（X7）。安装文件、保存 Profile、完成普通规划都不代表该审核通道已经可用。独立 QA 按测试权限和环境执行。
+**审核专项另行接入**：要执行跨模型评审，按包 1 的 `docs/bmad-cross-model-review.md` 完成PAL runtime 配置（X2）、配置预检（X6）和实机冒烟（X7）。安装文件、保存 Profile、完成普通规划都不代表该审核通道已经可用。独立 QA 按测试权限和环境执行。
 
 迁移到另一项目时，重新确认资源、BMAD 版本/路径、已有文档及该项目授权；旧项目的绝对路径不作为模板复制。模型仍采用 T1 的明确默认目标，目标 runtime 不支持时明确处理，不静默替换。
 
@@ -45,7 +45,7 @@ docs/multica-team.md                   本文件：Profile / Squad / 模型档�
 
 ## T1. 成员、具体模型、推理档位与权限
 
-以下是本项目已确定的**默认配置目标**，不留空继承 CLI 全局默认。六个 Multica Profile 均绑定 Codex runtime；Claude 是内部审核调用，不是第七个 Profile。
+以下是本项目已确定的**默认配置目标**，不留空继承 CLI 全局默认。六个 Multica Profile 均绑定 Codex runtime；Claude/Gemini 是内部审核调用，不是第七个 Profile。
 
 | 执行身份 | Runtime／调用方式 | 具体模型 ID | 推理档位 | 配置位置 |
 |---|---|---|---|---|
@@ -55,17 +55,17 @@ docs/multica-team.md                   本文件：Profile / Squad / 模型档�
 | Winston · Architect | Codex | `gpt-6-astra` | `high` | 同上 |
 | Sally · UX Designer | Codex | `gpt-5.6-sol` | `high` | 同上 |
 | Amelia · Developer（包括 QA 任务） | Codex | `gpt-5.6-terra` | `medium` | 同上；QA 不另建 Profile |
-| 内部 Claude reviewer（每个有效 layer／lens） | CR-1 启动独立 Claude Code | `claude-opus-5` | `high` | `BMAD_REVIEW_MODEL` + CR-1 的 `--effort high` |
+| 内部 reviewer（每个有效 layer／lens） | PAL clink → 已批准 CLI | Claude 默认 `claude-opus-5-5`；Gemini 待选定验证 | 按 provider 配置 | reviewer-selection.json + client JSON |
 
 五个 BMAD persona 仍对应 Mary=`bmad-agent-analyst`、John=`bmad-agent-pm`、Winston=`bmad-agent-architect`、Sally=`bmad-agent-ux-designer`、Amelia=`bmad-agent-dev`；Coordinator 只做调度。创建后将 Amelia 的 Concurrency 设为 6，其余五个设为 1。一个 Amelia Profile 可运行多个独立子 Issue，每项有自己的任务上下文与隔离工作目录。实际并发还受机器总容量限制；有 6 个槽位不代表必须同时启动 6 项。[O8] 创建页的 Speed 显式选 Standard，Thinking 不留在 Follow CLI config。这些是本项目默认设置，不是模型能力排名。
 
 **配置明确与账号验收是两回事。** 官方当前文档列出了上述模型 ID 与配置入口；但尚未在你的账号、Multica runtime 和代理链中实测。模型不可用时报告该项失败并等明确替代决定，不清空 Model，不静默换型号/供应商，也不因为 `medium` 不被接受就自动改为 `high`。[O1][O2][O3]
 
-OpenAI 的 `medium`／`high` 写入 Profile 的 **Thinking level**，不是在 Instructions 中写"请深入思考"；也不要向 Custom arguments 重复追加 `--model`。Claude 的 `high` 是 CR-1 实际传出的 CLI 参数，与 Amelia 自身的 `medium` 无关。
+OpenAI 的 `medium`／`high` 写入 Profile 的 **Thinking level**，不是在 Instructions 中写"请深入思考"；也不要向 Custom arguments 重复追加 `--model`。Claude 的 `high` 是 PAL Claude client JSON 中的 CLI 参数，与 Amelia 自身的 `medium` 无关。
 
 运行时需提供项目读访问、原生 Skill 可见性和相应工具。仅 Amelia/QA 获得相应允许的代码/测试写入；Coordinator 的管理权限和业务代码写入分开。仅在你明确批准时才做一次性模型升级；保留本表作为回归默认值。
 
-**CR-1 环境变量装在哪个 Profile。** 变量由 CR-1 子进程读取，必须存在于宿主执行 shell 命令的环境里，也就是 Profile 的 **Settings → Environment variables**。需要的是实际执行审核入口的成员：Amelia（Build Auto / Code Review / Build）、Winston（Architecture）、以及作为 review 宿主的产物负责人。Coordinator 不需要。变量清单见核心文档 X2。
+**PAL 接入位置。** 执行审核入口的 runtime 必须能调用 clink，并使用本 Run 的源码视图与角色目录；模型、预算、超时在 PAL client JSON 配置。旧 BMAD_REVIEW_* 仅在所有旧 Run/项目迁移后清理，Coordinator 不负责配置。见核心文档 X2/X3。
 
 ### T1.1 实机创建页：字段、来源与明确填写值
 
@@ -95,7 +95,7 @@ OpenAI 的 `medium`／`high` 写入 Profile 的 **Thinking level**，不是在 I
 | Sally · UX Designer | GPT-5.6 Sol（gpt-5.6-sol） | High |
 | Amelia · Developer | GPT-5.6 Terra（gpt-5.6-terra） | Medium |
 
-新建后逐个打开 Settings → General，把 Amelia 的 Concurrency 设为 6，其他五个设为 1。执行审核入口的 Profile 另在 Settings → Environment variables 填入核心文档 X2 的变量。接着打开 Capabilities → Skills，只验证实际发现的运行时继承 Skill；不要复制、导入或启用一份 Workspace BMAD 来"补齐"列表。运行时继承的 installbmad 只用于安装、更新或修复 BMAD，不是日常 workflow 的授权。
+新建后逐个打开 Settings → General，把 Amelia 的 Concurrency 设为 6，其他五个设为 1。执行审核入口的 runtime 按核心文档 X2 配置 PAL MCP 与每 Run 目录。接着打开 Capabilities → Skills，只验证实际发现的运行时继承 Skill；不要复制、导入或启用一份 Workspace BMAD 来"补齐"列表。运行时继承的 installbmad 只用于安装、更新或修复 BMAD，不是日常 workflow 的授权。
 
 ## T2. 项目定位与原生流程选择
 
@@ -287,7 +287,7 @@ uv --version
 
 **步骤 3：确认本机 BMAD 路径。** 在该项目的实际 Run 中检查已安装 persona、导航及本次需要的工作流，区分宿主已发现的条目与磁盘文件。审核专项还需要六个 Skill 根目录与 `resolve_customization.py` 的实际路径，采集方式见核心文档 X6。缺少审核模块不阻塞独立规划。
 
-**步骤 4：填写并核对六个 Profile。** 按 T1.1 创建或编辑；Instructions 使用 T4 共同前缀加该角色代码块的完整原文，Description 用 T5 的职责摘要。Coordinator 的命令索引必须包含在其 Instructions，不能只写"去读 T2/T3"。执行审核入口的 Profile 另填核心文档 X2 的环境变量。
+**步骤 4：填写并核对六个 Profile。** 按 T1.1 创建或编辑；Instructions 使用 T4 共同前缀加该角色代码块的完整原文，Description 用 T5 的职责摘要。Coordinator 的命令索引必须包含在其 Instructions，不能只写"去读 T2/T3"。执行审核的 runtime 按核心文档 X2 接入 PAL；不改 Coordinator 派工。
 
 保存后在 Capabilities → Instructions 回读全文，在 Settings → General 核对执行设置。通过 CLI 更新时先核对 agent get 的真实 ID，仅传所需字段；Instructions 需保持真实换行。设置只在后续 Run 生效；从旧修订升级时，结束旧执行后再用新配置重新处理原请求，并清除旧的 G0/预算环境变量。
 
@@ -297,7 +297,7 @@ uv --version
 
 先用一个真实规划/恢复任务验收基础链路。首次回复应能定位材料、说明断点、正确派工并继续原生交互。
 
-**步骤 6：审核专项。** 按核心文档 X2（环境变量）→ X6（配置预检）→ X7（实机冒烟）→ X8（摘要与对账）执行，然后用一条真实的小 Issue 走通全链路。首次全链路在维护者监督下进行；没有看到真实 findings 回流和真实费用记录之前，不要开无人值守。
+**步骤 6：审核专项。** 按核心文档 X2（PAL runtime 配置）→ X6（配置预检）→ X7（实机冒烟）→ X8（摘要与对账）执行，然后用一条真实的小 Issue 走通全链路。首次全链路在维护者监督下进行；没有看到真实 findings 回流和真实费用记录之前，不要开无人值守。
 
 ## T7. 验收与跨项目复用
 

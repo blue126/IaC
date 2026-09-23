@@ -6,7 +6,7 @@
 
 **跨模型评审不在本文件。** 那套能力是宿主无关的，见另一个包：
 
-- `docs/bmad-cross-model-review.md` —— CR-1 协议、环境变量、边界声明、预检、冒烟、账单对账
+- `docs/bmad-cross-model-review.md` —— PAL 调用层、runtime 配置、边界声明、预检、冒烟、账单对账
 - `docs/bmad-review-routing.md` —— 哪些 reviewer 走 Claude、哪些保留原生
 
 本合同只在需要时引用它们，不复述其规则。换掉 Multica 时，那两份文档和六个 TOML 原样可用；要重写的是本文件和 `docs/multica-team.md`。
@@ -31,7 +31,7 @@ BMAD 的实际步骤、分支、交互检查点和完成条件决定流程；Coo
 
 采用满足验收要求的最小充分实现，不主动扩展功能、抽象层或无关重构。不得削弱验收、删除有效测试、伪造测试结果来消除审核发现。
 
-业务代码默认由 Amelia 写入。研究、产品、架构与 UX 成员只写其负责的获准产物；QA 只写测试与已允许的测试夹具/配置，Claude reviewer 只读。
+业务代码默认由 Amelia 写入。研究、产品、架构与 UX 成员只写其负责的获准产物；QA 只写测试与已允许的测试夹具/配置，reviewer 只读。
 
 同一子 Issue/工作项的写入串行执行。不同子 Issue 的依赖已满足、范围不冲突且公共接口已确定时，可在各自隔离 worktree 并行；允许同一个 Amelia Profile 同时执行多项，实际数量受 Agent 与机器并发上限约束。本包默认 Amelia=6、其他五个 Profile=1。不得并发改写同一公共文件或共享 BMAD 状态；共享测试端口、数据库、外部服务需先分隔或安排单写入者。
 
@@ -87,15 +87,15 @@ Coordinator 将子项结果与未决项放回原生步骤并对照父目标；�
 
 规则本身在 `docs/bmad-cross-model-review.md` 和 `docs/bmad-review-routing.md`。本节只说它在 Multica 上怎么落地。
 
-实现使用已批准的 OpenAI 模型；指定审核层/lens 由 CR-1 启动独立 Claude 进程执行。Claude 只出报告，宿主保留原工作流的汇总与分诊。拒绝有效 findings 需证据；产品/架构分歧升级，不由轻量 Coordinator 裁决。
+实现使用已批准的 OpenAI 模型；指定审核层/lens 由 PAL clink 启动已批准的 Claude 或 Gemini CLI 执行。reviewer 只出报告，宿主保留原工作流的汇总与分诊。拒绝有效 findings 需证据；产品/架构分歧升级，不由轻量 Coordinator 裁决。
 
-CR-1 需要的环境变量必须进入**实际执行 Run 的 Profile Environment**——终端 `export` 不会进入已启动的 daemon。哪些 Profile 需要：执行 Build Auto / Code Review / Architecture / Review 的成员（实际上就是 Amelia、Winston，以及作为 review 宿主的产物负责人）。Coordinator 不需要。
+PAL MCP 必须出现在实际执行 Run 的 runtime 中；其 working_dir 与角色目录必须绑定该 Run，不能使用全局固定工作树。旧环境变量不再是新通道前提；按核心文档 X2 分阶段迁移，不影响未迁移项目。
 
-某项审核因缺配置、方法文件或认证而未运行时，按 routing R1.5 记为"未执行"并保留在回报、交接与 Issue 中。部分失败不毁掉整轮工作，但**存在未执行的必需审核时，父 Issue 不得进入 In Review**。回报区分"已审核""零发现""未执行"三种状态。
+某项审核因缺配置、方法文件或认证而未运行时，按 核心文档 X5 记为"未执行"并保留在回报、交接与 Issue 中。部分失败不毁掉整轮工作，但**存在未执行的必需审核时，父 Issue 不得进入 In Review**。回报区分"已审核""零发现""未执行"三种状态。
 
-评审触发、必需 reviewer、发现分诊、修复、复核和结束条件遵循当前项目实际安装的 BMAD 原生工作流。适配层不规定额外复核轮数，不设置“初审→复核→最终复核”的固定循环；原生未要求的额外调用不能冒称原生必需。原生未明确的地方如实说明，由宿主依据实际发现和用户授权判断，不把可选复核变成验收门禁。原生 architecture Update 本身要求 Reviewer Gate，不能以本条为由跳过；普通问答或记录信息也不因一个 Multica Run 结束就自动视为完成一次 Update/Finalize。CR-1 只替换选定 reviewer 的执行通道，不改变其方法或报告语义。
+评审触发、必需 reviewer、发现分诊、修复、复核和结束条件遵循当前项目实际安装的 BMAD 原生工作流。适配层不规定额外复核轮数，不设置“初审→复核→最终复核”的固定循环；原生未要求的额外调用不能冒称原生必需。原生未明确的地方如实说明，由宿主依据实际发现和用户授权判断，不把可选复核变成验收门禁。原生 architecture Update 本身要求 Reviewer Gate，不能以本条为由跳过；普通问答或记录信息也不因一个 Multica Run 结束就自动视为完成一次 Update/Finalize。PAL 只替换选定 reviewer 的执行通道，不改变其方法或报告语义。
 
-`bmad-build` 的审核层默认关闭；派工要跨模型审核时在任务中明确写出。未列入 routing R0 的入口不在覆盖保证内。
+`bmad-build` 的跨模型路由默认关闭，原生审核保留；派工要跨模型审核时在任务中明确写出。未列入 routing R0 的入口不在覆盖保证内。
 
 ## C5. QA 的执行范围与失败路径
 
