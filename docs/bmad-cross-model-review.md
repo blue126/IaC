@@ -25,8 +25,9 @@ Claude 使用自己的订阅登录。旧 Gemini CLI 自 2026-06-18 不再支持�
 CLI_CLIENTS_CONFIG_PATH 指向本 Run 的已渲染客户端 JSON。
 支持本地 stdio MCP 的宿主使用 bootstrap tools/launch_pal.py 绑定当前 Git checkout，参数为固定 --pal-root 和 --templates；解释器来自已安装 PAL 的专用 venv。它只生成 Run 配置并 exec PAL，不调度模型。
 这不是 Multica 专用接口：Claude Code、Codex CLI、Cursor 等在各自 MCP 配置中注册相同 command/args，并把服务 cwd 设为当前 Git checkout；终端或 CI 可用标准 MCP client 调用。Multica 通过工作区 MCP 注册并分配给实际审核成员。各宿主都须能准备获准输入、等待工具返回和读取完整结果；不支持这些能力时明确报告不可用，不伪装原生接入或静默换通道。
-激活后宿主通过 git rev-parse --git-path bmad-review-runtime.json 取得本 Run 描述文件；核对 checkout、PID、bundle、source、inputs、results、selection 后，再按 X3 准备材料。公共 source 初始为空，未经准备不得调用 reviewer。
-描述文件属于 worktree 本地 Git 元数据，不提交；bundle 为私有临时目录，不放进业务 diff。同一 checkout 已有存活 PAL 时拒绝第二个实例，不能让并发 Run 共享 descriptor。
+在 Git checkout 启动时，通过 git rev-parse --git-path bmad-review-runtime.json 取得描述文件；在 Multica 非 Git Run 容器启动时，读取容器根的 .bmad-review-runtime.json（也就是仓库尚未 materialize 时的宿主工作目录）。不搜索其他 Run 或项目。
+核对 workspace、PID、bundle、source、inputs、results、selection；checkout 为 null 时，按项目资源明确定位本 Run 内的实际仓库，再记录所审版本，不把容器当仓库。公共 source 初始为空，未经准备不得调用 reviewer。
+描述文件仅在 worktree 本地 Git 元数据或非 Git Run 容器中，不提交；bundle 为私有临时目录，不放进业务 diff。同一 workspace 已有存活 PAL 时拒绝第二个实例，不能让并发 Run 共享 descriptor。
 PAL 还读取 ~/.pal/cli_clients，同名用户配置可能覆盖该值，必须核对实际配置。
 clink 请求没有 cwd 参数：服务 working_dir 必须绑定当前 Run 的授权源码视图；prompt 中写 cd 不会改它。
 不同 worktree 必须使用各自服务配置/实例，不得在并发调用中修改共享 JSON 或复用另一个 Run 的 cwd。
