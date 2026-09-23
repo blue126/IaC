@@ -23,7 +23,8 @@ Claude 使用自己的订阅登录。旧 Gemini CLI 自 2026-06-18 不再支持�
 占位配置仅满足 PAL 启动检查，不提供真实模型能力。订阅下费用字段只是标价估算，不是额外扣费证据。
 
 CLI_CLIENTS_CONFIG_PATH 指向本 Run 的已渲染客户端 JSON。
-Multica stdio MCP 使用 bootstrap tools/launch_pal.py 绑定当前 Git checkout，参数为固定 --pal-root 和 --templates；解释器来自已安装 PAL 的专用 venv。它只生成 Run 配置并 exec PAL，不调度模型。
+支持本地 stdio MCP 的宿主使用 bootstrap tools/launch_pal.py 绑定当前 Git checkout，参数为固定 --pal-root 和 --templates；解释器来自已安装 PAL 的专用 venv。它只生成 Run 配置并 exec PAL，不调度模型。
+这不是 Multica 专用接口：Claude Code、Codex CLI、Cursor 等在各自 MCP 配置中注册相同 command/args，并把服务 cwd 设为当前 Git checkout；终端或 CI 可用标准 MCP client 调用。Multica 通过工作区 MCP 注册并分配给实际审核成员。各宿主都须能准备获准输入、等待工具返回和读取完整结果；不支持这些能力时明确报告不可用，不伪装原生接入或静默换通道。
 激活后宿主通过 git rev-parse --git-path bmad-review-runtime.json 取得本 Run 描述文件；核对 checkout、PID、bundle、source、inputs、results、selection 后，再按 X3 准备材料。公共 source 初始为空，未经准备不得调用 reviewer。
 描述文件属于 worktree 本地 Git 元数据，不提交；bundle 为私有临时目录，不放进业务 diff。同一 checkout 已有存活 PAL 时拒绝第二个实例，不能让并发 Run 共享 descriptor。
 PAL 还读取 ~/.pal/cli_clients，同名用户配置可能覆盖该值，必须核对实际配置。
