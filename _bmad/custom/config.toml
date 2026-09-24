@@ -8,3 +8,6 @@
 
 [core]
 communication_language = "Chinese"
+
+[modules.bmm]
+user_skill_level = "intermediate"
