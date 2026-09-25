@@ -58,27 +58,27 @@ base_url="${BASE_URL:-https://blue126.github.io/IaC/}"
 test -s public/index.html
 test -s public/index.md
 test -s public/llms.txt
-test -s public/docs/designs/homelab-iac-architecture/index.html
-test -s public/docs/designs/homelab-iac-architecture/index.md
-grep -Fq "rel=canonical href=${base_url}docs/designs/homelab-iac-architecture/" \
-  public/docs/designs/homelab-iac-architecture/index.html
-grep -Fq "rel=alternate type=text/markdown href=${base_url}docs/designs/homelab-iac-architecture/index.md" \
-  public/docs/designs/homelab-iac-architecture/index.html
+test -s public/docs/architecture/homelab-iac-architecture/index.html
+test -s public/docs/architecture/homelab-iac-architecture/index.md
+grep -Fq "rel=canonical href=${base_url}docs/architecture/homelab-iac-architecture/" \
+  public/docs/architecture/homelab-iac-architecture/index.html
+grep -Fq "rel=alternate type=text/markdown href=${base_url}docs/architecture/homelab-iac-architecture/index.md" \
+  public/docs/architecture/homelab-iac-architecture/index.html
 grep -Fxq '# Homelab IaC 系统架构文档' \
-  public/docs/designs/homelab-iac-architecture/index.md
+  public/docs/architecture/homelab-iac-architecture/index.md
 grep -Fq '本文档描述 Homelab Infrastructure as Code 项目的完整系统架构' \
-  public/docs/designs/homelab-iac-architecture/index.md
-grep -Fq "${base_url}docs/designs/homelab-iac-architecture/index.md" public/llms.txt
+  public/docs/architecture/homelab-iac-architecture/index.md
+grep -Fq "${base_url}docs/architecture/homelab-iac-architecture/index.md" public/llms.txt
 grep -Fq '<title>Homelab IaC 系统架构文档 | Homelab IaC Documentation</title>' \
-  public/docs/designs/homelab-iac-architecture/index.html
+  public/docs/architecture/homelab-iac-architecture/index.html
 grep -Fq '<span>Homelab IaC 系统架构文档</span></a>' \
-  public/docs/designs/homelab-iac-architecture/index.html
-grep -Fq 'github.com/blue126/IaC/edit/main/docs/designs/homelab-iac-architecture.md' \
-  public/docs/designs/homelab-iac-architecture/index.html
+  public/docs/architecture/homelab-iac-architecture/index.html
+grep -Fq 'github.com/blue126/IaC/edit/main/docs/architecture/homelab-iac-architecture.md' \
+  public/docs/architecture/homelab-iac-architecture/index.html
 grep -Fq 'Homelab IaC Documentation' public/index.html
 grep -Fq 'Browse documentation' public/index.html
-grep -Fq 'td-diagram--mermaid' public/docs/designs/cicd-architecture/index.html
-grep -Fq 'mermaid-' public/docs/designs/cicd-architecture/index.html
+grep -Fq 'td-diagram--mermaid' public/docs/architecture/cicd-architecture/index.html
+grep -Fq 'mermaid-' public/docs/architecture/cicd-architecture/index.html
 
 shopt -s nullglob
 search_indexes=(public/offline-search-index.*.json)

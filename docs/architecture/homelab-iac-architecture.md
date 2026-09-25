@@ -703,7 +703,7 @@ terraform/netbox-integration/
 ### Proxmox Backup Server 架构
 
 > 备份架构正处于分阶段整合中，权威文档是
-> [备份架构整合规范](../specs/backup-architecture-consolidation-spec.md)（含关键决策记录）。
+> [备份架构整合规范](../architecture/backup-architecture-consolidation-spec.md)（含关键决策记录）。
 > 本节只描述当前形态，细节与理由以该规范为准。
 
 #### 备份拓扑（2026-09-21 配置快照）
@@ -766,9 +766,9 @@ pve1承载Fileserver；原T7910 ESXi已退役，现为独立pve2并承载PBS。�
 #### 遗留限制与下一阶段
 
 - **没有第二份副本**，3-2-1 未建立。这已由
-  [D15](../specs/backup-architecture-consolidation-spec.md) 转为**永久性设计选择**，不再是待办。
+  [D15](../architecture/backup-architecture-consolidation-spec.md) 转为**永久性设计选择**，不再是待办。
 - **校验配置有残留**：`verify-all` 的 store 为旧名，且没有 schedule；运行历史、GC计划和恢复证据待核实。PBS端prune/verify目前不由role纳管。
-- **PBS 的 ZFS 池重新住回客机内**（[D18](../specs/backup-architecture-consolidation-spec.md)），宿主机 pve2 看不到这两块盘的 SMART 与池健康，统一存储监控需为其单列路径。
+- **PBS 的 ZFS 池重新住回客机内**（[D18](../architecture/backup-architecture-consolidation-spec.md)），宿主机 pve2 看不到这两块盘的 SMART 与池健康，统一存储监控需为其单列路径。
 
 #### PBS 管理边界
 

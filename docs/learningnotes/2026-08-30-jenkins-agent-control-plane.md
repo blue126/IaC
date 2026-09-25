@@ -165,8 +165,8 @@ pipeline 中通过 credential binding 注入的业务凭据。它应通过 Vault
 
 ## 相关内容
 
-- [IaC CI-Only Execution 架构](../designs/2026-08-30-ci-only-execution-architecture.md)
-- [CI/CD 架构设计](../designs/cicd-architecture.md)
-- [Ansible Role 架构](../designs/ansible-role-architecture.md)
-- [Ansible Vault 架构](../designs/ansible-vault-architecture.md)
+- [IaC CI-Only Execution 架构](../architecture/ci-only-execution-architecture.md)
+- [CI/CD 架构设计](../architecture/cicd-architecture.md)
+- [Ansible Role 架构](../architecture/ansible-role-architecture.md)
+- [Ansible Vault 架构](../architecture/ansible-vault-architecture.md)
 - 绑定 SPEC：`spec-ci-only-execution`（该 spec 未提交进本仓库，内容见上方架构设计文档）

@@ -113,7 +113,7 @@ host_vars > group_vars > playbook vars > role defaults
 ## 第二部分：Vault 密钥管理
 
 > **📘 架构设计参考**: 本节仅介绍 Vault 基础用法和 HashiCorp Vault 对比。完整的架构设计、间接引用模式选择规则（Pattern A/B）、18 个变量清单、Terraform 集成机制，请查阅：
-> - [Ansible Vault Architecture Design](../designs/ansible-vault-architecture.md)（完整架构文档）
+> - [Ansible Vault Architecture Design](../architecture/ansible-vault-architecture.md)（完整架构文档）
 > - [AGENTS.md § Ansible Vault Architecture](../../AGENTS.md#ansible-vault-architecture)（快速参考表格）
 
 ### 2.1 解决的问题

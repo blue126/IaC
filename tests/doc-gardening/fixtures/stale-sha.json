@@ -1,8 +1,11 @@
 {
-  "schema_version": 1,
+  "candidates": [],
+  "document_path": "docs/guides/example.md",
   "kind": "claim_candidates",
   "manifest_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-  "document_path": "docs/designs/example.md",
-  "revision": {"base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-  "candidates": []
+  "revision": {
+    "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "schema_version": 1
 }

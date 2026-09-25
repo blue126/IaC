@@ -74,7 +74,7 @@ class CorpusQualityTest(unittest.TestCase):
                     {
                         "id": "negative-external",
                         "kind": "negative",
-                        "document_path": "docs/deployment/immich-deployment.md",
+                        "document_path": "docs/guides/immich-deployment.md",
                         "revision": REVISION,
                         "result_file": "negative-external.json",
                         "claim_id": None,

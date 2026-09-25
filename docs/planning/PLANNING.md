@@ -19,7 +19,7 @@
 - [x] **Jenkins 基础**: 部署 Jenkins LXC 与 Cloudflare Tunnel Webhook
 - [x] **Pipeline 逻辑**: 实现 Check -> Plan -> Apply -> Deploy 流程
 - [ ] **文档自动化**: 实现变更驱动的文档同步 (NetBox 回写/拓扑生成)
-  - 参考: `docs/improvement/inventory-and-document-sync-via-cicd.md`
+  - 参考: `docs/planning/inventory-and-document-sync-via-cicd.md`
 
 ### Phase 3: NetBox 驱动 (SSOT) [待开始]
 - [ ] **NetBox 建模**: 完善 VLAN/Prefix/Device Type 模型

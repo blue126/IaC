@@ -338,7 +338,7 @@ pipeline {
 
 ## 更新 CI/CD 架构文档
 
-部署完成后，更新 `docs/designs/cicd-architecture.md`：
+部署完成后，更新 `docs/architecture/cicd-architecture.md`：
 
 1. 架构图中添加 Cloudflare Tunnel 组件
 2. 触发机制从 "Poll SCM" 改为 "GitHub Webhook via Cloudflare Tunnel"

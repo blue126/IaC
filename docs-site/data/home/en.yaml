@@ -20,9 +20,11 @@ cards:
   title: Start with the area you need
   columns: 3
   items:
-    - { title: Architecture, desc: System boundaries, design decisions, and integration patterns., icon: fa-solid fa-diagram-project, url: docs/designs/ }
-    - { title: Deployment, desc: Service installation and operational deployment guides., icon: fa-solid fa-rocket, url: docs/deployment/ }
-    - { title: Guides, desc: Practical Terraform, Ansible, networking, and troubleshooting references., icon: fa-solid fa-compass, url: docs/guides/ }
+    - { title: Architecture, desc: System boundaries, design decisions, specifications, and integration patterns., icon: fa-solid fa-diagram-project, url: docs/architecture/ }
+    - { title: Guides, desc: Service deployment, Terraform/Ansible operations, and practical how-to references., icon: fa-solid fa-rocket, url: docs/guides/ }
+    - { title: Troubleshooting, desc: Problem-solving guides and incident retrospectives., icon: fa-solid fa-wrench, url: docs/troubleshooting/ }
+    - { title: Agent, desc: BMAD/Multica/OpenCode agent workflow contracts and integration., icon: fa-solid fa-robot, url: docs/agent/ }
+    - { title: Learning Notes, desc: Dated technical deep-dives and lessons learned., icon: fa-solid fa-graduation-cap, url: docs/learningnotes/ }
 
 cta:
   title: Read the source or the site.

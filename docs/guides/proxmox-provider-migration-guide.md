@@ -309,6 +309,6 @@ Plan: 0 to add, 0 to change, 0 to destroy.
 
 - [bpg/proxmox 官方文档](https://registry.terraform.io/providers/bpg/proxmox/latest/docs)
 - [bpg/proxmox GitHub](https://github.com/bpg/terraform-provider-proxmox)
-- [迁移技术方案](../improvement/implemented/proxmox-provider-migration.md)（本仓库）
+- [迁移技术方案](../planning/implemented/proxmox-provider-migration.md)（本仓库）
 - [bpg provider 源码 - container.go](https://github.com/bpg/terraform-provider-proxmox/blob/main/proxmoxtf/resource/container/container.go)
 - [bpg provider 源码 - vm.go](https://github.com/bpg/terraform-provider-proxmox/blob/main/proxmoxtf/resource/vm/vm.go)

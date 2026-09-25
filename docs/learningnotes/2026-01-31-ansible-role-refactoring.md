@@ -56,7 +56,7 @@ mv ansible/roles/pbs-zfs ansible/roles/pbs_zfs
 **影响范围**（全部已更新）：
 - `ansible/playbooks/deploy-pbs.yml` — role 引用
 - `AGENTS.md` — role 列表
-- `docs/deployment/pbs-esxi-deployment.md` — 13 处文档引用
+- `docs/archive/pbs-esxi-deployment.md` — 13 处文档引用
 
 **注意**：只改 role 目录名，不改 playbook 文件名（`deploy-pbs.yml` 保持不变，因为文件名不是 Ansible 标识符）。
 

@@ -93,15 +93,15 @@ class GitFixture:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             NETBOX_DOCUMENT.format(note="Initial note."),
         )
-        self.write("docs/designs/qwen3-tts-openai-api-integration.md", QWEN_DOCUMENT)
+        self.write("docs/guides/qwen3-tts-openai-api-integration.md", QWEN_DOCUMENT)
         self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
         self.write("ansible/roles/qwen3-tts/defaults/main.yml", QWEN_DEFAULTS)
         for index in range(8):
             self.write(
-                f"docs/deployment/service-{index}.md",
+                f"docs/guides/service-{index}.md",
                 f"# Service {index}\n\nBase value {index}.\n",
             )
         if runtime_in_base:
@@ -217,7 +217,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
 
     def test_modified_document_builds_one_v2_manifest_and_trusted_base_validates(self) -> None:
         self.fixture.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             NETBOX_DOCUMENT.format(note="Updated note."),
         )
         self.fixture.commit_head()
@@ -253,7 +253,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         )
 
     def test_nonempty_added_document_has_null_base_and_empty_evidence(self) -> None:
-        path = "docs/designs/new-service.md"
+        path = "docs/guides/new-service.md"
         self.fixture.write(path, "# New service\n\nA new claim.\n")
         self.fixture.commit_head()
         output, preparation, matrix = self.fixture.prepare()
@@ -267,13 +267,13 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertGreaterEqual(len(manifest["spans"]), 1)
 
     def test_deleted_renamed_and_empty_added_are_explicit_zero_call_outcomes(self) -> None:
-        self.fixture.remove("docs/deployment/service-0.md")
+        self.fixture.remove("docs/guides/service-0.md")
         self.fixture.git(
             "mv",
-            "docs/deployment/service-1.md",
-            "docs/deployment/service-renamed.md",
+            "docs/guides/service-1.md",
+            "docs/guides/service-renamed.md",
         )
-        self.fixture.write("docs/designs/empty.md", "")
+        self.fixture.write("docs/guides/empty.md", "")
         self.fixture.commit_head()
         _, preparation, matrix = self.fixture.prepare()
         dispositions = {
@@ -288,7 +288,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertTrue(all(item["status"] == "no_analysis" for item in preparation["items"]))
 
     def test_no_evidence_allows_only_unknown_missing_evidence_without_edit(self) -> None:
-        path = "docs/deployment/service-0.md"
+        path = "docs/guides/service-0.md"
         self.fixture.write(path, "# Service 0\n\nChanged unsupported claim.\n")
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -388,7 +388,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
     def test_budget_selects_first_five_stable_paths(self) -> None:
         for index in range(7):
             self.fixture.write(
-                f"docs/deployment/service-{index}.md",
+                f"docs/guides/service-{index}.md",
                 f"# Service {index}\n\nChanged value {index}.\n",
             )
         self.fixture.commit_head()
@@ -400,7 +400,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         ]
         self.assertEqual(
             selected_paths,
-            [f"docs/deployment/service-{index}.md" for index in range(5)],
+            [f"docs/guides/service-{index}.md" for index in range(5)],
         )
         self.assertEqual(len(matrix["include"]), 5)
         exhausted = [
@@ -408,7 +408,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         ]
         self.assertEqual(
             [item["document_path"] for item in exhausted],
-            ["docs/deployment/service-5.md", "docs/deployment/service-6.md"],
+            ["docs/guides/service-5.md", "docs/guides/service-6.md"],
         )
 
     def test_no_match_and_bootstrap_produce_audited_zero_call_reports(self) -> None:
@@ -425,7 +425,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.fixture.close()
         self.fixture = bootstrap
         self.fixture.write(
-            "docs/deployment/service-0.md",
+            "docs/guides/service-0.md",
             "# Service 0\n\nBootstrap change.\n",
         )
         self.fixture.commit_head()
@@ -435,7 +435,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertEqual(preparation["items"][0]["status"], "no_analysis")
 
     def test_tampered_manifest_and_missing_action_result_aggregate_as_blocked(self) -> None:
-        path = "docs/deployment/service-0.md"
+        path = "docs/guides/service-0.md"
         self.fixture.write(path, "# Service 0\n\nChanged value.\n")
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -470,7 +470,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
     def test_secret_input_blocks_without_manifest_or_candidate(self) -> None:
         sentinel = "SECRET_SENTINEL_DO_NOT_RETAIN"
         self.fixture.write(
-            "docs/deployment/service-0.md",
+            "docs/guides/service-0.md",
             f"# Service 0\n\n{sentinel}\n",
         )
         self.fixture.commit_head()
@@ -484,7 +484,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertNotIn(sentinel, report_text)
 
     def test_candidate_limit_and_shadow_edit_are_rejected(self) -> None:
-        path = "docs/deployment/service-0.md"
+        path = "docs/guides/service-0.md"
         self.fixture.write(path, "# Service 0\n\nChanged value.\n")
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -505,7 +505,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
             VALIDATOR.validate_artifact(edited, manifest)
 
     def test_v2_recorded_runner_validates_fake_model_output_without_live_ai(self) -> None:
-        path = "docs/deployment/service-0.md"
+        path = "docs/guides/service-0.md"
         self.fixture.write(path, "# Service 0\n\nChanged value.\n")
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -543,7 +543,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         VALIDATOR.validate_run_record(record, manifest, json.loads(artifact_path.read_text()))
 
     def test_bridge_revalidates_one_closed_claim_contradiction(self) -> None:
-        path = "docs/deployment/netbox-deployment.md"
+        path = "docs/guides/netbox-deployment.md"
         self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -599,7 +599,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         VALIDATOR.validate_artifact(v1_candidate, v1_manifest)
 
     def test_apply_changes_only_selected_document_and_restores_claim(self) -> None:
-        path = "docs/deployment/netbox-deployment.md"
+        path = "docs/guides/netbox-deployment.md"
         self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -689,7 +689,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
         self.assertRegex(receipt["receipt_sha256"], r"^[0-9a-f]{64}$")
 
     def test_bridge_rejects_unknown_or_multi_candidate_inputs(self) -> None:
-        path = "docs/deployment/netbox-deployment.md"
+        path = "docs/guides/netbox-deployment.md"
         self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()
@@ -741,7 +741,7 @@ class CandidateDiscoveryTest(unittest.TestCase):
             )
 
     def test_bridge_rejects_untrusted_expected_head(self) -> None:
-        path = "docs/deployment/netbox-deployment.md"
+        path = "docs/guides/netbox-deployment.md"
         self.fixture.write(path, NETBOX_DOCUMENT.format(note="Updated note.").replace("`8080`", "`8081`"))
         self.fixture.commit_head()
         output, preparation, _ = self.fixture.prepare()

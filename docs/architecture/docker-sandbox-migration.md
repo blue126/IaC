@@ -252,7 +252,7 @@ Read and follow [AGENTS.md](./AGENTS.md) as the authoritative project instructio
 
 以下目录中的 devcontainer 描述是当时事实，不做机械替换：
 
-- `docs/incidents/`
+- `docs/incidents/`（目录重构后更名为 `docs/troubleshooting/`）
 - `docs/learningnotes/`
 - `docs/archive/`
 

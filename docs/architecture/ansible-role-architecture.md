@@ -411,4 +411,4 @@ Internet
 - [Ansible Vault Architecture Design](./ansible-vault-architecture.md) — 密钥管理架构
 - [Ansible Role 重构历程](../learningnotes/2026-01-31-ansible-role-refactoring.md) — 重构过程记录
 - [Ansible Patterns and Best Practices](../guides/ansible-patterns-and-best-practices.md) — 最佳实践指南
-- [PBS ESXi Deployment Guide](../deployment/pbs-esxi-deployment.md) — 已退役的ESXi/PBS历史部署指南
+- [PBS ESXi Deployment Guide](../archive/pbs-esxi-deployment.md) — 已退役的ESXi/PBS历史部署指南
