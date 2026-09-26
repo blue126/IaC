@@ -289,7 +289,7 @@ def _fenced_yaml_value(text: str, locator: str) -> tuple[bool, Any, str | None]:
 CLAIMS = (
     Claim(
         "service.netbox.port",
-        "docs/deployment/netbox-deployment.md",
+        "docs/guides/netbox-deployment.md",
         "Configuration Variables::netbox_port",
         "ansible/roles/netbox/defaults/main.yml",
         "netbox_port",
@@ -298,7 +298,7 @@ CLAIMS = (
     ),
     Claim(
         "service.netbox.image",
-        "docs/deployment/netbox-deployment.md",
+        "docs/guides/netbox-deployment.md",
         "Configuration Variables::netbox_image",
         "ansible/roles/netbox/defaults/main.yml",
         "netbox_image",
@@ -306,7 +306,8 @@ CLAIMS = (
         _table_value,
     ),
     # Qwen3-TTS claims removed: both the design doc
-    # (docs/designs/qwen3-tts-openai-api-integration.md) and the source
+    # (docs/designs/qwen3-tts-openai-api-integration.md, since moved out of this
+    # repository) and the source
     # (ansible/roles/qwen3-tts/defaults/main.yml) moved to the separate
     # llm-ops repo along with the rest of the LLM workstation deployment.
 )

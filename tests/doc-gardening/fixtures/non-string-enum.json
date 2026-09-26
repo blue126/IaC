@@ -1,31 +1,31 @@
 {
-  "schema_version": 1,
-  "kind": "claim_candidates",
-  "manifest_sha256": "833ac20e40f3c66c8ddf90d3379a941ab36357b6dbe45a91557db5f256d2299c",
-  "document_path": "docs/designs/example.md",
-  "revision": {
-    "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  },
   "candidates": [
     {
-      "id": "candidate-1",
       "classification": [
         "candidate_contradiction"
-      ],
-      "reason": "evidence_conflict",
-      "hunk_id": "hunk-1",
-      "source": {
-        "span_id": "span-1",
-        "quote": "new"
-      },
-      "evidence_refs": [
-        "service.example.port"
       ],
       "edit": {
         "find": "new",
         "replace": "corrected"
+      },
+      "evidence_refs": [
+        "service.example.port"
+      ],
+      "hunk_id": "hunk-1",
+      "id": "candidate-1",
+      "reason": "evidence_conflict",
+      "source": {
+        "quote": "new",
+        "span_id": "span-1"
       }
     }
-  ]
+  ],
+  "document_path": "docs/guides/example.md",
+  "kind": "claim_candidates",
+  "manifest_sha256": "2cd52e8bc6bdaf59039c568d032ab50660fed2eb4073afeeff2ac72008635125",
+  "revision": {
+    "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "schema_version": 1
 }

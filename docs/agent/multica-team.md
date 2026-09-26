@@ -9,8 +9,8 @@
 **包 1 · 跨模型评审（宿主无关，8 个文件）** —— 不依赖 Multica，换 agent 时原样可用：
 
 ```text
-docs/bmad-cross-model-review.md        PAL 调用层、runtime 配置、边界、预检、冒烟、账单对账
-docs/bmad-review-routing.md            哪些 reviewer 走 Claude、哪些保留原生
+docs/agent/bmad-cross-model-review.md        PAL 调用层、runtime 配置、边界、预检、冒烟、账单对账
+docs/agent/bmad-review-routing.md            哪些 reviewer 走 Claude、哪些保留原生
 _bmad/custom/bmad-build-auto.toml
 _bmad/custom/bmad-review.toml
 _bmad/custom/bmad-qa-generate-e2e-tests.toml
@@ -22,8 +22,8 @@ _bmad/custom/bmad-code-review.toml
 **包 2 · Multica 适配器（2 个文件）** —— 就是本文件和执行合同：
 
 ```text
-docs/bmad-multica-contract.md          授权、派工、Issue 状态、回滚
-docs/multica-team.md                   本文件：Profile / Squad / 模型档位 / Instructions
+docs/agent/bmad-multica-contract.md          授权、派工、Issue 状态、回滚
+docs/agent/multica-team.md                   本文件：Profile / Squad / 模型档位 / Instructions
 ```
 
 两个包装进同一个项目时目录结构合并，共 10 个文件。**只要跨模型评审、不用 Multica 的人只装包 1。** 换掉 Multica 时只重写包 2。
@@ -37,7 +37,7 @@ docs/multica-team.md                   本文件：Profile / Squad / 模型档�
 5. Issue 设置 Project 和 BMAD Team；Chat 则先选择 Agent，并通过 + → Project context 关联项目。对"继续旧需求"先验证能找到旧记录、选择实际 Skill、恢复模式并提出下一问。
 6. 将已批准的文件更新通过项目既有 Git 流程交付，并确认后续 Run 获取的版本包含它们。只把 ZIP 解压到人工目录，不保证远端 checkout 能读到。
 
-**审核专项另行接入**：要执行跨模型评审，按包 1 的 `docs/bmad-cross-model-review.md` 完成PAL runtime 配置（X2）、配置预检（X6）和实机冒烟（X7）。安装文件、保存 Profile、完成普通规划都不代表该审核通道已经可用。独立 QA 按测试权限和环境执行。
+**审核专项另行接入**：要执行跨模型评审，按包 1 的 `docs/agent/bmad-cross-model-review.md` 完成PAL runtime 配置（X2）、配置预检（X6）和实机冒烟（X7）。安装文件、保存 Profile、完成普通规划都不代表该审核通道已经可用。独立 QA 按测试权限和环境执行。
 
 迁移到另一项目时，重新确认资源、BMAD 版本/路径、已有文档及该项目授权；旧项目的绝对路径不作为模板复制。模型仍采用 T1 的明确默认目标，目标 runtime 不支持时明确处理，不静默替换。
 
@@ -156,12 +156,12 @@ stage 仅用于确需整体完成的批次：同 stage 全部 Done/Cancelled 才
 ### 共同前缀
 
 ~~~text
-在任务指定的项目中工作，遵守项目 AGENTS.md 与 docs/bmad-multica-contract.md。先根据项目资源定位实际仓库，再读取项目内安装的 BMAD Skill；备份目录、其他项目或旧工作树中的同名 Skill 不是当前入口。
+在任务指定的项目中工作，遵守项目 AGENTS.md 与 docs/agent/bmad-multica-contract.md。先根据项目资源定位实际仓库，再读取项目内安装的 BMAD Skill；备份目录、其他项目或旧工作树中的同名 Skill 不是当前入口。
 专家在新会话或尚未激活时，完整读取下方指定的原生 Agent SKILL.md 并执行激活步骤，包括项目配置、定制合并、persona 与能力菜单。根据用户自然语言意图按原生规则进入匹配工作流；明确匹配时直接执行，不要求用户提供 Skill 名称或菜单编号。任务明确指定 Skill 时遵循该选择；入口不明确时使用原生菜单或 bmad-help，只有真实歧义或原生检查点才请求用户决定。
 以当前 Issue 或对话的已确认目标及后续明确变更为准。继续已有工作时读取记录、保持已激活角色、恢复原生断点并保留已有修改，不重复激活菜单或重新选择已在进行的工作流；用户反馈本项缺陷属于继续完成原任务。
 遵循当前 BMAD 原生步骤。准备结束本轮时按合同 C6 核对实际结果、原生检查点和剩余工作；有已授权且可执行的必要工作就继续。需要用户决定或遇到真实阻塞时，说明具体问题或恢复条件。计划不等于结果，结束后不声称仍在后台工作。
 Issue 中的日常问答用已核实的 [@成员名](mention://member/实际成员ID) 定向给需要回答的人，不混入 Agent/Squad mention 或 @all；缺少 ID 时按合同 C3 核实。创建、恢复、跨角色交接或结束子项时读取 C3；不得用状态变更、Issue 链接或文字承诺冒充已触发派工。评论回复遵守本轮真实触发评论与平台权限。
-评审前读取 docs/bmad-review-routing.md；涉及跨模型执行时再读取 docs/bmad-cross-model-review.md。按原生要求核验，不把未执行记为通过，不自行增加审核轮次。
+评审前读取 docs/agent/bmad-review-routing.md；涉及跨模型执行时再读取 docs/agent/bmad-cross-model-review.md。按原生要求核验，不把未执行记为通过，不自行增加审核轮次。
 提交、推送、合并、部署和外部资源操作分别遵守项目与用户授权。
 ~~~
 
@@ -169,7 +169,7 @@ Issue 中的日常问答用已核实的 [@成员名](mention://member/实际成�
 
 ~~~text
 你负责按项目实际安装的 BMAD 工作流协调 BMAD Team：定位目标和进度、选择执行者、接回结果，并在需要时请求人类决定。不要代替专家完成业务设计或自创工作流顺序。
-启动或接回时，根据任务和项目资源定位相关仓库，读取该仓库的 docs/bmad-multica-contract.md。没有明确项目归属或合同不可读时，说明缺口；不凭临时 workdir 或其他项目的文件猜测。
+启动或接回时，根据任务和项目资源定位相关仓库，读取该仓库的 docs/agent/bmad-multica-contract.md。没有明确项目归属或合同不可读时，说明缺口；不凭临时 workdir 或其他项目的文件猜测。
 对照父 Issue 的当前已确认目标、用户决定、子项产物和原生记录。下一步明确且获授权就派工；不明确时实际执行项目安装的 bmad-help；原生人类检查点、多个无明确顺序的必选后续或新授权交给用户。专家也能直接接收用户的自然语言任务，通过原生 Agent 自行选择工作流；无需每次经过 Coordinator 或让用户指定 Skill。
 创建或恢复工作项时按合同 C3 查重、交接输入并核对是否实际触发 Run。准备动作和 --no-start 不算启动；已有同一工作在执行时不重复派发。接回子项时也检查同批依赖是否需要明确唤醒。
 派工回合记录平台要求的 squad activity 后结束，不占用 Run 轮询成员。只有父目标与原生完成条件都有证据时，父 Issue 才进入 In Review。
@@ -237,7 +237,7 @@ Description：依据项目实际安装的 BMAD 工作流协调成员，从讨论
 | Amelia · Developer | 实现、修复与按需测试 |
 
 ~~~text
-本 Squad 由项目实际安装的 BMAD 工作流驱动。Coordinator 使用 Profile 的能力索引选择执行者，具体派工、接回、验收和评论路由遵守项目 docs/bmad-multica-contract.md C3/C6。
+本 Squad 由项目实际安装的 BMAD 工作流驱动。Coordinator 使用 Profile 的能力索引选择执行者，具体派工、接回、验收和评论路由遵守项目 docs/agent/bmad-multica-contract.md C3/C6。
 派工前核对父目标、用户决定、原生进度与既有工作项；派工后核对是否实际启动。子项交付后检查依赖和接回通知，不能只凭状态或整批屏障推断父目标完成。
 专家的日常问答留在其工作项。需要人类决定时提出具体问题；完成一轮协调后记录 activity 并结束 Run。
 ~~~
@@ -249,9 +249,9 @@ Description：依据项目实际安装的 BMAD 工作流协调成员，从讨论
 `AGENTS.md` 与适用 `CLAUDE.md` 只需添加以下引用，合并现有内容，不能覆盖原文件：
 
 ```text
-参与 BMAD/Multica 工作时，先读取 docs/bmad-multica-contract.md。
-执行 BMAD Team 协调任务时，再读取 docs/multica-team.md；不另写 BMAD 流程顺序。
-执行任何 BMAD 评审前，读取 docs/bmad-review-routing.md 确认该 reviewer 是否走 Claude。
+参与 BMAD/Multica 工作时，先读取 docs/agent/bmad-multica-contract.md。
+执行 BMAD Team 协调任务时，再读取 docs/agent/multica-team.md；不另写 BMAD 流程顺序。
+执行任何 BMAD 评审前，读取 docs/agent/bmad-review-routing.md 确认该 reviewer 是否走 Claude。
 ```
 
 仓库内的 Markdown 不会自动变成平台 Instructions。同步六个 Profile 的 T4 原文，以及现有 Squad 的 T5 Instructions 和 Role；保存后读取实际字段核对一致性。已有 Profile 的模型、runtime、Access、并发和其他能力不因更新指令而重置。
@@ -328,7 +328,7 @@ Coordinator 原生流程与人类介入另做行为验收（静态规则检查�
 
 评论路由按 T3.2 验收：评论触发预览中，仅人类 mention 返回空 Agent 列表；明确 worker mention 仅命中该 worker；明确 Squad mention 命中 Leader。随后一轮真实的用户提问→业务 Agent 回答，确认等待用户期间没有额外 Leader Run，而阶段交付仍有正常协调。
 
-审核专项验收见核心文档 X6/X7 与 `docs/bmad-review-routing.md` R5，包括 Architecture 的技术核验仍走原生、Code Review 的 `when` 行为、Build 默认不起 Claude、未执行项可见性四项真实 Run。
+审核专项验收见核心文档 X6/X7 与 `docs/agent/bmad-review-routing.md` R5，包括 Architecture 的技术核验仍走原生、Code Review 的 `when` 行为、Build 默认不起 Claude、未执行项可见性四项真实 Run。
 
 迁移验收：换一个项目资源或不同本机目录后仍按该项目安装发现 Skill、解析覆盖；无旧会话则按真实新任务处理。不保留上一项目绝对路径、Issue ID 或账户密钥。不需要为每个新项目复制一组 Profile。
 

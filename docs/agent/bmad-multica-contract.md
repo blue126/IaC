@@ -6,10 +6,10 @@
 
 **跨模型评审不在本文件。** 那套能力是宿主无关的，见另一个包：
 
-- `docs/bmad-cross-model-review.md` —— PAL 调用层、runtime 配置、边界声明、预检、冒烟、账单对账
-- `docs/bmad-review-routing.md` —— 哪些 reviewer 走 Claude、哪些保留原生
+- `docs/agent/bmad-cross-model-review.md` —— PAL 调用层、runtime 配置、边界声明、预检、冒烟、账单对账
+- `docs/agent/bmad-review-routing.md` —— 哪些 reviewer 走 Claude、哪些保留原生
 
-本合同只在需要时引用它们，不复述其规则。换掉 Multica 时，那两份文档和六个 TOML 原样可用；要重写的是本文件和 `docs/multica-team.md`。
+本合同只在需要时引用它们，不复述其规则。换掉 Multica 时，那两份文档和六个 TOML 原样可用；要重写的是本文件和 `docs/agent/multica-team.md`。
 
 ## C1. 规则来源与职责
 
@@ -57,7 +57,7 @@ workflow、恢复位置、下一步或未决项对当前交付的影响不明确
 
 Multica 的 Squad 创建页只配置名称、描述、Leader 和成员；它不承载 Skills、Runtime、Model、Thinking 或 Speed。Profile 的 Instructions 承载长期职责边界，Profile 的 Execution 设置承载模型、推理、速度、访问和并发；每次 Run 再决定实际调用的 workflow。不能以 Squad 名称、Description 或成员关系推断任何 Skill 已绑定。
 
-`docs/multica-team.md` 的映射只决定已经选中的工作流由谁执行，不决定工作流先后。未知 Skill/多义映射交人确认，不模糊匹配到"最像"的人。
+`docs/agent/multica-team.md` 的映射只决定已经选中的工作流由谁执行，不决定工作流先后。未知 Skill/多义映射交人确认，不模糊匹配到"最像"的人。
 
 成员在实际执行该项的 Issue 回报。跨角色派工默认由 Coordinator 处理；用户明确要求某位专家创建或指派工作时，该专家在授权范围内按 C3 查重、确定父项与输入、执行一次有效触发并核对 Run。只有建议或讨论、尚未获准派工时，不自行启动下一成员。Coordinator 派工后结束当前 Run，不在父 Run 中轮询等待。
 
@@ -85,7 +85,7 @@ Coordinator 将子项结果与未决项放回原生步骤并对照父目标；�
 
 ## C4. 跨模型审核在本团队的落点
 
-规则本身在 `docs/bmad-cross-model-review.md` 和 `docs/bmad-review-routing.md`。本节只说它在 Multica 上怎么落地。
+规则本身在 `docs/agent/bmad-cross-model-review.md` 和 `docs/agent/bmad-review-routing.md`。本节只说它在 Multica 上怎么落地。
 
 实现使用已批准的 OpenAI 模型；指定审核层/lens 由 PAL clink 启动已批准的 Claude 或 Gemini CLI 执行。reviewer 只出报告，宿主保留原工作流的汇总与分诊。拒绝有效 findings 需证据；产品/架构分歧升级，不由轻量 Coordinator 裁决。
 
@@ -131,7 +131,7 @@ BMAD 的 `ready-for-dev` 不是授权，`in-review` 不是整条 Issue 等人工
 
 ## C7. 暂停、回滚与恢复
 
-审核通道自身的故障处置见 `docs/bmad-cross-model-review.md` X9。本节是团队层面的动作。
+审核通道自身的故障处置见 `docs/agent/bmad-cross-model-review.md` X9。本节是团队层面的动作。
 
 1. **冻结派工，不删除证据。** 记录 Issue/Run、输入与代码快照、有效配置、模型/费用、失败日志；活动 Run 要么完成，要么由获授权人明确取消。停派工不等于自动杀死运行。
 2. **选择恢复方案。** 优先恢复上一组端到端验收过的配置与 CLI/Skill 版本。没有可用基线时继续阻塞，或由你明确批准人工 Claude 审核、临时同模型审核等替代路径，并记录范围、期限及尚未满足的 cross-model 要求。
@@ -142,4 +142,4 @@ BMAD 的 `ready-for-dev` 不是授权，`in-review` 不是整条 Issue 等人工
 
 ## 依据
 
-执行政策为本包的项目适配实现。Multica bootstrap、Profile/Squad 配置、并行派工与验收见同包 `docs/multica-team.md` T0–T8；官方来源列在 T8。跨模型评审的协议、代码与验证在另一个包。文件本身不会提供模型账号、安装 BMAD 或自动修改 Multica。
+执行政策为本包的项目适配实现。Multica bootstrap、Profile/Squad 配置、并行派工与验收见同包 `docs/agent/multica-team.md` T0–T8；官方来源列在 T8。跨模型评审的协议、代码与验证在另一个包。文件本身不会提供模型账号、安装 BMAD 或自动修改 Multica。

@@ -1,43 +1,55 @@
 {
-  "schema_version": 1,
-  "kind": "shadow_quality_corpus",
+  "cases": [
+    {
+      "claim_id": "service.netbox.port",
+      "document_path": "docs/guides/netbox-deployment.md",
+      "id": "positive-netbox-port",
+      "kind": "positive",
+      "result_file": "positive-netbox-port.json",
+      "revision": {
+        "base": "982fa7794529fc41414d699a3615e4e4f4327c3b",
+        "head": "923c4c5af47499cde36cabba0fabdd9050c63aed"
+      }
+    },
+    {
+      "claim_id": "service.netbox.image",
+      "document_path": "docs/guides/netbox-deployment.md",
+      "id": "positive-netbox-image",
+      "kind": "positive",
+      "result_file": "positive-netbox-image.json",
+      "revision": {
+        "base": "982fa7794529fc41414d699a3615e4e4f4327c3b",
+        "head": "301457e83b705b0d310f46c382b3bbe6b1e5b556"
+      }
+    },
+    {
+      "claim_id": null,
+      "document_path": "docs/guides/netbox-deployment.md",
+      "id": "negative-registered",
+      "kind": "negative",
+      "result_file": "negative-registered.json",
+      "revision": {
+        "base": "982fa7794529fc41414d699a3615e4e4f4327c3b",
+        "head": "577f692d7bee34117d0a8c9bf3e4a86b93f6a8e2"
+      }
+    },
+    {
+      "claim_id": null,
+      "document_path": "docs/guides/immich-deployment.md",
+      "id": "negative-external",
+      "kind": "negative",
+      "result_file": "negative-external.json",
+      "revision": {
+        "base": "982fa7794529fc41414d699a3615e4e4f4327c3b",
+        "head": "3c11cf18995299c2eda25e2b79305769c44a0476"
+      }
+    }
+  ],
   "configuration": {
     "model": "claude-opus-5",
     "runtime": "claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2",
     "schema_sha256": "bfd8917e9ab7ca0323facd889c3b282b36304ff27ec1e28c5f9976a8ab01bd27"
   },
-  "cases": [
-    {
-      "id": "positive-netbox-port",
-      "kind": "positive",
-      "document_path": "docs/deployment/netbox-deployment.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "923c4c5af47499cde36cabba0fabdd9050c63aed"},
-      "result_file": "positive-netbox-port.json",
-      "claim_id": "service.netbox.port"
-    },
-    {
-      "id": "positive-netbox-image",
-      "kind": "positive",
-      "document_path": "docs/deployment/netbox-deployment.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "301457e83b705b0d310f46c382b3bbe6b1e5b556"},
-      "result_file": "positive-netbox-image.json",
-      "claim_id": "service.netbox.image"
-    },
-    {
-      "id": "negative-registered",
-      "kind": "negative",
-      "document_path": "docs/deployment/netbox-deployment.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "577f692d7bee34117d0a8c9bf3e4a86b93f6a8e2"},
-      "result_file": "negative-registered.json",
-      "claim_id": null
-    },
-    {
-      "id": "negative-external",
-      "kind": "negative",
-      "document_path": "docs/deployment/immich-deployment.md",
-      "revision": {"base": "982fa7794529fc41414d699a3615e4e4f4327c3b", "head": "3c11cf18995299c2eda25e2b79305769c44a0476"},
-      "result_file": "negative-external.json",
-      "claim_id": null
-    }
-  ]
+  "kind": "shadow_quality_corpus",
+  "schema_version": 1
 }

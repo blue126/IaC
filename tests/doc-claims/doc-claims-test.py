@@ -73,7 +73,7 @@ class Fixture:
     def __init__(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
-        self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT)
+        self.write("docs/guides/netbox-deployment.md", NETBOX_DOCUMENT)
         self.write("ansible/roles/netbox/defaults/main.yml", NETBOX_DEFAULTS)
 
     def write(self, relative_path: str, content: str) -> None:
@@ -124,7 +124,7 @@ class DocClaimsTest(unittest.TestCase):
             self.assertRegex(claim["oracle"]["sha256"], r"^[0-9a-f]{64}$")
 
     def test_changed_markdown_scalar_is_contradiction(self) -> None:
-        self.fixture.replace("docs/deployment/netbox-deployment.md", "`8080`", "`8081`")
+        self.fixture.replace("docs/guides/netbox-deployment.md", "`8080`", "`8081`")
         claim = self.claim("service.netbox.port")
         self.assertEqual(claim["status"], "contradiction")
         self.assertEqual(claim["reason"], "value_mismatch")
@@ -139,12 +139,12 @@ class DocClaimsTest(unittest.TestCase):
         self.assertEqual(claim["oracle"]["key"], "netbox_port")
 
     def test_type_mismatch_is_contradiction(self) -> None:
-        self.fixture.replace("docs/deployment/netbox-deployment.md", "`8080`", '`"8080"`')
+        self.fixture.replace("docs/guides/netbox-deployment.md", "`8080`", '`"8080"`')
         self.assert_reason("service.netbox.port", "contradiction", "type_mismatch")
 
     def test_pathological_integer_is_indeterminate_without_crashing(self) -> None:
         huge_integer = "9" * 5000
-        self.fixture.replace("docs/deployment/netbox-deployment.md", "`8080`", f"`{huge_integer}`")
+        self.fixture.replace("docs/guides/netbox-deployment.md", "`8080`", f"`{huge_integer}`")
         self.fixture.replace("ansible/roles/netbox/defaults/main.yml", "netbox_port: 8080", f"netbox_port: {huge_integer}")
         self.assert_reason("service.netbox.port", "indeterminate", "locator_non_scalar")
 
@@ -155,14 +155,14 @@ class DocClaimsTest(unittest.TestCase):
                 self.assertFalse(parsed)
                 self.assertIsNone(value)
 
-        self.fixture.replace("docs/deployment/netbox-deployment.md", "`8080`", "`yes`")
+        self.fixture.replace("docs/guides/netbox-deployment.md", "`8080`", "`yes`")
         self.fixture.replace("ansible/roles/netbox/defaults/main.yml", "netbox_port: 8080", "netbox_port: yes")
         self.assert_reason("service.netbox.port", "indeterminate", "locator_non_scalar")
 
     def test_changed_string_claim_does_not_echo_secret_sentinel(self) -> None:
         sentinel = "SECRET_SENTINEL_DO_NOT_ECHO"
         self.fixture.replace(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             '"netboxcommunity/netbox:v4.1.11"',
             f'"{sentinel}"',
         )
@@ -172,26 +172,26 @@ class DocClaimsTest(unittest.TestCase):
         self.assertEqual(claim["document"]["value"], {"type": "string", "redacted": True})
 
     def test_missing_sources_are_indeterminate(self) -> None:
-        (self.fixture.root / "docs/deployment/netbox-deployment.md").unlink()
+        (self.fixture.root / "docs/guides/netbox-deployment.md").unlink()
         self.assert_reason("service.netbox.port", "indeterminate", "document_source_missing")
-        self.fixture.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT)
+        self.fixture.write("docs/guides/netbox-deployment.md", NETBOX_DOCUMENT)
         (self.fixture.root / "ansible/roles/netbox/defaults/main.yml").unlink()
         self.assert_reason("service.netbox.port", "indeterminate", "oracle_source_missing")
 
     def test_missing_locator_is_indeterminate(self) -> None:
-        self.fixture.replace("docs/deployment/netbox-deployment.md", "Configuration Variables", "Other Variables")
+        self.fixture.replace("docs/guides/netbox-deployment.md", "Configuration Variables", "Other Variables")
         self.assert_reason("service.netbox.port", "indeterminate", "locator_missing")
 
     def test_duplicate_locator_is_indeterminate(self) -> None:
         self.fixture.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             NETBOX_DOCUMENT + "\n#### Configuration Variables\n\n| Variable | Default |\n|---|---|\n| `netbox_port` | `8080` |\n",
         )
         self.assert_reason("service.netbox.port", "indeterminate", "locator_multiple")
 
     def test_table_locator_uses_headers_and_optional_outer_pipes(self) -> None:
         self.fixture.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             """# Netbox
 
    #### Configuration Variables
@@ -207,7 +207,7 @@ Image | "netboxcommunity/netbox:v4.1.11" | `netbox_image`
 
     def test_table_locator_ignores_fenced_fake_rows(self) -> None:
         self.fixture.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             """# Netbox
 
 #### Configuration Variables
@@ -304,7 +304,7 @@ fenced_sample_webui_port: 3000
         self.addCleanup(outside.cleanup)
         outside_document = Path(outside.name) / "netbox.md"
         outside_document.write_text(NETBOX_DOCUMENT + sentinel, encoding="utf-8")
-        document = self.fixture.root / "docs/deployment/netbox-deployment.md"
+        document = self.fixture.root / "docs/guides/netbox-deployment.md"
         document.unlink()
         document.symlink_to(outside_document)
 
@@ -395,7 +395,7 @@ fenced_sample_webui_port: 3000
         self.assertTrue(output.is_file())
         self.assertNotIn(str(self.fixture.root), output.read_text(encoding="utf-8"))
 
-        self.fixture.replace("docs/deployment/netbox-deployment.md", "`8080`", "`8081`")
+        self.fixture.replace("docs/guides/netbox-deployment.md", "`8080`", "`8081`")
         failure = subprocess.run(
             [sys.executable, str(CHECKER_PATH), "--root", str(self.fixture.root), "--output", str(output)],
             check=False,

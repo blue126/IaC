@@ -331,7 +331,7 @@ ansible immich -m debug -a "var=immich_db_password"
 
 ## 参考
 
-- **架构设计文档**：[Ansible Vault Architecture Design](../designs/ansible-vault-architecture.md) — 完整的架构设计规范（本文精简版）
+- **架构设计文档**：[Ansible Vault Architecture Design](../architecture/ansible-vault-architecture.md) — 完整的架构设计规范（本文精简版）
 - 前置笔记：[Ansible Vault Secret Management (2025-12-02)](./2025-12-02-ansible-vault-secret-management.md) — Vault 基础入门
 - 项目规范：[AGENTS.md § Ansible Vault Architecture](../../AGENTS.md) — 快速参考手册
 - Ansible 官方文档：[Variable Precedence](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html#variable-precedence-where-should-i-put-a-variable)

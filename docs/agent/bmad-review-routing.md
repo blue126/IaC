@@ -1,5 +1,5 @@
 # BMAD 选择性跨模型审核路由
-版本：r8-pal-candidate。只替换执行通道，不改 Coordinator 派工。调用协议见 docs/bmad-cross-model-review.md。
+版本：r8-pal-candidate。只替换执行通道，不改 Coordinator 派工。调用协议见 docs/agent/bmad-cross-model-review.md。
 
 ## R0. 选择表
 | 原生入口 | 路由 |

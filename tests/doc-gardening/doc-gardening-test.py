@@ -70,8 +70,10 @@ NETBOX_DOCUMENT = """# Netbox
 
 {note}
 """
-# The second seeded service mirrors the Phase 1 claim set, which covers
-# netbox and qwen3-tts. It carried llm-server until that role was retired.
+# A second in-scope service that the Phase 1 claim set no longer covers: the
+# live claim set is netbox-only. llm-server was retired first and qwen3-tts
+# followed it to the separate llm-ops repo. These files stay seeded because the
+# one-document invariant test needs a second in-scope Markdown document.
 QWEN_DOCUMENT = """# Qwen3-TTS
 
 ### 关键配置值
@@ -96,11 +98,12 @@ qwen3_tts_vllm_image: vllm/vllm-omni:v0.28.0
 
 
 # The Phase 1 checker runs over this fixture and must find every claim it
-# knows about, so these files mirror its claim set. When main adds, renames or
+# knows about, so these files are a superset of its claim set: the required
+# claim pairs plus the retired service seeded above. When main adds, renames or
 # retires a claim, this mapping has to move with it.
 SEEDED_FILES = {
-    "docs/deployment/netbox-deployment.md": NETBOX_DOCUMENT,
-    "docs/designs/qwen3-tts-openai-api-integration.md": QWEN_DOCUMENT,
+    "docs/guides/netbox-deployment.md": NETBOX_DOCUMENT,
+    "docs/guides/qwen3-tts-openai-api-integration.md": QWEN_DOCUMENT,
     "ansible/roles/netbox/defaults/main.yml": NETBOX_DEFAULTS,
     "ansible/roles/qwen3-tts/defaults/main.yml": QWEN_DEFAULTS,
     # Out of scope by prefix, and in the repository, so the scope allowlist is
@@ -135,8 +138,8 @@ class GitFixture:
         self.git("add", ".")
         self.git("commit", "-qm", "base")
         self.base = self.git("rev-parse", "HEAD").stdout.strip()
-        self.write("docs/deployment/netbox-deployment.md", NETBOX_DOCUMENT.format(note=head_note))
-        self.git("add", "docs/deployment/netbox-deployment.md")
+        self.write("docs/guides/netbox-deployment.md", NETBOX_DOCUMENT.format(note=head_note))
+        self.git("add", "docs/guides/netbox-deployment.md")
         self.git("commit", "-qm", "head")
         self.head = self.git("rev-parse", "HEAD").stdout.strip()
         self.evidence_report = self.root / "phase-1-report.json"
@@ -184,7 +187,7 @@ class GitFixture:
         self, *extra: str, documents: list[str] | None = None
     ) -> tuple[subprocess.CompletedProcess[str], Path]:
         output = self.root / "manifest.json"
-        selected = ["docs/deployment/netbox-deployment.md"] if documents is None else documents
+        selected = ["docs/guides/netbox-deployment.md"] if documents is None else documents
         command = [
             sys.executable,
             str(TOOL_ROOT / "build-candidate.py"),
@@ -239,7 +242,7 @@ class DocGardeningTest(unittest.TestCase):
         manifest = json.loads(output.read_text(encoding="utf-8"))
         VALIDATOR.validate_manifest_structure(manifest)
         VALIDATOR.validate_manifest_repository(manifest, self.fixture.root)
-        self.assertEqual(manifest["document"]["path"], "docs/deployment/netbox-deployment.md")
+        self.assertEqual(manifest["document"]["path"], "docs/guides/netbox-deployment.md")
         self.assertEqual(manifest["revision"], {"base": self.fixture.base, "head": self.fixture.head})
         self.assertEqual([item["id"] for item in manifest["evidence"]], ["service.netbox.port"])
         self.assertGreaterEqual(len(manifest["hunks"]), 1)
@@ -255,7 +258,7 @@ class DocGardeningTest(unittest.TestCase):
                 "--root",
                 str(self.fixture.root),
                 "--document",
-                "docs/deployment/netbox-deployment.md",
+                "docs/guides/netbox-deployment.md",
                 "--base",
                 self.fixture.base,
                 "--head",
@@ -292,8 +295,8 @@ class DocGardeningTest(unittest.TestCase):
         # invariant can reject this.
         result, output = self.fixture.build(
             documents=[
-                "docs/deployment/netbox-deployment.md",
-                "docs/designs/qwen3-tts-openai-api-integration.md",
+                "docs/guides/netbox-deployment.md",
+                "docs/guides/qwen3-tts-openai-api-integration.md",
             ]
         )
         self.assertEqual(result.returncode, 2)
@@ -324,7 +327,7 @@ class DocGardeningTest(unittest.TestCase):
         result, output = self.fixture.build()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.fixture.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             NETBOX_DOCUMENT.format(note="Changed after packaging."),
         )
         manifest = VALIDATOR.validate_manifest_structure(json.loads(output.read_text(encoding="utf-8")))
@@ -750,7 +753,7 @@ class DocGardeningTest(unittest.TestCase):
         recorded_path = self.fixture.root / "stale-recorded.json"
         recorded_path.write_text(json.dumps(self._recorded_artifact(manifest)), encoding="utf-8")
         self.fixture.write(
-            "docs/deployment/netbox-deployment.md",
+            "docs/guides/netbox-deployment.md",
             NETBOX_DOCUMENT.format(note="Changed after packaging."),
         )
         record_path = self.fixture.root / "stale-run.json"

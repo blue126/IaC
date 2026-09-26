@@ -31,7 +31,7 @@
 >
 > **v1.7 变更（2026-08-06，Windows/Veeam 迁移）**：Windows Server 2022 迁移为 pve1 VMID 112；80G 系统盘位于 `vmdata`，原 2T ReFS/Veeam zvol 以 ZFS send/receive 迁移为 `tank/vm-112-disk-1`，保留既有 restore points；WAC 改用 8443，Veeam Web 保持 443；安装并验证 QEMU Guest Agent；Terraform 已接管 VM。按避免循环备份的决定，pve1 不加入 ESXi 上 PBS 的备份作业。ESXi 源 VM 与 PBS `backup-pool/veeam-vol` 已删除，旧 iSCSI 自动化已退役并归档。
 >
-> **v1.9 变更（2026-08-08，阶段一收尾）**：步骤 1–8 全部完成，架构迁移部分结束。**步骤 9（M920Q 内存实测）尚未执行**，阶段二据此判断（见 D12），因此阶段二暂不可评估。新增 4.4 节遗留项：**恢复能力只验证到文件级** —— Time Machine 确认过可取回单个文件，Veeam 确认过 restore points 完好，但两者都未做整机还原验证；v1.5 记录的"恢复演练延期"至今未补。同步更新 `docs/designs/homelab-iac-architecture.md` 的备份章节以匹配阶段一实际拓扑。
+> **v1.9 变更（2026-08-08，阶段一收尾）**：步骤 1–8 全部完成，架构迁移部分结束。**步骤 9（M920Q 内存实测）尚未执行**，阶段二据此判断（见 D12），因此阶段二暂不可评估。新增 4.4 节遗留项：**恢复能力只验证到文件级** —— Time Machine 确认过可取回单个文件，Veeam 确认过 restore points 完好，但两者都未做整机还原验证；v1.5 记录的"恢复演练延期"至今未补。同步更新 `docs/architecture/homelab-iac-architecture.md` 的备份章节以匹配阶段一实际拓扑。
 >
 > **v1.8 变更（2026-08-07，pve2 退役）**：确认 pve2 无 VM/LXC、HA、复制或存储引用后，从 corosync、pmxcfs、Terraform inventory 和 NetBox 中删除；撤销其 SSH 公钥；`HomePVECluster` 现由 pve0/pve1 组成。用户决定不配置 QDevice，保留 pve0 3 票、pve1 1 票的非对称仲裁，并接受 pve1 单独存活时无 quorum 的限制。
 
@@ -435,7 +435,7 @@ backup-pool
 
 两块 NVMe 位于 `03:01.0` / `03:02.0`，**同总线不同 device 号，即 bifurcation 拆分的结果**。
 
-> 早前记录称"T7910 的 BIOS 不支持 bifurcation，故两块 NVMe 各用独立 adapter 卡"（见 §2.1 表注与 `docs/deployment/pbs-esxi-deployment.md`），**该记录有误**，已由上述 PCI 拓扑推翻。
+> 早前记录称"T7910 的 BIOS 不支持 bifurcation，故两块 NVMe 各用独立 adapter 卡"（见 §2.1 表注与 `docs/archive/pbs-esxi-deployment.md`），**该记录有误**，已由上述 PCI 拓扑推翻。
 
 **必须坚持的约束**：
 
@@ -1096,7 +1096,7 @@ fruit:time machine max size = 1T
 
 ### 12.1 当前状态一句话总结
 
-备份已恢复（10 个工作负载均有 2026-08-06 的恢复点），**但事故未关闭**——根因未消除，T7910 已再次关机，下一次 02:00 作业仍会失败。详见[事故报告](../incidents/2026-08-05-backup-outage.md) 1.1 节。
+备份已恢复（10 个工作负载均有 2026-08-06 的恢复点），**但事故未关闭**——根因未消除，T7910 已再次关机，下一次 02:00 作业仍会失败。详见[事故报告](../troubleshooting/2026-08-05-backup-outage.md) 1.1 节。
 
 ### 12.2 已落地的变更
 

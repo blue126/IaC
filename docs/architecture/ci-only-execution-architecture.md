@@ -18,7 +18,7 @@ binds:
 sources:
   - Jenkinsfile
   - Jenkinsfile-webhook-router
-  - docs/designs/cicd-architecture.md
+  - docs/architecture/cicd-architecture.md
   - AGENTS.md
   - https://docs.gitea.com/usage/repository/webhooks/
   - https://docs.gitea.com/1.25/usage/repository/repo-mirror/

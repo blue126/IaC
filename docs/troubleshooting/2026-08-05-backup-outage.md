@@ -6,7 +6,7 @@
 > **事故状态**: **临时缓解，永久修复未完成** — 见 1.1
 > **严重级别**: 高 — 恢复点最大陈旧度达 187 天；3 个工作负载自创建起从无恢复点
 > **时区**: 本报告所有无后缀时间均为 **AEST (UTC+10)**；带 `Z` 后缀者为 UTC（PBS 快照 ID 使用 UTC）
-> **关联文档**: [backup-architecture-consolidation-spec.md](../specs/backup-architecture-consolidation-spec.md)
+> **关联文档**: [backup-architecture-consolidation-spec.md](../architecture/backup-architecture-consolidation-spec.md)
 
 ---
 

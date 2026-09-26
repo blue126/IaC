@@ -1,6 +1,6 @@
 ---
 title: Documentation / 文档
-description: Repository designs, deployment guides, incidents, specifications, and learning notes.
+description: Repository architecture, guides, troubleshooting, learning notes, planning, agent, reference, and archived documents.
 outputs: [HTML, RSS, print, markdown]
 cascade:
   github_subdir: docs

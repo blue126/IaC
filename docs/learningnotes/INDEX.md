@@ -2,9 +2,10 @@
 
 这个目录包含基础设施即代码 (IaC)、网络、应用部署等领域的学习笔记和故障排查记录。
 
-**最后更新**: 2026-08-11
-**文档数量**: 36 篇
+**最后更新**: 2026-09-26
+**文档数量**: 45 篇
 **覆盖范围**: Terraform, Ansible, Proxmox, Netbox, Tailscale, LXC, n8n, Immich, RustDesk, LLM 等
+**子目录**: `refactoring/` 存放重构专题笔记
 
 ---
 
@@ -20,6 +21,24 @@
 
 ## 按日期排序 (最新到最旧)
 
+### 2026-09-21
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-09-21 | [PNetLab 在独立 pve2 上的部署前置检查](./2026-09-21-pnetlab-pve2-preflight.md) | PNetLab, Proxmox, pve2, nested-virt, IaC | **Active** | pve2 独立节点部署 PNetLab 前置检查；独立 PVE 的 VMID 可复用但同 LAN IP 不能复用 |
+
+### 2026-08-30
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-08-30 | [Jenkins Agent 控制平面的第一性原理](./2026-08-30-jenkins-agent-control-plane.md) | Jenkins, CI/CD, Security, Ansible, Proxmox | **Active** | controller 决定"什么可执行"，peer agent 真正执行；基于 CI-only execution 架构的 CAP-8/AD-9-11 案例分析 |
+
+### 2026-08-28
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-08-28 | [MCP Gateway 部署记录](./2026-08-28-mcp-gateway-deployment.md) | MCP, Cloudflare Tunnel, Access Service Token, VM | **Active** | `mcp-gateway` VM(109) + Cloudflare Tunnel 部署，Access Service Token 与 MCP 端点缓存绕过 |
+
 ### 2026-08-11
 
 | 日期 | 标题 | 标签 | 状态 | 摘要 |
@@ -27,12 +46,34 @@
 | 2026-08-11 | [PBS 从 ESXi V2V 迁移到 PVE 的经验教训](./2026-08-11-pbs-v2v-migration-lessons.md) | PBS, ESXi, PVE, V2V, ZFS, Migration | **Active** | V2V 搬不走 datastore；MAC 冲突与接口命名连锁；重建 datastore 丢 ACL；备份组 owner 不匹配；62 MiB/s 的瓶颈在元数据随机 I/O 而非网络 |
 | 2026-08-11 | [ESXi 链路抖动抑制导致的"插回原端口也不恢复"故障](./2026-08-11-esxi-link-flapping-dampening.md) | ESXi, Networking, Troubleshooting, NTP, vSwitch | **Active** | 抖动抑制主动停用网卡且不自动恢复；NTP 未启用导致日志时间偏差 11 小时；排查中多个基于不完整信息的错误判断 |
 
+### 2026-02-09
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-02-09 | [Epic 1 学习笔记 — NetBox 数据建模与 Webhook 基础设施](./refactoring/2026-02-09-epic1-netbox-webhook-jenkins-learning.md) | NetBox, Jenkins, Webhook, Custom Fields, API | **Active** | 首次接触 Jenkins 与 NetBox，从零搭建事件驱动的基础设施自动化：6 个 Custom Fields 作为路由核心，Webhook 触发 pipeline |
+
+### 2026-02-04
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-02-04 | [Cloudflare Tunnel Ansible Role 代码评审](./2026-02-04-ansible-cloudflared-review.md) | Ansible, Cloudflared, Code Review, Role Design | **Active** | 独立 `cloudflared` role 的架构决策（关注点分离、可复用），评审模式与设计权衡 |
+
+### 2026-02-03
+
+| 日期 | 标题 | 标签 | 状态 | 摘要 |
+|------|------|------|------|------|
+| 2026-02-03 | [ESXi VM 基础设施改进](./2026-02-03-esxi-vm-infrastructure-improvements.md) | Terraform, ESXi, VMX, Ansible, Windows | **Active** | esxi-vm 模块增强、VMX 参数配置、Ansible Windows 支持 |
+| 2026-02-03 | [Jenkins CI/CD Phase 1: 基础设施部署](./2026-02-03-jenkins-cicd-phase1-infrastructure.md) | Jenkins, CI/CD, LXC, Terraform, Ansible | **Active** | 在 Proxmox LXC 部署 Jenkins + Terraform + Ansible 基础设施 |
+| 2026-02-03 | [Jenkins CI/CD Phase 2: Jenkins 配置](./2026-02-03-jenkins-cicd-phase2-configuration.md) | Jenkins, CI/CD, Plugins, Credentials, SSH | **Active** | Jenkins 插件安装、凭据配置、GitHub SSH 连接 |
+| 2026-02-03 | [Jenkins CI/CD Phase 3: Pipeline 开发](./2026-02-03-jenkins-cicd-phase3-pipeline.md) | Jenkins, CI/CD, Pipeline, Groovy, IaC | **Active** | Jenkinsfile 编写、声明式 Pipeline、Terraform + Ansible 集成 |
+
 ### 2026-01-31
 
 | 日期 | 标题 | 标签 | 状态 | 摘要 |
 |------|------|------|------|------|
 | 2026-01-31 | [Ansible Role 架构重构](./2026-01-31-ansible-role-refactoring.md) | Ansible, Refactoring, Roles, Architecture, Best Practices | **Active** | Role 命名标准化、变量作用域修复、依赖管理规范化、Phase 1 完成记录 |
 | 2026-01-31 | [Ansible Vault 架构设计与标准化重构](./2026-01-31-ansible-vault-architecture-refactoring.md) | Ansible, Vault, Security, Refactoring, Architecture | **Active** | Vault 全面审计、间接引用模式标准化、明文密码迁移、架构设计文档 |
+| 2026-01-31 | [PBS 与 Proxmox 集群备份集成（IaC 方式）](./2026-01-31-pbs-proxmox-backup-integration.md) | PBS, Proxmox, Backup, Ansible, IaC, ZFS | **Active** | Ansible 自动化配置集群备份到 PBS；CLI 差异、API 认证、Jinja2 陷阱 |
 
 ### 2026-01-29
 

@@ -1,121 +1,118 @@
 # Directory Index
 
-## Files
+Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构设计、操作指南、排障、学习笔记、规划、Agent 工作流、静态参考与归档。
 
-- **[README.md](./README.md)** - Documentation index and navigation hub.
-- **[netbox-custom-fields-reference.md](./netbox-custom-fields-reference.md)** - NetBox Custom Fields definition reference (Epic 1).
+> 发布站点由 [`docs-site/`](../docs-site/README.md) 从本目录自动生成，目录结构即站点导航。
 
-## Subdirectories
+## 顶层结构
 
-### agent-setup/
+| 目录 | 内容 | 说明 |
+|---|---|---|
+| [`architecture/`](#architecture) | 架构设计与规范 | designs + specs 合并 |
+| [`guides/`](#guides) | 部署与实操指南 | deployment + guides 合并 |
+| [`troubleshooting/`](#troubleshooting) | 排障与事故复盘 | troubleshooting + incidents 合并 |
+| [`learningnotes/`](#learningnotes) | 学习笔记（按日期） | — |
+| [`planning/`](#planning) | 路线图、提案与已实现 | improvement 更名 |
+| [`agent/`](#agent) | BMAD/Multica/OpenCode 工作流 | 顶层散落归位 |
+| [`reference/`](#reference) | 静态参考数据 | — |
+| [`archive/`](#archive) | 已退役文档 | — |
 
-- **[bmad-opencode-subagent-integration.md](./agent-setup/bmad-opencode-subagent-integration.md)** - BMAD + OpenCode two-layer agent architecture integration guide and optimization records.
+---
 
-### deployment/
+## architecture/
 
-- **[immich-deployment.md](./deployment/immich-deployment.md)** - Immich deployment guide covering Terraform, Ansible, and Docker.
-- **[immich-upgrade-mop.md](./deployment/immich-upgrade-mop.md)** - 面向 agent 的 Homelab 六步升级流程，包含整机备份、基本验证和恢复边界。
-- **[netbox-deployment.md](./deployment/netbox-deployment.md)** - Netbox deployment architecture, infrastructure provisioning, and application setup.
-- **[pbs-esxi-deployment.md](./deployment/pbs-esxi-deployment.md)** - 已退役的 ESXi/PBS 历史部署记录，不适用于当前 pve2；保留路径供历史引用。
-- **[proxmox-vm-deployment.md](./deployment/proxmox-vm-deployment.md)** - Guide for managing Proxmox VMs using Terraform.
-- **[README.md](./deployment/README.md)** - Index and overview of deployment guides.
+架构设计、规范与决策记录。
 
-### archive/
+- **[homelab-iac-architecture.md](./architecture/homelab-iac-architecture.md)** — 系统总体架构（Terraform + Ansible + Proxmox/OCI/Netbox）。
+- **[backup-architecture-consolidation-spec.md](./architecture/backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
+- **[cicd-architecture.md](./architecture/cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
+- **[ansible-vault-architecture.md](./architecture/ansible-vault-architecture.md)** — Ansible Vault 密钥管理设计。
+- **[ansible-role-architecture.md](./architecture/ansible-role-architecture.md)** — Ansible Role 架构、边界与依赖。
+- **[docker-sandbox-agent-architecture.md](./architecture/docker-sandbox-agent-architecture.md)** — Docker Sandbox Agent 架构。
+- **[docker-sandbox-migration.md](./architecture/docker-sandbox-migration.md)** — Docker Sandbox 迁移记录（原 `2026-08-28-*`）。
+- **[ci-only-execution-architecture.md](./architecture/ci-only-execution-architecture.md)** — CI-only 执行架构（原 `2026-08-30-*`）。
+- **[proxmox-storage-monitoring-spec.md](./architecture/proxmox-storage-monitoring-spec.md)** — 集群 SMART/ZFS scrub/Prometheus/Grafana 存储监控规范。
+- **[anki-desktop-role.md](./architecture/anki-desktop-role.md)** — Anki Desktop Role 设计。
+- **[gitea-role.md](./architecture/gitea-role.md)** — Gitea Role 设计。
+- **[cicd-pipeline-flowchart.excalidraw](./architecture/cicd-pipeline-flowchart.excalidraw)** — CI/CD 流程图（Excalidraw）。
 
-- **[pbs-iscsi-veeam-guide.md](./archive/pbs-iscsi-veeam-guide.md)** - Archived PBS iSCSI/Veeam architecture guide.
-- **[pbs-iscsi-veeam-spec.md](./archive/pbs-iscsi-veeam-spec.md)** - Archived PBS iSCSI/Veeam implementation specification.
-- **[veeam-backup-deployment-guide.md](./archive/veeam-backup-deployment-guide.md)** - Archived Veeam deployment guide for the retired architecture.
+## guides/
 
-### designs/
+部署与实操指南。
 
-- **[ansible-role-architecture.md](./designs/ansible-role-architecture.md)** - Ansible Role architecture design, boundaries, and dependencies.
-- **[ansible-vault-architecture.md](./designs/ansible-vault-architecture.md)** - Ansible Vault secret management design and integration principles.
-- **[cicd-architecture.md](./designs/cicd-architecture.md)** - Jenkins CI/CD pipeline architecture for Terraform and Ansible.
-- **[cicd-pipeline-flowchart.excalidraw](./designs/cicd-pipeline-flowchart.excalidraw)** - Excalidraw flowchart visualizing the CI/CD pipeline steps.
-- **[homelab-iac-architecture.md](./designs/homelab-iac-architecture.md)** - Full system architecture document for the homelab IaC project.
+- **[netbox-deployment.md](./guides/netbox-deployment.md)** — NetBox 容器化部署 + Terraform Provider 初始化。
+- **[proxmox-vm-deployment.md](./guides/proxmox-vm-deployment.md)** — 用 Terraform 管理 Proxmox VM。
+- **[immich-deployment.md](./guides/immich-deployment.md)** — Immich 照片栈部署（Postgres/Redis/ML）。
+- **[immich-upgrade-mop.md](./guides/immich-upgrade-mop.md)** — Immich 六步升级流程（agent 向）。
+- **[n8n-upgrade-mop.md](./guides/n8n-upgrade-mop.md)** — n8n 六步升级流程。
+- **[terraform-proxmox-complete-guide.md](./guides/terraform-proxmox-complete-guide.md)** — Terraform + Proxmox 综合指南。
+- **[ansible-patterns-and-best-practices.md](./guides/ansible-patterns-and-best-practices.md)** — Ansible 模式与最佳实践。
+- **[QUICK-REFERENCE.md](./guides/QUICK-REFERENCE.md)** — Terraform/Proxmox 命令速查卡。
+- **[proxmox-provider-migration-guide.md](./guides/proxmox-provider-migration-guide.md)** — telmate → bpg provider 迁移实战。
+- **[jenkins-webhook-router-setup.md](./guides/jenkins-webhook-router-setup.md)** — Jenkins Webhook-Router 配置。
+- **[notion-sync-setup.md](./guides/notion-sync-setup.md)** — Terraform state 同步到 Notion。
+- **[cn-exit-singbox-proxy.md](./guides/cn-exit-singbox-proxy.md)** — sing-box 出境代理配置。
 
-### guides/
+## troubleshooting/
 
-- **[ansible-patterns-and-best-practices.md](./guides/ansible-patterns-and-best-practices.md)** - Comprehensive guide on Ansible best practices and patterns.
-- **[jenkins-webhook-router-setup.md](./guides/jenkins-webhook-router-setup.md)** - Jenkins Webhook-Router job manual configuration guide (Story 2.1).
-- **[notion-sync-setup.md](./guides/notion-sync-setup.md)** - Setup guide for syncing Terraform state to Notion.
-- **[proxmox-provider-migration-guide.md](./guides/proxmox-provider-migration-guide.md)** - Guide for migrating from telmate to bpg Proxmox Terraform provider.
-- **[QUICK-REFERENCE.md](./guides/QUICK-REFERENCE.md)** - Quick reference card for Terraform and Proxmox operations.
-- **[README.md](./guides/README.md)** - Index for comprehensive guides.
-- **[terraform-proxmox-complete-guide.md](./guides/terraform-proxmox-complete-guide.md)** - Complete guide for Terraform automation with Proxmox.
+排障指南与事故复盘。
 
-### incidents/
+- **[README.md](./troubleshooting/README.md)** — 排障文档索引。
+- **[STRUCTURE.md](./troubleshooting/STRUCTURE.md)** — 排障文档结构定义。
+- **[ansible-issues.md](./troubleshooting/ansible-issues.md)** — Ansible 常见问题。
+- **[terraform-issues.md](./troubleshooting/terraform-issues.md)** — Terraform/Proxmox 问题。
+- **[deployment-issues.md](./troubleshooting/deployment-issues.md)** — 通用部署问题（Docker 等）。
+- **[network-connectivity.md](./troubleshooting/network-connectivity.md)** — 网络/ VPN / 代理问题。
+- **[slow-smb-over-wifi.md](./troubleshooting/slow-smb-over-wifi.md)** — SMB 传输缓慢排查。
+- **[2026-08-05-backup-outage.md](./troubleshooting/2026-08-05-backup-outage.md)** — 事故复盘：备份静默失败六个月。
+- **[2026-04-12-pve0-nvme-controller-hang.md](./troubleshooting/2026-04-12-pve0-nvme-controller-hang.md)** — 事故复盘：pve0 NVMe 控制器挂起。
 
-- **[2026-08-05-backup-outage.md](./incidents/2026-08-05-backup-outage.md)** - Post-incident report: Proxmox backups silently failed for six months (no WOL, no alerting), plus an unrelated inventory breakage and an IP conflict found while investigating.
+## learningnotes/
 
-### improvement/
+按日期记录的学习笔记。完整索引见 **[learningnotes/INDEX.md](./learningnotes/INDEX.md)**。
 
-- **[inventory-and-document-sync-via-cicd.md](./improvement/inventory-and-document-sync-via-cicd.md)** - Proposal for change-driven automated documentation synchronization.
-- **[PLANNING.md](./improvement/PLANNING.md)** - High-level project planning, roadmap, and goals.
+- 覆盖：Terraform、Ansible、Proxmox、Netbox、Tailscale、LXC、n8n、Immich、RustDesk、Jenkins、ESXi/PBS 迁移等。
+- 子目录 `refactoring/` 存放重构专题笔记。
 
-### improvement/implemented/
+## planning/
 
-- **[cloudflare-tunnel-webhook.md](./improvement/implemented/cloudflare-tunnel-webhook.md)** - Implementation details for Cloudflare Tunnel GitHub Webhook trigger.
-- **[proxmox-provider-migration.md](./improvement/implemented/proxmox-provider-migration.md)** - Plan and record of the Proxmox Terraform provider migration.
+路线图、改进提案与已实现记录。
 
-### learningnotes/
+- **[PLANNING.md](./planning/PLANNING.md)** — 项目路线图与阶段规划。
+- **[inventory-and-document-sync-via-cicd.md](./planning/inventory-and-document-sync-via-cicd.md)** — 变更驱动文档同步提案。
+- **implemented/** — 已实现的改进记录：
+  - **[cloudflare-tunnel-webhook.md](./planning/implemented/cloudflare-tunnel-webhook.md)** — Cloudflare Tunnel Webhook 触发实现。
+  - **[proxmox-provider-migration.md](./planning/implemented/proxmox-provider-migration.md)** — Proxmox provider 迁移记录。
 
-- **[2025-11-28-terraform-modules-netbox-debugging.md](./learningnotes/2025-11-28-terraform-modules-netbox-debugging.md)** - Notes on Terraform modules and Netbox debugging.
-- **[2025-11-28-terraform-proxmox.md](./learningnotes/2025-11-28-terraform-proxmox.md)** - Initial learning notes on Terraform Proxmox deployment.
-- **[2025-11-29-ansible-netbox-docker.md](./learningnotes/2025-11-29-ansible-netbox-docker.md)** - Notes on Ansible deployment for Netbox and Docker.
-- **[2025-11-29-netbox-deployment-version-troubleshooting.md](./learningnotes/2025-11-29-netbox-deployment-version-troubleshooting.md)** - Troubleshooting Netbox deployment version compatibility.
-- **[2025-11-30-anki-sync-server-deployment.md](./learningnotes/2025-11-30-anki-sync-server-deployment.md)** - Notes on deploying Anki Sync Server.
-- **[2025-11-30-ansible-deployment-verification.md](./learningnotes/2025-11-30-ansible-deployment-verification.md)** - Patterns for verifying Ansible deployments.
-- **[2025-11-30-lxc-vm-network-bridge.md](./learningnotes/2025-11-30-lxc-vm-network-bridge.md)** - Notes on LXC and VM network bridging topology.
-- **[2025-11-30-terraform-proxmox-provider-crash.md](./learningnotes/2025-11-30-terraform-proxmox-provider-crash.md)** - Analysis of Terraform Proxmox provider crashes.
-- **[2025-11-30-terraform-refactoring-best-practices.md](./learningnotes/2025-11-30-terraform-refactoring-best-practices.md)** - Best practices for refactoring Terraform code.
-- **[2025-12-01-homepage-lxc-deployment.md](./learningnotes/2025-12-01-homepage-lxc-deployment.md)** - Notes on deploying Homepage on LXC.
-- **[2025-12-01-homepage-proxmox-integration.md](./learningnotes/2025-12-01-homepage-proxmox-integration.md)** - Guide for integrating Homepage with Proxmox.
-- **[2025-12-02-ansible-inventory-refactoring.md](./learningnotes/2025-12-02-ansible-inventory-refactoring.md)** - Notes on refactoring Ansible inventory structure.
-- **[2025-12-02-ansible-vault-secret-management.md](./learningnotes/2025-12-02-ansible-vault-secret-management.md)** - Guide to managing secrets with Ansible Vault.
-- **[2025-12-02-proxmox-terraform-ansible-immich.md](./learningnotes/2025-12-02-proxmox-terraform-ansible-immich.md)** - Integration notes for Proxmox, Terraform, Ansible, and Immich.
-- **[2025-12-02-tailscale-integration-refactoring.md](./learningnotes/2025-12-02-tailscale-integration-refactoring.md)** - Deep integration of Tailscale in LXC and hybrid cloud.
-- **[2025-12-03-ansible-abstraction-levels.md](./learningnotes/2025-12-03-ansible-abstraction-levels.md)** - Discussion on Ansible abstraction levels (Role vs Task).
-- **[2025-12-03-caddy-webdav-tailscale-troubleshooting.md](./learningnotes/2025-12-03-caddy-webdav-tailscale-troubleshooting.md)** - Troubleshooting Caddy WebDAV and Tailscale ACLs.
-- **[2025-12-04-ansible-tags-and-variables.md](./learningnotes/2025-12-04-ansible-tags-and-variables.md)** - Notes on Ansible tags and variable scoping.
-- **[2025-12-04-hybrid-iac-netbox-workflow.md](./learningnotes/2025-12-04-hybrid-iac-netbox-workflow.md)** - Workflow for hybrid IaC management with Netbox.
-- **[2025-12-04-netbox-population-terraform-vs-ansible.md](./learningnotes/2025-12-04-netbox-population-terraform-vs-ansible.md)** - Comparison of Netbox population methods.
-- **[2025-12-04-tailscale-magicdns-and-split-dns.md](./learningnotes/2025-12-04-tailscale-magicdns-and-split-dns.md)** - Explanation of Tailscale MagicDNS and Split DNS.
-- **[2025-12-04-terraform-proxmox-disk-and-cloudinit-troubleshooting.md](./learningnotes/2025-12-04-terraform-proxmox-disk-and-cloudinit-troubleshooting.md)** - Troubleshooting Terraform Proxmox disk and Cloud-Init issues.
-- **[2025-12-04-zfs-pool-migration-and-expansion.md](./learningnotes/2025-12-04-zfs-pool-migration-and-expansion.md)** - Notes on ZFS pool migration and expansion.
-- **[2025-12-11-elk-vs-lpg-comparison.md](./learningnotes/2025-12-11-elk-vs-lpg-comparison.md)** - Comparison between ELK and LPG logging stacks.
-- **[2025-12-15-deploying-n8n-on-lxc.md](./learningnotes/2025-12-15-deploying-n8n-on-lxc.md)** - Guide for deploying n8n on LXC.
-- **[2025-12-21-esxi-integration-and-venv.md](./learningnotes/2025-12-21-esxi-integration-and-venv.md)** - Notes on ESXi integration and Ansible venv.
-- **[2026-01-28-rustdesk-terraform.md](./learningnotes/2026-01-28-rustdesk-terraform.md)** - Terraform management for Rustdesk deployment.
-- **[2026-01-28-ssh-key-management-strategy.md](./learningnotes/2026-01-28-ssh-key-management-strategy.md)** - Mixed SSH key management strategy with Terraform and Ansible.
-- **[2026-01-29-ansible-troubleshooting.md](./learningnotes/2026-01-29-ansible-troubleshooting.md)** - Log of Ansible troubleshooting experiences.
-- **[2026-01-29-inventory-migration-trap.md](./learningnotes/2026-01-29-inventory-migration-trap.md)** - Analysis of data loss risks during inventory migration.
-- **[2026-01-29-rustdesk-deployment-lessons.md](./learningnotes/2026-01-29-rustdesk-deployment-lessons.md)** - Lessons learned from Rustdesk deployment.
-- **[2026-01-31-ansible-role-refactoring.md](./learningnotes/2026-01-31-ansible-role-refactoring.md)** - Notes on Ansible role architecture refactoring.
-- **[2026-01-31-ansible-vault-architecture-refactoring.md](./learningnotes/2026-01-31-ansible-vault-architecture-refactoring.md)** - Notes on Ansible Vault architecture standardization.
-- **[2026-01-31-pbs-proxmox-backup-integration.md](./learningnotes/2026-01-31-pbs-proxmox-backup-integration.md)** - Integration notes for Proxmox Backup Server.
-- **[2026-02-03-esxi-vm-infrastructure-improvements.md](./learningnotes/2026-02-03-esxi-vm-infrastructure-improvements.md)** - Improvements to ESXi VM infrastructure.
-- **[2026-02-03-jenkins-cicd-phase1-infrastructure.md](./learningnotes/2026-02-03-jenkins-cicd-phase1-infrastructure.md)** - Phase 1 of Jenkins CI/CD infrastructure setup.
-- **[2026-02-03-jenkins-cicd-phase2-configuration.md](./learningnotes/2026-02-03-jenkins-cicd-phase2-configuration.md)** - Phase 2 of Jenkins CI/CD configuration.
-- **[2026-02-03-jenkins-cicd-phase3-pipeline.md](./learningnotes/2026-02-03-jenkins-cicd-phase3-pipeline.md)** - Phase 3 of Jenkins CI/CD pipeline implementation.
-- **[2026-02-04-ansible-cloudflared-review.md](./learningnotes/2026-02-04-ansible-cloudflared-review.md)** - Code review and learning notes for Cloudflared Ansible role.
-- **[INDEX.md](./learningnotes/INDEX.md)** - Index file for learning notes.
+## agent/
 
-### learningnotes/refactoring/
+Agent 工作流契约与集成（BMAD / Multica / OpenCode）。
 
-- **[2026-02-09-epic1-netbox-webhook-jenkins-learning.md](./learningnotes/refactoring/2026-02-09-epic1-netbox-webhook-jenkins-learning.md)** - Epic 1 learning review: NetBox, Jenkins, webhooks, and API concepts.
+- **[bmad-multica-contract.md](./agent/bmad-multica-contract.md)** — BMAD × Multica 执行合同。
+- **[multica-team.md](./agent/multica-team.md)** — Multica：BMAD Team 配置。
+- **[bmad-review-routing.md](./agent/bmad-review-routing.md)** — 选择性跨模型审核路由。
+- **[bmad-cross-model-review.md](./agent/bmad-cross-model-review.md)** — BMAD 跨模型审核：PAL 调用层。
+- **[bmad-opencode-subagent-integration.md](./agent/bmad-opencode-subagent-integration.md)** — BMAD + OpenCode 双层 Agent 架构集成。
 
-### specs/
+## reference/
 
-- **[backup-architecture-consolidation-spec.md](./specs/backup-architecture-consolidation-spec.md)** - Backup architecture consolidation onto M920Q (PVE + ZFS), with the decision record behind it. Supersedes the PBS iSCSI/Veeam documents.
-- **[proxmox-storage-monitoring-spec.md](./specs/proxmox-storage-monitoring-spec.md)** - Cluster-wide SMART, ZFS scrub, Prometheus, Grafana, and storage alerting specification.
+静态参考数据。
 
-### troubleshooting/
+- **[netbox-custom-fields-reference.md](./reference/netbox-custom-fields-reference.md)** — NetBox Custom Fields 定义参考（Epic 1）。
 
-- **[ansible-issues.md](./troubleshooting/ansible-issues.md)** - Troubleshooting guide for common Ansible issues.
-- **[deployment-issues.md](./troubleshooting/deployment-issues.md)** - Troubleshooting guide for general deployment issues (Docker, etc.).
-- **[network-connectivity.md](./troubleshooting/network-connectivity.md)** - Troubleshooting guide for network connectivity, VPN, and proxy issues.
-- **[README.md](./troubleshooting/README.md)** - Index and overview of troubleshooting guides.
-- **[slow-smb-over-wifi.md](./troubleshooting/slow-smb-over-wifi.md)** - Specific troubleshooting log for slow SMB transfer speeds.
-- **[STRUCTURE.md](./troubleshooting/STRUCTURE.md)** - Structure definition for the troubleshooting documentation.
-- **[terraform-issues.md](./troubleshooting/terraform-issues.md)** - Troubleshooting guide for Terraform and Proxmox issues.
+## archive/
+
+已退役或仅历史参考的文档。
+
+- **[pbs-esxi-deployment.md](./archive/pbs-esxi-deployment.md)** — 已退役的 ESXi/PBS 历史部署记录（不适用于当前 pve2）。
+- **[pbs-iscsi-veeam-spec.md](./archive/pbs-iscsi-veeam-spec.md)** — 已归档 PBS iSCSI/Veeam 实施规范。
+- **[pbs-iscsi-veeam-guide.md](./archive/pbs-iscsi-veeam-guide.md)** — 已归档 PBS iSCSI/Veeam 架构指南。
+- **[veeam-backup-deployment-guide.md](./archive/veeam-backup-deployment-guide.md)** — 已归档 Veeam 部署指南。
+
+---
+
+## 维护约定
+
+- 新增文档请放入对应分类目录，并同步更新本索引。
+- 学习笔记命名 `YYYY-MM-DD-topic.md`，见 [learningnotes/INDEX.md](./learningnotes/INDEX.md)。
+- 退役文档移入 `archive/`。

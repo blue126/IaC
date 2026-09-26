@@ -1,16 +1,27 @@
 {
-  "schema_version": 1,
+  "candidates": [
+    {
+      "classification": "unknown",
+      "edit": {
+        "find": "new",
+        "replace": "guess"
+      },
+      "evidence_refs": [],
+      "hunk_id": "hunk-1",
+      "id": "candidate-unknown-edit",
+      "reason": "ambiguous_source",
+      "source": {
+        "quote": "new",
+        "span_id": "span-1"
+      }
+    }
+  ],
+  "document_path": "docs/guides/example.md",
   "kind": "claim_candidates",
-  "manifest_sha256": "833ac20e40f3c66c8ddf90d3379a941ab36357b6dbe45a91557db5f256d2299c",
-  "document_path": "docs/designs/example.md",
-  "revision": {"base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-  "candidates": [{
-    "id": "candidate-unknown-edit",
-    "classification": "unknown",
-    "reason": "ambiguous_source",
-    "hunk_id": "hunk-1",
-    "source": {"span_id": "span-1", "quote": "new"},
-    "evidence_refs": [],
-    "edit": {"find": "new", "replace": "guess"}
-  }]
+  "manifest_sha256": "2cd52e8bc6bdaf59039c568d032ab50660fed2eb4073afeeff2ac72008635125",
+  "revision": {
+    "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "schema_version": 1
 }

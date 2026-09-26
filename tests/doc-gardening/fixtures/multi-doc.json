@@ -1,8 +1,11 @@
 {
-  "schema_version": 1,
+  "candidates": [],
+  "document_path": "docs/guides/other.md",
   "kind": "claim_candidates",
-  "manifest_sha256": "833ac20e40f3c66c8ddf90d3379a941ab36357b6dbe45a91557db5f256d2299c",
-  "document_path": "docs/designs/other.md",
-  "revision": {"base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-  "candidates": []
+  "manifest_sha256": "2cd52e8bc6bdaf59039c568d032ab50660fed2eb4073afeeff2ac72008635125",
+  "revision": {
+    "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "schema_version": 1
 }

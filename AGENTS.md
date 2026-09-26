@@ -115,10 +115,10 @@ The repository has Jenkins deployment pipelines and a GitHub Pages documentation
 
 When working on specific areas, read the relevant design doc for detailed patterns:
 
-- **Ansible Vault details**: `docs/designs/ansible-vault-architecture.md`
-- **Ansible Role patterns**: `docs/designs/ansible-role-architecture.md`
-- **CI/CD pipeline design**: `docs/designs/cicd-architecture.md`
-- **Docker Sandbox agent architecture**: `docs/designs/docker-sandbox-agent-architecture.md`
+- **Ansible Vault details**: `docs/architecture/ansible-vault-architecture.md`
+- **Ansible Role patterns**: `docs/architecture/ansible-role-architecture.md`
+- **CI/CD pipeline design**: `docs/architecture/cicd-architecture.md`
+- **Docker Sandbox agent architecture**: `docs/architecture/docker-sandbox-agent-architecture.md`
 
 ## Workflow Ownership
 
@@ -182,6 +182,6 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## BMAD / Multica Integration
 
-参与 BMAD/Multica 工作时，先读取 docs/bmad-multica-contract.md。
-执行 BMAD Team 协调任务时，再读取 docs/multica-team.md；不另写 BMAD 流程顺序。
-执行任何 BMAD 评审前，读取 docs/bmad-review-routing.md 确认该 reviewer 是否走 Claude。
+参与 BMAD/Multica 工作时，先读取 docs/agent/bmad-multica-contract.md。
+执行 BMAD Team 协调任务时，再读取 docs/agent/multica-team.md；不另写 BMAD 流程顺序。
+执行任何 BMAD 评审前，读取 docs/agent/bmad-review-routing.md 确认该 reviewer 是否走 Claude。

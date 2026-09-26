@@ -21,7 +21,7 @@
       "additionalProperties": false,
       "required": ["path", "change_type", "base_sha256", "head_sha256"],
       "properties": {
-        "path": {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"},
+        "path": {"type": "string", "pattern": "^docs/(guides|architecture)/[^/].*\\.md$"},
         "change_type": {"enum": ["A", "M"]},
         "base_sha256": {
           "anyOf": [

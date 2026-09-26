@@ -15,7 +15,7 @@
 | 宿主 MCP 注册表 | `sbx mcp` | 全局注册 Playwright 等宿主 MCP server |
 | Sandbox 环境指令源 | `.sandbox-kit/files/home/.local/share/iac-agent/sandbox-rules.md` | direct/clone、Git、凭据和运行时隔离事实 |
 | Sandbox Kit | `.sandbox-kit/` | Terraform、Ansible、Python、网络和环境指令安装器 |
-| 设计文档 | `docs/designs/` | 原理、拓扑、迁移和故障排查；不注入 prompt |
+| 设计文档 | `docs/architecture/` | 原理、拓扑、迁移和故障排查；不注入 prompt |
 
 `AGENTS.md` 不定义 task decomposition、checkpoint、实现顺序、验证策略或 Git/PR lifecycle。BMad workflow 决定这些步骤；workflow ownership 不等于授权，未明确批准的 commit、push、merge、deployment 或其他外部写入仍必须停止。
 

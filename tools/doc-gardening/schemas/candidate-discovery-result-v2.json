@@ -16,12 +16,12 @@
         "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
       }
     },
-    "document_path": {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"},
+    "document_path": {"type": "string", "pattern": "^docs/(guides|architecture)/[^/].*\\.md$"},
     "change_type": {"enum": ["A", "M", "D", "R"]},
     "previous_path": {
       "anyOf": [
         {"type": "null"},
-        {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"}
+        {"type": "string", "pattern": "^docs/(guides|architecture)/[^/].*\\.md$"}
       ]
     },
     "status": {"enum": ["completed", "unknown", "blocked", "no_analysis"]},

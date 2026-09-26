@@ -250,9 +250,9 @@ All secrets flow from a single encrypted Ansible Vault file. Terraform consumes 
 
 The [`docs/`](docs/) directory contains 100+ pages of technical documentation. Browse the [published site](https://blue126.github.io/IaC/) or preview it locally with `hugo server --baseURL http://localhost:1313/IaC/ --appendPort=false` (see [`docs-site/README.md`](docs-site/README.md) for pinned prerequisites):
 
-- **[Architecture Design](docs/designs/homelab-iac-architecture.md)** — Comprehensive system design
-- **[Deployment Guides](docs/deployment/)** — Step-by-step service deployment
-- **[Troubleshooting](docs/troubleshooting/)** — Common issues and solutions
+- **[Architecture Design](docs/architecture/homelab-iac-architecture.md)** — Comprehensive system design
+- **[Guides](docs/guides/)** — Deployment guides and practical how-to references
+- **[Troubleshooting](docs/troubleshooting/)** — Common issues, solutions, and incident retrospectives
 - **[Learning Notes](docs/learningnotes/INDEX.md)** — Technical deep-dives and lessons learned
 
 ## License

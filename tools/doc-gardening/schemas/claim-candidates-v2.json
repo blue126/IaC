@@ -8,7 +8,7 @@
     "schema_version": {"const": 2},
     "kind": {"const": "claim_candidates"},
     "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "document_path": {"type": "string", "pattern": "^docs/(deployment|designs)/[^/].*\\.md$"},
+    "document_path": {"type": "string", "pattern": "^docs/(guides|architecture)/[^/].*\\.md$"},
     "revision": {
       "type": "object",
       "additionalProperties": false,

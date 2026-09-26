@@ -407,7 +407,7 @@ Amelia 标记 → 任务完成 ✅
 - Environment Override → 移到全局 `~/.config/opencode/AGENTS.md`
 
 **新增**：
-- "Reference Documents (load on demand)" section — 指引 agent 按需读取 `docs/designs/` 下的详细架构文档，而非每次都注入
+- "Reference Documents (load on demand)" section — 指引 agent 按需读取 `docs/architecture/` 下的详细架构文档，而非每次都注入
 
 ### 全局 OpenCode Rules
 
@@ -451,7 +451,7 @@ agent 启动与 adapter 规则以 README 和 `AGENTS.md` 为准。
 **替换为**一行引用声明：
 ```
 Project-specific conventions: Refer to AGENTS.md (auto-loaded in this session) for ...
-For detailed patterns, read `docs/designs/` on demand.
+For detailed patterns, read `docs/architecture/` on demand.
 ```
 
 ### Subagent Tools & Permissions（未修改）
