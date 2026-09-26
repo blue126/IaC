@@ -17,6 +17,7 @@
 
 ## 规范与决策记录
 
+- **[deferred-work-sync.md](./deferred-work-sync.md)** — BMAD 延期工作清单与 GitHub Issues 的同步机制。
 - **[doc-monitoring-scope.md](./doc-monitoring-scope.md)** — 文档 AI 监管范围：说明与决策记录（监管哪些目录、为什么、当前缺口）。
 - **[backup-architecture-consolidation-spec.md](./backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
 - **[proxmox-storage-monitoring-spec.md](./proxmox-storage-monitoring-spec.md)** — 集群 SMART/ZFS scrub/Prometheus/Grafana 存储监控规范。
