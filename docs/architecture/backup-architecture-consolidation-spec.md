@@ -1,12 +1,14 @@
 # 备份架构整合 — 实施规范
 
-> **版本**: 1.14
-> **日期**: 2026-09-21
+> **版本**: 1.15
+> **日期**: 2026-10-02
 > **状态**: 阶段一完成（步骤 1–9）；**PBS 已迁至 pve2 并重建 datastore**，D16 的 zvol 方案被 [D18](#d18--pbs-回到直通盘客机内-zfs推翻-d16) 推翻；108/109 已进入生产备份作业
+>
+> **v1.15 变更（2026-10-02，外部见证已实施）**：`HomePVECluster` 改为 pve0/pve1 各 1 票，加 N100 独立 qnetd `.53` 的 1 票，总票数 3、quorum 2、`config_version 11`；双方在线且 TLS 客户端证书验证通过。历史 3/1 方案由 [D19](#d19--n100-外部-qdevice取代-31-投票) 取代。未做节点故障、断网或重启测试，也未改变备份作业/保留/GC/verify；pve0 磁盘错误与 PBS 问题仍需分别处理。
 >
 > **v1.14 变更（2026-09-21，现场配置对账）**：用户确认 T7910 已改为独立 **pve2**（`192.168.1.52`，`vmbr0`，不存在 `corosync.conf`），不属于原集群。PBS 为 **pve2 VM 100**，IP `192.168.1.249`，4 核、配置内存刚调至 16 GiB（客机生效未核实）；系统盘 `mainpool`/80 GiB，EFI 盘 `local-lvm`，1 HBA + 2 NVMe 仍直通。PBS 内 `tank` 为两块原 WWN 的 HITACHI 8TB HDD mirror，无 special vdev；datastore **`backup`** 使用池根 `/mnt/datastore/tank`，属性为 `compression=on`、`atime=on`、`recordsize=128K`。PVE 存储 ID 为 **`pbs`**，pve0 作业 **00:00**、成员 **100–109**、保留 **last 3 / daily 7 / weekly 4 / monthly 3**。独立 pve2/100 与 pve0 LXC100 无关；pve0/109 现为 `mcp-gateway`。代码和文档修订不等于生产部署或 state 已同步。
 >
-> **管理边界（追加确认）**：ESXi 宿主已退役；备份作业、保留、GC/verify 计划归 PVE/PBS 管理。仓库已删除 `setup-pbs-backup.yml` 和 `pbs-client`，不再下发这些业务配置。现有 PVE 存储以 `root@pam` 认证，本次不更改。PBS `verify-all` 的 store 为旧名 `backup-storage`、schedule 为空、`ignore-verified=0`；修正 store 不等于配置了周期校验。PBS prune 作业指向 `backup`，每日执行，保留 3/7/4/3；sync 列表为空。未取得 GC schedule、备份/校验成功历史、恢复测试或当前集群 quorum 证据，不断言它们正常或完全未运行。
+> **管理边界（追加确认）**：ESXi 宿主已退役；备份作业、保留、GC/verify 计划归 PVE/PBS 管理。仓库已删除 `setup-pbs-backup.yml` 和 `pbs-client`，不再下发这些业务配置。现有 PVE 存储以 `root@pam` 认证，本次不更改。PBS `verify-all` 的 store 为旧名 `backup-storage`、schedule 为空、`ignore-verified=0`；修正 store 不等于配置了周期校验。PBS prune 作业指向 `backup`，每日执行，保留 3/7/4/3；sync 列表为空。2026-09-21 对账未取得 GC schedule、备份/校验成功历史或恢复测试证据，不断言它们正常或完全未运行；2026-10-02 的集群 quorum 证据见 D19，不作为 PBS 健康或恢复能力的证据。
 >
 > **v1.13 变更（2026-09-11）**：旧 Veeam worker 108 与手工 PNET4.2.4 110 已退役，既有备份未删除。Terraform 已直接从固定版本 Cloud Image 创建 `ubuntu-2604`（108，4 CPU、32 GiB，系统盘随后按用户要求在线扩至100 GiB），原生 Cloud-Init 配合 Ansible 完成初始化、QGA及密钥登录验收。110已释放；生产备份白名单仍为100–107，仓库新增108尚未部署到备份作业。
 >
@@ -294,16 +296,18 @@ OpenZFS 2.2 已提供 `block_cloning`（本池该 feature 为 `enabled`），但
 
 > **2026-09-21 更新**：本节记录 2026-08-07 的退役事件。当前 `pve2` 是用户确认的 T7910 独立节点，见 D18；下表保留为历史集群记录，本次未重新读取 pve0/pve1 的 corosync 配置，不能据此断言票数至今未变。
 
+> **2026-10-02 更新**：pve0/pve1 继续在集群中，但本节的历史 3/1 投票已由 [D19](#d19--n100-外部-qdevice取代-31-投票) 的 1/1 + 外部见证 1 票取代。
+
 **选择**：M920Q（即 pve1）继续作为 `HomePVECluster` 成员。
 
-**已核实的集群现状**：
+**2026-08-07 已核实的集群状态（历史）**：
 
 | 节点 | nodeid | quorum_votes | ring0_addr | ring1_addr |
 |---|---|---|---|---|
 | pve0 | 1 | **3** | 192.168.1.50 | 192.168.1.20 |
 | pve1 | 2 | 1 | 192.168.1.51 | 192.168.1.21 |
 
-总票 4，法定票数 3；pve0 独占 3 票即可满足法定人数。这是写入 `corosync.conf` 的持久设计，非临时 `pvecm expected`。用户决定不配置 QDevice，并接受 pve1 单独存活时没有 quorum 的限制。
+当时总票 4，法定票数 3；pve0 独占 3 票即可满足法定人数。当时方案写入 `corosync.conf`，非临时 `pvecm expected`；用户当时决定不配置 QDevice，并接受 pve1 单独存活时没有 quorum 的限制。
 
 **权衡**：集群成员互信（共享 corosync 密钥、节点间 root SSH、共享 `/etc/pve`），pve0 被攻陷则 pve1 易被波及，而备份正是用于对抗此类场景。
 
@@ -472,6 +476,14 @@ backup-pool
 **NVMe 后续用途（用户确认）**：两个 NVMe 仍通过 PCI 直通给 PBS，当前未加入 `tank`，并非废弃设备。后续计划将它们组成 special vdev；本次仅解决漂移，不执行建池、加盘或修改 vdev。D10/D17 记录的是旧硬件条件与性能评估，不能当成已批准的本次磁盘操作指令。
 
 ---
+
+### D19 — N100 外部 QDevice，取代 3/1 投票
+
+**状态**：已实施（2026-10-02）。pve0/pve1 各 1 票，N100/iStoreOS 网关上的独立 qnetd Docker 容器 `.53` 提供 1 票；总票数 3、quorum 2、`config_version 11`。pve2 继续独立。
+
+**理由**：以不依赖 PVE 客机的外部见证替代非对称票权，使仲裁机制允许一台 PVE 与见证提供法定 2 票；见证与网关共用 N100 物理设备，保留这一共同故障域。相对旧 3/1，pve0 单独存活且见证不可达时也不 quorate；任一 PVE 停机期间不要同时维护 N100。QDevice 只参与仲裁，不提供 VM HA、共享磁盘或备份恢复能力。
+
+**实际验收与边界**：双方在线且 quorate；两侧 TLS active、qnetd 已验证 `.50/.51` 客户端证书；临时 SSH 撤销，最终容器非 root、只读根、capabilities 全部丢弃，已覆盖 ingress 路径的 ACL 仅允许 `.50/.51` → `.53` TCP 5403。没有做单节点/断网/重启测试。qnetd CA 状态与快照同在 N100 数据盘上，没有已核实的离机副本；PVE 客户端快照不能替代 CA 私钥恢复。pve0 SATA/WRITE 错误与 PBS 不可达/作业失败未由本次调整修复，业务备份策略未改变。现场路径、维护限制、只读检查、私有 NSS 备份和递增版本的安全回滚见 [QDevice 架构](./proxmox-qdevice-architecture.md)。
 
 ## 4. 目标架构
 
