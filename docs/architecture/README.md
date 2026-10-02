@@ -5,6 +5,7 @@
 ## 设计文档
 
 - **[homelab-iac-architecture.md](./homelab-iac-architecture.md)** — 系统总体架构（Terraform + Ansible + Proxmox/OCI/Netbox）。
+- **[proxmox-qdevice-architecture.md](./proxmox-qdevice-architecture.md)** — 双节点集群与 N100 外部见证：1/1 + 1 投票、权限、启动门控、验证与回滚。
 - **[cicd-architecture.md](./cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
 - **[ansible-vault-architecture.md](./ansible-vault-architecture.md)** — Ansible Vault 密钥管理设计。
 - **[ansible-role-architecture.md](./ansible-role-architecture.md)** — Ansible Role 架构、边界与依赖。

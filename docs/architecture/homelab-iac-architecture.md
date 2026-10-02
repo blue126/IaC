@@ -1,6 +1,6 @@
 # Homelab IaC 系统架构文档
 
-**Last Updated**: 2026-08-12
+**Last Updated**: 2026-10-02
 **Status**: ✅ Active  
 **Owner**: Homelab IaC Project
 
@@ -19,6 +19,7 @@
 
 - [Ansible Vault 架构设计](ansible-vault-architecture.md) - 密码管理架构
 - [Ansible Role 架构设计](ansible-role-architecture.md) - Role 组织模式
+- [Proxmox 双节点与 N100 QDevice](proxmox-qdevice-architecture.md) - 当前仲裁、权限、启动与回滚
 - [快速参考指南](../guides/QUICK-REFERENCE.md) - 常用命令速查
 
 ## 架构层次图
@@ -104,6 +105,7 @@ module "netbox" {
 | **基础设施状态** | Terraform State (HCP Cloud) | Dynamic Inventory → Ansible |
 | **网络/IPAM** | Netbox | Terraform → Netbox (push), 未来计划 pull |
 | **备份业务策略** | PVE / PBS | 操作者管理；Ansible不下发作业和保留/GC/verify计划 |
+| **QDevice / HAOS appliance（2026-10-02）** | PVE 与 N100 的现场配置 | 当前由操作者维护；尚未纳入 Terraform/Ansible ownership，见 [QDevice 架构](proxmox-qdevice-architecture.md) |
 
 ### 4. 自动化验证 (Automated Verification)
 
@@ -158,6 +160,14 @@ module "netbox" {
 | **VMware ESXi（已退役）** | 用户确认宿主退役，T7910 已改为 pve2；仅保留历史代码/state依据 | 无活动部署入口 | 历史 `vmware/vsphere` |
 | **Oracle Cloud** | 公有云实例（未来扩展） | OCI Console | `oracle/oci` |
 
+### 双节点集群仲裁（2026-10-02 已实施）
+
+`HomePVECluster` 当前为 pve0/pve1 **各 1 票**，N100/iStoreOS（`192.168.1.1`）上的独立 qnetd Docker 容器 **`192.168.1.53` 提供 1 票**；总票数 3、quorum 2、`config_version 11`。pve2 继续独立，N100 不作为 PVE 成员。该方案取代历史 3/1 投票。
+
+见证通过 `br-lan` macvlan 接入；已覆盖 ingress 路径按源 `.50/.51` 与 TCP 5403 过滤，qnetd 强制 TLS 客户端证书认证。最终容器非 root、只读根文件系统、无额外 capability，临时 SSH 已撤销，NSS 持久保存于 `/mnt/data/qnetd/state/`。启动顺序为 S98 guard → 原 S99 Docker → S99 qnetd；任何网关/Docker 重启、掉电或崩溃恢复后（含非计划），以及任一 PVE 计划停机前，须验收规则、客户端与票数。缺失容器时经 guard 确认后用 `/etc/init.d/qnetd start` 恢复，不能把 restart 策略当作全部异常路径的启动门控保证。
+
+本次确认双方在线、quorate、TLS 客户端证书已验证；没有做节点故障、断网或重启演练。相对旧 3/1，pve0 单独存活且见证不可达时也不 quorate，因此任一 PVE 停机期间不要同时维护 N100。QDevice 不等于配置 VM HA、共享存储或修复磁盘/PBS 问题。详情与安全回滚见 [QDevice 架构](proxmox-qdevice-architecture.md)。
+
 ### 虚拟机类型
 
 ```
@@ -167,6 +177,7 @@ Proxmox VE Cluster
 │   ├── rustdesk (VMID 102)      # 远程桌面
 │   ├── netbox (VMID 104)        # IPAM/DCIM
 │   ├── ubuntu-2604 (VMID 108)   # Ubuntu 26.04 基础 VM
+│   ├── home-assistant (VMID 114) # pve1 HAOS, local-lvm, operator-managed
 │   └── proxmox-datacenter-manager (VMID 117) # pve1 多节点管理
 │
 └── LXC Containers (Debian 12)
@@ -186,6 +197,11 @@ Proxmox VE Cluster
 > 已退役；VMID 108 已由 Terraform 直接重建为 `ubuntu-2604`（4 CPU、32 GiB、100 GiB系统盘），
 > 地址 `192.168.1.108`。Ubuntu 26.04、QGA、密钥登录和禁用 SSH 密码认证均已验收；
 > VMID 109 保持不变，VMID 110 已释放。
+
+> **实测状态（2026-10-02）**：停用 PaddleSpeech CT114 已完整离线归档后退役；VMID 114
+> 现为 pve1 HAOS VM（2 vCPU、4 GiB、64 GiB + EFI、Q35/OVMF、`local-lvm`、`vmbr1`、autostart），
+> 静态 `192.168.1.114/24`，网关/DNS `.1`；同日只读查询已确认 onboarding 全部完成，Core 端口观测为 80（后续可变）。当前由操作者维护，未纳入
+> Terraform/Ansible ownership，也未加入显式列出 100–109 的 PBS 作业；归档及证据见 [QDevice 架构](proxmox-qdevice-architecture.md)。
 
 ### 存储架构
 
@@ -517,6 +533,8 @@ ansible/roles/
 | **Caddy** | LXC | 80/443 | 反向代理 + SSL | ❌ Native | ✅ |
 | **PBS** | pve2 VM100 | 8007 | Proxmox 备份服务器；state/inventory已纳管，恢复后完整plan无变更 | ❌ Native | ❌ |
 | **Proxmox Datacenter Manager** | pve1 VM117 | 8443 | 多节点管理；192.168.1.117，2核/4GiB/local-lvm 40G | ❌ Native | ❌ |
+| **Home Assistant OS** | pve1 VM114 | 80（2026-10-02 观测，后续可变） | `.114`；HAOS appliance，操作者维护 | ❌ HAOS 内部管理 | 未配置 |
+| **Corosync qnetd** | N100 独立容器 | 5403 / TLS | `.53`；PVE 外部见证，仅允许 `.50/.51` | ✅ 操作者维护 | 不使用 |
 
 ### 服务依赖图
 
@@ -606,6 +624,9 @@ LXC 内的轻量服务使用 systemd：
 | `192.168.1.1-99` | 物理设备、网关、核心服务 | ❌ 静态 | Netbox IPAM |
 | `192.168.1.100-199` | Proxmox VM/LXC | ❌ 静态 | Terraform + Netbox |
 | `192.168.1.200-254` | 动态设备 | ✅ DHCP | 路由器 |
+
+2026-10-02 的新增例外：qnetd `.53` 以 OpenWrt `dhcp.qnetd_witness` 静态记录维护，HAOS VM114
+在客机内使用静态 `.114`；本次未同步 NetBox 或改变 Terraform ownership。不能把上表当成这些新资源已被 IaC 纳管的证据。
 
 #### Tailscale VPN 拓扑
 
@@ -1159,6 +1180,7 @@ ansible-playbook playbooks/deploy-<service>.yml
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|----------|------|
 | 2026-02-05 | 1.0 | 初始版本 - 完整系统架构文档 | AI Agent |
+| 2026-10-02 | 1.1 | 增补 N100 QDevice 的 1/1 + 1 仲裁、启动/权限和验证边界；对账 HAOS VM114 与 CT114 退役，保留备份与 IaC 管理边界 | AI Agent |
 
 ---
 

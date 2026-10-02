@@ -24,6 +24,7 @@ Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构
 架构设计、规范与决策记录。
 
 - **[homelab-iac-architecture.md](./architecture/homelab-iac-architecture.md)** — 系统总体架构（Terraform + Ansible + Proxmox/OCI/Netbox）。
+- **[proxmox-qdevice-architecture.md](./architecture/proxmox-qdevice-architecture.md)** — Proxmox 双节点与 N100 外部见证的当前架构、启动与安全回滚。
 - **[backup-architecture-consolidation-spec.md](./architecture/backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
 - **[cicd-architecture.md](./architecture/cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
 - **[doc-monitoring-scope.md](./architecture/doc-monitoring-scope.md)** — 文档 AI 监管范围：说明与决策记录。

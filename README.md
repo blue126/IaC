@@ -32,6 +32,8 @@
      +-------+   +--------+  +--------+   +--------+  +---------+
 ```
 
+2026-10-02 集群仲裁已调整为 pve0/pve1 各 1 票，加 N100 上独立 qnetd `192.168.1.53` 的 1 票，总票数 3、quorum 2。见证只参与仲裁，不等于 VM HA 或共享存储；其网络限制、启动门控与回滚见 [QDevice 架构](docs/architecture/proxmox-qdevice-architecture.md)。该现场配置当前由操作者维护，未纳入 Terraform/Ansible ownership。
+
 ### Design Principles
 
 - **Separation of Concerns** — Terraform provisions infrastructure; Ansible configures services
@@ -90,6 +92,8 @@
 | **Anki Sync** | Proxmox LXC | Systemd | Flashcard synchronization |
 | **PBS** | Proxmox VM (pve2) | Native | Proxmox Backup Server |
 | **Proxmox Datacenter Manager** | Proxmox VM (pve1 / 117) | Native | 多节点管理，192.168.1.117:8443 |
+| **Home Assistant OS** | pve1 VM114 | HAOS appliance，操作者维护 | `192.168.1.114`，onboarding 已完成，Core 端口 80（2026-10-02 观测，后续可变）；已复用归档退役的 PaddleSpeech CT114 ID |
+| **Corosync qnetd** | N100 独立容器 | Docker Compose，操作者维护 | `.53:5403`，TLS 外部见证，仅允许 pve0/pve1 `.50/.51` |
 | **Unified Proxy** | OCI | Docker Compose | Public-facing Caddy relay |
 | **Tailscale** | All nodes | Native | Mesh VPN connectivity |
 | **Cloudflared** | Proxmox VM | Service | Cloudflare tunnel |
