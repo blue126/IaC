@@ -1,10 +1,10 @@
 ---
 # CI control-plane and executor compatibility baseline.
-# Update only after compatibility and restore testing.
+# Current controller runtime; legacy upgrade source is guarded separately.
 jenkins:
   core:
-    version: "2.568.2"
-    package_version: "2.568.2"
+    version: "2.568.3"
+    package_version: "2.568.3"
     upgrade_source:
       version: "2.541.1"
       package_version: "2.541.1"
@@ -19,19 +19,19 @@ jenkins:
         package_version: "2.555.3"
         url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.555.3_all.deb
         sha256: "14c0692281e650666bd56f89ff98c5afac34b28a409ff5b964e219a0d09215d5"
-      - version: "2.568.2"
-        package_version: "2.568.2"
-        url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.568.2_all.deb
-        sha256: "abaa015c3a39a8182eed136333d6d0ba055564df37584e699cc9693ad64ad7d5"
+      - version: "2.568.3"
+        package_version: "2.568.3"
+        url: https://pkg.jenkins.io/debian-stable/binary/jenkins_2.568.3_all.deb
+        sha256: "05d00283415f902f85602eda67913cb874d7493119d109fe47122e287d24497c"
   java:
-    runtime_version: "17.0.18"
-    package_version: "17.0.18+8-1~deb12u1"
+    runtime_version: "25.0.4.1"
+    package_version: "25.0.4.1.0+1-0"
     upgrade:
-      runtime_version: "21.0.12"
-      package_name: temurin-21-jre
-      package_version: "21.0.12.1.0+1-0"
-      package_url: https://packages.adoptium.net/artifactory/deb/pool/main/t/temurin-21/temurin-21-jre_21.0.12.1.0+1-0_amd64.deb
-      package_sha256: "6c36c5cae76391a558926db5b8df2114dc41ed2ba889edf962370083944588b3"
+      runtime_version: "25.0.4.1"
+      package_name: temurin-25-jre
+      package_version: "25.0.4.1.0+1-0"
+      package_url: https://packages.adoptium.net/artifactory/deb/pool/main/t/temurin-25/temurin-25-jre_25.0.4.1.0+1-0_amd64.deb
+      package_sha256: "3b130707c6b65c00d642b4aa2601f04207ff5d458ee75409ddea0f47cf05a7c5"
       package_dependencies:
         - name: p11-kit-modules
           version: "0.24.1-2"

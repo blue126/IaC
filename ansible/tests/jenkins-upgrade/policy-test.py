@@ -127,23 +127,23 @@ for item in lock:
             )
 
 require([item["version"] for item in jenkins["core"]["upgrade_path"]]
-        == ["2.541.3", "2.555.3", "2.568.2"],
+        == ["2.541.3", "2.555.3", "2.568.3"],
         "Core phases are not the approved ordered path")
-require(jenkins["core"]["version"] == "2.568.2"
-        and jenkins["core"]["package_version"] == "2.568.2",
+require(jenkins["core"]["version"] == "2.568.3"
+        and jenkins["core"]["package_version"] == "2.568.3",
         "canonical Core does not describe the final state")
 expected_core_sha256 = {
     "2.541.3": "38836b389b3a953e16ba2d2df07802c8a351be8b97129d54bc4086ade64b2c42",
     "2.555.3": "14c0692281e650666bd56f89ff98c5afac34b28a409ff5b964e219a0d09215d5",
-    "2.568.2": "abaa015c3a39a8182eed136333d6d0ba055564df37584e699cc9693ad64ad7d5",
+    "2.568.3": "05d00283415f902f85602eda67913cb874d7493119d109fe47122e287d24497c",
 }
 for core_phase in jenkins["core"]["upgrade_path"]:
     require(core_phase["sha256"] == expected_core_sha256[core_phase["version"]],
             f"Core checksum drifted: {core_phase['version']}")
 require(jenkins["java"]["upgrade"]["package_version"]
-        == "21.0.12.1.0+1-0", "Temurin package target drifted")
+        == "25.0.4.1.0+1-0", "Temurin package target drifted")
 require(jenkins["java"]["upgrade"]["package_sha256"]
-        == "6c36c5cae76391a558926db5b8df2114dc41ed2ba889edf962370083944588b3",
+        == "3b130707c6b65c00d642b4aa2601f04207ff5d458ee75409ddea0f47cf05a7c5",
         "Temurin package checksum drifted")
 expected_java_dependencies = {
     "p11-kit-modules": (
