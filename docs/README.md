@@ -27,6 +27,7 @@ Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构
 - **[proxmox-qdevice-architecture.md](./architecture/proxmox-qdevice-architecture.md)** — Proxmox 双节点与 N100 外部见证的当前架构、启动与安全回滚。
 - **[backup-architecture-consolidation-spec.md](./architecture/backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
 - **[cicd-architecture.md](./architecture/cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
+- **[deferred-work-sync.md](./architecture/deferred-work-sync.md)** — BMAD 延期工作与 GitHub Issues 同步。
 - **[doc-monitoring-scope.md](./architecture/doc-monitoring-scope.md)** — 文档 AI 监管范围：说明与决策记录。
 - **[ansible-vault-architecture.md](./architecture/ansible-vault-architecture.md)** — Ansible Vault 密钥管理设计。
 - **[ansible-role-architecture.md](./architecture/ansible-role-architecture.md)** — Ansible Role 架构、边界与依赖。
