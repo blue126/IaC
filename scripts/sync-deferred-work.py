@@ -618,33 +618,41 @@ def sync(
     invalid_retirements: list[str] = []
     unresolved: list[tuple[str, str]] = []
     mismatched_issue: list[tuple[str, int, str]] = []
+    unreachable: list[tuple[str, str]] = []
     for entry in ledger.entries:
         record = entries.get(entry.entry_id)
         if record is None:
             continue
-        target = record.get("repository") or mapping["repository"]
-        number = _mapping_issue(entry.entry_id, record)
-        if entry.entry_id in retired_ids:
-            retirement = ledger.retired[entry.entry_id]
-            recorded = retirement.get("issue", "")
-            if recorded.isdigit() and int(recorded) != number:
-                mismatched_issue.append((entry.entry_id, number, recorded))
-            if retirement.get("reason_valid") != "yes":
-                # An unsupported reason must not silently become a GitHub close:
-                # `completed` and `not planned` mean different things in history.
-                invalid_retirements.append(entry.entry_id)
+        # One unreachable or corrupt reference must not abort the run: new
+        # entries elsewhere still deserve their issue. A mapped issue can be
+        # deleted, transferred, or live in a repository this token cannot read
+        # (the routes here point one entry set at blue126/llm-ops).
+        try:
+            target = record.get("repository") or mapping["repository"]
+            number = _mapping_issue(entry.entry_id, record)
+            if entry.entry_id in retired_ids:
+                retirement = ledger.retired[entry.entry_id]
+                recorded = retirement.get("issue", "")
+                if recorded.isdigit() and int(recorded) != number:
+                    mismatched_issue.append((entry.entry_id, number, recorded))
+                if retirement.get("reason_valid") != "yes":
+                    # An unsupported reason must not silently become a GitHub
+                    # close: `completed` and `not planned` differ in history.
+                    invalid_retirements.append(entry.entry_id)
+                    continue
+                state = issue_state(target, number)
+                record["state"] = state
+                if state == "OPEN":
+                    retired_but_open.append(
+                        (entry.entry_id, number, retirement.get("reason", ""))
+                    )
                 continue
             state = issue_state(target, number)
             record["state"] = state
-            if state == "OPEN":
-                retired_but_open.append(
-                    (entry.entry_id, number, retirement.get("reason", ""))
-                )
-            continue
-        state = issue_state(target, number)
-        record["state"] = state
-        if state == "CLOSED":
-            closed_but_active.append((entry, number))
+            if state == "CLOSED":
+                closed_but_active.append((entry, number))
+        except SyncError as error:
+            unreachable.append((entry.entry_id, str(error)))
 
     # Retired ids that map to nothing at all: either a typo or an entry that
     # was removed before it was ever registered.
@@ -673,7 +681,14 @@ def sync(
     print(f"invalid retirements  : {len(invalid_retirements)}")
     print(f"unresolved retired   : {len(unresolved)}")
     print(f"issue number mismatch: {len(mismatched_issue)}")
+    print(f"unreachable issues   : {len(unreachable)}")
     print(f"stale source specs   : {len(stale_sources)}")
+
+    if unreachable:
+        print("\n-- mapped issues that could not be read (skipped, run continues) --")
+        for entry_id, detail in unreachable:
+            print(f"   {entry_id}  {detail[:90]}")
+        print("   fix the mapping or restore access to that repository")
 
     if invalid_retirements:
         print("\n-- retired records with an unusable reason (left open) --")
