@@ -24,7 +24,7 @@
 - name: Validate canonical Jenkins Core and plugin lock
   ansible.builtin.assert:
     that:
-      - ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='version') | list == ['2.541.3', '2.555.3', '2.568.2']
+      - ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='version') | list == ['2.541.3', '2.555.3', '2.568.3']
       - ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='package_version') | list == ci_toolchain_bom.jenkins.core.upgrade_path | map(attribute='version') | list
       - jenkins_upgrade_lock_ids | length == jenkins_upgrade_lock_ids | unique | length
       - jenkins_upgrade_lock_urls | length == jenkins_upgrade_lock_urls | unique | length

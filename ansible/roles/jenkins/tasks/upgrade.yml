@@ -155,7 +155,7 @@
     - name: Download exact Temurin package
       ansible.builtin.get_url:
         url: "{{ ci_toolchain_bom.jenkins.java.upgrade.package_url }}"
-        dest: "{{ jenkins_upgrade_staging_dir }}/temurin-21-jre.deb"
+        dest: "{{ jenkins_upgrade_staging_dir }}/temurin-runtime.deb"
         checksum: "sha256:{{ ci_toolchain_bom.jenkins.java.upgrade.package_sha256 }}"
         mode: "0600"
 
@@ -217,7 +217,7 @@
 
     - name: Read staged Temurin checksum
       ansible.builtin.stat:
-        path: "{{ jenkins_upgrade_staging_dir }}/temurin-21-jre.deb"
+        path: "{{ jenkins_upgrade_staging_dir }}/temurin-runtime.deb"
         checksum_algorithm: sha256
       register: jenkins_upgrade_staged_temurin
 
@@ -355,7 +355,7 @@
             label: "{{ item.name }}={{ item.version }}"
         - name: Install checksummed Temurin runtime
           ansible.builtin.apt:
-            deb: "{{ jenkins_upgrade_staging_dir }}/temurin-21-jre.deb"
+            deb: "{{ jenkins_upgrade_staging_dir }}/temurin-runtime.deb"
             state: present
         - name: Create Jenkins systemd override directory
           ansible.builtin.file:
