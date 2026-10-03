@@ -119,6 +119,7 @@ When working on specific areas, read the relevant design doc for detailed patter
 - **Ansible Role patterns**: `docs/architecture/ansible-role-architecture.md`
 - **CI/CD pipeline design**: `docs/architecture/cicd-architecture.md`
 - **Docker Sandbox agent architecture**: `docs/architecture/docker-sandbox-agent-architecture.md`
+- **Deferred-work ↔ GitHub issue 同步**: `docs/architecture/deferred-work-sync.md`
 
 ## Workflow Ownership
 
@@ -185,3 +186,13 @@ When working on specific areas, read the relevant design doc for detailed patter
 参与 BMAD/Multica 工作时，先读取 docs/agent/bmad-multica-contract.md。
 执行 BMAD Team 协调任务时，再读取 docs/agent/multica-team.md；不另写 BMAD 流程顺序。
 执行任何 BMAD 评审前，读取 docs/agent/bmad-review-routing.md 确认该 reviewer 是否走 Claude。
+
+BMAD 会把"本次不做但该做"的工作追加到 `_bmad-output/implementation-artifacts/deferred-work.md`。该文件只增不改、没有退役机制，也不在日常视野里。**BMAD 工作产生新的延期条目后，把它同步成 GitHub issue：**
+
+```bash
+python3 scripts/sync-deferred-work.py --dry-run   # 先看它打算做什么（只读）
+python3 scripts/sync-deferred-work.py             # 开 issue / 关闭已退役的 issue
+```
+
+脚本永不改写该清单（只读）；退役靠**追加** `retired:` 记录，脚本会把该追加的文本打出来。
+设计见 docs/architecture/deferred-work-sync.md。
