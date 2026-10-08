@@ -20,6 +20,8 @@ scripts/
 │   └── fetch-planned-vms.py           # Fetch planned VMs from NetBox
 ├── pbs/                   # Proxmox Backup Server utilities
 │   └── discover-pci-devices.sh        # PCI device discovery for GPU passthrough
+├── gateway-backup/        # Gateway backups using the native PBS client
+│   └── gateway-backup.sh             # Settings, business definitions and sequential backup
 ├── get-secrets.sh         # Extract Ansible Vault secrets to Terraform *.auto.tfvars
 ├── refresh-terraform-state.sh # Pull remote Terraform state for Ansible inventory
 └── sync-to-notion.py      # Sync documentation to Notion (optional)
@@ -67,3 +69,9 @@ NetBox API client scripts for Custom Fields management, VM configuration fetchin
 
 ### pbs/
 Proxmox Backup Server utilities for hardware discovery and configuration.
+
+### gateway-backup/
+
+`gateway-backup/gateway-backup.sh backup all` 按业务顺序备份网关的六项常规 Docker 业务，保留 `backup <business>` 单项入口；qnetd 在独立维护窗口执行。公共参数和七项业务定义集中在这一个脚本内，PBS Token 由控制器通过 `PBS_PASSWORD` 注入。备份明确使用 `--crypt-mode none`，仅保留 PBS 登录认证和 HTTPS，无需加密密钥。当前脚本尚未包含 OpenWrt 系统备份。
+
+调用、恢复和系统备份范围见 [网关备份指南](../docs/guides/gateway-backup.md)。离线验证：`bash tests/gateway-backup/gateway-backup-test.sh`。脚本和客户端已部署；小智真实备份通过，2026-10-09 用户反馈已完成一次全业务备份。恢复演练暂缓，后续人工停服前先通知用户。
