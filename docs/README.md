@@ -25,6 +25,7 @@ Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构
 
 - **[homelab-iac-architecture.md](./architecture/homelab-iac-architecture.md)** — 系统总体架构（Terraform + Ansible + Proxmox/OCI/Netbox）。
 - **[proxmox-qdevice-architecture.md](./architecture/proxmox-qdevice-architecture.md)** — Proxmox 双节点与 N100 外部见证的当前架构、启动与安全回滚。
+- **[hindsight-memory-architecture.md](./architecture/hindsight-memory-architecture.md)** — pve1 LXC 118 上的 Hindsight 共享记忆服务：拓扑、Codex 登录、端口与认证（含无登录的网页控制台）、资源与重排性能、逻辑导出方法、网络依赖与已知事故、网关旧部署的经验教训与未完成项。
 - **[backup-architecture-consolidation-spec.md](./architecture/backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
 - **[cicd-architecture.md](./architecture/cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
 - **[deferred-work-sync.md](./architecture/deferred-work-sync.md)** — BMAD 延期工作与 GitHub Issues 同步。
@@ -55,6 +56,7 @@ Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构
 - **[jenkins-webhook-router-setup.md](./guides/jenkins-webhook-router-setup.md)** — Jenkins Webhook-Router 配置。
 - **[notion-sync-setup.md](./guides/notion-sync-setup.md)** — Terraform state 同步到 Notion。
 - **[cn-exit-singbox-proxy.md](./guides/cn-exit-singbox-proxy.md)** — sing-box 出境代理配置。
+- **[hindsight-operations.md](./guides/hindsight-operations.md)** — pve1 LXC 118 上 Hindsight 记忆服务运维：LXC 管理、升级回滚、轮换 key、Codex 登录续期、召回性能、跨主机迁移与导出、网页控制台、排障。
 
 ## troubleshooting/
 
