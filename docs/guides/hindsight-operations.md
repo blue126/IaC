@@ -18,9 +18,9 @@
 | `.env` | 两个密钥变量：`HINDSIGHT_API_TENANT_API_KEY`、`HINDSIGHT_CP_DATAPLANE_API_KEY` | 600 root | key 只放这里；值不入库、不打印；两个必须一致 |
 | `data/` | 内置 Postgres（pg0）的数据目录，挂载到容器 `/home/hindsight/.pg0` | 755，属主 UID/GID 1000 | 运行中的数据库目录；不要直接做文件级拷贝当备份 |
 | `codex/` | 这台机器自己的 Codex 登录，挂载到容器 `/home/hindsight/.codex`（读写） | 700，属主 1000:1000 | 里面的 `auth.json`（600，1000:1000）是登录凭据，不入库、不打印、不拷到别处 |
-| `hf-cache/` | 嵌入与重排模型的缓存，挂载到容器 `/home/hindsight/.cache/huggingface`（约 217 MB） | 755，属主 UID/GID 1000 | 离线模式依赖它；不要删除或移动，换模型的步骤见第 8.2 节 |
+| `hf-cache/` | 嵌入与重排模型的缓存，挂载到容器 `/home/hindsight/.cache/huggingface`（约 690 MB：嵌入 bge-small-en-v1.5、重排 mmarco-mMiniLMv2-L12，以及回滚用的 MiniLM-L6） | 755，属主 UID/GID 1000 | 离线模式依赖它；不要删除或移动，换模型的步骤见第 8.2 节 |
 
-目录里没有 `models/`（用镜像默认的重排模型）和 `backup/`。改 `compose.yaml` 前会留下 `compose.yaml.bak-<时间>`（644 root），验证无误后可以删除。Mac 上的客户端 key 存放在 `~/.hindsight/coding-agent.json` 和 `~/.hindsight/gateway-api-key`（都是 600；后者文件名里的 gateway 是历史遗留）。客户端配置见架构文档的[客户端切换记录](../architecture/hindsight-memory-architecture.md#部署与迁移记录)。
+目录里没有 `models/`（重排模型从 `hf-cache/` 加载）和 `backup/`。改 `compose.yaml` 前会留下 `compose.yaml.bak-<时间>`（644 root），验证无误后可以删除。Mac 上的客户端 key 存放在 `~/.hindsight/coding-agent.json` 和 `~/.hindsight/gateway-api-key`（都是 600；后者文件名里的 gateway 是历史遗留）。客户端配置见架构文档的[客户端切换记录](../architecture/hindsight-memory-architecture.md#部署与迁移记录)。
 
 ## 2. 健康检查与日常状态（只读）
 
@@ -243,20 +243,23 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 
 ### 8.2 召回与重排
 
-重排用镜像默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`、300 个候选，和 Mac 上的基准一致；设置在 `compose.yaml`：
+重排用多语言模型 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`（2026-10-10 13:55 UTC 起；之前的英文模型 `ms-marco-MiniLM-L-6-v2` 对中文查询排序很差），候选上限仍是默认的 300（`budget: low` 实际约 130~150 个）。选型和对比见[多语言重排模型评估](../architecture/hindsight-multilingual-reranker-evaluation.md)。设置在 `compose.yaml`：
 
 | 设置 | 值 | 作用 |
 |---|---|---|
+| `HINDSIGHT_API_RERANKER_LOCAL_MODEL` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` | 多语言重排模型；删掉这一行就回到镜像默认的 MiniLM-L6（仍在缓存里，可直接回滚） |
 | `OMP_NUM_THREADS`、`MKL_NUM_THREADS` | `6` | 与 LXC 的核数一致；线程数大于核数会被限流 |
 | `HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING` | `true` | 分桶批处理；300 个合成候选从约 4.0 秒降到约 3.2 秒 |
 | `HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT` | `1` | 本地重排的最大并发（变量名含义；调优记录没有单独说明收益） |
 | `HF_HUB_OFFLINE`、`TRANSFORMERS_OFFLINE` | `"1"` | 启动时不访问 HuggingFace，只用本地缓存（2026-10-10 起） |
 
-**模型缓存**：嵌入模型 `BAAI/bge-small-en-v1.5` 和重排模型的文件在 `/opt/hindsight/hf-cache/`（约 217 MB，挂载到容器的 `/home/hindsight/.cache/huggingface`）。离线模式下缓存缺失会让容器起不来，所以不要删除或移动它。起因：网络故障时启动检查模型失败，容器崩溃重启 4 次（第 11 节、架构文档的[事故记录](../architecture/hindsight-memory-architecture.md#网络依赖与已知事故)）。
+**模型缓存**：嵌入模型 `BAAI/bge-small-en-v1.5` 和重排模型的文件在 `/opt/hindsight/hf-cache/`（约 690 MB，挂载到容器的 `/home/hindsight/.cache/huggingface`）。离线模式下缓存缺失会让容器起不来，所以不要删除或移动它。起因：网络故障时启动检查模型失败，容器崩溃重启 4 次（第 11 节、架构文档的[事故记录](../architecture/hindsight-memory-architecture.md#网络依赖与已知事故)）。
 
-要换别的本地模型（需用户同意）：确认 LXC 能上网；先 `cp -p compose.yaml compose.yaml.bak-$(date +%Y%m%d-%H%M%S)`，把两个离线变量临时改成 `"0"`，`docker compose config --quiet`，`docker compose up -d`，等日志里模型下载完、`/health` 返回 200；再改回 `"1"` 并 `docker compose up -d`。缓存会写进 `hf-cache/`。
+要换别的本地模型（需用户同意），有两种办法。一是先在一次性容器里把模型下载到临时缓存（第 8.3 节），再把 `hub/models--<组织>--<模型>` 目录 `cp -a` 进 `hf-cache/hub/` 并 `chown -R 1000:1000`，然后改 `compose.yaml`、`docker compose up -d`，离线开关不用动（2026-10-10 换 mmarco 就是这样做的）。二是直接让线上容器下载：确认 LXC 能上网；先 `cp -p compose.yaml compose.yaml.bak-$(date +%Y%m%d-%H%M%S)`，把两个离线变量临时改成 `"0"`，`docker compose config --quiet`，`docker compose up -d`，等日志里模型下载完、`/health` 返回 200；再改回 `"1"` 并 `docker compose up -d`。缓存会写进 `hf-cache/`。
 
-实测记录：300 个合成候选 fp32 打分约 4.0 秒，开分桶批处理约 3.2 秒，3 线程 3.8~4.8 秒；真实召回约 7~8.4 秒（真实候选文本比基准更长）；reflect 约 5 秒。网关（N100）上同一模型要 66~68 秒，所以网关上当时换了更小的 TinyBERT-L-2，代价是排序质量下降；那套做法和对比见架构文档的[经验教训](../architecture/hindsight-memory-architecture.md#网关旧部署与经验教训)，在这台机器上不需要。
+实测记录（mmarco，2026-10-10）：40 条真实查询、每条约 130~150 个候选，重排中位数 3.7 秒、最长 4.7 秒，召回端到端最长 4.8 秒；容器内存约 1.6 GiB。限制候选数（`HINDSIGHT_API_RERANKER_MAX_CANDIDATES_LOW`）会降低中文质量，目前不设，只有召回明显变慢时才考虑设 100。
+
+以下是换模型前 MiniLM-L6 的实测记录：300 个合成候选 fp32 打分约 4.0 秒，开分桶批处理约 3.2 秒，3 线程 3.8~4.8 秒；真实召回约 7~8.4 秒（真实候选文本比基准更长）；reflect 约 5 秒。网关（N100）上同一模型要 66~68 秒，所以网关上当时换了更小的 TinyBERT-L-2，代价是排序质量下降；那套做法和对比见架构文档的[经验教训](../architecture/hindsight-memory-architecture.md#网关旧部署与经验教训)，在这台机器上不需要。
 
 ### 8.3 做实验的约束
 
@@ -265,6 +268,8 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 ```bash
 # Throwaway experiment container: hard memory cap, first in line for the OOM killer.
 # Keep --memory well below the LXC's free memory (check free -m first) and use small batches.
+# 1g is enough for small models only: torch + transformers imports take ~0.4 GB, so a 118M-param
+# reranker needs ~2g (mmarco peaked at 1.7 GB) and bge-reranker-v2-m3 ~3g (2026-10-10 measurements).
 docker run --rm --network host --memory 1g --memory-swap 1g --oom-score-adj 1000 --cpus 2 \
   --entrypoint python ghcr.io/vectorize-io/hindsight:0.10.2 \
   -c '<small test script>'

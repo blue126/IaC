@@ -20,6 +20,7 @@
 
 - **[deferred-work-sync.md](./deferred-work-sync.md)** — BMAD 延期工作清单与 GitHub Issues 的同步机制。
 - **[doc-monitoring-scope.md](./doc-monitoring-scope.md)** — 文档 AI 监管范围：说明与决策记录（监管哪些目录、为什么、当前缺口）。
+- **[hindsight-multilingual-reranker-evaluation.md](./hindsight-multilingual-reranker-evaluation.md)** — Hindsight 多语言重排模型评估（2026-10）：中文召回排序差的原因、6 个重排模型和 3 个嵌入模型的质量/延迟/内存对比、换成 mmarco-mMiniLMv2-L12 的上线变更与回滚、iGPU 评估。
 - **[backup-architecture-consolidation-spec.md](./backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
 - **[proxmox-storage-monitoring-spec.md](./proxmox-storage-monitoring-spec.md)** — 集群 SMART/ZFS scrub/Prometheus/Grafana 存储监控规范。
 
