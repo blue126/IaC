@@ -1,6 +1,6 @@
 # Hindsight 共享记忆服务架构（pve1 LXC 118）
 
-**更新日期**：2026-10-10；**状态**：已搬迁并验证。2026-10-10 用户决定把 Hindsight 整体搬离网关，现在运行在 pve1 的 LXC 118（`192.168.1.118`）；Claude Code、Codex、CodeBuddy 已切换到新地址（Multica 任务自动跟随）。网关上的旧部署已由用户在当天删除，没有回滚副本。Hermes 记忆插件接入**尚未完成**。网页控制台**没有登录**，后端地址已于当天修好，见[网页控制台](#网页控制台)。当天下午万兆交换机故障造成过一次网络中断，Hindsight 因此崩溃重启 4 次，现已加上离线模式和持久模型缓存，见[网络依赖与已知事故](#网络依赖与已知事故)。备份由运维方另行规划，本文只记录逻辑导出的方法。本文保留了“为什么离开网关”的经验教训，见[网关旧部署与经验教训](#网关旧部署与经验教训)；操作步骤见 [Hindsight 运维指南](../guides/hindsight-operations.md)。
+**更新日期**：2026-10-10；**状态**：已搬迁并验证。2026-10-10 用户决定把 Hindsight 整体搬离网关，现在运行在 pve1 的 LXC 118（`192.168.1.118`）；Claude Code、Codex、CodeBuddy 已切换到新地址（Multica 任务自动跟随）。网关上的旧部署已由用户在当天删除，没有回滚副本。Hermes（Mac 6 个 profile、网关 2 个 profile）已于当天接入，见[Hermes 接入](#hermes-接入)。网页控制台**没有登录**，后端地址已于当天修好，见[网页控制台](#网页控制台)。当天下午万兆交换机故障造成过一次网络中断，Hindsight 因此崩溃重启 4 次，现已加上离线模式和持久模型缓存，见[网络依赖与已知事故](#网络依赖与已知事故)。备份由运维方另行规划，本文只记录逻辑导出的方法。本文保留了“为什么离开网关”的经验教训，见[网关旧部署与经验教训](#网关旧部署与经验教训)；操作步骤见 [Hindsight 运维指南](../guides/hindsight-operations.md)。
 
 **证据口径**：标“核对”的内容来自 2026-10-10 对 pve1、LXC 118 和网关的只读检查（`pct config`/`pct status`/`pct list`/`qm list`、`pvesm status`、`pve-firewall status`、`/etc/pve/jobs.cfg`、`docker ps` 与 `docker inspect --format` 的非敏感字段、`ls`/`stat`、`ss`/`netstat`、`/health` 与 `/version`、`compose.yaml` 的非密钥行、控制台只看 HTTP 状态码和页面标题、容器日志里的单行验证信息和错误行计数），以及对 Mac 上导出文件名称、`~/.hindsight/` 文件权限与修改时间的查看；没有读取 `.env`、`codex/auth.json`、容器环境变量、`coding-agent.json`、导出 ZIP 的内容或任何密钥文件。标“部署记录”“迁移记录”“切换记录”“调优记录”“实测记录”的内容来自部署者的验证和操作结果，本次整理没有重新执行（例如带 key 的请求、记忆库导出导入、客户端读写验证、召回和重排耗时的测量）。标“历史”的内容是网关上旧部署的事实，已不是现状。本文不记录任何 key、token 或 `auth.json` 的内容，只记录它们的存放位置和变量名。标“事故记录”的内容来自 2026-10-10 下午的现场检查和操作（对网关、pve1、LXC 118 的只读检查，以及修复 `compose.yaml` 的改动）。
 
@@ -8,8 +8,8 @@
 
 Hindsight 是 Vectorize 的开源长期记忆服务（上游：[vectorize-io/hindsight](https://github.com/vectorize-io/hindsight)）。本部署让所有 AI Agent 共用同一份长期记忆：
 
-- **客户端**：用户 Mac 上的 Claude Code、Codex、CodeBuddy（通过 hooks 和 MCP 接入）；Multica 的任务读取同一份 HOME 下的配置，自动跟随。Hermes 的 Hindsight 记忆插件**尚未接入**。
-- **记忆库（bank）** 按项目命名，形如 `coding-agent::<项目名>`。目前已知的两个库是 `coding-agent::hermes` 与 `coding-agent::IaC`（迁移记录），本文不断言它们就是全部的库。
+- **客户端**：用户 Mac 上的 Claude Code、Codex、CodeBuddy（通过 hooks 和 MCP 接入）；Multica 的任务读取同一份 HOME 下的配置，自动跟随。Hermes 通过 Hindsight 官方的 Hermes 插件接入：Mac 上的开发类 profile 只读当前项目库，default、advisor 和网关上的 homelab-admin 读写，见[Hermes 接入](#hermes-接入)。
+- **记忆库（bank）** 按项目命名，形如 `coding-agent::<项目名>`。2026-10-10 的库是 `coding-agent::hermes`、`coding-agent::IaC`（项目库）和 `hermes-agent::default`、`hermes-agent::advisor`（Hermes 自己的库）；`coding-agent::mcpgateway` 在第一次写入时才会建立。
 - **位置**：pve1 上的 LXC 118。2026-10-09 至 2026-10-10 这个服务曾经部署在网关上，见[历史](#网关旧部署与经验教训)。
 
 ## 拓扑
@@ -22,7 +22,7 @@ flowchart LR
         CLI["Claude Code / Codex / CodeBuddy<br/>hooks + MCP"]
     end
     LAN["局域网内的其他设备<br/>浏览器"]
-    HERMES["Hermes 记忆插件<br/>（未接入）"]
+    HERMES["Hermes（Mac 与网关）<br/>Hindsight 插件"]
     OPENAI["Codex 后端<br/>（互联网）"]
     GW["网关 192.168.1.1<br/>旧部署：已删除（2026-10-10）"]
     subgraph PVE1["pve1 · 192.168.1.51 · i5-8500"]
@@ -37,7 +37,7 @@ flowchart LR
     end
     CLI -->|HTTP + Bearer key| API
     LAN -->|HTTP，无登录| CON
-    HERMES -.->|计划| API
+    HERMES -->|HTTP + Bearer key| API
     API --> HS
     CON --> HS
     HS --> DATA
@@ -52,7 +52,7 @@ flowchart LR
 | 项目 | 内容 |
 |---|---|
 | 宿主 | pve1（`192.168.1.51`，PVE 9.0.3，内核 6.14.8-2-pve）：Intel Core i5-8500（6 核 6 线程，标称 3.00 GHz，`lscpu` 的 CPU max 为 4100 MHz），内存 31935 MiB（可用 7967 MiB），swap 8191 MiB；存储 `local-lvm` 为 LVM-thin |
-| LXC | VMID 118，hostname `hindsight`，Ubuntu 24.04 LTS，`unprivileged: 1`（uid 映射 0→100000），`cores: 4`（`cpuunits: 1024`），`memory: 4096`、`swap: 512`，rootfs `local-lvm:vm-118-disk-0` 24G（已用约 5 GB），`features: nesting=1,keyctl=1`，`onboot: 1`，tags `hindsight` |
+| LXC | VMID 118，hostname `hindsight`，Ubuntu 24.04 LTS，`unprivileged: 1`（uid 映射 0→100000），`cores: 6`（2026-10-10 从 4 调到 6；`cpuunits: 1024`），`memory: 4096`、`swap: 512`，rootfs `local-lvm:vm-118-disk-0` 24G（已用约 5 GB），`features: nesting=1,keyctl=1`，`onboot: 1`，tags `hindsight` |
 | 网络 | `net0`：`eth0`，桥 `vmbr1`，`192.168.1.118/24`，网关 `192.168.1.1`，DNS `192.168.1.1`，`firewall=1`。`pve-firewall status` 为 `disabled/running`，不存在 `cluster.fw` 和 `118.fw`，没有生效的防火墙规则 |
 | Docker | Ubuntu 仓库的 `docker.io` 29.1.3-0ubuntu3~24.04.2 与 `docker-compose-v2` 2.40.3；runc、overlayfs、cgroup v2；`docker` 服务 enabled |
 | 容器 | `hindsight`；Compose 项目目录 `/opt/hindsight/`；镜像 `ghcr.io/vectorize-io/hindsight:0.10.2`（固定 tag；RepoDigest `ghcr.io/vectorize-io/hindsight@sha256:d1840062a5b79940ab7a9f4809ceb90fc776d4ad737cd9329e9b5836cc64ab70`，与网关旧部署相同）；`restart: unless-stopped`；`network_mode: host`；`shm_size: 1g`；`mem_limit: 3g`（3221225472 字节，LXC 本身 4 GiB）；非特权，容器内用户 `hindsight`；没有 Docker HEALTHCHECK |
@@ -60,7 +60,7 @@ flowchart LR
 | 目录 | `/opt/hindsight/`：`compose.yaml`（644 root）、`.env`（600 root）、`data/`（755，属主 UID/GID 1000，挂载到容器 `/home/hindsight/.pg0`）、`codex/`（700，属主 1000:1000，挂载到容器 `/home/hindsight/.codex`）及其中的 `auth.json`（600，属主 1000:1000）、`hf-cache/`（755，属主 1000:1000，约 217 MB，挂载到容器 `/home/hindsight/.cache/huggingface`，2026-10-10 新增）；另有改配置前留下的 `compose.yaml.bak-20261010-055019` 和 `compose.yaml.bak-20261010-055038`（644 root，内容相同）；没有 `models/` 和 `backup/` 目录 |
 | 认证 | `compose.yaml` 设置 `HINDSIGHT_API_TENANT_EXTENSION=hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension`；不带 key 请求 `/v1/default/banks`（9077）返回 HTTP 401；`/health` 与 `/version` 无需认证 |
 | LLM | `HINDSIGHT_API_LLM_PROVIDER=openai-codex`、`HINDSIGHT_API_LLM_MODEL=gpt-6-luna`；凭据是 `codex/auth.json`（这台机器自己的 Codex 登录）；容器日志里有 `Codex LLM verified: gpt-6-luna`（2026-10-10 04:03:07 UTC） |
-| 重排与线程 | `compose.yaml` 没有设置 `HINDSIGHT_API_RERANKER_LOCAL_MODEL`，用镜像默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`（`compose.yaml` 注释；没有 `models/` 目录）；设置了 `OMP_NUM_THREADS=4`、`MKL_NUM_THREADS=4`、`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true`、`HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT=1` |
+| 重排与线程 | `compose.yaml` 没有设置 `HINDSIGHT_API_RERANKER_LOCAL_MODEL`，用镜像默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`（`compose.yaml` 注释；没有 `models/` 目录）；设置了 `OMP_NUM_THREADS=6`、`MKL_NUM_THREADS=6`、`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true`、`HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT=1` |
 | 模型缓存 | 嵌入模型 `BAAI/bge-small-en-v1.5` 与重排模型 `cross-encoder/ms-marco-MiniLM-L-6-v2` 的文件在 `/opt/hindsight/hf-cache/`；`compose.yaml` 设置 `HF_HUB_OFFLINE=1` 和 `TRANSFORMERS_OFFLINE=1`，启动时不访问 HuggingFace（2026-10-10 05:50 UTC 起，见[模型缓存与离线模式](#模型缓存与离线模式)） |
 | Worker | `HINDSIGHT_API_WORKER_ID=hindsight-pve1` |
 | 健康与版本 | `GET /health` 返回 200，内容含 `"status":"healthy"` 与 `"database":"connected"`；`GET /version` 返回 `api_version` 0.10.2，功能标志含 `mcp: true`、`worker: true` |
@@ -129,6 +129,26 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 - **对 Hindsight 的影响**：事故期间 LXC 访问外网同样失败，Codex 校验连接超时（只是警告）；更严重的是启动时 sentence-transformers 向 HuggingFace 做元数据检查失败，报 `RuntimeError: Cannot send a request, as the client has been closed`，应用启动失败，容器被 `restart: unless-stopped` 反复拉起，04:54–05:50 UTC 崩溃重启 4 次。数据没有受损。加固见[模型缓存与离线模式](#模型缓存与离线模式)。
 - **其他影响（推论，未核实）**：Proxmox 双节点的 QDevice 见证（qnetd）在网关上，PVE 节点经同一条链路连它，这段链路不稳时见证投票可能受影响，见 [Proxmox 双节点与 N100 QDevice 架构](./proxmox-qdevice-architecture.md)。
 
+## Hermes 接入
+
+2026-10-10 与用户确定并实施。插件是 Hindsight 官方的 Hermes 插件（[hindsight-integrations/hermes](https://github.com/vectorize-io/hindsight/tree/main/hindsight-integrations/hermes)），固定在提交 `d80b54821d05288c9c6663d5e0ed2617d14d3a3a`；每个 profile 各有一份插件副本和一份 `$HERMES_HOME/hindsight/config.json`（600，含 API key），`memory.provider: hindsight` 写在各自的 `config.yaml`。
+
+| 位置 | profile | 记忆库 | 读写 |
+|---|---|---|---|
+| Mac | dev、analyst、reviewer、orchestrator（开发类） | 当前所在 git 仓库的 `coding-agent::<仓库名>`（模板 `coding-agent::{project}`，worktree 归到主仓库名） | **只读**：每条消息前同步召回，不写入 |
+| Mac + 网关 | default | `hermes-agent::default`，两台机器共用；写入带来源 `hermes-mac/default` 或 `hermes-gw/default` | 读写 |
+| Mac | advisor | `hermes-agent::advisor` | 读写 |
+| 网关 | homelab-admin | `coding-agent::IaC`，来源 `hermes-gw/homelab-admin` | 读写 |
+| 网关 | counselor、voice | 不接入 | — |
+
+- **为什么开发类只读、也没有自己的库**：用户的决定。项目知识由 Claude Code、Codex 写入，Hermes 在仓库里的提交也会被 Claude Code 的 git 收录带进项目库；只读免去了"写到哪个库"的问题。仓库外解析出的 `coding-agent::` 是不存在的库，查它返回空，因为没人写，也不会被创建。以后全面开启时，开发类 profile 会自动读到新项目的库，不用改配置。
+- **为什么 counselor、voice 不接入**：counselor 用本地模型（`192.168.1.120`），接入后对话会经 Hindsight 交给 OpenAI 提取，而且控制台没有登录；voice 的自带记忆是刻意关闭的。
+- **为什么同步召回**：插件默认在后台召回、下一条消息才用上，而 kanban 会话基本只有一条用户消息（2026-10-10 统计：两周内 dev 141 个会话中 138 个来自 kanban，reviewer 104 个中 101 个），消息通道又是每条消息新建一次 agent。代价是每条消息前多等几秒，且受 Hermes 的 8 秒上限约束。
+- **本地补丁（Mac 开发类 4 个 profile）**：Hermes 只有 TUI 会把工作目录交给记忆插件，kanban 任务和经典命令行（包括 `chat -q`）都不交，插件因此无法按仓库选库。补丁让插件退回到 kanban 设置的 `TERMINAL_CWD` 或进程当前目录；另外，`auto_retain: false` 时插件仍会把 Hermes 自带记忆（MEMORY.md/USER.md）的新增写入库，补丁让只读 profile 也不写。补丁内容与重打方法见运维指南第 13 节。
+- **网关容器的特殊点**：Hermes 在容器里以 uid 10000 运行，`hindsight/config.json` 必须属于 10000:10000，否则插件读不到配置，状态显示 not available。容器里的 gateway 是 s6 监管的前台进程，`hermes gateway restart` 不生效；安装插件时 Hermes 提示已热加载，进程没有重启。
+- **实测记录**：开发类 profile 在 IaC 仓库和 IaC 的外部 worktree（`~/.codex/worktrees/...`）里都选到 `coding-agent::IaC`，召回约 4 秒、20–27 条，`sync_turn` 显示跳过写入；default 的写入与召回、homelab-admin 对 IaC 库的召回与写入都验证过；测试数据已从库和 MEMORY.md 删除。
+- **未采用 `recall_min_scores`**：英文查询下 `reranker ≥ 0.25` 几乎把结果全部过滤掉，中文查询的分数又没有区分度。
+
 ## 资源与性能
 
 ### 资源
@@ -136,14 +156,14 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 层 | 配置 | 说明 |
 |---|---|---|
 | pve1 | 6 核 6 线程，内存 32 GB，可用约 8 GB，swap 8 GiB | 同机还有 VM 112/113（各 4 GiB）、114（4 GiB）、115 `funasr`（12 GiB）、117（4 GiB）和 LXC 111；VM 116 `Windows11`（配置 16 GiB）已停止，它的配置内存大于当前可用内存，能否与现有来宾同时运行没有验证 |
-| LXC 118 | `cores: 4`、`memory: 4096`、`swap: 512`，rootfs 24G | 容器看到的 CPU 是 4 个（`nproc` 为 4，LXC 的 cpuset 固定在宿主的 4 个核上）；LXC 内可用内存约 2.6 GiB |
+| LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 4096`、`swap: 512`，rootfs 24G | 容器里 `nproc` 为 6；pve1 一天平均 CPU 约 2%，其他来宾按 `cpuunits` 分配。调到 6 核后 144 个候选的重排从约 3.0 秒降到约 2.5 秒（实测记录） |
 | 容器 | `mem_limit: 3g`、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（这三项是网关上为保护其他服务设置的，见历史） |
 
 ### 召回与重排性能（调优记录、实测记录）
 
 - 重排用默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`，300 个候选，和 Mac 上的基准一致，因此不再有网关上 TinyBERT 带来的排序质量折中。
 - LXC 里 300 个合成候选 fp32 打分约 4.0 秒，开分桶批处理约 3.2 秒，3 线程 3.8~4.8 秒；真实召回约 7~8.4 秒（客户端 hooks 的超时是 30 秒）；reflect 约 5 秒；容器内存约 1.1~1.4 GiB（核对 1.43 GiB）。
-- `OMP_NUM_THREADS` 和 `MKL_NUM_THREADS` 设为 4，与 LXC 的核数一致；`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true` 开启分桶批处理；`..._MAX_CONCURRENT=1`（变量名含义是本地重排的最大并发，没有单独说明收益）。
+- `OMP_NUM_THREADS` 和 `MKL_NUM_THREADS` 设为 6，与 LXC 的核数一致；`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true` 开启分桶批处理；`..._MAX_CONCURRENT=1`（变量名含义是本地重排的最大并发，没有单独说明收益）。
 - 嵌入模型仍是镜像内置的 BAAI/bge-small-en-v1.5，在 CPU 本地运行。
 - 想再快一点：把 LXC 的核数调高是最直接的办法（`pct set 118 --cores N`，同步调整线程数），收益没有测，pve1 上其他来宾也在用 CPU。
 
@@ -171,7 +191,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 数据迁移（从网关导出、在 LXC 导入） | 已完成（2026-10-10） | hermes 422 条/18 个文档、IaC 420 条/7 个文档，文档和知识页完全一致（迁移记录）；后台整理收敛后 hermes 433 条/19 个文档 |
 | 切换 Claude Code / Codex / CodeBuddy 到新地址 | 已完成（2026-10-10） | 切换记录：三者各做过一次读写验证，新写入只进新机器；Multica 任务自动跟随 |
 | 网关上的旧部署 | 已删除（用户，2026-10-10） | 没有回滚副本；恢复数据靠 Mac 上的导出文件，见[旧部署现状](#旧部署现状) |
-| Hermes 记忆插件接入 | **未完成** | 接入时的网络路径和 key 配置待定；2026-10-10 04:19 UTC 核对时，网关上的 `hermes` 与 `hermes-webui` 容器刚被停止，原因和后续安排没有核实 |
+| Hermes 记忆插件接入 | 已完成（2026-10-10） | 见[Hermes 接入](#hermes-接入)；网关容器的 gateway 进程没有重启，插件按 Hermes 的提示热加载，消息通道的第一条消息需在日志里确认 |
 | 网页控制台 | 后端已修复，仍无登录 | 2026-10-10 把数据面地址指向 `http://127.0.0.1:9077`，`/api/banks` 返回 200；是否收紧由用户决定，见[网页控制台](#网页控制台) |
 | 容器日志轮转 | 已配置（2026-10-10） | `json-file`，`max-size: 20m`、`max-file: 5` |
 | 模型缓存与离线模式 | 已完成（2026-10-10） | `hf-cache/` 持久缓存加 `HF_HUB_OFFLINE=1`，见[模型缓存与离线模式](#模型缓存与离线模式) |
@@ -192,9 +212,12 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 日志含记忆内容 | 容器日志已限制为 20 MB × 5 个文件；日志里仍有 bank 名和召回查询文本，对外粘贴前要脱敏。 |
 | 网关 `eth2` 与万兆交换机链路 | 所有 PVE 一侧的流量（含 Mac 到 LXC、LXC 到外网）都走这条链路；2026-10-10 下午它出过故障，根因没有确认，可能再发生。发生时 API 和控制台时通时断，LXC 的 LLM 调用也会失败，见[网络依赖与已知事故](#网络依赖与已知事故)。 |
 | 离线模式 | `HF_HUB_OFFLINE=1` 下缓存缺失会让容器起不来；`hf-cache/` 不要删除或移动，换本地模型要先临时关闭离线开关。 |
-| pve1 资源共享 | LXC 的 4 个核与 VM、LXC 共用；`funasr` 占 12 GiB；`Windows11`（16 GiB）若启动，pve1 的内存余量会明显下降（按配置值估算，未验证）。 |
+| pve1 资源共享 | LXC 的 6 个核与 VM、LXC 共用；`funasr` 占 12 GiB；`Windows11`（16 GiB）若启动，pve1 的内存余量会明显下降（按配置值估算，未验证）。 |
 | 升级与回滚 | 新版本迁移数据库后，旧版本能否读取旧数据目录未核实；归档跨版本兼容要看上游说明；均未演练。 |
 | 手工部署 | LXC 118 由操作者用 `pct` 手工创建，不在 Terraform、Ansible 管理内，NetBox 实例未核对，没有自动漂移检测。 |
+| Hermes 插件本地补丁 | Mac 上 4 个开发类 profile 的插件副本打了本地补丁（见运维指南第 13 节），`hermes plugins update` 或重装会覆盖它；补丁失效时这些 profile 在 kanban 和经典命令行里查不到项目库（只是查不到，不会写错库）。 |
+| Hermes 8 秒上限 | Hermes 对每条消息前的记忆查询有写死的 8 秒上限（`agent/memory_manager.py` 的 `_EXTERNAL_PREFETCH_TIMEOUT_S`），超时就跳过；项目库变大或 pve1 繁忙时可能发生。 |
+| 中文召回质量 | 重排模型 `ms-marco-MiniLM-L-6-v2` 和嵌入模型 `bge-small-en-v1.5` 都是英文模型。2026-10-10 实测：中文查询的重排分数几乎相同（约 1.1），排第一的可能与问题无关；英文查询的分数分层明显。影响所有客户端，是否换多语言模型待评估。 |
 
 ## 网关旧部署与经验教训
 

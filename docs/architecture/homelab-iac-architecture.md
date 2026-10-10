@@ -1190,6 +1190,7 @@ ansible-playbook playbooks/deploy-<service>.yml
 | 2026-10-09 | 1.2 | 增补 N100 网关上 Hindsight 共享记忆服务（服务清单、管理边界）；Mac 上两个记忆库已复制到网关，Claude Code/Codex/CodeBuddy 已切换到网关，Mac 旧 daemon 与控制中心已停用，重排模型已针对 N100 调优；网页控制台（19077）已在局域网开放且无登录；Hermes 插件接入仍未完成，备份由运维方另行规划，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 | 2026-10-10 | 1.3 | Hindsight 由网关搬到 pve1 的 LXC 118（`192.168.1.118`，非特权、Docker host 网络）；LLM 改用本机自己的 Codex 登录，重排恢复默认模型；客户端已切换到新地址，网关上的旧部署已停止、保留作回退；网页控制台无登录且目前后端 502；Hermes 插件接入仍未完成，备份由运维方另行规划，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 | 2026-10-10 | 1.4 | Hindsight 旧部署已由用户在网关上删除；控制台后端地址修好（`/api/banks` 返回 200，仍无登录）；加日志轮转、`HF_HUB_OFFLINE=1` 和持久模型缓存；记录下午万兆交换机故障及网关 `eth2` 链路观察，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
+| 2026-10-10 | 1.5 | Hermes 接入 Hindsight：Mac 开发类 profile 只读当前项目库（插件本地补丁），default 两机共用 `hermes-agent::default`，advisor、网关 homelab-admin 读写；LXC 118 调到 6 核，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 
 ---
 

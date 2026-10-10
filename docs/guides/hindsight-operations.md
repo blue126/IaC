@@ -1,6 +1,6 @@
 # Hindsight 运维指南（pve1 LXC 118）
 
-**更新日期**：2026-10-10；**状态**：现行。Hindsight 已于 2026-10-10 从网关搬到 pve1 上的 LXC 118（`192.168.1.118`），Claude Code、Codex、CodeBuddy 已切换到新地址；网关上的旧部署已由用户删除。网页控制台**没有登录**（后端地址已修好，第 10 节）。当天下午万兆交换机故障造成过崩溃重启，已加离线模式和持久模型缓存（第 8.2 节、第 11 节）。Hermes 记忆插件接入尚未实施，相关内容标为“计划”。备份由运维方另行规划，本文只记录逻辑导出的方法。架构、网络与未验证边界见 [Hindsight 共享记忆服务架构](../architecture/hindsight-memory-architecture.md)。
+**更新日期**：2026-10-10；**状态**：现行。Hindsight 已于 2026-10-10 从网关搬到 pve1 上的 LXC 118（`192.168.1.118`），Claude Code、Codex、CodeBuddy 已切换到新地址；网关上的旧部署已由用户删除。网页控制台**没有登录**（后端地址已修好，第 10 节）。当天下午万兆交换机故障造成过崩溃重启，已加离线模式和持久模型缓存（第 8.2 节、第 11 节）。Hermes 已接入（第 13 节）。备份由运维方另行规划，本文只记录逻辑导出的方法。架构、网络与未验证边界见 [Hindsight 共享记忆服务架构](../architecture/hindsight-memory-architecture.md)。
 
 > 本文是操作参考，不构成对任何变更的授权。会改变 LXC、容器或客户端状态的步骤（启停、快照回滚、升级、轮换 key、重做 Codex 登录、改端口或防火墙、导出与导入、修改 `compose.yaml`）须先得到用户明确同意；只读检查可以直接执行。pve1 是 Proxmox 集群节点，其上的 `pct`、防火墙和存储操作影响同机的其他来宾，网关承担家庭路由和 PVE 见证，二者的变更都须事先获得明确授权。
 >
@@ -123,7 +123,7 @@ pct delsnapshot 118 before-upgrade
 
 **备份**。备份由运维方另行规划；现有 PVE 备份任务（每日 00:00 到 `pbs`，VMID 列表 100–109）不含 118。任何覆盖整个 LXC 的备份都会带上 `.env`（key）和 `codex/auth.json`（Codex 登录）。
 
-**调整资源**（未实测；LXC 的核数和内存通常不需要重启就能生效）：
+**调整资源**（2026-10-10 实测：`pct set 118 --cores 6` 不需要重启 LXC，容器重建后线程数生效）：
 
 ```bash
 pct set 118 --cores 6           # pve1 has 6 cores; the other guests share them
@@ -237,7 +237,7 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 
 | 层 | 当前配置 | 说明 |
 |---|---|---|
-| LXC 118 | `cores: 4`、`memory: 4096`、`swap: 512`、rootfs 24G、`cpuunits: 1024` | 调整办法见第 4 节 |
+| LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 4096`、`swap: 512`、rootfs 24G、`cpuunits: 1024` | 调整办法见第 4 节 |
 | 容器 | `mem_limit: 3g`、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（那是网关上为保护其他服务设置的）；LXC 本身只有 4 GiB，容器上限给了 3 GiB |
 | pve1 | 6 核 6 线程，内存 32 GB，可用约 8 GB，swap 8 GiB | 同机还有 funasr（12 GiB）、home-assistant、PDM、openbao-testbed×2 和 fileserver LXC；`Windows11`（配置 16 GiB）已停止 |
 
@@ -247,7 +247,7 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 
 | 设置 | 值 | 作用 |
 |---|---|---|
-| `OMP_NUM_THREADS`、`MKL_NUM_THREADS` | `4` | 与 LXC 的核数一致；线程数大于核数会被限流 |
+| `OMP_NUM_THREADS`、`MKL_NUM_THREADS` | `6` | 与 LXC 的核数一致；线程数大于核数会被限流 |
 | `HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING` | `true` | 分桶批处理；300 个合成候选从约 4.0 秒降到约 3.2 秒 |
 | `HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT` | `1` | 本地重排的最大并发（变量名含义；调优记录没有单独说明收益） |
 | `HF_HUB_OFFLINE`、`TRANSFORMERS_OFFLINE` | `"1"` | 启动时不访问 HuggingFace，只用本地缓存（2026-10-10 起） |
@@ -383,6 +383,71 @@ host 网络下不能再用 `ports: 127.0.0.1:19077:9999` 这种写法，可选�
 - **网关的 BusyBox 环境**：iStoreOS 的 BusyBox 比较精简。2026-10-09 核对：`od`、`nohup`、`nproc`、`python3`、`jq`、`diff`、`rsync`、`ss`、`lsof` 均不存在；`netstat`、`openssl`、`curl`、`wget`、`sed`、`grep`、`stat`、`tr`、`cmp`、`unzip`、`tar`、`gzip`、`sha256sum`、`scp` 可用，`printf` 和 `echo` 是 shell 内建。查看监听端口用 `netstat -ltn`；没有 `nohup` 时后台任务写成 `(trap "" HUP; cmd > log 2>&1 < /dev/null &)`；生成随机值用 `/proc/sys/kernel/random/uuid`。2026-10-10 补充：有 `brctl`、`ethtool`、`tcpdump`，没有 `paste`、`bc`、`tc`；`/tmp/hosts` 是个目录。
 - **网关的资源**：N100 约 7.9 GB 内存且没有 swap。在网关上做任何占内存的实验之前先看 `MemAvailable` 和 `hermes` 容器的占用，否则可能再次触发整机内存耗尽（见架构文档）。
 
-## 13. 计划中、尚未实施的操作
+## 13. Hermes 记忆插件
 
-接入 Hermes 记忆插件还没有做（接入时的网络路径和 key 配置待定）；网页控制台后端已修好，是否收紧访问（第 10 节）由用户决定；万兆交换机和网关 `eth2` 链路故障的根因未确认（第 11 节）。前置条件和状态见架构文档的[实施状态与待办](../architecture/hindsight-memory-architecture.md#实施状态与待办)。这些操作开始之前，本文相应章节需要补充实际步骤和验证结果；状态变化后也要回写。
+设计和原因见架构文档的[Hermes 接入](../architecture/hindsight-memory-architecture.md#hermes-接入)。改动前的配置备份：Mac `~/.hindsight-backup-20261007-130513/hermes-pre-hindsight-20261010-215347/`，网关 `/mnt/data/hermes/backup-pre-hindsight-20261010-223902/`。
+
+**文件位置**（`<home>` 是 profile 的 `$HERMES_HOME`：Mac 上 default 为 `~/.hermes`，其他为 `~/.hermes/profiles/<名字>`；网关容器里 default 为 `/opt/data`，homelab-admin 为 `/opt/data/profiles/homelab-admin`）：
+
+- `<home>/hindsight/config.json`：插件配置，600，含 API key（网关上属主必须是 10000:10000）。
+- `<home>/plugins/hindsight/`：插件副本；Mac 开发类 profile 的副本里有 `__init__.py.orig`（打补丁前的原文件）。
+- `<home>/config.yaml` 的 `memory.provider: hindsight`。
+
+**检查（只读）**
+
+```bash
+hermes -p dev memory status          # Provider: hindsight / Status: available
+# Which bank a dev-class profile picks: run from inside a repository and look for the template line
+cd ~/Projects/IaC && hermes -p dev chat -v --oneshot -q "Reply OK." < /dev/null 2>&1 | grep -E "Hindsight bank|Recall: returned|timed out|sync_turn"
+# Gateway container
+ssh root@192.168.1.1 'docker exec hermes hermes -p homelab-admin memory status | grep Status'
+```
+
+一次 `chat -q` 测试也会被读写类 profile（default、advisor、homelab-admin）写进库，测完按会话 ID 删除对应文档（`DELETE /v1/default/banks/<库>/documents/<会话 ID>`），并检查 Hermes 自带的 `MEMORY.md` 是否被写入了测试内容。
+
+**本地补丁**（Mac 上 dev、analyst、reviewer、orchestrator 的 `<home>/plugins/hindsight/__init__.py`）：
+
+```diff
+--- __init__.py.orig	2026-10-10 21:54:09
++++ __init__.py	2026-10-10 22:25:53
+@@ -1051,6 +1051,11 @@
+         self._config = cfg = _load_config()
+         for name in _SESSION_KWARGS:
+             setattr(self, f"_{name}", str(kwargs.get(name) or "").strip())
++        # LOCAL PATCH (homelab): Hermes hands `cwd` only from the TUI; kanban workers and the classic
++        # CLI start inside their workspace but pass nothing. Fall back to TERMINAL_CWD (set by kanban
++        # dispatch), then the process cwd, so bank_id_template {project} can resolve.
++        if not self._cwd:
++            self._cwd = (os.environ.get("TERMINAL_CWD") or os.getcwd() or "").strip()
+         self._turn_index = self._last_retained_turn_count = 0
+         self._session_turns = []
+         self._mode = cfg.get("mode", "cloud")
+@@ -1742,6 +1747,9 @@
+         Removals are not retained."""
+         if action not in ("add", "replace") or not content or self._shutting_down.is_set():
+             return
++        # LOCAL PATCH (homelab): a read-only profile (auto_retain=false) must not write either.
++        if not getattr(self, "_auto_retain", True):
++            return
+         item = self._build_retain_kwargs(
+             content,
+             context=f"Hermes built-in {target} memory entry",
+```
+
+重装或 `hermes plugins update hindsight` 会覆盖补丁。重打办法：在每个开发类 profile 的插件目录里 `cp -p __init__.py __init__.py.orig`，再按上面的 diff 加入两段 `LOCAL PATCH (homelab)` 代码（或用 `patch` 套用上面的 diff），然后用上面的检查命令确认在仓库里能选到 `coding-agent::<仓库名>`。上游合入等效改动后就不再需要这个补丁。
+
+**重启**：Mac 上各 profile 的 gateway 由 default 的多路复用进程承载，`hermes -p <名字> gateway restart` 即可，重启 default 会让所有 profile 的消息通道断开几秒。网关容器里的 gateway 是 s6 监管的前台进程，`hermes gateway restart` 不生效；确需重启时只能重启容器（`docker restart hermes`），会影响 counselor、voice 和 hermes-webui，需用户同意。
+
+**新增 profile 或全面开启项目**：开发类 profile 复制同样的插件、补丁和配置即可；全面开启时开发类不用改配置。读写类 profile 用固定 `bank_id`，并设置 `retain_source` 标明来源。
+
+**排障**
+
+| 现象 | 检查 | 处理 |
+|---|---|---|
+| `memory status` 显示 not available | 网关上看 `config.json` 的属主是否是 10000:10000；`mode` 是否为 `local_external` | `chown -R 10000:10000 <home>/hindsight` |
+| 开发类 profile 在仓库里没有项目记忆 | 带 `-v` 运行看 `Hindsight bank` 行：是 `coding-agent::` 说明没拿到目录（补丁丢了），是 `coding-agent::<仓库名>` 但 `Recall: returned 0` 说明该库还不存在 | 重打补丁；库不存在属正常 |
+| 日志里 `prefetch timed out after 8.0s` | 服务端 `docker logs` 里 `[RECALL HTTP]` 的耗时；pve1 是否繁忙 | 第 8 节的提速办法；不要提高召回预算 |
+
+## 14. 计划中、尚未实施的操作
+
+Hermes 已接入（第 13 节），网关容器的 gateway 进程未重启，消息通道的第一条消息需要在日志里确认；网页控制台后端已修好，是否收紧访问（第 10 节）由用户决定；万兆交换机和网关 `eth2` 链路故障的根因未确认（第 11 节）。前置条件和状态见架构文档的[实施状态与待办](../architecture/hindsight-memory-architecture.md#实施状态与待办)。这些操作开始之前，本文相应章节需要补充实际步骤和验证结果；状态变化后也要回写。
