@@ -1,6 +1,6 @@
 # Homelab IaC 系统架构文档
 
-**Last Updated**: 2026-10-02
+**Last Updated**: 2026-10-10
 **Status**: ✅ Active  
 **Owner**: Homelab IaC Project
 
@@ -20,6 +20,7 @@
 - [Ansible Vault 架构设计](ansible-vault-architecture.md) - 密码管理架构
 - [Ansible Role 架构设计](ansible-role-architecture.md) - Role 组织模式
 - [Proxmox 双节点与 N100 QDevice](proxmox-qdevice-architecture.md) - 当前仲裁、权限、启动与回滚
+- [Hindsight 共享记忆服务（pve1 LXC 118）](hindsight-memory-architecture.md) - 部署事实、Codex 登录、网络与认证（含无登录的网页控制台）、资源与重排性能、逻辑导出方法、网络依赖与已知事故、网关旧部署的经验教训
 - [快速参考指南](../guides/QUICK-REFERENCE.md) - 常用命令速查
 
 ## 架构层次图
@@ -106,6 +107,7 @@ module "netbox" {
 | **网络/IPAM** | Netbox | Terraform → Netbox (push), 未来计划 pull |
 | **备份业务策略** | PVE / PBS | 操作者管理；Ansible不下发作业和保留/GC/verify计划 |
 | **QDevice / HAOS appliance（2026-10-02）** | PVE 与 N100 的现场配置 | 当前由操作者维护；尚未纳入 Terraform/Ansible ownership，见 [QDevice 架构](proxmox-qdevice-architecture.md) |
+| **Hindsight 记忆服务（2026-10-10）** | pve1 LXC 118 `/opt/hindsight/` 的现场配置 | 当前由操作者维护；尚未纳入 Terraform/Ansible ownership，见 [Hindsight 架构](hindsight-memory-architecture.md) |
 
 ### 4. 自动化验证 (Automated Verification)
 
@@ -180,13 +182,14 @@ Proxmox VE Cluster
 │   ├── home-assistant (VMID 114) # pve1 HAOS, local-lvm, operator-managed
 │   └── proxmox-datacenter-manager (VMID 117) # pve1 多节点管理
 │
-└── LXC Containers (Debian 12)
+└── LXC Containers (Debian 12；118 为 Ubuntu 24.04)
     ├── anki (VMID 100)          # Anki 同步服务器
     ├── homepage (VMID 103)      # Dashboard
     ├── caddy (VMID 105)         # 反向代理
     ├── n8n (VMID 106)           # 工作流自动化
     ├── jenkins (VMID 107)       # CI/CD
-    └── fileserver (VMID 111)    # 文件与 Time Machine 存储
+    ├── fileserver (VMID 111)    # 文件与 Time Machine 存储
+    └── hindsight (VMID 118)     # pve1 非特权 LXC，Docker host 网络，operator-managed
 ```
 
 > **退役状态（2026-08-12）**：pve0 的 LXC 109 `claude-agent` 已通过
@@ -535,6 +538,7 @@ ansible/roles/
 | **Proxmox Datacenter Manager** | pve1 VM117 | 8443 | 多节点管理；192.168.1.117，2核/4GiB/local-lvm 40G | ❌ Native | ❌ |
 | **Home Assistant OS** | pve1 VM114 | 80（2026-10-02 观测，后续可变） | `.114`；HAOS appliance，操作者维护 | ❌ HAOS 内部管理 | 未配置 |
 | **Corosync qnetd** | N100 独立容器 | 5403 / TLS | `.53`；PVE 外部见证，仅允许 `.50/.51` | ✅ 操作者维护 | 不使用 |
+| **Hindsight** | pve1 LXC 118（非特权，Docker host 网络） | 9077（API + MCP）、19077（网页控制台，**无登录**）/ HTTP，监听 LXC 的所有接口 | AI Agent 共用长期记忆（API + MCP，需 Bearer key），经内置 `openai-codex` 提供方调 LLM（本机自己的 Codex 登录）；Claude Code/Codex/CodeBuddy 已切换；备份由运维方另行规划 | ✅ 操作者维护 | 未配置 |
 
 ### 服务依赖图
 
@@ -627,6 +631,8 @@ LXC 内的轻量服务使用 systemd：
 
 2026-10-02 的新增例外：qnetd `.53` 以 OpenWrt `dhcp.qnetd_witness` 静态记录维护，HAOS VM114
 在客机内使用静态 `.114`；本次未同步 NetBox 或改变 Terraform ownership。不能把上表当成这些新资源已被 IaC 纳管的证据。
+2026-10-10 起 Hindsight 运行在 pve1 的 LXC 118，使用静态 `192.168.1.118/24`（沿用“IP 末段 = VMID”的惯例），由操作者手工创建；
+本次同样未改变 Terraform ownership，NetBox 实例未核对。
 
 #### Tailscale VPN 拓扑
 
@@ -1181,6 +1187,9 @@ ansible-playbook playbooks/deploy-<service>.yml
 |------|------|----------|------|
 | 2026-02-05 | 1.0 | 初始版本 - 完整系统架构文档 | AI Agent |
 | 2026-10-02 | 1.1 | 增补 N100 QDevice 的 1/1 + 1 仲裁、启动/权限和验证边界；对账 HAOS VM114 与 CT114 退役，保留备份与 IaC 管理边界 | AI Agent |
+| 2026-10-09 | 1.2 | 增补 N100 网关上 Hindsight 共享记忆服务（服务清单、管理边界）；Mac 上两个记忆库已复制到网关，Claude Code/Codex/CodeBuddy 已切换到网关，Mac 旧 daemon 与控制中心已停用，重排模型已针对 N100 调优；网页控制台（19077）已在局域网开放且无登录；Hermes 插件接入仍未完成，备份由运维方另行规划，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
+| 2026-10-10 | 1.3 | Hindsight 由网关搬到 pve1 的 LXC 118（`192.168.1.118`，非特权、Docker host 网络）；LLM 改用本机自己的 Codex 登录，重排恢复默认模型；客户端已切换到新地址，网关上的旧部署已停止、保留作回退；网页控制台无登录且目前后端 502；Hermes 插件接入仍未完成，备份由运维方另行规划，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
+| 2026-10-10 | 1.4 | Hindsight 旧部署已由用户在网关上删除；控制台后端地址修好（`/api/banks` 返回 200，仍无登录）；加日志轮转、`HF_HUB_OFFLINE=1` 和持久模型缓存；记录下午万兆交换机故障及网关 `eth2` 链路观察，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 
 ---
 

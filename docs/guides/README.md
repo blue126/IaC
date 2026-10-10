@@ -19,6 +19,7 @@
 - **[jenkins-webhook-router-setup.md](./jenkins-webhook-router-setup.md)** — Jenkins Webhook-Router 手工配置指南。
 - **[notion-sync-setup.md](./notion-sync-setup.md)** — 将 Terraform state 同步到 Notion 的配置指南。
 - **[cn-exit-singbox-proxy.md](./cn-exit-singbox-proxy.md)** — sing-box 出境代理配置说明。
+- **[hindsight-operations.md](./hindsight-operations.md)** — pve1 LXC 118 上 Hindsight 记忆服务的运维：目录与健康检查、LXC 管理、升级与回滚、轮换 key、Codex 登录续期、召回性能、跨主机迁移与逻辑导出、网页控制台、排障、旧部署与网关环境。
 
 ## 结构约定
 

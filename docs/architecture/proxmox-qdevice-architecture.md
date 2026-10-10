@@ -1,6 +1,6 @@
 # Proxmox 双节点集群与 N100 QDevice 架构
 
-**更新日期**：2026-10-02；**状态**：已实施。本文记录本次现场配置和验收边界。
+**更新日期**：2026-10-02（2026-10-10 补充一条 N100 上 Hindsight 的历史说明，见“当前管理边界”）；**状态**：已实施。本文记录本次现场配置和验收边界。
 
 ## 选择与拓扑
 
@@ -149,3 +149,5 @@ qnetd CA 私钥运行副本与快照都在 N100 的同一 `/mnt/data` 故障域�
 同日 pve1 的停用 PaddleSpeech CT114 在完整离线归档后退役，VMID 114 已用于 HAOS VM：2 vCPU、4 GiB、64 GiB 系统盘及 EFI 盘、Q35/OVMF、`local-lvm`、`vmbr1`、autostart，静态 `.114/24`、网关/DNS `.1`。本次创建操作止于 onboarding，未创建账户或 token；后续 2026-10-02 只读 GET `/api/onboarding` 已显示全部四步完成，不再是未初始化状态。同日 Core 报告端口 80，`http://192.168.1.114/` 返回 200；这是日期观测，端口后续可变。CT 原配置、归档及校验记录保留于 pve1 `/var/lib/vz/dump/retired-paddlespeech-114-20261002T093248/`；未做实际恢复测试。
 
 对当前仓库 `terraform/proxmox` 的 `.tf` 和 `ansible/inventory` 的 YAML 做定向只读搜索，未发现 PaddleSpeech / Home Assistant / VMID 114 / `.114` 声明；这不能证明远端 HCP state 和 NetBox 没有旧记录，二者未在本轮复核。未来对 114 进行任何 plan/apply 或接管前，须核对 state、IPAM 与实际资源身份；发现残留则另行授权处理。本次只记录当前用途，不改变 Terraform/state 或备份所有权。
+
+2026-10-09 至 2026-10-10，同一台 N100 上还运行过 Hindsight 共享记忆服务。其间一次实验曾触发整机内存耗尽（设备约 7.9 GB 内存、无 swap，`hermes` 容器有时占约 3 GB）：内核日志显示被杀的是 `hermes` 容器里的 chromium 进程和一个测试进程，13 个容器都没有重启（部署记录）。该服务已于 2026-10-10 搬到 pve1 的 LXC 118，网关上的旧部署已由用户删除；经过和经验教训见 [Hindsight 架构](./hindsight-memory-architecture.md)。N100 没有 swap，内存余量取决于 `hermes` 等容器的占用；本文的维护约束不变。 PVE 节点到 qnetd 的路径要经过网关的 `eth2` 和万兆交换机；2026-10-10 下午这段链路因交换机故障出现过高延迟和丢包（用户重启交换机后恢复），对见证投票的实际影响没有核实，详见 [Hindsight 架构](./hindsight-memory-architecture.md#网络依赖与已知事故)。

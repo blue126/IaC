@@ -94,6 +94,7 @@
 | **Proxmox Datacenter Manager** | Proxmox VM (pve1 / 117) | Native | 多节点管理，192.168.1.117:8443 |
 | **Home Assistant OS** | pve1 VM114 | HAOS appliance，操作者维护 | `192.168.1.114`，onboarding 已完成，Core 端口 80（2026-10-02 观测，后续可变）；已复用归档退役的 PaddleSpeech CT114 ID |
 | **Corosync qnetd** | N100 独立容器 | Docker Compose，操作者维护 | `.53:5403`，TLS 外部见证，仅允许 pve0/pve1 `.50/.51` |
+| **Hindsight** | pve1 LXC 118 | Docker Compose（LXC 内，host 网络），操作者维护 | `192.168.1.118:9077`，AI Agent 共用长期记忆（需 Bearer key）；另开放无登录的网页控制台 `:19077`；Claude Code/Codex/CodeBuddy 已切换，网关上的旧部署已删除，备份由运维方另行规划，见 [Hindsight 架构](docs/architecture/hindsight-memory-architecture.md) |
 | **Unified Proxy** | OCI | Docker Compose | Public-facing Caddy relay |
 | **Tailscale** | All nodes | Native | Mesh VPN connectivity |
 | **Cloudflared** | Proxmox VM | Service | Cloudflare tunnel |
