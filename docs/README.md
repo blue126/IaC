@@ -26,6 +26,7 @@ Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构
 - **[homelab-iac-architecture.md](./architecture/homelab-iac-architecture.md)** — 系统总体架构（Terraform + Ansible + Proxmox/OCI/Netbox）。
 - **[proxmox-qdevice-architecture.md](./architecture/proxmox-qdevice-architecture.md)** — Proxmox 双节点与 N100 外部见证的当前架构、启动与安全回滚。
 - **[hindsight-memory-architecture.md](./architecture/hindsight-memory-architecture.md)** — pve1 LXC 118 上的 Hindsight 共享记忆服务：拓扑、Codex 登录、端口与认证（含无登录的网页控制台）、资源与重排性能、逻辑导出方法、网络依赖与已知事故、网关旧部署的经验教训与未完成项。
+- **[hindsight-multilingual-reranker-evaluation.md](./architecture/hindsight-multilingual-reranker-evaluation.md)** — Hindsight 多语言重排模型评估与换成 mmarco-mMiniLMv2-L12 的记录（2026-10）。
 - **[backup-architecture-consolidation-spec.md](./architecture/backup-architecture-consolidation-spec.md)** — 备份架构整合规范（含关键决策记录，取代 archive 下 PBS iSCSI/Veeam 文档）。
 - **[cicd-architecture.md](./architecture/cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
 - **[deferred-work-sync.md](./architecture/deferred-work-sync.md)** — BMAD 延期工作与 GitHub Issues 同步。

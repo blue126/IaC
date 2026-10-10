@@ -57,11 +57,11 @@ flowchart LR
 | Docker | Ubuntu 仓库的 `docker.io` 29.1.3-0ubuntu3~24.04.2 与 `docker-compose-v2` 2.40.3；runc、overlayfs、cgroup v2；`docker` 服务 enabled |
 | 容器 | `hindsight`；Compose 项目目录 `/opt/hindsight/`；镜像 `ghcr.io/vectorize-io/hindsight:0.10.2`（固定 tag；RepoDigest `ghcr.io/vectorize-io/hindsight@sha256:d1840062a5b79940ab7a9f4809ceb90fc776d4ad737cd9329e9b5836cc64ab70`，与网关旧部署相同）；`restart: unless-stopped`；`network_mode: host`；`shm_size: 1g`；`mem_limit: 3g`（3221225472 字节，LXC 本身 4 GiB）；非特权，容器内用户 `hindsight`；没有 Docker HEALTHCHECK |
 | 端口 | host 网络，`compose.yaml` 里没有 `ports`；端口由环境变量决定：`HINDSIGHT_API_PORT=9077`（API 与 MCP，需要 key）、`HINDSIGHT_CP_PORT=19077`（网页控制台，**没有登录**）；LXC 内 `ss -ltn` 显示两个端口都监听在 `0.0.0.0` |
-| 目录 | `/opt/hindsight/`：`compose.yaml`（644 root）、`.env`（600 root）、`data/`（755，属主 UID/GID 1000，挂载到容器 `/home/hindsight/.pg0`）、`codex/`（700，属主 1000:1000，挂载到容器 `/home/hindsight/.codex`）及其中的 `auth.json`（600，属主 1000:1000）、`hf-cache/`（755，属主 1000:1000，约 217 MB，挂载到容器 `/home/hindsight/.cache/huggingface`，2026-10-10 新增）；另有改配置前留下的 `compose.yaml.bak-20261010-055019` 和 `compose.yaml.bak-20261010-055038`（644 root，内容相同）；没有 `models/` 和 `backup/` 目录 |
+| 目录 | `/opt/hindsight/`：`compose.yaml`（644 root）、`.env`（600 root）、`data/`（755，属主 UID/GID 1000，挂载到容器 `/home/hindsight/.pg0`）、`codex/`（700，属主 1000:1000，挂载到容器 `/home/hindsight/.codex`）及其中的 `auth.json`（600，属主 1000:1000）、`hf-cache/`（755，属主 1000:1000，约 690 MB，挂载到容器 `/home/hindsight/.cache/huggingface`，2026-10-10 新增）；另有改配置前留下的 `compose.yaml.bak-20261010-*`（644 root，最近一份是换重排模型前的 `compose.yaml.bak-20261010-135442`）；没有 `models/` 和 `backup/` 目录 |
 | 认证 | `compose.yaml` 设置 `HINDSIGHT_API_TENANT_EXTENSION=hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension`；不带 key 请求 `/v1/default/banks`（9077）返回 HTTP 401；`/health` 与 `/version` 无需认证 |
 | LLM | `HINDSIGHT_API_LLM_PROVIDER=openai-codex`、`HINDSIGHT_API_LLM_MODEL=gpt-6-luna`；凭据是 `codex/auth.json`（这台机器自己的 Codex 登录）；容器日志里有 `Codex LLM verified: gpt-6-luna`（2026-10-10 04:03:07 UTC） |
-| 重排与线程 | `compose.yaml` 没有设置 `HINDSIGHT_API_RERANKER_LOCAL_MODEL`，用镜像默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`（`compose.yaml` 注释；没有 `models/` 目录）；设置了 `OMP_NUM_THREADS=6`、`MKL_NUM_THREADS=6`、`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true`、`HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT=1` |
-| 模型缓存 | 嵌入模型 `BAAI/bge-small-en-v1.5` 与重排模型 `cross-encoder/ms-marco-MiniLM-L-6-v2` 的文件在 `/opt/hindsight/hf-cache/`；`compose.yaml` 设置 `HF_HUB_OFFLINE=1` 和 `TRANSFORMERS_OFFLINE=1`，启动时不访问 HuggingFace（2026-10-10 05:50 UTC 起，见[模型缓存与离线模式](#模型缓存与离线模式)） |
+| 重排与线程 | `HINDSIGHT_API_RERANKER_LOCAL_MODEL=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`（2026-10-10 13:55 UTC 起，此前用镜像默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`，见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md)）；设置了 `OMP_NUM_THREADS=6`、`MKL_NUM_THREADS=6`、`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true`、`HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT=1` |
+| 模型缓存 | 嵌入模型 `BAAI/bge-small-en-v1.5`、重排模型 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` 和回滚用的 `cross-encoder/ms-marco-MiniLM-L-6-v2` 的文件在 `/opt/hindsight/hf-cache/`；`compose.yaml` 设置 `HF_HUB_OFFLINE=1` 和 `TRANSFORMERS_OFFLINE=1`，启动时不访问 HuggingFace（2026-10-10 05:50 UTC 起，见[模型缓存与离线模式](#模型缓存与离线模式)） |
 | Worker | `HINDSIGHT_API_WORKER_ID=hindsight-pve1` |
 | 健康与版本 | `GET /health` 返回 200，内容含 `"status":"healthy"` 与 `"database":"connected"`；`GET /version` 返回 `api_version` 0.10.2，功能标志含 `mcp: true`、`worker: true` |
 | 控制台 | `GET http://192.168.1.118:19077/` 返回 307，页面标题 `Hindsight Control Plane`；不带 key 请求 `/api/banks` 返回 **200** 并列出 `coding-agent::hermes` 与 `coding-agent::IaC`（2026-10-10 修复后核对）。修复前它因 `HINDSIGHT_CP_DATAPLANE_API_URL` 缺省指向 `localhost:8888` 而返回 502，现在 `compose.yaml` 里设为 `http://127.0.0.1:9077`。详见[网页控制台](#网页控制台) |
@@ -161,17 +161,18 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 ### 召回与重排性能（调优记录、实测记录）
 
-- 重排用默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`，300 个候选，和 Mac 上的基准一致，因此不再有网关上 TinyBERT 带来的排序质量折中。
+- 2026-10-10 13:55 UTC 起重排用多语言的 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`：中文查询 nDCG@5 从 0.20 升到 0.79，英文从 0.59 升到 0.79；40 条真实查询的重排中位数 3.7 秒、最长 4.7 秒，容器内存约 1.6 GiB。对比测试、淘汰的模型（bge-reranker-v2-m3 每次约 42 秒）和回滚办法见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md)。
+- 以下是换模型前 MiniLM-L6 的记录：重排用默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`，300 个候选，和 Mac 上的基准一致，因此不再有网关上 TinyBERT 带来的排序质量折中。
 - LXC 里 300 个合成候选 fp32 打分约 4.0 秒，开分桶批处理约 3.2 秒，3 线程 3.8~4.8 秒；真实召回约 7~8.4 秒（客户端 hooks 的超时是 30 秒）；reflect 约 5 秒；容器内存约 1.1~1.4 GiB（核对 1.43 GiB）。
 - `OMP_NUM_THREADS` 和 `MKL_NUM_THREADS` 设为 6，与 LXC 的核数一致；`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true` 开启分桶批处理；`..._MAX_CONCURRENT=1`（变量名含义是本地重排的最大并发，没有单独说明收益）。
-- 嵌入模型仍是镜像内置的 BAAI/bge-small-en-v1.5，在 CPU 本地运行。
+- 嵌入模型仍是镜像内置的 BAAI/bge-small-en-v1.5，在 CPU 本地运行。评估认为目前不必换成多语言嵌入（候选集已包含几乎全部相关记忆）；以后要换，必须显式重嵌入所有库，同为 384 维时 Hindsight 不会自动察觉。
 - 想再快一点：把 LXC 的核数调高是最直接的办法（`pct set 118 --cores N`，同步调整线程数），收益没有测，pve1 上其他来宾也在用 CPU。
 
 ### 模型缓存与离线模式
 
 - 嵌入模型 `BAAI/bge-small-en-v1.5` 和重排模型 `cross-encoder/ms-marco-MiniLM-L-6-v2` 是 HuggingFace 上的开源模型，共约 217 MB，在 CPU 本地运行。它们原先只存在于容器可写层的 `/home/hindsight/.cache/huggingface`，容器一重建就丢，而且每次启动都会联网检查更新。
 - 2026-10-10 05:50 UTC：用 `docker cp` 把缓存复制到 `/opt/hindsight/hf-cache/` 并挂载进容器，同时设置 `HF_HUB_OFFLINE=1` 和 `TRANSFORMERS_OFFLINE=1`，启动不再访问 HuggingFace。验证：容器约 20 秒内健康，RestartCount 0，召回正常（事故记录）。
-- 代价：以后要换别的本地模型，必须先临时去掉这两个变量，让容器联网下载一次，步骤见运维指南的[重排与缓存](../guides/hindsight-operations.md#82-召回与重排)。
+- 代价：以后要换别的本地模型，要么先在一次性容器里下载、再把模型目录复制进 `hf-cache/`（2026-10-10 换 mmarco 时的做法，离线开关不用动），要么临时去掉这两个变量让容器联网下载一次，步骤见运维指南的[重排与缓存](../guides/hindsight-operations.md#82-召回与重排)。缓存现在约 690 MB。
 
 ## 备份与逻辑导出
 
@@ -217,7 +218,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 手工部署 | LXC 118 由操作者用 `pct` 手工创建，不在 Terraform、Ansible 管理内，NetBox 实例未核对，没有自动漂移检测。 |
 | Hermes 插件本地补丁 | Mac 上 4 个开发类 profile 的插件副本打了本地补丁（见运维指南第 13 节），`hermes plugins update` 或重装会覆盖它；补丁失效时这些 profile 在 kanban 和经典命令行里查不到项目库（只是查不到，不会写错库）。 |
 | Hermes 8 秒上限 | Hermes 对每条消息前的记忆查询有写死的 8 秒上限（`agent/memory_manager.py` 的 `_EXTERNAL_PREFETCH_TIMEOUT_S`），超时就跳过；项目库变大或 pve1 繁忙时可能发生。 |
-| 中文召回质量 | 重排模型 `ms-marco-MiniLM-L-6-v2` 和嵌入模型 `bge-small-en-v1.5` 都是英文模型。2026-10-10 实测：中文查询的重排分数几乎相同（约 1.1），排第一的可能与问题无关；英文查询的分数分层明显。影响所有客户端，是否换多语言模型待评估。 |
+| 中文召回质量 | 已处理：2026-10-10 重排换成多语言的 mmarco-mMiniLMv2-L12，中文查询第一条相关从 5/20 升到 19/20（[评估](./hindsight-multilingual-reranker-evaluation.md)）。剩余：嵌入模型 `bge-small-en-v1.5` 仍是英文模型，库变大后可能需要重新评估；重排比原来慢约 1.2 秒，多个客户端同时召回会排队。 |
 
 ## 网关旧部署与经验教训
 
@@ -248,7 +249,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | PyTorch fp32，TinyBERT-L-2，300 候选（当时采用） | recall 约 3.6~3.8 秒（仅重排约 1.4 秒） | 约 57% | 约 58% |
 | FlashRank int8 ONNX，`ms-marco-TinyBERT-L-2-v2` | 仅重排 2.6 秒 | — | — |
 | FlashRank int8 ONNX，`ms-marco-MiniLM-L-12-v2` | 仅重排 63.4 秒 | — | — |
-| **pve1 LXC，MiniLM-L6，300 候选（现状）** | 合成候选约 4.0 秒（分桶批处理约 3.2 秒）；真实召回约 7~8.4 秒 | 未单独比对（同一模型与候选数） | 未单独比对 |
+| pve1 LXC，MiniLM-L6，300 候选（2026-10-10 换成 mmarco 前） | 合成候选约 4.0 秒（分桶批处理约 3.2 秒）；真实召回约 7~8.4 秒 | 未单独比对（同一模型与候选数） | 未单独比对 |
 
 - **FlashRank 实测（在受限一次性容器里，`--memory 512m --memory-swap 512m --oom-score-adj 1000 --cpus 2`，峰值 RSS 约 330 MiB，没有影响整机）**：300 个候选分批（每批 32）打分，int8 ONNX 在这颗 N100 上并不比 PyTorch fp32 快，同一个 TinyBERT-L-2 反而更慢（2.6 秒对约 1.4 秒），所以不是出路。
 - **未实测的加速想法**：宿主的 Intel 核显（i915 驱动，`/dev/dri/renderD128`）没有映射进容器，镜像里的 PyTorch 是纯 CPU 版（2.13.0+cpu），onnxruntime 只有 CPU 后端，没有 OpenVINO 或 Intel 扩展（这几项是部署者在镜像内查到的），要用需要自建镜像并映射设备，收益未测，且核显与 CPU 共用同一块内存；把 CPU 配额从 2 核放开到 4 核理论上可以提速，也没有测。
