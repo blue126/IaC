@@ -84,7 +84,7 @@
 | **Netbox** | Proxmox VM | Docker Compose | IPAM/DCIM network management |
 | **Immich** | Proxmox VM | Docker Compose | Photo management with ML |
 | **Jenkins** | Proxmox VM | Docker Compose | CI/CD orchestration |
-| **n8n** | Proxmox VM | Docker Compose | Workflow automation |
+| **n8n** | Proxmox LXC | Docker Compose | Workflow automation |
 | **Gitea** | Proxmox VM | Docker Compose | Self-hosted Git |
 | **RustDesk** | Proxmox VM | Docker Compose | Remote desktop |
 | **Homepage** | Proxmox LXC | Docker Compose | Service dashboard |
