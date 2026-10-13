@@ -10,6 +10,10 @@ n8n_legacy_env_file: "{{ n8n_legacy_data_dir }}/household-bill-assistant.env"
 n8n_legacy_scraper_data_dir: "/root/n8n-rental/data"
 n8n_legacy_backup_path: "/root/n8n-pre-docker-migration.tgz"
 n8n_legacy_cache_marker: "{{ n8n_install_dir }}/.legacy-cache-migrated"
+n8n_staging_data_dir: "{{ n8n_install_dir }}/.staging-n8n-data"
+n8n_staging_scraper_data_dir: "{{ n8n_install_dir }}/.staging-data"
+n8n_staging_port: 5679
+n8n_min_free_bytes: 3000000000
 n8n_host: "n8n.willfan.me"
 n8n_protocol: "https"
 n8n_editor_base_url: "https://n8n.willfan.me"
