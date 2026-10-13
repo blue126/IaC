@@ -8,7 +8,10 @@
 - `terraform/proxmox/n8n.tf` 已提供 Docker-in-LXC 所需的 `nesting=1`；现场还存在 `keyctl=1`，迁移前必须保留该 LXC 特性。
 - Docker 使用 host network override。非特权 LXC 中，host network 避免嵌套网络的 sysctl 限制；Caddy 继续访问 `192.168.1.106:5678`。
 - n8n 应用源码来自 `blue126/n8n-rental`，版本由 `ansible/inventory/host_vars/n8n.yml` 的 `n8n_app_ref` 固定。
-- 迁移前先归档 `/root/.n8n`；Ansible 不覆盖旧目录，只把副本放入 `/opt/n8n-rental/n8n-data`。
+- 旧 systemd 服务在 staging 阶段保持运行；候选 Docker 实例使用空数据目录、loopback 备用端口 `5679`，不会接收生产流量。
+- staging 设置 `N8N_DISABLE_PRODUCTION_MAIN_PROCESS=true`；该设置用于关闭 production webhooks，候选实例同时使用空数据目录，不加载生产 workflow。详见 [n8n environment variables](https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/use-environment-variables/endpoints/)。
+- 只有候选镜像和 runtime 健康后才进入短暂 cutover；Ansible 不覆盖旧目录，只把副本放入 `/opt/n8n-rental/n8n-data`。
+- staging 前检查根盘至少保留 3,000,000,000 bytes；不足时直接退出，不停止 n8n。当前现场只剩约 1.6G，必须先清理或扩容。
 
 ## 执行入口
 
@@ -21,17 +24,17 @@ ansible-playbook playbooks/deploy-n8n.yml --limit n8n
 Deploy play 会按以下顺序工作：
 
 1. 安装 Docker Engine 和 Compose 插件。
-2. 校验旧的 `/root/.n8n/config` 存在，并 checkout 固定的 `n8n-rental` 版本。
-3. 停止并 mask 旧 `n8n.service`，创建 `/root/n8n-pre-docker-migration.tgz`（如尚不存在）。
-4. 复制完整 `.n8n` 到 `n8n-data`，保留 SQLite、凭证、加密配置和社区节点；同时复制既有 scraper cache。
-5. 保留旧环境文件中的 `HERMES_WEBHOOK_SECRET`，写入 Compose 所需的非敏感配置，并生成 LXC host-network override。
-6. 校验合并后的 Compose 配置、构建固定版本镜像、启动容器并等待 `/healthz/readiness`。
+2. 校验旧的 `/root/.n8n/config`、磁盘余量，并 checkout 固定的 `n8n-rental` 版本。
+3. 保留旧环境文件中的 `HERMES_WEBHOOK_SECRET`，生成 staging Compose 配置；候选实例使用空数据目录、`127.0.0.1:5679`，并设置 `N8N_DISABLE_PRODUCTION_MAIN_PROCESS=true`。
+4. 在旧 systemd n8n 仍监听 `5678` 时，完成 Docker pull/build、启动候选实例并等待 `5679/healthz/readiness`；失败时只清理候选实例，旧服务不受影响。
+5. 候选验证通过后才停止并 mask 旧 `n8n.service`，创建 `/root/n8n-pre-docker-migration.tgz`（如尚不存在），复制完整 `.n8n` 到 `n8n-data`，并复制既有 scraper cache。
+6. 将 Compose 切到生产端口 `5678` 和真实数据目录；复用已构建镜像启动，不在停机窗口再次 pull/build。
 
-随后 Verify play 会确认 Docker active、旧 systemd 服务不再 active、Compose 中的 `n8n` 服务正在运行、容器内版本为 `2.39.5`，以及 readiness endpoint 返回 200。
+随后 Verify play 会确认 Docker active、旧 systemd 服务不再 active、Compose 中的 `n8n` 服务正在运行、容器内版本为 `2.39.5`，以及生产 readiness endpoint 返回 200。
 
 ## 失败与回滚
 
-Ansible 的切换 block 在 Compose 构建或健康检查失败时会自动执行 `docker compose down`，解除 mask 并恢复旧 systemd 服务。若需要人工回滚：
+staging 构建或健康检查失败时，旧 systemd 从未停止。只有真实 cutover 失败时，Ansible 才会执行 `docker compose down`、解除 mask 并恢复旧 systemd 服务。若需要人工回滚：
 
 ```bash
 cd /opt/n8n-rental
