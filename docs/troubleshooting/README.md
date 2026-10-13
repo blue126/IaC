@@ -10,6 +10,7 @@
 
 | 症状描述 | 相关文档 | 关键词 |
 |---------|---------|-------|
+| pve0 系统池 rpool 出现 SATA/I/O 写入错误 | [2026-10-02-pve0-rpool-sata-link-errors.md](./2026-10-02-pve0-rpool-sata-link-errors.md) | SA510、SATA链路省电、ZFS、临时监控收尾 |
 | Terraform 命令崩溃或报权限错误 | [terraform-issues.md](./terraform-issues.md) | Provider版本、Proxmox兼容性、API Token |
 | 虚拟机无法启动或进入UEFI Shell | [terraform-issues.md](./terraform-issues.md) | 磁盘调整、Cloud-Init、QEMU Agent |
 | Ansible连接失败或依赖缺失 | [ansible-issues.md](./ansible-issues.md) | Callback插件、Docker Sandbox Kit、模块导入 |
