@@ -1,3 +1,20 @@
 ---
-n8n_nodejs_version: "24.21.0"
 n8n_version: "2.39.5"
+n8n_app_repo: "https://github.com/blue126/n8n-rental.git"
+n8n_app_ref: "main"
+n8n_install_dir: "/opt/n8n-rental"
+n8n_data_dir: "{{ n8n_install_dir }}/n8n-data"
+n8n_scraper_data_dir: "{{ n8n_install_dir }}/data"
+n8n_legacy_data_dir: "/root/.n8n"
+n8n_legacy_env_file: "{{ n8n_legacy_data_dir }}/household-bill-assistant.env"
+n8n_legacy_scraper_data_dir: "/root/n8n-rental/data"
+n8n_legacy_backup_path: "/root/n8n-pre-docker-migration.tgz"
+n8n_legacy_cache_marker: "{{ n8n_install_dir }}/.legacy-cache-migrated"
+n8n_host: "n8n.willfan.me"
+n8n_protocol: "https"
+n8n_editor_base_url: "https://n8n.willfan.me"
+n8n_webhook_url: "https://n8n.willfan.me/"
+n8n_internal_webhook_url: "https://n8n.willfan.me"
+n8n_proxy_hops: 1
+n8n_secure_cookie: false
+n8n_timezone: "Australia/Sydney"

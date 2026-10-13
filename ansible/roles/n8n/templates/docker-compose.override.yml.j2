@@ -1,0 +1,11 @@
+services:
+  n8n:
+    # Docker runs inside the existing unprivileged LXC. Host networking avoids
+    # the nested-network sysctl limitation and keeps Caddy's 192.168.1.106:5678
+    # upstream reachable from outside the LXC.
+    network_mode: host
+    ports: !reset []
+    environment:
+      HERMES_WEBHOOK_SECRET: ${HERMES_WEBHOOK_SECRET:-}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-}
+      NODE_FUNCTION_ALLOW_EXTERNAL: ${NODE_FUNCTION_ALLOW_EXTERNAL:-}
