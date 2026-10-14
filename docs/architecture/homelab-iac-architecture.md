@@ -1191,6 +1191,7 @@ ansible-playbook playbooks/deploy-<service>.yml
 | 2026-10-10 | 1.3 | Hindsight 由网关搬到 pve1 的 LXC 118（`192.168.1.118`，非特权、Docker host 网络）；LLM 改用本机自己的 Codex 登录，重排恢复默认模型；客户端已切换到新地址，网关上的旧部署已停止、保留作回退；网页控制台无登录且目前后端 502；Hermes 插件接入仍未完成，备份由运维方另行规划，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 | 2026-10-10 | 1.4 | Hindsight 旧部署已由用户在网关上删除；控制台后端地址修好（`/api/banks` 返回 200，仍无登录）；加日志轮转、`HF_HUB_OFFLINE=1` 和持久模型缓存；记录下午万兆交换机故障及网关 `eth2` 链路观察，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 | 2026-10-10 | 1.5 | Hermes 接入 Hindsight：Mac 开发类 profile 只读当前项目库（插件本地补丁），default 两机共用 `hermes-agent::default`，advisor、网关 homelab-admin 读写；LXC 118 调到 6 核，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
+| 2026-10-14 | 1.6 | Hindsight：网关 Hermes 的 homelab-admin 改为写自己的运维库 `hermes-agent::homelab-admin`、IaC 项目库只读；新 profile telos 用自己的库 `hermes-agent::telos`；llm-ops 加入试用项目，并补充“给新项目启用”的步骤，详见 [Hindsight 架构](hindsight-memory-architecture.md) | AI Agent |
 
 ---
 

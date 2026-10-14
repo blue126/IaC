@@ -163,7 +163,7 @@ pct resize 118 rootfs +8G       # grow the 24G rootfs
 
 适用于 key 泄露、怀疑泄露或例行更换。轮换期间客户端会收到 401，直到同步新 key，所以需要用户明确同意并提前通知。key 只放在 `.env`（600，属主 root），不要写进 `compose.yaml`。下面的写法让新值只存在于 shell 变量和文件里，不回显、不进命令行参数。
 
-当前 key 出现在这些位置，轮换时都要同步：LXC 的 `/opt/hindsight/.env`（两个变量）、Mac 的 `~/.hindsight/coding-agent.json`（Claude Code 与 Codex 共用）、Mac 的 `~/.hindsight/gateway-api-key`、CodeBuddy 3 个项目的 MCP 认证头；Multica 的任务读同一份 HOME 下的配置，随之更新；Hermes 记忆插件的 `HINDSIGHT_API_KEY` 接入之后才需要。网关上旧部署的 `.env` 里还是旧 key，保留它作回退的话要一并考虑。
+当前 key 出现在这些位置，轮换时都要同步：LXC 的 `/opt/hindsight/.env`（两个变量）、Mac 的 `~/.hindsight/coding-agent.json`（Claude Code 与 Codex 共用）、Mac 的 `~/.hindsight/gateway-api-key`、CodeBuddy 各项目的 MCP 认证头（当前 4 个：IaC、hermes、mcpgateway、llm-ops）；Multica 的任务读同一份 HOME 下的配置，随之更新；Hermes 记忆插件的 `HINDSIGHT_API_KEY` 接入之后才需要。网关上旧部署的 `.env` 里还是旧 key，保留它作回退的话要一并考虑。
 
 1. 在 LXC 里备份当前 `.env`，并生成新值：
 
@@ -200,7 +200,7 @@ pct resize 118 rootfs +8G       # grow the 24G rootfs
      && mv ~/.hindsight/gateway-api-key.new ~/.hindsight/gateway-api-key
    ```
 
-   再把新 key 换进 `~/.hindsight/coding-agent.json`，以及 CodeBuddy 3 个项目的 MCP 认证头（编辑配置时不要回显 key）。漏改的客户端会收到 401，表现为拿不到记忆（具体表现取决于客户端）。
+   再把新 key 换进 `~/.hindsight/coding-agent.json`，以及 CodeBuddy 各项目的 MCP 认证头（当前 4 个：IaC、hermes、mcpgateway、llm-ops）（编辑配置时不要回显 key）。漏改的客户端会收到 401，表现为拿不到记忆（具体表现取决于客户端）。
 5. 验证：不带 key 和带旧 key 都应返回 401，带新 key 返回 200（第 2 节的 `hs_curl`）；各客户端再用自己的一次召回或写回事件确认（切换时就是这样验证的）。确认无误后删除 LXC 里的 `.env.bak-*`（里面是旧 key）。
 
 ## 7. Codex 登录的建立与续期
@@ -443,7 +443,7 @@ ssh root@192.168.1.1 'docker exec hermes hermes -p homelab-admin memory status |
 
 **重启**：Mac 上各 profile 的 gateway 由 default 的多路复用进程承载，`hermes -p <名字> gateway restart` 即可，重启 default 会让所有 profile 的消息通道断开几秒。网关容器里的 gateway 是 s6 监管的前台进程，`hermes gateway restart` 不生效；确需重启时只能重启容器（`docker restart hermes`），会影响 counselor、voice 和 hermes-webui，需用户同意。
 
-**新增 profile 或全面开启项目**：开发类 profile 复制同样的插件、补丁和配置即可；全面开启时开发类不用改配置。读写类 profile 用固定 `bank_id`，并设置 `retain_source` 标明来源。
+**新增 profile 或全面开启项目**：开发类 profile 复制同样的插件、补丁和配置即可；全面开启时开发类不用改配置。读写类 profile 用固定 `bank_id`，并设置 `retain_source` 标明来源。 **注意：从网关 default 复制出来的新 profile 会连 `hindsight/config.json` 一起继承 default 的库和来源标签**（2026-10-14 的 telos 就是这样），复制后要改成它自己的 `bank_id` 和 `retain_source`，并先用 `PUT /v1/default/banks/<库名>` 建库、设好提取说明。
 
 **排障**
 
@@ -453,6 +453,20 @@ ssh root@192.168.1.1 'docker exec hermes hermes -p homelab-admin memory status |
 | 开发类 profile 在仓库里没有项目记忆 | 带 `-v` 运行看 `Hindsight bank` 行：是 `coding-agent::` 说明没拿到目录（补丁丢了），是 `coding-agent::<仓库名>` 但 `Recall: returned 0` 说明该库还不存在 | 重打补丁；库不存在属正常 |
 | 日志里 `prefetch timed out after 8.0s` | 服务端 `docker logs` 里 `[RECALL HTTP]` 的耗时；pve1 是否繁忙 | 第 8 节的提速办法；不要提高召回预算 |
 
-## 14. 计划中、尚未实施的操作
+## 14. 给新项目启用 Hindsight
+
+启用范围由 Mac 上的客户端配置决定，服务端不需要改动；没有图形界面。2026-10-11 时启用的项目：IaC、hermes、mcpgateway、llm-ops（llm-ops 于当天加入）。改配置前先备份（之前的备份在 `~/.hindsight-backup-20261007-130513/`）。
+
+1. **Claude Code 与 Codex**：把仓库的绝对路径加进 `~/.hindsight/coding-agent.json` 的 `optInPaths`（文件 600，含 key，编辑时不要回显）。全面开启时把 `optInOnly` 改成 `false`，之后任何 git 仓库都自动生效。库名按 `bankIdTemplate` 生成：`coding-agent::<仓库文件夹名>`，worktree 归到主仓库名下；库在第一次写入时自动建立。Multica 读同一份配置，自动跟随。
+2. **CodeBuddy**：MCP 地址里写死了库名，每个项目都要单独加，在项目目录里运行（命令从文件读 key，不要手动粘贴）：
+
+   ```bash
+   codebuddy mcp add -s local -t http hindsight "http://192.168.1.118:9077/mcp/coding-agent::<项目名>/" -H "Authorization: Bearer $(cat ~/.hindsight/gateway-api-key)"
+   codebuddy mcp list | grep hindsight     # expect: ✓ Connected
+   ```
+
+3. **Hermes**：不用改。开发类 profile 按所在仓库自动找 `coding-agent::<仓库名>`，库建好之前查到的是空结果，不报错。
+
+## 15. 计划中、尚未实施的操作
 
 Hermes 已接入（第 13 节），网关容器的 gateway 进程未重启，消息通道的第一条消息需要在日志里确认；网页控制台后端已修好，是否收紧访问（第 10 节）由用户决定；万兆交换机和网关 `eth2` 链路故障的根因未确认（第 11 节）。前置条件和状态见架构文档的[实施状态与待办](../architecture/hindsight-memory-architecture.md#实施状态与待办)。这些操作开始之前，本文相应章节需要补充实际步骤和验证结果；状态变化后也要回写。
