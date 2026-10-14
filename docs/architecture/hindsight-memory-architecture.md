@@ -8,8 +8,8 @@
 
 Hindsight 是 Vectorize 的开源长期记忆服务（上游：[vectorize-io/hindsight](https://github.com/vectorize-io/hindsight)）。本部署让所有 AI Agent 共用同一份长期记忆：
 
-- **客户端**：用户 Mac 上的 Claude Code、Codex、CodeBuddy（通过 hooks 和 MCP 接入）；Multica 的任务读取同一份 HOME 下的配置，自动跟随。Hermes 通过 Hindsight 官方的 Hermes 插件接入：Mac 上的开发类 profile 只读当前项目库，default、advisor 和网关上的 homelab-admin 读写，见[Hermes 接入](#hermes-接入)。
-- **记忆库（bank）** 按项目命名，形如 `coding-agent::<项目名>`。2026-10-10 的库是 `coding-agent::hermes`、`coding-agent::IaC`（项目库）和 `hermes-agent::default`、`hermes-agent::advisor`（Hermes 自己的库）；`coding-agent::mcpgateway` 在第一次写入时才会建立。
+- **客户端**：用户 Mac 上的 Claude Code、Codex、CodeBuddy（通过 hooks 和 MCP 接入）；Multica 的任务读取同一份 HOME 下的配置，自动跟随。Hermes 通过 Hindsight 官方的 Hermes 插件接入：Mac 上的开发类 profile 只读当前项目库，default、advisor 读写各自的库，网关上的 homelab-admin 读写自己的运维库并只读 IaC 库，见[Hermes 接入](#hermes-接入)。
+- **记忆库（bank）** 按项目命名，形如 `coding-agent::<项目名>`。2026-10-10 的库是 `coding-agent::hermes`、`coding-agent::IaC`（项目库）和 `hermes-agent::default`、`hermes-agent::advisor`、`hermes-agent::homelab-admin`、`hermes-agent::telos`（Hermes 自己的库）；`coding-agent::mcpgateway` 和 2026-10-11 加入的 `coding-agent::llm-ops` 在第一次写入时才会建立；启用新项目的步骤见运维指南第 14 节。
 - **位置**：pve1 上的 LXC 118。2026-10-09 至 2026-10-10 这个服务曾经部署在网关上，见[历史](#网关旧部署与经验教训)。
 
 ## 拓扑
@@ -103,7 +103,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 认证（9077） | 内置 `ApiKeyTenantExtension` | 除 `/health`、`/version` 外，所有 API 和 MCP 请求都要 `Authorization: Bearer <key>`；无 key 或错误 key 返回 401 |
 | 认证（19077） | **没有登录** | 控制台自己不做认证，设计上它在服务端用 `HINDSIGHT_CP_DATAPLANE_API_KEY` 调用 API；详见下一小节 |
 | 防火墙 | 没有生效的规则 | `net0` 带 `firewall=1`，但数据中心防火墙未启用（`pve-firewall status` 为 disabled），没有 `cluster.fw` 和 `118.fw` |
-| 密钥存放 | LXC `/opt/hindsight/.env`（600 root）；Mac `~/.hindsight/coding-agent.json`（600）、`~/.hindsight/gateway-api-key`（600）；CodeBuddy 3 个项目的 MCP 认证头 | `.env` 中有两个变量：`HINDSIGHT_API_TENANT_API_KEY` 和 `HINDSIGHT_CP_DATAPLANE_API_KEY`（须与前者保持一致）；值与之前网关用的是同一个 key。Codex 登录不在 `.env`，在 `codex/auth.json`。key 只放这些位置，不写进 `compose.yaml` |
+| 密钥存放 | LXC `/opt/hindsight/.env`（600 root）；Mac `~/.hindsight/coding-agent.json`（600）、`~/.hindsight/gateway-api-key`（600）；CodeBuddy 各项目（当前 4 个）的 MCP 认证头 | `.env` 中有两个变量：`HINDSIGHT_API_TENANT_API_KEY` 和 `HINDSIGHT_CP_DATAPLANE_API_KEY`（须与前者保持一致）；值与之前网关用的是同一个 key。Codex 登录不在 `.env`，在 `codex/auth.json`。key 只放这些位置，不写进 `compose.yaml` |
 | 传输 | 明文 HTTP | 没有 TLS，key 和记忆内容在 LAN 内不加密传输，只适合可信的家庭 LAN |
 
 ### 网页控制台
@@ -138,10 +138,13 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | Mac | dev、analyst、reviewer、orchestrator（开发类） | 当前所在 git 仓库的 `coding-agent::<仓库名>`（模板 `coding-agent::{project}`，worktree 归到主仓库名） | **只读**：每条消息前同步召回，不写入 |
 | Mac + 网关 | default | `hermes-agent::default`，两台机器共用；写入带来源 `hermes-mac/default` 或 `hermes-gw/default` | 读写 |
 | Mac | advisor | `hermes-agent::advisor` | 读写 |
-| 网关 | homelab-admin | `coding-agent::IaC`，来源 `hermes-gw/homelab-admin` | 读写 |
+| 网关 | homelab-admin | 自己的运维库 `hermes-agent::homelab-admin`（来源 `hermes-gw/homelab-admin`）；召回时另外只读 `coding-agent::IaC` | 读写运维库，IaC 只读 |
+| 网关 | telos（2026-10-14 新建） | 自己的库 `hermes-agent::telos`（来源 `hermes-gw/telos`），不读 default | 读写 |
 | 网关 | counselor、voice | 不接入 | — |
 
 - **为什么开发类只读、也没有自己的库**：用户的决定。项目知识由 Claude Code、Codex 写入，Hermes 在仓库里的提交也会被 Claude Code 的 git 收录带进项目库；只读免去了"写到哪个库"的问题。仓库外解析出的 `coding-agent::` 是不存在的库，查它返回空，因为没人写，也不会被创建。以后全面开启时，开发类 profile 会自动读到新项目的库，不用改配置。
+- **为什么 homelab-admin 不写 IaC 库**（2026-10-11 调整，接入后还没写入过 IaC 库）：它做的是日常维护，对话多是故障、处理和设备状态这类运维事件；写进 IaC 库会让 Claude Code、Codex 在仓库里写代码时召回运维流水，而且 IaC 库的提取说明是按 git 提交写的。所以它写自己的运维库（提取说明按故障、原因、处理、变更和维护决定来写），并只读 IaC 库来了解架构和约束。两个库一起召回实测约 6 秒（含客户端冷启动），在 8 秒上限内但余量不大。
+- **telos 为什么有过 default 的记录**：telos 是从网关的 default 复制出来的，连 Hindsight 配置一起继承了 `hermes-agent::default`，最初的 2 份会话写进了 default 的库（来源也标成了 default，靠 `agent_identity: telos` 能区分）。按用户“独立”的决定，它已改用自己的库，这 2 份会话也复制进了 `hermes-agent::telos`（重新提取）；default 库里的原件是否删除由用户决定。
 - **为什么 counselor、voice 不接入**：counselor 用本地模型（`192.168.1.120`），接入后对话会经 Hindsight 交给 OpenAI 提取，而且控制台没有登录；voice 的自带记忆是刻意关闭的。
 - **为什么同步召回**：插件默认在后台召回、下一条消息才用上，而 kanban 会话基本只有一条用户消息（2026-10-10 统计：两周内 dev 141 个会话中 138 个来自 kanban，reviewer 104 个中 101 个），消息通道又是每条消息新建一次 agent。代价是每条消息前多等几秒，且受 Hermes 的 8 秒上限约束。
 - **本地补丁（Mac 开发类 4 个 profile）**：Hermes 只有 TUI 会把工作目录交给记忆插件，kanban 任务和经典命令行（包括 `chat -q`）都不交，插件因此无法按仓库选库。补丁让插件退回到 kanban 设置的 `TERMINAL_CWD` 或进程当前目录；另外，`auto_retain: false` 时插件仍会把 Hermes 自带记忆（MEMORY.md/USER.md）的新增写入库，补丁让只读 profile 也不写。补丁内容与重打方法见运维指南第 13 节。
@@ -208,7 +211,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 控制台没有登录 | 19077 监听 `0.0.0.0` 且没有防火墙规则；设计上控制台用服务端持有的 key 调用 API，绕过 9077 上的 key 认证（2026-10-10 在新位置上核对：不带 key 即可取得库列表）。 |
 | Codex 登录依赖 | LLM 操作依赖这台机器自己的 `codex/auth.json` 和到互联网的出口；登录失效或被撤销时，提取、归纳、反思会失败。续期步骤见运维指南。不要从别处拷贝 `auth.json`。 |
 | host 网络与非特权 LXC | `network_mode: host` 是在 runc 1.3.4 下的变通办法；Docker 来自 Ubuntu 仓库，随 apt 更新，runc 行为变化可能让容器起不来。系统更新前建议先 `pct snapshot`。 |
-| key 分散在多处 | LXC 的 `.env`、Mac 的 `coding-agent.json` 和 `gateway-api-key`、CodeBuddy 3 个项目的 MCP 认证头，轮换时都要同步。 |
+| key 分散在多处 | LXC 的 `.env`、Mac 的 `coding-agent.json` 和 `gateway-api-key`、CodeBuddy 各项目（当前 4 个）的 MCP 认证头，轮换时都要同步。 |
 | 明文 HTTP | key 与记忆内容在 LAN 内不加密；没有 TLS，也没有局域网外的访问路径，Mac 离开局域网就没有记忆。 |
 | 日志含记忆内容 | 容器日志已限制为 20 MB × 5 个文件；日志里仍有 bank 名和召回查询文本，对外粘贴前要脱敏。 |
 | 网关 `eth2` 与万兆交换机链路 | 所有 PVE 一侧的流量（含 Mac 到 LXC、LXC 到外网）都走这条链路；2026-10-10 下午它出过故障，根因没有确认，可能再发生。发生时 API 和控制台时通时断，LXC 的 LLM 调用也会失败，见[网络依赖与已知事故](#网络依赖与已知事故)。 |
