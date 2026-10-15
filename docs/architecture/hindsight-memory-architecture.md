@@ -196,9 +196,13 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 切换 Claude Code / Codex / CodeBuddy 到新地址 | 已完成（2026-10-10） | 切换记录：三者各做过一次读写验证，新写入只进新机器；Multica 任务自动跟随 |
 | 网关上的旧部署 | 已删除（用户，2026-10-10） | 没有回滚副本；恢复数据靠 Mac 上的导出文件，见[旧部署现状](#旧部署现状) |
 | Hermes 记忆插件接入 | 已完成（2026-10-10） | 见[Hermes 接入](#hermes-接入)；网关容器的 gateway 进程没有重启，插件按 Hermes 的提示热加载，消息通道的第一条消息需在日志里确认 |
+| homelab-admin 改写自己的运维库 | 已完成（2026-10-11） | 写 `hermes-agent::homelab-admin`，只读 `coding-agent::IaC`（此前读写 IaC 库，还没写入过）；两个库一起召回约 6 秒，在 8 秒上限内但余量不大，见[Hermes 接入](#hermes-接入) |
+| 网关 telos profile 接入 | 已完成（2026-10-14） | 用自己的库 `hermes-agent::telos`；从 default 复制时继承了 default 的库，最初 2 份会话写进了 `hermes-agent::default`，已复制进 telos 库；default 库里的原件是否删除由用户决定 |
+| llm-ops 项目启用 | 已启用（2026-10-11），库待首次写入 | 加入试用项目，`coding-agent::llm-ops` 在第一次写入时建立；启用新项目的步骤见运维指南第 14 节 |
 | 网页控制台 | 后端已修复，仍无登录 | 2026-10-10 把数据面地址指向 `http://127.0.0.1:9077`，`/api/banks` 返回 200；是否收紧由用户决定，见[网页控制台](#网页控制台) |
 | 容器日志轮转 | 已配置（2026-10-10） | `json-file`，`max-size: 20m`、`max-file: 5` |
 | 模型缓存与离线模式 | 已完成（2026-10-10） | `hf-cache/` 持久缓存加 `HF_HUB_OFFLINE=1`，见[模型缓存与离线模式](#模型缓存与离线模式) |
+| 多语言重排模型 | 已上线（2026-10-10） | 换成 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`，中文召回排序明显改善；嵌入模型仍是英文的 `bge-small-en-v1.5`，见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md) |
 | 万兆交换机与网关 `eth2` 链路 | 重启后恢复，根因未确认 | 见[网络依赖与已知事故](#网络依赖与已知事故) |
 | 备份 | 由运维方另行规划 | 本文只记录逻辑导出的方法，见上一节 |
 | pve1 或 LXC 重启后的自动恢复 | 未验证 | 依赖 `onboot: 1`、`docker` 服务 enabled 和 `restart: unless-stopped` |
