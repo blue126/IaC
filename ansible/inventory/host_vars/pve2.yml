@@ -2,3 +2,12 @@
 # Bootstrap-only connection fallback for the standalone PVE node.
 # The encrypted value stays in group_vars/all/vault.yml.
 ansible_ssh_pass: "{{ vault_proxmox_password }}"
+
+# The 400 GiB virtual disk remains managed by terraform/proxmox/pnetlab.tf.
+# Release its ZFS reservation so existing guests share the pool's free space.
+proxmox_storage_vm_disk:
+  vmid: 250
+  name: pnetlab
+  disk: scsi0
+  volume: mainpool:vm-250-disk-0
+  dataset: mainpool/vm-250-disk-0

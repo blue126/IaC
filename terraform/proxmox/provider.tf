@@ -21,7 +21,7 @@ provider "proxmox" {
   }
 }
 
-# Standalone node -- not reachable through the cluster endpoint above.
+# Separate provider for an endpoint outside the primary cluster.
 provider "proxmox" {
   alias     = "pve2"
   endpoint  = var.pm_api_url_pve2
@@ -33,14 +33,13 @@ provider "proxmox" {
   }
 }
 
-# Cloud-image disk import requires an explicit SSH password fallback because
-# the standalone pve2 provider cannot consume the Sandbox SSH agent identity.
+# Some disk-import operations require explicit SSH credentials when an agent
+# identity is unavailable.
 provider "proxmox" {
-  alias    = "pve2_root"
-  endpoint = var.pm_api_url_pve2
-  username = "root@pam"
-  password = var.proxmox_ssh_password
-  insecure = true
+  alias     = "pve2_root"
+  endpoint  = var.pm_api_url_pve2
+  api_token = "${var.pm_api_token_id_pve2}=${var.pm_api_token_secret_pve2}"
+  insecure  = true
 
   ssh {
     agent    = false

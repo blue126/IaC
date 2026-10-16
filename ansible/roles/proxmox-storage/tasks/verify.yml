@@ -1,0 +1,9 @@
+---
+- name: Inspect existing storage policy
+  ansible.builtin.include_tasks: inspect.yml
+
+- name: Verify VM disk reservation
+  ansible.builtin.assert:
+    that:
+      - proxmox_storage_zvol.refreservation | int == 0
+  when: not ansible_check_mode or 'verify' in ansible_run_tags
