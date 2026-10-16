@@ -1,0 +1,17 @@
+---
+- name: Inspect existing guest storage before making changes
+  ansible.builtin.include_tasks: inspect.yml
+
+- name: Report planned reservation release in check mode
+  ansible.builtin.debug:
+    msg: "Set {{ proxmox_storage_vm_disk.dataset }} refreservation=none"
+  changed_when: proxmox_storage_zvol.refreservation | int != 0
+  when: ansible_check_mode
+
+- name: Release unused reservation on the existing VM disk
+  ansible.builtin.command:
+    argv: [zfs, set, "refreservation=none", "{{ proxmox_storage_vm_disk.dataset }}"]
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - proxmox_storage_zvol.refreservation | int != 0
