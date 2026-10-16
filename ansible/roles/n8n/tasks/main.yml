@@ -1,107 +1,290 @@
 ---
-- name: Update apt cache
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-
-- name: Install system dependencies
-  apt:
+- name: Install n8n deployment prerequisites
+  ansible.builtin.apt:
     name:
-      - curl
       - git
-      - gnupg
-      - build-essential
+      - tar
     state: present
+    update_cache: true
 
-- name: Remove manual Node.js installation (conflict with apt)
-  file:
+- name: Check the legacy n8n data directory
+  ansible.builtin.stat:
+    path: "{{ n8n_legacy_data_dir }}/config"
+  register: n8n_legacy_config
+
+- name: Refuse migration without the legacy n8n state
+  ansible.builtin.assert:
+    that:
+      - n8n_legacy_config.stat.exists
+    fail_msg: >-
+      Expected the existing n8n configuration at {{ n8n_legacy_data_dir }}/config.
+      The Docker migration is intentionally stopped before changing anything
+      when the legacy state is missing.
+
+- name: Check the legacy n8n environment file
+  ansible.builtin.stat:
+    path: "{{ n8n_legacy_env_file }}"
+  register: n8n_legacy_env
+
+- name: Check the legacy scraper cache
+  ansible.builtin.stat:
+    path: "{{ n8n_legacy_scraper_data_dir }}"
+  register: n8n_legacy_cache
+
+- name: Check available filesystem space before staging Docker
+  ansible.builtin.command:
+    cmd: df --output=avail -B1 /
+  register: n8n_available_space
+  changed_when: false
+
+- name: Refuse staging when Docker would risk filling the LXC rootfs
+  ansible.builtin.assert:
+    that:
+      - (n8n_available_space.stdout_lines[-1] | trim | int) >= n8n_min_free_bytes
+    fail_msg: >-
+      Need at least {{ n8n_min_free_bytes }} bytes free before staging the
+      Docker image; only {{ n8n_available_space.stdout_lines[-1] | trim }} are
+      available. Expand or clean the LXC first. The legacy n8n service has not
+      been stopped.
+
+- name: Checkout the n8n runtime repository
+  ansible.builtin.git:
+    repo: "{{ n8n_app_repo }}"
+    version: "{{ n8n_app_ref }}"
+    dest: "{{ n8n_install_dir }}"
+    update: true
+    force: false
+
+- name: Create n8n production data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0700"
+  loop:
+    - "{{ n8n_data_dir }}"
+    - "{{ n8n_scraper_data_dir }}"
+
+- name: Remove any interrupted staging data
+  ansible.builtin.file:
     path: "{{ item }}"
     state: absent
-  with_items:
-    - /usr/local/bin/node
-    - /usr/local/bin/npm
-    - /usr/local/lib/node_modules
+  loop:
+    - "{{ n8n_staging_data_dir }}"
+    - "{{ n8n_staging_scraper_data_dir }}"
 
-- name: Install NodeSource repository
+- name: Create empty staging data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0700"
+  loop:
+    - "{{ n8n_staging_data_dir }}"
+    - "{{ n8n_staging_scraper_data_dir }}"
+    - "{{ n8n_staging_data_dir }}"
+    - "{{ n8n_staging_scraper_data_dir }}"
+
+- name: Preserve the legacy environment file for staging and cutover
+  ansible.builtin.copy:
+    src: "{{ n8n_legacy_env_file }}"
+    dest: "{{ n8n_install_dir }}/.env"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+    force: true
+  when: n8n_legacy_env.stat.exists
+  no_log: true
+
+- name: Render the staging Compose environment
+  ansible.builtin.include_tasks: render-env.yml
+  vars:
+    n8n_runtime_data_dir: "{{ n8n_staging_data_dir }}"
+    n8n_runtime_scraper_data_dir: "{{ n8n_staging_scraper_data_dir }}"
+    n8n_runtime_port: "{{ n8n_staging_port }}"
+    n8n_runtime_listen_address: "127.0.0.1"
+    n8n_disable_production_webhooks: true
+
+- name: Render the LXC Docker network override
+  ansible.builtin.template:
+    src: docker-compose.override.yml.j2
+    dest: "{{ n8n_install_dir }}/docker-compose.override.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Stage and validate Docker without stopping systemd n8n
   when: not ansible_check_mode
   block:
-    - name: Allocate NodeSource installer file
-      ansible.builtin.tempfile:
-        state: file
-        suffix: .nodesource-setup.sh
-      register: n8n_nodesource_installer
-
-    - name: Download NodeSource repository installer
-      ansible.builtin.get_url:
-        url: "https://deb.nodesource.com/setup_{{ n8n_nodejs_version.split('.')[0] }}.x"
-        dest: "{{ n8n_nodesource_installer.path }}"
-        force: true
-        mode: "0700"
-
-    - name: Run NodeSource repository installer
+    - name: Validate the staged Compose configuration
       ansible.builtin.command:
-        argv: [/bin/bash, "{{ n8n_nodesource_installer.path }}"]
+        cmd: docker compose config --quiet
+        chdir: "{{ n8n_install_dir }}"
       changed_when: false
+
+    - name: Build and start the staged n8n service
+      community.docker.docker_compose_v2:
+        project_src: "{{ n8n_install_dir }}"
+        state: present
+        build: always
+        pull: always
+      register: n8n_stage_compose
+
+    - name: Wait for the staged n8n readiness endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ n8n_staging_port }}/healthz/readiness"
+        status_code: 200
+        timeout: 5
+      register: n8n_stage_readiness
+      until: n8n_stage_readiness.status == 200
+      retries: 12
+      delay: 10
+
+  rescue:
+    - name: Abort before cutover when staged Docker is unhealthy
+      ansible.builtin.fail:
+        msg: >-
+          Staged Docker n8n did not become ready. The legacy systemd service
+          was not stopped or changed.
+
   always:
-    - name: Remove NodeSource installer file
-      ansible.builtin.file:
-        path: "{{ n8n_nodesource_installer.path }}"
+    - name: Remove the staged Compose service
+      community.docker.docker_compose_v2:
+        project_src: "{{ n8n_install_dir }}"
         state: absent
-      when: n8n_nodesource_installer.path is defined
+      when: n8n_stage_compose is defined
+      failed_when: false
 
-- name: Install approved Node.js version
-  ansible.builtin.apt:
-    name: "nodejs={{ n8n_nodejs_version }}*"
-    state: present
-    update_cache: yes
-  notify: Restart n8n
+    - name: Remove empty staging data after validation
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ n8n_staging_data_dir }}"
+        - "{{ n8n_staging_scraper_data_dir }}"
 
-- name: Check Node.js version
-  ansible.builtin.command:
-    cmd: node --version
-  register: n8n_installed_nodejs_version
-  changed_when: false
+- name: Execute the brief n8n cutover after staging succeeds
+  when: not ansible_check_mode
+  block:
+    - name: Stop and mask the legacy n8n service
+      ansible.builtin.systemd_service:
+        name: n8n
+        state: stopped
+        enabled: false
+        masked: true
+        daemon_reload: true
 
-- name: Assert approved Node.js version
-  ansible.builtin.assert:
-    that:
-      - n8n_installed_nodejs_version.stdout == "v" + n8n_nodejs_version
-    fail_msg: >-
-      Expected Node.js v{{ n8n_nodejs_version }}, but found
-      {{ n8n_installed_nodejs_version.stdout }}.
+    - name: Create a rollback archive before copying SQLite state
+      ansible.builtin.command:
+        argv:
+          - tar
+          - --create
+          - --gzip
+          - "--file={{ n8n_legacy_backup_path }}"
+          - --directory=/root
+          - .n8n
+        creates: "{{ n8n_legacy_backup_path }}"
 
-- name: Install approved n8n version globally
-  community.general.npm:
-    name: n8n
-    version: "{{ n8n_version }}"
-    global: true
-    state: present
-  notify: Restart n8n
+    - name: Restrict the rollback archive permissions
+      ansible.builtin.file:
+        path: "{{ n8n_legacy_backup_path }}"
+        owner: root
+        group: root
+        mode: "0600"
 
-- name: Check n8n version
-  ansible.builtin.command:
-    cmd: /usr/bin/n8n --version
-  register: n8n_installed_version
-  changed_when: false
+    - name: Copy the complete legacy n8n state directory
+      ansible.builtin.command:
+        argv:
+          - cp
+          - -a
+          - "{{ n8n_legacy_data_dir }}/."
+          - "{{ n8n_data_dir }}/"
+        creates: "{{ n8n_data_dir }}/config"
 
-- name: Assert approved n8n version
-  ansible.builtin.assert:
-    that:
-      - n8n_installed_version.stdout == n8n_version
-    fail_msg: >-
-      Expected n8n {{ n8n_version }}, but found
-      {{ n8n_installed_version.stdout }}.
+    - name: Copy the legacy scraper cache once
+      ansible.builtin.command:
+        argv:
+          - cp
+          - -a
+          - "{{ n8n_legacy_scraper_data_dir }}/."
+          - "{{ n8n_scraper_data_dir }}/"
+        creates: "{{ n8n_legacy_cache_marker }}"
+      when: n8n_legacy_cache.stat.exists
 
-- name: Create systemd service for n8n
-  template:
-    src: n8n.service.j2
-    dest: /etc/systemd/system/n8n.service
-    mode: '0644'
-  notify: Restart n8n
+    - name: Mark the legacy scraper cache as migrated
+      ansible.builtin.file:
+        path: "{{ n8n_legacy_cache_marker }}"
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+      when: n8n_legacy_cache.stat.exists
 
-- name: Enable and start n8n service
-  systemd:
-    name: n8n
-    enabled: yes
-    state: started
-    daemon_reload: yes
+    - name: Render the production Compose environment
+      ansible.builtin.include_tasks: render-env.yml
+      vars:
+        n8n_runtime_data_dir: "{{ n8n_data_dir }}"
+        n8n_runtime_scraper_data_dir: "{{ n8n_scraper_data_dir }}"
+        n8n_runtime_port: "5678"
+        n8n_runtime_listen_address: "0.0.0.0"
+        n8n_disable_production_webhooks: false
+
+    - name: Set ownership for Docker-mounted n8n data
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        recurse: true
+      loop:
+        - "{{ n8n_data_dir }}"
+        - "{{ n8n_scraper_data_dir }}"
+
+    - name: Validate the production Compose configuration
+      ansible.builtin.command:
+        cmd: docker compose config --quiet
+        chdir: "{{ n8n_install_dir }}"
+      changed_when: false
+
+    - name: Start the production n8n Compose service without rebuilding
+      community.docker.docker_compose_v2:
+        project_src: "{{ n8n_install_dir }}"
+        state: present
+        build: never
+        pull: never
+      register: n8n_cutover_compose
+
+    - name: Wait for production n8n readiness after the cutover
+      ansible.builtin.uri:
+        url: http://127.0.0.1:5678/healthz/readiness
+        status_code: 200
+        timeout: 5
+      register: n8n_readiness
+      until: n8n_readiness.status == 200
+      retries: 12
+      delay: 10
+
+  rescue:
+    - name: Stop the production Compose service after a failed cutover
+      community.docker.docker_compose_v2:
+        project_src: "{{ n8n_install_dir }}"
+        state: absent
+      when: n8n_cutover_compose is defined
+      failed_when: false
+
+    - name: Restore the legacy n8n service after a failed cutover
+      ansible.builtin.systemd_service:
+        name: n8n
+        masked: false
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Abort the n8n cutover
+      ansible.builtin.fail:
+        msg: >-
+          Production Docker cutover failed. The legacy n8n service was
+          restored; inspect the preceding error before retrying.

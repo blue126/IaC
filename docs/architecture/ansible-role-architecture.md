@@ -62,7 +62,7 @@ ansible/
 | `homepage` | Homepage 仪表板 | 源码构建（Node.js/pnpm + systemd） | homepage (LXC) |
 | `immich` | Immich 照片管理 | Docker Compose（官方 compose 文件） | immich (VM) |
 | `caddy` | Caddy 反向代理 + WebDAV | 自定义二进制（Alpine + systemd） | caddy (LXC) |
-| `n8n` | n8n 工作流自动化 | npm 全局安装 + systemd | n8n (LXC) |
+| `n8n` | n8n 工作流自动化 | Docker Compose（n8n-rental + LXC override） | n8n (LXC) |
 | `anki` | Anki 同步服务 | pip venv 安装 + systemd | anki (LXC) |
 | `rustdesk` | RustDesk 远程桌面 | Docker Compose | rustdesk (VM) |
 | `pbs` | Proxmox Backup Server + ZFS 存储 | 系统包 + ZFS 命令 + API 配置 | pbs (VM) |
@@ -95,7 +95,7 @@ roles/<role_name>/
 - **命名**：`kebab-case`，与 playbook 文件名保持一致
 - **最小化目录**：只创建实际需要的目录，不保留空目录
 - **`defaults/` vs `vars/`**：几乎所有变量都放 `defaults/`（可覆盖）。`vars/` 仅用于角色内部常量（当前无 role 使用 `vars/`）
-- **无 `defaults/` 的例外**：`docker` 和 `n8n` — 所有值都是固定的（标准端口、版本号等），不需要可配置变量
+- **无 `defaults/` 的例外**：`docker` — 纯安装 role；n8n 的迁移路径、应用版本和旧数据路径由 defaults/inventory 管理
 
 ### 当前各 Role 目录状态
 
@@ -110,7 +110,7 @@ roles/<role_name>/
 | homepage | ✅ | ✅ | ✅ | ✅ (6) | 模板包含 dashboard 配置 |
 | immich | ✅ | ✅ | ✅ | ✅ (2) | |
 | caddy | ✅ | ✅ | ✅ | ✅ (1) | Alpine Linux，需要 SSH/Python 预启动 |
-| n8n | — | ✅ | ✅ | ✅ (1) | 无可配置参数 |
+| n8n | ✅ | ✅ | — | ✅ (1) | Docker Compose 运行时与旧状态迁移 |
 | anki | ✅ | ✅ | ✅ | ✅ (1) | |
 | rustdesk | ✅ | ✅ | — | ✅ (1) | |
 | pbs | ✅ | ✅ | — | — | tasks 含 ZFS 配置（zfs-verify/zfs-pool/zfs-datastore） |
@@ -350,7 +350,7 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 | `deploy-pbs.yml` | pbs | pbs | 系统包 + ZFS |
 | `deploy-caddy.yml` | caddy | caddy | 自定义二进制（含 SSH 预启动） |
 | `deploy-anki.yml` | anki | anki | pip venv |
-| `deploy-n8n.yml` | n8n | n8n | npm 全局安装 |
+| `deploy-n8n.yml` | n8n | docker → n8n | Docker Compose（现有 LXC 内） |
 | `install-tailscale.yml` | tailscale | tailscale | 脚本安装 |
 | `deploy-cloudflared.yml` | jenkins | common → tailscale → cloudflared | 系统包 + 可选本机 Tunnel 配置 |
 | `sync-netbox.yml` | pve_lxc:pve_vms:proxmox_cluster | netbox-sync | API 同步 |

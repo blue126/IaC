@@ -9,6 +9,7 @@
 - **[immich-deployment.md](./immich-deployment.md)** — 照片/视频管理栈部署（Postgres/Redis/ML）、验证模式、性能与扩展建议。
 - **[immich-upgrade-mop.md](./immich-upgrade-mop.md)** — 面向 agent 的 Homelab 六步升级流程，包含整机备份、基本验证和恢复边界。
 - **[n8n-upgrade-mop.md](./n8n-upgrade-mop.md)** — 面向 npm + systemd LXC 部署的六步升级流程，包含 workflow 保持未发布、SQLite 异常排障和恢复边界。
+- **[n8n-docker-migration.md](./n8n-docker-migration.md)** — 基于现有 LXC IaC 的 npm/systemd → Docker Compose 迁移、回滚和验收。
 
 ## 实操指南（How-to）
 

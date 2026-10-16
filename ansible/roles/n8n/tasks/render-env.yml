@@ -1,0 +1,27 @@
+---
+- name: Render n8n Compose environment values
+  ansible.builtin.lineinfile:
+    path: "{{ n8n_install_dir }}/.env"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - { key: N8N_VERSION, value: "{{ n8n_version }}" }
+    - { key: N8N_DATA_DIR, value: "{{ n8n_runtime_data_dir }}" }
+    - { key: SCRAPER_DATA_DIR, value: "{{ n8n_runtime_scraper_data_dir }}" }
+    - { key: N8N_PORT, value: "{{ n8n_runtime_port }}" }
+    - { key: N8N_LISTEN_ADDRESS, value: "{{ n8n_runtime_listen_address }}" }
+    - { key: N8N_HOST, value: "{{ n8n_host }}" }
+    - { key: N8N_PROTOCOL, value: "{{ n8n_protocol }}" }
+    - { key: N8N_EDITOR_BASE_URL, value: "{{ n8n_editor_base_url }}" }
+    - { key: N8N_WEBHOOK_URL, value: "{{ n8n_internal_webhook_url }}" }
+    - { key: WEBHOOK_URL, value: "{{ n8n_webhook_url }}" }
+    - { key: N8N_PROXY_HOPS, value: "{{ n8n_proxy_hops }}" }
+    - { key: N8N_SECURE_COOKIE, value: "{{ n8n_secure_cookie | ternary('true', 'false') }}" }
+    - { key: N8N_DISABLE_PRODUCTION_MAIN_PROCESS, value: "{{ n8n_disable_production_webhooks | ternary('true', 'false') }}" }
+    - { key: NODE_FUNCTION_ALLOW_EXTERNAL, value: "node-fetch" }
+    - { key: GENERIC_TIMEZONE, value: "{{ n8n_timezone }}" }
+    - { key: TZ, value: "{{ n8n_timezone }}" }

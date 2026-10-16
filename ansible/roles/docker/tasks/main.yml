@@ -1,4 +1,14 @@
 ---
+- name: Validate Docker host distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution in ['Debian', 'Ubuntu']
+    fail_msg: "The Docker role supports Debian and Ubuntu hosts only."
+
+- name: Select Docker apt distribution
+  ansible.builtin.set_fact:
+    _docker_apt_distribution: "{{ 'ubuntu' if ansible_distribution == 'Ubuntu' else 'debian' }}"
+
 - name: Install required system packages
   apt:
     name:
@@ -18,17 +28,17 @@
 
     - name: Download Docker's official GPG key
       get_url:
-        url: https://download.docker.com/linux/ubuntu/gpg
+        url: "https://download.docker.com/linux/{{ _docker_apt_distribution }}/gpg"
         dest: /etc/apt/keyrings/docker.asc
         mode: '0644'
 
 - name: Set Docker apt architecture
   set_fact:
-    _docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] | default('amd64') }}"
+    _docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(ansible_architecture, 'amd64') }}"
 
 - name: Add Docker repository
   apt_repository:
-    repo: "deb [arch={{ _docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [arch={{ _docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ _docker_apt_distribution }} {{ ansible_distribution_release }} stable"
     state: present
     filename: docker
 
