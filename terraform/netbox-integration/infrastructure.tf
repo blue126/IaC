@@ -45,7 +45,7 @@ resource "netbox_device" "pve0" {
 
   lifecycle {
     ignore_changes = [
-      custom_fields # NetBox-managed business metadata, do not overwrite
+      custom_fields # automation input; NetBox is authoritative (webhook routes on this)
     ]
   }
 }
@@ -88,7 +88,7 @@ resource "netbox_device" "pve1" {
 
   lifecycle {
     ignore_changes = [
-      custom_fields # NetBox-managed business metadata, do not overwrite
+      custom_fields # automation input; NetBox is authoritative (webhook routes on this)
     ]
   }
 }
@@ -136,7 +136,7 @@ resource "netbox_device" "pve2" {
 
   lifecycle {
     ignore_changes = [
-      custom_fields # NetBox-managed business metadata, do not overwrite
+      custom_fields # automation input; NetBox is authoritative (webhook routes on this)
     ]
   }
 }
