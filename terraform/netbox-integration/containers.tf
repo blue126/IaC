@@ -41,9 +41,9 @@ resource "netbox_virtual_machine" "homepage" {
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   role_id      = netbox_device_role.lxc.id
-  vcpus        = 2        # 来源: terraform/proxmox/homepage.tf cores=2
-  memory_mb    = 4096     # 来源: terraform/proxmox/homepage.tf memory=4096
-  disk_size_mb = 4096     # 4G => 4*1024 MB, 来源: rootfs_size="4G"
+  vcpus        = 2
+  memory_mb    = 4096
+  disk_size_mb = 4096
   comments     = "Homepage Dashboard (LXC) bridge=vmbr1 target_node=pve0"
 
   lifecycle {
@@ -64,7 +64,7 @@ resource "netbox_interface" "homepage_eth0" {
 }
 
 resource "netbox_ip_address" "homepage_ip" {
-  ip_address   = "192.168.1.105/24"
+  ip_address   = "192.168.1.103/24"
   status       = "active"
   interface_id = netbox_interface.homepage_eth0.id
   object_type  = "virtualization.vminterface"
@@ -76,10 +76,10 @@ resource "netbox_virtual_machine" "caddy" {
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   role_id      = netbox_device_role.lxc.id
-  vcpus        = 1        # 来源: terraform/proxmox/caddy.tf cores=1
-  memory_mb    = 512      # 来源: terraform/proxmox/caddy.tf memory=512
-  disk_size_mb = 4096     # 4G => 4*1024 MB, 来源: rootfs_size="4G"
-  comments     = "Caddy reverse proxy (LXC) bridge=vmbr1 target_node=pve0"
+  vcpus        = 1
+  memory_mb    = 512
+  disk_size_mb = 51200
+  comments     = "Caddy Reverse Proxy & WebDAV (LXC) bridge=vmbr1 target_node=pve0"
 
   lifecycle {
     ignore_changes = [
