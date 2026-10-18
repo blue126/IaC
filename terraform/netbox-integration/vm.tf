@@ -66,4 +66,35 @@ resource "netbox_ip_address" "immich_ip" {
   object_type  = "virtualization.vminterface"
 }
 
+# Proxmox Backup Server (PBS) VM on pve2
+resource "netbox_virtual_machine" "pbs" {
+  name         = "proxmox-backup-server"
+  cluster_id   = netbox_cluster.homelab.id
+  status       = "active"
+  role_id      = netbox_device_role.vm.id
+  vcpus        = 4      # live qm config 100 on pve2: cores=4
+  memory_mb    = 16384  # live qm config 100: memory=16384
+  disk_size_mb = 81920  # 80G => 80*1024 MB, scsi0 size=80G
+  comments     = "PBS (VMID 100) bridge=vmbr0 target_node=pve2"
 
+  lifecycle {
+    ignore_changes = [
+      vcpus,
+      memory_mb,
+      disk_size_mb,
+      comments
+    ]
+  }
+}
+
+resource "netbox_interface" "pbs_eth0" {
+  name               = "eth0"
+  virtual_machine_id = netbox_virtual_machine.pbs.id
+}
+
+resource "netbox_ip_address" "pbs_ip" {
+  ip_address   = "192.168.1.249/24"
+  status       = "active"
+  interface_id = netbox_interface.pbs_eth0.id
+  object_type  = "virtualization.vminterface"
+}
