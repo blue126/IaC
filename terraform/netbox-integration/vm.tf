@@ -16,7 +16,9 @@ resource "netbox_virtual_machine" "netbox" {
       vcpus,
       memory_mb,
       disk_size_mb,
-      comments
+      comments,
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
@@ -49,7 +51,9 @@ resource "netbox_virtual_machine" "immich" {
       vcpus,
       memory_mb,
       disk_size_mb,
-      comments
+      comments,
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
@@ -82,7 +86,9 @@ resource "netbox_virtual_machine" "pbs" {
       vcpus,
       memory_mb,
       disk_size_mb,
-      comments
+      comments,
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
