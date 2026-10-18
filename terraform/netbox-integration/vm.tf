@@ -72,9 +72,9 @@ resource "netbox_virtual_machine" "pbs" {
   cluster_id   = netbox_cluster.homelab.id
   status       = "active"
   role_id      = netbox_device_role.vm.id
-  vcpus        = 4      # live qm config 100 on pve2: cores=4
-  memory_mb    = 16384  # live qm config 100: memory=16384
-  disk_size_mb = 81920  # 80G => 80*1024 MB, scsi0 size=80G
+  vcpus        = 4     # live qm config 100 on pve2: cores=4
+  memory_mb    = 16384 # live qm config 100: memory=16384
+  disk_size_mb = 81920 # 80G => 80*1024 MB, scsi0 size=80G
   comments     = "PBS (VMID 100) bridge=vmbr0 target_node=pve2"
 
   lifecycle {
