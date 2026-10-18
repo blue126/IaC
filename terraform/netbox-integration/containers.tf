@@ -17,8 +17,8 @@ resource "netbox_virtual_machine" "anki" {
       memory_mb,
       disk_size_mb,
       comments,
-      custom_fields, # NetBox-managed business metadata, do not overwrite
-      site_id        # inherited from the cluster; NetBox fills it automatically
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
@@ -52,8 +52,8 @@ resource "netbox_virtual_machine" "homepage" {
       memory_mb,
       disk_size_mb,
       comments,
-      custom_fields, # NetBox-managed business metadata, do not overwrite
-      site_id        # inherited from the cluster; NetBox fills it automatically
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
@@ -87,8 +87,8 @@ resource "netbox_virtual_machine" "caddy" {
       memory_mb,
       disk_size_mb,
       comments,
-      custom_fields, # NetBox-managed business metadata, do not overwrite
-      site_id        # inherited from the cluster; NetBox fills it automatically
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
