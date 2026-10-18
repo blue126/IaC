@@ -17,8 +17,8 @@ resource "netbox_virtual_machine" "netbox" {
       memory_mb,
       disk_size_mb,
       comments,
-      custom_fields, # NetBox-managed business metadata, do not overwrite
-      site_id        # inherited from the cluster; NetBox fills it automatically
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
@@ -52,8 +52,8 @@ resource "netbox_virtual_machine" "immich" {
       memory_mb,
       disk_size_mb,
       comments,
-      custom_fields, # NetBox-managed business metadata, do not overwrite
-      site_id        # inherited from the cluster; NetBox fills it automatically
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
@@ -87,8 +87,8 @@ resource "netbox_virtual_machine" "pbs" {
       memory_mb,
       disk_size_mb,
       comments,
-      custom_fields, # NetBox-managed business metadata, do not overwrite
-      site_id        # inherited from the cluster; NetBox fills it automatically
+      custom_fields, # automation input; NetBox is authoritative (webhook routes on this)
+      site_id        # derived from the cluster; NetBox fills it automatically
     ]
   }
 }
