@@ -1,5 +1,7 @@
 # Hindsight 多语言重排模型评估（2026-10）
 
+> **2026-10-19 更新**：记忆统一转成英文后，mmarco 的中文排序下降。重排已改为回退链 Mac 上的 bge-reranker-v2-m3 → Voyage → mmarco，嵌入换成了 `BAAI/bge-m3`，mmarco 现在只是最后一级回退。本文下面的“嵌入模型不换”“不设候选上限”等结论已被取代，见[重排与嵌入第二轮评估](./hindsight-rerank-embedding-evaluation-2026-10-19.md)。
+
 pve1 LXC 118 上的 Hindsight 0.10.2 原来用英文重排模型 `cross-encoder/ms-marco-MiniLM-L-6-v2`，中文查询的召回排序很差。本文记录这次对多语言重排模型（以及嵌入模型）的对比测试、结论、上线变更和回滚办法。服务本身的部署与运维见 [hindsight-memory-architecture.md](./hindsight-memory-architecture.md) 和 [hindsight-operations.md](../guides/hindsight-operations.md)。
 
 **证据口径**：下面的数字来自 2026-10-10 在 LXC 118 里用一次性容器做的实测（实测记录），以及切换后对线上 API 的验证（2026-10-10 13:55 UTC 之后）。相关性标注由执行评估的 agent 一人完成，在运行任何模型之前定好。本文不包含记忆原文、记忆 ID 或 key。

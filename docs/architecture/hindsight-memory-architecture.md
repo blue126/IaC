@@ -1,6 +1,6 @@
 # Hindsight 共享记忆服务架构（pve1 LXC 118）
 
-**更新日期**：2026-10-10；**状态**：已搬迁并验证。2026-10-10 用户决定把 Hindsight 整体搬离网关，现在运行在 pve1 的 LXC 118（`192.168.1.118`）；Claude Code、Codex、CodeBuddy 已切换到新地址（Multica 任务自动跟随）。网关上的旧部署已由用户在当天删除，没有回滚副本。Hermes（Mac 6 个 profile、网关 2 个 profile）已于当天接入，见[Hermes 接入](#hermes-接入)。网页控制台**没有登录**，后端地址已于当天修好，见[网页控制台](#网页控制台)。当天下午万兆交换机故障造成过一次网络中断，Hindsight 因此崩溃重启 4 次，现已加上离线模式和持久模型缓存，见[网络依赖与已知事故](#网络依赖与已知事故)。备份由运维方另行规划，本文只记录逻辑导出的方法。本文保留了“为什么离开网关”的经验教训，见[网关旧部署与经验教训](#网关旧部署与经验教训)；操作步骤见 [Hindsight 运维指南](../guides/hindsight-operations.md)。
+**更新日期**：2026-10-19；**状态**：已搬迁并验证。2026-10-10 用户决定把 Hindsight 整体搬离网关，现在运行在 pve1 的 LXC 118（`192.168.1.118`）；Claude Code、Codex、CodeBuddy 已切换到新地址（Multica 任务自动跟随）。网关上的旧部署已由用户在当天删除，没有回滚副本。Hermes（Mac 6 个 profile、网关 2 个 profile）已于当天接入，见[Hermes 接入](#hermes-接入)。网页控制台**没有登录**，后端地址已于当天修好，见[网页控制台](#网页控制台)。当天下午万兆交换机故障造成过一次网络中断，Hindsight 因此崩溃重启 4 次，现已加上离线模式和持久模型缓存，见[网络依赖与已知事故](#网络依赖与已知事故)。2026-10-17 起 LLM 输出统一为英文；2026-10-19 起嵌入模型换成多语言的 `BAAI/bge-m3`，重排改为回退链：用户 Mac 上的 eeANE → Voyage → 本地 mmarco，见[召回与重排性能](#召回与重排性能调优记录实测记录)。备份由运维方另行规划，本文只记录逻辑导出的方法。本文保留了“为什么离开网关”的经验教训，见[网关旧部署与经验教训](#网关旧部署与经验教训)；操作步骤见 [Hindsight 运维指南](../guides/hindsight-operations.md)。
 
 **证据口径**：标“核对”的内容来自 2026-10-10 对 pve1、LXC 118 和网关的只读检查（`pct config`/`pct status`/`pct list`/`qm list`、`pvesm status`、`pve-firewall status`、`/etc/pve/jobs.cfg`、`docker ps` 与 `docker inspect --format` 的非敏感字段、`ls`/`stat`、`ss`/`netstat`、`/health` 与 `/version`、`compose.yaml` 的非密钥行、控制台只看 HTTP 状态码和页面标题、容器日志里的单行验证信息和错误行计数），以及对 Mac 上导出文件名称、`~/.hindsight/` 文件权限与修改时间的查看；没有读取 `.env`、`codex/auth.json`、容器环境变量、`coding-agent.json`、导出 ZIP 的内容或任何密钥文件。标“部署记录”“迁移记录”“切换记录”“调优记录”“实测记录”的内容来自部署者的验证和操作结果，本次整理没有重新执行（例如带 key 的请求、记忆库导出导入、客户端读写验证、召回和重排耗时的测量）。标“历史”的内容是网关上旧部署的事实，已不是现状。本文不记录任何 key、token 或 `auth.json` 的内容，只记录它们的存放位置和变量名。标“事故记录”的内容来自 2026-10-10 下午的现场检查和操作（对网关、pve1、LXC 118 的只读检查，以及修复 `compose.yaml` 的改动）。
 
@@ -18,9 +18,11 @@ Hindsight 是 Vectorize 的开源长期记忆服务（上游：[vectorize-io/hin
 
 ```mermaid
 flowchart LR
-    subgraph MAC["用户 Mac（LAN）"]
+    subgraph MAC["用户 Mac（LAN · 192.168.1.10）"]
         CLI["Claude Code / Codex / CodeBuddy<br/>hooks + MCP"]
+        RR["eeANE :18090 · 需要 key<br/>bge-reranker-v2-m3（神经网络引擎）"]
     end
+    VOY["Voyage 重排 API<br/>（互联网，回退）"]
     LAN["局域网内的其他设备<br/>浏览器"]
     HERMES["Hermes（Mac 与网关）<br/>Hindsight 插件"]
     OPENAI["Codex 后端<br/>（互联网）"]
@@ -32,7 +34,7 @@ flowchart LR
             HS["容器 hindsight 0.10.2<br/>network_mode: host"]
             DATA[("/opt/hindsight/data<br/>内嵌 Postgres（pg0）")]
             CODEX[("/opt/hindsight/codex<br/>本机自己的 Codex 登录")]
-            HFC[("/opt/hindsight/hf-cache<br/>嵌入与重排模型缓存")]
+            HFC[("/opt/hindsight/hf-cache<br/>嵌入 bge-m3 与回退重排 mmarco")]
         end
     end
     CLI -->|HTTP + Bearer key| API
@@ -44,6 +46,8 @@ flowchart LR
     CODEX --> HS
     HFC --> HS
     HS -->|LLM 调用 gpt-6-luna| OPENAI
+    HS -->|重排首选 · HTTP + key| RR
+    HS -.->|Mac 不可用时| VOY
     GW -.->|"导出/导入迁移（已完成）"| API
 ```
 
@@ -90,6 +94,8 @@ flowchart LR
 Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `openai-codex` 提供方直接访问 Codex 服务，模型 `gpt-6-luna`，需要这台机器能访问互联网。凭据是 `/opt/hindsight/codex/auth.json`，挂载为容器内的 `/home/hindsight/.codex`（读写，因为令牌由 Hindsight 自己刷新）；属主必须是容器用户的 UID 1000。
 
 **每台机器要有自己的 Codex 登录，不要拷贝别处正在使用的 `auth.json`。** 这是此前已经踩过的坑（部署者记录）：拷贝出来的登录在刷新令牌轮换后会失效，只有真正在用的那一份会被更新。新机器的登录是在 Mac 上用临时 `CODEX_HOME` 通过设备码流程新建的；令牌失效时的重做步骤见运维指南的[Codex 登录](../guides/hindsight-operations.md#7-codex-登录的建立与续期)。
+
+**输出语言**：2026-10-17 起设置 `HINDSIGHT_API_LLM_OUTPUT_LANGUAGE: English`（用户同意）。此前 gpt-6-luna 会把英文输入的事实漂移成俄语、西班牙语等（上游 #4016，不计划修复），当天处理了已有的 227 条非中英文记忆（事实翻译成英文，相关观察重新生成），并在各库的 retain 与 observations 任务说明里加了语言规则。中文提问配英文记忆因此成为跨语言检索，这是 2026-10-19 换多语言嵌入和重排的直接原因。
 
 和网关上的旧部署相比，这条路径少了 `codex-proxy` 这一层，也不再依赖 `xiaozhi_xiaozhi-net`；多出来的依赖是这个登录本身和 LXC 到互联网的出口。Codex 服务不可达、登录失效或模型名不被接受时，依赖 LLM 的操作（提取事实、归纳、反思）会失败；不依赖 LLM 的操作是否受影响，没有做过实验（库的导入不调用 LLM，不耗额度）。
 
@@ -159,23 +165,32 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 层 | 配置 | 说明 |
 |---|---|---|
 | pve1 | 6 核 6 线程，内存 32 GB，可用约 8 GB，swap 8 GiB | 同机还有 VM 112/113（各 4 GiB）、114（4 GiB）、115 `funasr`（12 GiB）、117（4 GiB）和 LXC 111；VM 116 `Windows11`（配置 16 GiB）已停止，它的配置内存大于当前可用内存，能否与现有来宾同时运行没有验证 |
-| LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 4096`、`swap: 512`，rootfs 24G | 容器里 `nproc` 为 6；pve1 一天平均 CPU 约 2%，其他来宾按 `cpuunits` 分配。调到 6 核后 144 个候选的重排从约 3.0 秒降到约 2.5 秒（实测记录） |
-| 容器 | `mem_limit: 3g`、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（这三项是网关上为保护其他服务设置的，见历史） |
+| LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 8192`（2026-10-19 前是 4096）、`swap: 512`，rootfs 24G | 容器里 `nproc` 为 6；pve1 一天平均 CPU 约 2%，其他来宾按 `cpuunits` 分配。调到 6 核后 144 个候选的重排从约 3.0 秒降到约 2.5 秒（实测记录） |
+| 容器 | `mem_limit: 6g`（2026-10-19 前是 3g）、`shm_size: 1g` | 运行时约 3.3 GiB（bge-m3 嵌入加常驻的 mmarco）；没有 `cpus`、`cpu_shares`、`oom_score_adj`（这三项是网关上为保护其他服务设置的，见历史） |
+| 用户 Mac（MacBook Air M4） | eeANE 常驻约 0.5 GB 内存，用神经网络引擎 | 第 0 号重排成员；Mac 关机或离开局域网时自动由 Voyage 接替 |
 
 ### 召回与重排性能（调优记录、实测记录）
 
-- 2026-10-10 13:55 UTC 起重排用多语言的 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`：中文查询 nDCG@5 从 0.20 升到 0.79，英文从 0.59 升到 0.79；40 条真实查询的重排中位数 3.7 秒、最长 4.7 秒，容器内存约 1.6 GiB。对比测试、淘汰的模型（bge-reranker-v2-m3 每次约 42 秒）和回滚办法见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md)。
-- 以下是换模型前 MiniLM-L6 的记录：重排用默认的 `cross-encoder/ms-marco-MiniLM-L-6-v2`，300 个候选，和 Mac 上的基准一致，因此不再有网关上 TinyBERT 带来的排序质量折中。
-- LXC 里 300 个合成候选 fp32 打分约 4.0 秒，开分桶批处理约 3.2 秒，3 线程 3.8~4.8 秒；真实召回约 7~8.4 秒（客户端 hooks 的超时是 30 秒）；reflect 约 5 秒；容器内存约 1.1~1.4 GiB（核对 1.43 GiB）。
-- `OMP_NUM_THREADS` 和 `MKL_NUM_THREADS` 设为 6，与 LXC 的核数一致；`HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING=true` 开启分桶批处理；`..._MAX_CONCURRENT=1`（变量名含义是本地重排的最大并发，没有单独说明收益）。
-- 嵌入模型仍是镜像内置的 BAAI/bge-small-en-v1.5，在 CPU 本地运行。评估认为目前不必换成多语言嵌入（候选集已包含几乎全部相关记忆）；以后要换，必须显式重嵌入所有库，同为 384 维时 Hindsight 不会自动察觉。
-- 想再快一点：把 LXC 的核数调高是最直接的办法（`pct set 118 --cores N`，同步调整线程数），收益没有测，pve1 上其他来宾也在用 CPU。
+**现状（2026-10-19 起）**，选型数据见[重排与嵌入第二轮评估](./hindsight-rerank-embedding-evaluation-2026-10-19.md)，设置与运维见运维指南的[召回与重排](../guides/hindsight-operations.md#82-召回与重排)和[Mac 上的重排服务](../guides/hindsight-operations.md#16-mac-上的重排服务eeane2026-10-19-起)：
+
+- **嵌入**：`BAAI/bge-m3`（1024 维），LXC 的 CPU 上每次查询约 80 毫秒；`max_seq_length` 在模型缓存里限制为 1024。中文查询的语义检索明显改善（线上 IaC 库：最差排名 92 → 7）。
+- **重排**：回退链 Mac 上的 eeANE（bge-reranker-v2-m3，100 条候选约 2.3 秒）→ Voyage `rerank-3-lite`（约 0.4～0.7 秒）→ 本地 mmarco（约 3 秒）。Mac 关机或离开局域网时，约 3 秒连接失败后由 Voyage 完成。
+- **候选上限**：`budget: low` 最多 100 条（所有自动召回）；`mid`/`high` 仍是 300。
+- **客户端实际参数**：Hermes 和编码 agent 钩子都是 `types=[observation]`、`budget=low`、`max_tokens=2000`，每次返回 8～25 条。
+- **端到端**（实测记录）：走 Mac 时约 1.8～4 秒，走 Voyage 时约 0.6～0.9 秒，都在 Hermes 的 8 秒上限内。
+
+**历史**：
+
+- 2026-10-10～19 重排是本地的 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`（第一轮评估：中文 nDCG@5 0.20 → 0.79），见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md)。记忆转成英文后它的中文排序降到 0.649；记忆库变大后，不加类型过滤的召回要重排 300 条约 10 秒。
+- 2026-10-19 曾短暂以 Voyage 为首选（约半天），之后加上 Mac 作为首选。
+- 更早的 MiniLM-L6：300 个合成候选约 3.2～4.0 秒，真实召回约 7～8.4 秒；网关（N100）上要 66～68 秒，见[网关旧部署与经验教训](#网关旧部署与经验教训)。
 
 ### 模型缓存与离线模式
 
 - 嵌入模型 `BAAI/bge-small-en-v1.5` 和重排模型 `cross-encoder/ms-marco-MiniLM-L-6-v2` 是 HuggingFace 上的开源模型，共约 217 MB，在 CPU 本地运行。它们原先只存在于容器可写层的 `/home/hindsight/.cache/huggingface`，容器一重建就丢，而且每次启动都会联网检查更新。
 - 2026-10-10 05:50 UTC：用 `docker cp` 把缓存复制到 `/opt/hindsight/hf-cache/` 并挂载进容器，同时设置 `HF_HUB_OFFLINE=1` 和 `TRANSFORMERS_OFFLINE=1`，启动不再访问 HuggingFace。验证：容器约 20 秒内健康，RestartCount 0，召回正常（事故记录）。
-- 代价：以后要换别的本地模型，要么先在一次性容器里下载、再把模型目录复制进 `hf-cache/`（2026-10-10 换 mmarco 时的做法，离线开关不用动），要么临时去掉这两个变量让容器联网下载一次，步骤见运维指南的[重排与缓存](../guides/hindsight-operations.md#82-召回与重排)。缓存现在约 690 MB。
+- 2026-10-19 放入 `BAAI/bge-m3`（约 4.3 GB，含 PyTorch 和 safetensors 两份权重），并把它的 `sentence_bert_config.json` 从符号链接改成普通文件、`max_seq_length` 改为 1024。重新下载或覆盖这个模型目录时，这项修改会丢失，必须重新做（原因见运维指南第 8.2 节）。缓存现在约 5 GB。
+- 代价：以后要换别的本地模型，要么先在一次性容器里下载、再把模型目录复制进 `hf-cache/`（2026-10-10 换 mmarco 时的做法，离线开关不用动），要么临时去掉这两个变量让容器联网下载一次，步骤见运维指南的[重排与缓存](../guides/hindsight-operations.md#82-召回与重排)。
 
 ## 备份与逻辑导出
 
@@ -183,6 +198,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 - **技术事实**：`/opt/hindsight/data` 是运行中的 Postgres 数据目录，对它做文件级拷贝不保证崩溃一致性，不能当作备份手段。PVE 快照（`pct snapshot`）是存储层的快照，不是文件级拷贝；它给出的是崩溃一致的状态，恢复没有演练过，可恢复性仍以逻辑导出为准。
 - **逻辑导出与导入**（Hindsight 0.10.1 起提供，按 bank 操作，用法来自迁移记录）：导出是异步操作，产出 ZIP；导入用 multipart 上传 ZIP，`restore` 模式要求 `target_bank_id` 指定的目标库不存在，路径里则要放一个已存在的库来承载操作；导入时在目标端重新向量化，不调用 LLM、不消耗额度。本次从网关迁到 LXC 就是这样做的。请求格式、引导库、核对方法见运维指南的[逻辑导出与恢复](../guides/hindsight-operations.md#9-逻辑导出与跨主机迁移)。跨版本的归档要求版本兼容，升级前先看[上游 0.10.1 说明](https://hindsight.vectorize.io/blog/2026/09/22/move-a-memory-bank)和后续发布说明。
+- 2026-10-19 换嵌入模型时改用容器自带的 `hindsight-admin export-bank` / `import-bank`：10 个库约 5000 条，导入约 45 分钟。导入会分配新的记忆 ID，不恢复操作历史；两个大库的心智模型历史没有导入（导出包已删除，原始数据目录由用户删除）。步骤见运维指南第 9 节。
 - LXC 上没有 `backup/` 目录。任何覆盖整个 LXC 或 `/opt/hindsight` 的备份都会带上 `.env`（里面是 key）和 `codex/auth.json`（Codex 登录）。
 - 现有的 PVE 备份任务（每日 00:00 到 `pbs`，VMID 列表 100–109）不含 118；这只是一条事实，备份的安排由运维方决定。
 - 本文记录的导出/导入方法已在 Mac 到网关、网关到 LXC 两次迁移中用过并核对；对新机器自己导出文件的恢复演练没有记录。
@@ -202,7 +218,10 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 网页控制台 | 后端已修复，仍无登录 | 2026-10-10 把数据面地址指向 `http://127.0.0.1:9077`，`/api/banks` 返回 200；是否收紧由用户决定，见[网页控制台](#网页控制台) |
 | 容器日志轮转 | 已配置（2026-10-10） | `json-file`，`max-size: 20m`、`max-file: 5` |
 | 模型缓存与离线模式 | 已完成（2026-10-10） | `hf-cache/` 持久缓存加 `HF_HUB_OFFLINE=1`，见[模型缓存与离线模式](#模型缓存与离线模式) |
-| 多语言重排模型 | 已上线（2026-10-10） | 换成 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`，中文召回排序明显改善；嵌入模型仍是英文的 `bge-small-en-v1.5`，见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md) |
+| 多语言重排模型 | 已上线（2026-10-10），2026-10-19 降为回退 | 换成 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`，见[多语言重排模型评估](./hindsight-multilingual-reranker-evaluation.md)；现在是回退链的最后一级 |
+| LLM 输出统一为英文 | 已完成（2026-10-17） | `HINDSIGHT_API_LLM_OUTPUT_LANGUAGE: English`，227 条非中英文记忆已处理（翻译或重新生成观察），各库任务说明加了语言规则，见[LLM 与 Codex 登录](#llm-与-codex-登录) |
+| 多语言嵌入模型 bge-m3 | 已完成（2026-10-19） | 全库导出、清空、导入并重建向量；条数与迁移前一致；LXC 内存调到 8 GiB、容器 6 GiB，见[第二轮评估](./hindsight-rerank-embedding-evaluation-2026-10-19.md) |
+| 重排回退链 Mac → Voyage → mmarco | 已上线（2026-10-19） | Mac 上的 eeANE（LaunchAgent，`192.168.1.10:18090`，网关 DHCP 静态分配）；`budget: low` 候选上限 100；故障切换已在一次性容器里验证 |
 | 万兆交换机与网关 `eth2` 链路 | 重启后恢复，根因未确认 | 见[网络依赖与已知事故](#网络依赖与已知事故) |
 | 备份 | 由运维方另行规划 | 本文只记录逻辑导出的方法，见上一节 |
 | pve1 或 LXC 重启后的自动恢复 | 未验证 | 依赖 `onboot: 1`、`docker` 服务 enabled 和 `restart: unless-stopped` |
@@ -217,6 +236,8 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | host 网络与非特权 LXC | `network_mode: host` 是在 runc 1.3.4 下的变通办法；Docker 来自 Ubuntu 仓库，随 apt 更新，runc 行为变化可能让容器起不来。系统更新前建议先 `pct snapshot`。 |
 | key 分散在多处 | LXC 的 `.env`、Mac 的 `coding-agent.json` 和 `gateway-api-key`、CodeBuddy 各项目（当前 4 个）的 MCP 认证头，轮换时都要同步。 |
 | 明文 HTTP | key 与记忆内容在 LAN 内不加密；没有 TLS，也没有局域网外的访问路径，Mac 离开局域网就没有记忆。 |
+| 重排依赖 Mac 和 Voyage | Mac 关机、休眠或离开局域网时由 Voyage 完成，每次约 100 条候选原文发往美国；Voyage 账号需关闭“保存并用于训练”。eeANE 是个人维护的 GPL 项目，升级前要重新审阅。Mac 的 IP 依赖网关的静态分配和关闭“私有 Wi-Fi 地址”。 |
+| 绕过上游缺陷的设置 | litellm-sdk 重排不使用自己的超时，靠全局 `REQUEST_TIMEOUT: "3"` 限制；bge-m3 的长度上限改在模型缓存文件里。升级 Hindsight 或重新下载模型后都要复查。 |
 | 日志含记忆内容 | 容器日志已限制为 20 MB × 5 个文件；日志里仍有 bank 名和召回查询文本，对外粘贴前要脱敏。 |
 | 网关 `eth2` 与万兆交换机链路 | 所有 PVE 一侧的流量（含 Mac 到 LXC、LXC 到外网）都走这条链路；2026-10-10 下午它出过故障，根因没有确认，可能再发生。发生时 API 和控制台时通时断，LXC 的 LLM 调用也会失败，见[网络依赖与已知事故](#网络依赖与已知事故)。 |
 | 离线模式 | `HF_HUB_OFFLINE=1` 下缓存缺失会让容器起不来；`hf-cache/` 不要删除或移动，换本地模型要先临时关闭离线开关。 |
@@ -276,6 +297,7 @@ LXC 118 由操作者在 2026-10-10 通过 `pct` 和 SSH 手工创建并部署，
 
 ## 相关文档
 
+- [重排与嵌入第二轮评估](./hindsight-rerank-embedding-evaluation-2026-10-19.md)：托管与本地重排、候选池大小、嵌入模型的对比，以及 2026-10-19 的上线结果。
 - [Hindsight 运维指南](../guides/hindsight-operations.md)：LXC 管理、升级回滚、轮换 key、Codex 登录续期、召回性能、迁移与导出、控制台、排障。
 - [Proxmox 双节点与 N100 QDevice 架构](./proxmox-qdevice-architecture.md)：Hindsight 曾经与见证共用的 N100，及其维护约束。
 - [CN 出口代理指南](../guides/cn-exit-singbox-proxy.md)：网关上另一个 Docker 工作负载及其运维写法。
