@@ -238,7 +238,7 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 | 层 | 当前配置 | 说明 |
 |---|---|---|
 | LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 8192`（2026-10-19 前是 4096）、`swap: 512`、rootfs 24G、`cpuunits: 1024` | 调整办法见第 4 节 |
-| 容器 | `mem_limit: 6g`（2026-10-19 前是 3g）、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（那是网关上为保护其他服务设置的）；bge-m3 比原来的嵌入模型多占约 2.3 GiB，运行时约 3.3 GiB |
+| 容器 | `mem_limit: 6g`（2026-10-19 前是 3g）、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（那是网关上为保护其他服务设置的）；bge-m3 比原来的嵌入模型多占约 2.3 GiB；线上实测约 3.3 GiB（2026-10-19 迁移后的 `docker stats`，bge-m3 和常驻的 mmarco 都已加载） |
 | pve1 | 6 核 6 线程，内存 32 GB，可用约 8 GB，swap 8 GiB | 同机还有 funasr（12 GiB）、home-assistant、PDM、openbao-testbed×2 和 fileserver LXC；`Windows11`（配置 16 GiB）已停止 |
 
 ### 8.2 召回与重排

@@ -166,7 +166,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 |---|---|---|
 | pve1 | 6 核 6 线程，内存 32 GB，可用约 8 GB，swap 8 GiB | 同机还有 VM 112/113（各 4 GiB）、114（4 GiB）、115 `funasr`（12 GiB）、117（4 GiB）和 LXC 111；VM 116 `Windows11`（配置 16 GiB）已停止，它的配置内存大于当前可用内存，能否与现有来宾同时运行没有验证 |
 | LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 8192`（2026-10-19 前是 4096）、`swap: 512`，rootfs 24G | 容器里 `nproc` 为 6；pve1 一天平均 CPU 约 2%，其他来宾按 `cpuunits` 分配。调到 6 核后 144 个候选的重排从约 3.0 秒降到约 2.5 秒（实测记录） |
-| 容器 | `mem_limit: 6g`（2026-10-19 前是 3g）、`shm_size: 1g` | 运行时约 3.3 GiB（bge-m3 嵌入加常驻的 mmarco）；没有 `cpus`、`cpu_shares`、`oom_score_adj`（这三项是网关上为保护其他服务设置的，见历史） |
+| 容器 | `mem_limit: 6g`（2026-10-19 前是 3g）、`shm_size: 1g` | 线上实测约 3.3 GiB（2026-10-19 迁移后的 `docker stats`，bge-m3 嵌入和常驻的 mmarco 都已加载）；没有 `cpus`、`cpu_shares`、`oom_score_adj`（这三项是网关上为保护其他服务设置的，见历史） |
 | 用户 Mac（MacBook Air M4） | eeANE 常驻约 0.5 GB 内存，用神经网络引擎 | 第 0 号重排成员；Mac 关机或离开局域网时自动由 Voyage 接替 |
 
 ### 召回与重排性能（调优记录、实测记录）
