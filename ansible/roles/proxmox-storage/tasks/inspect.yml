@@ -1,0 +1,76 @@
+---
+- name: Validate storage policy targets
+  ansible.builtin.assert:
+    that:
+      - proxmox_storage_vm_disk.vmid | int > 0
+      - proxmox_storage_vm_disk.name | length > 0
+      - proxmox_storage_vm_disk.disk | length > 0
+      - proxmox_storage_vm_disk.volume | length > 0
+      - proxmox_storage_vm_disk.dataset | length > 0
+
+- name: Read Proxmox node identity
+  ansible.builtin.command: hostname
+  register: proxmox_storage_node
+  changed_when: false
+  check_mode: false
+
+- name: Verify Proxmox node identity
+  ansible.builtin.assert:
+    that:
+      - proxmox_storage_node.stdout == inventory_hostname
+
+- name: Read existing VM configuration
+  ansible.builtin.command:
+    argv:
+      - pvesh
+      - get
+      - "/nodes/{{ inventory_hostname }}/qemu/{{ proxmox_storage_vm_disk.vmid }}/config"
+      - --output-format
+      - json
+  register: proxmox_storage_vm_read
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Parse existing VM configuration
+  ansible.builtin.set_fact:
+    proxmox_storage_vm_config:
+      name: "{{ proxmox_storage_raw_config.name }}"
+      disk: "{{ proxmox_storage_raw_config[proxmox_storage_vm_disk.disk] }}"
+      locked: "{{ proxmox_storage_raw_config.lock is defined }}"
+  vars:
+    proxmox_storage_raw_config: "{{ proxmox_storage_vm_read.stdout | from_json }}"
+  no_log: true
+
+- name: Verify existing VM and disk identities
+  ansible.builtin.assert:
+    that:
+      - proxmox_storage_vm_config.name == proxmox_storage_vm_disk.name
+      - proxmox_storage_vm_config.disk.split(',')[0] == proxmox_storage_vm_disk.volume
+      - not proxmox_storage_vm_config.locked
+
+- name: Read existing VM disk path
+  ansible.builtin.command:
+    argv: [pvesm, path, "{{ proxmox_storage_vm_disk.volume }}"]
+  register: proxmox_storage_vm_path
+  changed_when: false
+  check_mode: false
+
+- name: Read existing VM disk ZFS properties
+  ansible.builtin.command:
+    argv: [zfs, get, -H, -p, -o, "property,value", "type,volsize,refreservation", "{{ proxmox_storage_vm_disk.dataset }}"]
+  register: proxmox_storage_zvol_read
+  changed_when: false
+  check_mode: false
+
+- name: Parse existing ZFS properties
+  ansible.builtin.set_fact:
+    proxmox_storage_zvol: "{{ dict(proxmox_storage_zvol_read.stdout_lines | map('split')) }}"
+
+- name: Verify existing VM disk dataset
+  ansible.builtin.assert:
+    that:
+      - proxmox_storage_zvol.type == 'volume'
+      - proxmox_storage_zvol.volsize | int > 0
+      - proxmox_storage_vm_path.stdout == '/dev/zvol/' + proxmox_storage_vm_disk.dataset
+    fail_msg: The existing VM disk and ZFS dataset identities must match.

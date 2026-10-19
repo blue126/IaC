@@ -42,6 +42,12 @@ resource "netbox_device" "pve0" {
   site_id        = netbox_site.homelab.id
   cluster_id     = netbox_cluster.homelab.id
   status         = "active"
+
+  lifecycle {
+    ignore_changes = [
+      custom_fields # automation input; NetBox is authoritative (webhook routes on this)
+    ]
+  }
 }
 
 resource "netbox_device_interface" "pve0_vmbr0" {
@@ -79,6 +85,12 @@ resource "netbox_device" "pve1" {
   site_id        = netbox_site.homelab.id
   cluster_id     = netbox_cluster.homelab.id
   status         = "active"
+
+  lifecycle {
+    ignore_changes = [
+      custom_fields # automation input; NetBox is authoritative (webhook routes on this)
+    ]
+  }
 }
 
 resource "netbox_device_interface" "pve1_vmbr0" {
@@ -121,6 +133,12 @@ resource "netbox_device" "pve2" {
   role_id        = netbox_device_role.server.id
   site_id        = netbox_site.homelab.id
   status         = "active"
+
+  lifecycle {
+    ignore_changes = [
+      custom_fields # automation input; NetBox is authoritative (webhook routes on this)
+    ]
+  }
 }
 
 resource "netbox_device_interface" "pve2_vmbr0" {
