@@ -35,8 +35,8 @@
         fail_msg: "❌ Docker service is not active and running"
 
     - name: Check legacy n8n service state
-      ansible.builtin.command:
-        cmd: systemctl is-active n8n
+      ansible.builtin.systemd_service:
+        name: n8n
       register: legacy_n8n_service_state
       changed_when: false
       failed_when: false
@@ -44,7 +44,7 @@
     - name: Assert legacy n8n service is not active
       ansible.builtin.assert:
         that:
-          - legacy_n8n_service_state.stdout != "active"
+          - legacy_n8n_service_state.status.ActiveState | default('unknown', true) != "active"
         success_msg: "✅ Legacy npm/systemd n8n service is stopped"
         fail_msg: "❌ Legacy npm/systemd n8n service is still active"
 
