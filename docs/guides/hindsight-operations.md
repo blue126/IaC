@@ -1,6 +1,6 @@
 # Hindsight 运维指南（pve1 LXC 118）
 
-**更新日期**：2026-10-10；**状态**：现行。Hindsight 已于 2026-10-10 从网关搬到 pve1 上的 LXC 118（`192.168.1.118`），Claude Code、Codex、CodeBuddy 已切换到新地址；网关上的旧部署已由用户删除。网页控制台**没有登录**（后端地址已修好，第 10 节）。当天下午万兆交换机故障造成过崩溃重启，已加离线模式和持久模型缓存（第 8.2 节、第 11 节）。Hermes 已接入（第 13 节）。备份由运维方另行规划，本文只记录逻辑导出的方法。架构、网络与未验证边界见 [Hindsight 共享记忆服务架构](../architecture/hindsight-memory-architecture.md)。
+**更新日期**：2026-10-19；**状态**：现行。Hindsight 已于 2026-10-10 从网关搬到 pve1 上的 LXC 118（`192.168.1.118`），Claude Code、Codex、CodeBuddy 已切换到新地址；网关上的旧部署已由用户删除。网页控制台**没有登录**（后端地址已修好，第 10 节）。当天下午万兆交换机故障造成过崩溃重启，已加离线模式和持久模型缓存（第 8.2 节、第 11 节）。Hermes 已接入（第 13 节）。2026-10-19 起嵌入模型是多语言的 `BAAI/bge-m3`，重排走回退链 Mac 上的 eeANE → Voyage → 本地 mmarco（第 8.2 节、第 16 节）。备份由运维方另行规划，本文只记录逻辑导出的方法。架构、网络与未验证边界见 [Hindsight 共享记忆服务架构](../architecture/hindsight-memory-architecture.md)。
 
 > 本文是操作参考，不构成对任何变更的授权。会改变 LXC、容器或客户端状态的步骤（启停、快照回滚、升级、轮换 key、重做 Codex 登录、改端口或防火墙、导出与导入、修改 `compose.yaml`）须先得到用户明确同意；只读检查可以直接执行。pve1 是 Proxmox 集群节点，其上的 `pct`、防火墙和存储操作影响同机的其他来宾，网关承担家庭路由和 PVE 见证，二者的变更都须事先获得明确授权。
 >
@@ -15,10 +15,10 @@
 | 路径 | 作用 | 权限 | 说明 |
 |---|---|---|---|
 | `compose.yaml` | 服务定义，Compose 项目名 `hindsight`；`network_mode: host`、端口、重排线程数、离线模式、日志轮转等设置 | 644 root | 不含密钥，**不要把 key 写进它**；改动后用 `docker compose up -d` 生效 |
-| `.env` | 两个密钥变量：`HINDSIGHT_API_TENANT_API_KEY`、`HINDSIGHT_CP_DATAPLANE_API_KEY` | 600 root | key 只放这里；值不入库、不打印；两个必须一致 |
+| `.env` | 密钥变量：`HINDSIGHT_API_TENANT_API_KEY`、`HINDSIGHT_CP_DATAPLANE_API_KEY`（两个必须一致），以及重排用的 `HINDSIGHT_API_RERANKER_COHERE_API_KEY`（Mac 上 eeANE 的 key）和 `HINDSIGHT_API_RERANKER_1_LITELLM_SDK_API_KEY`（Voyage） | 600 root | key 只放这里；值不入库、不打印 |
 | `data/` | 内置 Postgres（pg0）的数据目录，挂载到容器 `/home/hindsight/.pg0` | 755，属主 UID/GID 1000 | 运行中的数据库目录；不要直接做文件级拷贝当备份 |
 | `codex/` | 这台机器自己的 Codex 登录，挂载到容器 `/home/hindsight/.codex`（读写） | 700，属主 1000:1000 | 里面的 `auth.json`（600，1000:1000）是登录凭据，不入库、不打印、不拷到别处 |
-| `hf-cache/` | 嵌入与重排模型的缓存，挂载到容器 `/home/hindsight/.cache/huggingface`（约 690 MB：嵌入 bge-small-en-v1.5、重排 mmarco-mMiniLMv2-L12，以及回滚用的 MiniLM-L6） | 755，属主 UID/GID 1000 | 离线模式依赖它；不要删除或移动，换模型的步骤见第 8.2 节 |
+| `hf-cache/` | 嵌入与重排模型的缓存，挂载到容器 `/home/hindsight/.cache/huggingface`（约 5 GB：嵌入 bge-m3（约 4.3 GB，含两份权重格式）、回退重排 mmarco-mMiniLMv2-L12，以及不再使用的 bge-small-en-v1.5 和 MiniLM-L6） | 755，属主 UID/GID 1000 | 离线模式依赖它；不要删除或移动，换模型的步骤见第 8.2 节 |
 
 目录里没有 `models/`（重排模型从 `hf-cache/` 加载）和 `backup/`。改 `compose.yaml` 前会留下 `compose.yaml.bak-<时间>`（644 root），验证无误后可以删除。Mac 上的客户端 key 存放在 `~/.hindsight/coding-agent.json` 和 `~/.hindsight/gateway-api-key`（都是 600；后者文件名里的 gateway 是历史遗留）。客户端配置见架构文档的[客户端切换记录](../architecture/hindsight-memory-architecture.md#部署与迁移记录)。
 
@@ -237,39 +237,50 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 
 | 层 | 当前配置 | 说明 |
 |---|---|---|
-| LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 4096`、`swap: 512`、rootfs 24G、`cpuunits: 1024` | 调整办法见第 4 节 |
-| 容器 | `mem_limit: 3g`、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（那是网关上为保护其他服务设置的）；LXC 本身只有 4 GiB，容器上限给了 3 GiB |
+| LXC 118 | `cores: 6`（2026-10-10 前是 4）、`memory: 8192`（2026-10-19 前是 4096）、`swap: 512`、rootfs 24G、`cpuunits: 1024` | 调整办法见第 4 节 |
+| 容器 | `mem_limit: 6g`（2026-10-19 前是 3g）、`shm_size: 1g` | 没有 `cpus`、`cpu_shares`、`oom_score_adj`（那是网关上为保护其他服务设置的）；bge-m3 比原来的嵌入模型多占约 2.3 GiB；线上实测约 3.3 GiB（2026-10-19 迁移后的 `docker stats`，bge-m3 和常驻的 mmarco 都已加载） |
 | pve1 | 6 核 6 线程，内存 32 GB，可用约 8 GB，swap 8 GiB | 同机还有 funasr（12 GiB）、home-assistant、PDM、openbao-testbed×2 和 fileserver LXC；`Windows11`（配置 16 GiB）已停止 |
 
 ### 8.2 召回与重排
 
-重排用多语言模型 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`（2026-10-10 13:55 UTC 起；之前的英文模型 `ms-marco-MiniLM-L-6-v2` 对中文查询排序很差），候选上限仍是默认的 300（`budget: low` 实际约 130~150 个）。选型和对比见[多语言重排模型评估](../architecture/hindsight-multilingual-reranker-evaluation.md)。设置在 `compose.yaml`：
+2026-10-19 起的设置。选型、对比数据和淘汰原因见[重排与嵌入第二轮评估](../architecture/hindsight-rerank-embedding-evaluation-2026-10-19.md)（第一轮见[多语言重排模型评估](../architecture/hindsight-multilingual-reranker-evaluation.md)）。
+
+**嵌入**：`HINDSIGHT_API_EMBEDDINGS_LOCAL_MODEL: BAAI/bge-m3`（1024 维，在 LXC 的 CPU 上每次查询约 80 毫秒）。它的 `max_seq_length` 在模型缓存里从默认的 8192 改成了 1024：文件是 `hf-cache/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181/sentence_bert_config.json`（原来是指向 blob 的符号链接，现在是普通文件）。不要改回 8192：给很长的心智模型生成向量时单进程要 6～7.6 GB，2026-10-19 导入时被 OOM 杀掉过两次。换嵌入模型必须重建全部向量，步骤见第 9 节。
+
+**重排回退链**（`compose.yaml`，从上到下依次尝试）：
+
+| 成员 | 设置 | 说明 |
+|---|---|---|
+| 0：Mac 上的 eeANE | `HINDSIGHT_API_RERANKER_PROVIDER: cohere`、`..._COHERE_BASE_URL: http://192.168.1.10:18090/v1/rerank`（完整的重排地址）、`..._COHERE_MODEL: bge-m3`、`..._COHERE_TIMEOUT: "5"`；key 是 `.env` 里的 `HINDSIGHT_API_RERANKER_COHERE_API_KEY` | bge-reranker-v2-m3 跑在 Mac 的神经网络引擎上，100 条候选约 2.3 秒。超时按阶段计算（连接、每次读取各 5 秒）；Mac 关机或离开局域网时约 3 秒连接失败，然后交给成员 1。服务的运维见第 16 节 |
+| 1：Voyage | `HINDSIGHT_API_RERANKER_1_PROVIDER: litellm-sdk`、`..._1_LITELLM_SDK_MODEL: voyage/rerank-3-lite`；key 是 `.env` 里的 `HINDSIGHT_API_RERANKER_1_LITELLM_SDK_API_KEY` | 约 0.4～0.7 秒；会把候选原文发到 Voyage（美国）。litellm-sdk 重排不使用自己的 TIMEOUT 设置（0.10.2），所以用全局的 `REQUEST_TIMEOUT: "3"` 限制；本机只有这个成员用 litellm |
+| 2：本地 mmarco | `HINDSIGHT_API_RERANKER_2_PROVIDER: local`、`..._2_LOCAL_MODEL: cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`、`..._2_LOCAL_BUCKET_BATCHING: "true"`、`..._2_LOCAL_MAX_CONCURRENT: "1"` | 100 条候选约 3 秒，常驻内存 |
+
+其他相关设置：
 
 | 设置 | 值 | 作用 |
 |---|---|---|
-| `HINDSIGHT_API_RERANKER_LOCAL_MODEL` | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` | 多语言重排模型；删掉这一行就回到镜像默认的 MiniLM-L6（仍在缓存里，可直接回滚） |
-| `OMP_NUM_THREADS`、`MKL_NUM_THREADS` | `6` | 与 LXC 的核数一致；线程数大于核数会被限流 |
-| `HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING` | `true` | 分桶批处理；300 个合成候选从约 4.0 秒降到约 3.2 秒 |
-| `HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT` | `1` | 本地重排的最大并发（变量名含义；调优记录没有单独说明收益） |
+| `HINDSIGHT_API_RERANKER_RETRY_BUDGET` | `"1"` | 远程重排失败后最多再重试 1 秒，避免拖过 Hermes 的 8 秒上限 |
+| `HINDSIGHT_API_RERANKER_MAX_CANDIDATES_LOW` | `"100"` | `budget: low`（所有自动召回）最多重排 100 条候选；`mid`/`high` 仍是默认的 300 |
+| `OMP_NUM_THREADS`、`MKL_NUM_THREADS` | `6` | 与 LXC 的核数一致 |
 | `HF_HUB_OFFLINE`、`TRANSFORMERS_OFFLINE` | `"1"` | 启动时不访问 HuggingFace，只用本地缓存（2026-10-10 起） |
 
-**模型缓存**：嵌入模型 `BAAI/bge-small-en-v1.5` 和重排模型的文件在 `/opt/hindsight/hf-cache/`（约 690 MB，挂载到容器的 `/home/hindsight/.cache/huggingface`）。离线模式下缓存缺失会让容器起不来，所以不要删除或移动它。起因：网络故障时启动检查模型失败，容器崩溃重启 4 次（第 11 节、架构文档的[事故记录](../architecture/hindsight-memory-architecture.md#网络依赖与已知事故)）。
+注意：
 
-要换别的本地模型（需用户同意），有两种办法。一是先在一次性容器里把模型下载到临时缓存（第 8.3 节），再把 `hub/models--<组织>--<模型>` 目录 `cp -a` 进 `hf-cache/hub/` 并 `chown -R 1000:1000`，然后改 `compose.yaml`、`docker compose up -d`，离线开关不用动（2026-10-10 换 mmarco 就是这样做的）。二是直接让线上容器下载：确认 LXC 能上网；先 `cp -p compose.yaml compose.yaml.bak-$(date +%Y%m%d-%H%M%S)`，把两个离线变量临时改成 `"0"`，`docker compose config --quiet`，`docker compose up -d`，等日志里模型下载完、`/health` 返回 200；再改回 `"1"` 并 `docker compose up -d`。缓存会写进 `hf-cache/`。
-
-实测记录（mmarco，2026-10-10）：40 条真实查询、每条约 130~150 个候选，重排中位数 3.7 秒、最长 4.7 秒，召回端到端最长 4.8 秒；容器内存约 1.6 GiB。限制候选数（`HINDSIGHT_API_RERANKER_MAX_CANDIDATES_LOW`）会降低中文质量，目前不设，只有召回明显变慢时才考虑设 100。
-
-以下是换模型前 MiniLM-L6 的实测记录：300 个合成候选 fp32 打分约 4.0 秒，开分桶批处理约 3.2 秒，3 线程 3.8~4.8 秒；真实召回约 7~8.4 秒（真实候选文本比基准更长）；reflect 约 5 秒。网关（N100）上同一模型要 66~68 秒，所以网关上当时换了更小的 TinyBERT-L-2，代价是排序质量下降；那套做法和对比见架构文档的[经验教训](../architecture/hindsight-memory-architecture.md#网关旧部署与经验教训)，在这台机器上不需要。
+- **按序号的成员不继承主配置**：第 n 个成员的每项设置都要带 `_n_` 前缀单独写，包括 key。调整回退链的顺序时，`.env` 里 key 的变量名也要跟着改。
+- **离线模式与模型缓存**：缓存缺失会让容器起不来，不要删除或移动 `hf-cache/`（起因见第 11 节、架构文档的[事故记录](../architecture/hindsight-memory-architecture.md#网络依赖与已知事故)）。要放入新模型（需用户同意），先在一次性容器里下载到临时缓存（第 8.3 节），再把 `hub/models--<组织>--<模型>` 目录 `cp -a` 进 `hf-cache/hub/` 并 `chown -R 1000:1000`，然后改 `compose.yaml`、`docker compose up -d`。
+- **实测记录（2026-10-19）**：客户端参数（`types=[observation]`、`budget=low`、`max_tokens=2000`）下，召回走 Mac 时端到端约 1.8～4 秒，走 Voyage 时约 0.6～0.9 秒；Mac 关机时约 3.5 秒后由 Voyage 完成。
 
 ### 8.3 做实验的约束
 
-不要在 LXC 里做会瞬间占用大量内存或 CPU 的实验：它和生产容器共用同一个 4 GiB 的 LXC，实验失控可能触发 LXC 内的内存耗尽，把 Hindsight 一起带走。确实要做，用带 `--memory` 和 `--oom-score-adj` 限制的一次性容器（需用户同意）。这个 LXC 里 `docker run` 同样需要 `--network host`（第 11 节），下面的写法没有在 LXC 里实测：
+不要在 LXC 里做会瞬间占用大量内存或 CPU 的实验：它和生产容器共用同一个 8 GiB 的 LXC，实验失控可能触发 LXC 内的内存耗尽，把 Hindsight 一起带走。确实要做，用带 `--memory` 和 `--oom-score-adj` 限制的一次性容器（需用户同意）。这个 LXC 里 `docker run` 同样需要 `--network host`（第 11 节），下面的写法没有在 LXC 里实测：
 
 ```bash
 # Throwaway experiment container: hard memory cap, first in line for the OOM killer.
 # Keep --memory well below the LXC's free memory (check free -m first) and use small batches.
 # 1g is enough for small models only: torch + transformers imports take ~0.4 GB, so a 118M-param
 # reranker needs ~2g (mmarco peaked at 1.7 GB) and bge-reranker-v2-m3 ~3g (2026-10-10 measurements).
+# Loading bge-m3 embeddings next to an import needs ~3.5g; an import of a bank with very long mental models
+# OOM-killed at the 8 GiB LXC limit before max_seq_length was capped (2026-10-19).
 docker run --rm --network host --memory 1g --memory-swap 1g --oom-score-adj 1000 --cpus 2 \
   --entrypoint python ghcr.io/vectorize-io/hindsight:0.10.2 \
   -c '<small test script>'
@@ -337,6 +348,28 @@ hs_curl -m 600 -X POST "${base}/<bootstrap-bank>/transfer/import?mode=restore&ta
 3. 核对：hermes 422 条/18 个文档，IaC 420 条/7 个文档，文档和知识页都完全一致；后台整理收敛后 hermes 433 条/19 个文档，IaC 420 条/7 个文档。
 4. 把客户端地址改到新机器，各做一次读写验证，确认新写入只进新机器、旧网关没有收到新文档；然后在网关上 `docker compose stop` 旧部署。
 
+
+**换嵌入模型（`hindsight-admin`，2026-10-19 换 bge-m3 的做法）**
+
+维度变化时 Hindsight 拒绝启动（数据库里的向量维度与模型不符），只能导出、清空、用新模型导入。容器里自带命令行工具 `hindsight-admin`，比 HTTP 接口方便：`export-bank -b <库> -o <zip> --include-history`、`import-bank --archive <zip>`。导入时用当前配置的嵌入模型重新生成向量，不调用 LLM。
+
+1. **演练**（服务照常运行）：用 `docker exec hindsight hindsight-admin export-bank …` 导出一个小库，再在一次性容器里用单独的 pg0 实例（例如 `HINDSIGHT_API_DATABASE_URL=pg0://importtest:55432`，数据目录挂到临时目录，属主 1000）和 `HINDSIGHT_API_LLM_PROVIDER=mock` 试导入，测速度并用召回核对。这份导出只用于演练，不用于正式迁移。
+2. **进入维护窗口**：通知用户在迁移期间不要使用 Hermes 和编码 agent（服务停止后客户端的写入会直接失败，不会排队补写）；确认各库 `GET /v1/default/banks/{bank_id}/stats` 的 `pending_operations` 为 0，即后台整理已经完成。
+3. **停服务**：`docker compose stop`。从这里开始到第 7 步验证结束，数据库不会再有任何写入。
+4. **在服务停止时做最终导出**：逐库运行 `docker compose run --rm --no-deps -v <导出目录>:/exports --entrypoint hindsight-admin hindsight export-bank -b <库> -o /exports/<库>.zip --include-history`（导出目录属主 1000，之后 `chmod 700`，并复制一份到 Mac）。把每个库导出时输出的文档、事实、观察数量记下来，作为第 7 步的核对基准。
+5. 把 `data/` 改名保留作回滚（不要删）；建新的空 `data/`（属主 1000:1000）；把新模型放进 `hf-cache/`；改 `compose.yaml`（模型、必要时调 `mem_limit`）。
+6. **在服务停止时**逐库导入：`docker compose run --rm --no-deps -v <导出目录>:/archives:ro --entrypoint hindsight-admin hindsight import-bank --archive /archives/<库>.zip --include-history`。服务开着时客户端可能先把空库建出来，导致导入被拒。
+7. `docker compose up -d`，核对每个库的数量与第 4 步的基准一致，再用客户端参数召回几次；验证通过后结束维护窗口。
+8. 回滚：停服务，换回原来的 `data/` 和 `compose.yaml.bak-<时间>`，`docker compose up -d`。
+
+注意（2026-10-19 实测）：
+
+- 全部 10 个库约 5000 条，导入用了约 45 分钟；单库 35 秒～11 分钟。
+- 2026-10-19 实际是在服务停止前约 2 分钟做的最终导出（`docker exec`），中间有一个短暂的写入窗口；上面的步骤改为停服后再导出，以消除这个窗口。`docker compose run` 方式的导出与导入用的是同一套启动流程（导入已实测），但导出这一步本身没有实测过。
+- 导入会给每条记忆分配**新的 ID**，也**不恢复操作历史**（审计日志、LLM 请求记录）。
+- 心智模型的正文可能有十几万字符；嵌入模型的最大长度过大时，导入会在心智模型这一步被 OOM 杀掉，而且被杀的进程不留错误信息（看 pve1 的 `journalctl -k` 才能确认）。先把 `max_seq_length` 限制好（第 8.2 节）。
+- 服务运行时也可以单独补导入一个库：一次性容器设 `HINDSIGHT_API_DATABASE_URL` 指向线上数据库 `postgresql://…@127.0.0.1:5432/hindsight`（连接串在容器里用 `hindsight_api.pg0.resolve_database_url("pg0")` 取得，写进权限 600 的 env 文件，不要打印），加 `--memory` 上限，不会和线上的 pg0 抢数据目录。目标库必须不存在，删除库需要用户同意。
+
 ## 10. 网页控制台
 
 - **地址与功能**：`http://192.168.1.118:19077/`（页面标题 Hindsight Control Plane），用来查看库、事实、知识页等（部署记录）。它只用来查看和操作记忆数据；镜像里没有 Mac 上 hindsight-embed 那种带配置向导的“控制中心”，容器配置只能改 `compose.yaml`。
@@ -376,7 +409,9 @@ host 网络下不能再用 `ports: 127.0.0.1:19077:9999` 这种写法，可选�
 | LXC 连不上 | 在 pve1 上 `pct status 118`；`ip -br addr`（用 `pct enter 118`）看 `192.168.1.118/24`；Mac 上 `ping 192.168.1.118` | LXC 没起来就 `pct start 118`（需要用户同意）；起来了仍不通就看 pve1 的 `vmbr1` 和网关 |
 | Mac 上 Agent 没有记忆但也不报错 | Mac 是否在局域网、能否访问 `192.168.1.118:9077`；客户端配置是否指向新地址；key 是否一致（第 6 节） | 离开局域网时 hooks 和 MCP 静默跳过，不影响 Agent 本身；回到局域网即恢复。局域网内也连不上时先按上面“延迟高或丢包”一行检查网络 |
 | 导入被拒绝，或提示库已存在、库不存在 | 路径里的引导库是否存在（必须已存在）；`target_bank_id` 指定的库是否已经存在（必须不存在） | 见第 9 节：先建引导库，目标库换名或在获得同意后删除 |
-| 容器反复重启，或 `OOMKilled` 为 true | `docker inspect` 的状态字段、`docker stats`、LXC 的 `free -m`；pve1 上 `dmesg` 里有无 OOM 记录 | 容器上限 3 GiB，LXC 总共 4 GiB：减少并发和大批量操作；需要更多内存就按第 4 节调整 LXC，再调整 `mem_limit` |
+| 容器反复重启，或 `OOMKilled` 为 true | `docker inspect` 的状态字段、`docker stats`、LXC 的 `free -m`；pve1 上 `journalctl -k \| grep -i oom` | 容器上限 6 GiB，LXC 总共 8 GiB：减少并发和大批量操作；确认 bge-m3 的 `max_seq_length` 仍是 1024（第 8.2 节）；需要更多内存就按第 4 节调整 LXC，再调整 `mem_limit` |
+| 召回比平时慢 2～3 秒，或日志里有 `Reranker member 0 (cohere) failed` | Mac 是否开机、在不在局域网、能否访问 `http://192.168.1.10:18090/health`；Mac 上的 LaunchAgent 状态（第 16 节） | Mac 不在线时自动由 Voyage 完成，不影响使用；Mac 在线仍失败就按第 16 节检查 eeANE |
+| 日志里有 `Reranker member 1 (litellm-sdk) failed` | Voyage 的 key 是否还在 `.env` 里（变量名带 `_1_`）；LXC 能否访问互联网 | 第 1、2 号成员都失败时由 mmarco 完成，召回仍可用 |
 | 磁盘空间告警 | `df -h /`；`du -sh /opt/hindsight/*` | 先清理过期的升级备份文件；`data/` 和 `codex/` 不要动 |
 
 ## 12. 旧部署与网关环境
@@ -470,3 +505,36 @@ ssh root@192.168.1.1 'docker exec hermes hermes -p homelab-admin memory status |
 ## 15. 计划中、尚未实施的操作
 
 Hermes 已接入（第 13 节），网关容器的 gateway 进程未重启，消息通道的第一条消息需要在日志里确认；网页控制台后端已修好，是否收紧访问（第 10 节）由用户决定；万兆交换机和网关 `eth2` 链路故障的根因未确认（第 11 节）。前置条件和状态见架构文档的[实施状态与待办](../architecture/hindsight-memory-architecture.md#实施状态与待办)。这些操作开始之前，本文相应章节需要补充实际步骤和验证结果；状态变化后也要回写。
+
+## 16. Mac 上的重排服务（eeANE，2026-10-19 起）
+
+重排回退链的第 0 号成员。它在用户的 MacBook Air（M4）上运行 [eeANE](https://github.com/xhighhongo41/eeANE) 1.7.0，把 `BAAI/bge-reranker-v2-m3` 编译成 Core ML 模型跑在神经网络引擎上，对外提供兼容 Cohere/Infinity 的 `/v1/rerank`。eeANE 是 GPL-3.0 的个人项目，安装前审阅过源码。
+
+| 项目 | 位置或设置 |
+|---|---|
+| 地址 | `192.168.1.10:18090`（网关 DHCP 静态分配 `macbook_air`，绑定 Mac 的硬件 Wi-Fi 地址；家里网络的“私有 Wi-Fi 地址”已关闭，否则静态分配会失效） |
+| 程序 | `~/.local/share/eeane/venv`（独立的 Python 3.12 环境，只装了 `eeane==1.7.0`，不含编译工具） |
+| 模型 | `~/.local/share/eeane/compiled/bge-m3/`：批大小 1，档位 128/192/256/320/384/512，每档约 1.1 GB；另有一个占位用的小嵌入模型（eeANE 要求至少配置一个嵌入模型才能启动，按需加载，平时不占内存） |
+| 配置 | `~/.config/eeane/eeane.toml`（600）：`host = "0.0.0.0"`、`port = 18090`、`api_key`（随机生成，同一个值在 LXC `.env` 的 `HINDSIGHT_API_RERANKER_COHERE_API_KEY`）、重排模型 `load_policy = "resident"`、显式列出各档位的路径 |
+| 自启动 | LaunchAgent `~/Library/LaunchAgents/local.eeane.reranker.plist`（`RunAtLoad`、`KeepAlive`） |
+| 日志 | `~/Library/Logs/eeane.log`（每次请求一行：条数、各档位分布、耗时） |
+| 资源 | 常驻约 0.5 GB 内存；冷加载约 27 秒，所以设为常驻 |
+
+```bash
+# Health (no key needed): expect "loaded": true for bge-m3
+curl -s http://127.0.0.1:18090/health
+# Service state and restart
+launchctl print gui/$(id -u)/local.eeane.reranker | grep -E 'state|pid|last exit'
+launchctl kickstart -k gui/$(id -u)/local.eeane.reranker
+# Recent requests: inputs per request, bucket mix, elapsed_ms
+grep 'POST /v1/rerank inputs' ~/Library/Logs/eeane.log | tail -5
+```
+
+- **从 LXC 验证**：不带 key 请求 `/v1/rerank` 应返回 401；带 key 的验证不要把 key 写进命令行历史（从文件或标准输入读取）。
+- **轮换 key**：生成新值，同时改 Mac 的 `eeane.toml` 和 LXC 的 `.env`，然后 `launchctl kickstart -k …` 并在 LXC 上 `docker compose up -d`。
+- **停用**（需用户同意）：`launchctl bootout gui/$(id -u)/local.eeane.reranker`；Hindsight 会自动退到 Voyage。要彻底去掉，把 `compose.yaml` 里第 0 号成员删掉、把 Voyage 和 mmarco 的序号前移（`.env` 里 Voyage key 的变量名也要改），再 `docker compose up -d`。
+- **重新编译或换档位**：编译需要 `eeane[compile]`（含 torch 2.7、transformers 4.57）和原始模型权重，在临时环境里做：`eeane compile <模型目录> --kind reranker --buckets 128,192,256,320,384,512 --out-dir <目录>`。注意：
+  - macOS 27 起神经网络引擎单个模型上限 1 GiB，eeANE 1.7.0 会自动拆分。
+  - 不要编译批大小大于 1 的重排模型，eeANE 的服务端只按 1 条喂给重排模型，批量版会报形状不符。
+  - 删掉某个档位后，缓存记录里仍登记着它，服务会拒绝启动，所以配置里要显式列出 `[models.artifacts]`。
+
