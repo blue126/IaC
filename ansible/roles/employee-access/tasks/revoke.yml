@@ -1,0 +1,27 @@
+---
+- name: Validate revoked device account scope
+  ansible.builtin.assert:
+    that: employee_revoke_account is match('^ed-[a-z0-9-]{1,25}$')
+
+- name: Clear revoked device authorization before terminating sessions
+  ansible.builtin.copy:
+    dest: "/etc/employee-access/authorized-keys/{{ employee_revoke_account }}"
+    content: ''
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Terminate both SSH legs for revoked device
+  ansible.builtin.command:
+    argv: [pkill, -KILL, -u, "{{ employee_revoke_account }}"]
+  register: employee_revoke_kill
+  changed_when: employee_revoke_kill.rc == 0
+  failed_when: employee_revoke_kill.rc not in [0, 1]
+
+- name: Remove revoked mapping and system credential
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/employee-access/devices/{{ employee_revoke_account }}.json"
+    - "/etc/employee-access/keys/{{ employee_revoke_account }}"

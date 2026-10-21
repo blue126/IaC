@@ -1,0 +1,36 @@
+---
+- name: Require a nonempty authoritative administrator key set
+  ansible.builtin.assert:
+    that:
+      - employee_admin_public_keys is sequence and employee_admin_public_keys is not string
+      - employee_admin_public_keys | length > 0
+      - employee_admin_public_keys | select('search', '[\r\n]') | list | length == 0
+      - employee_admin_user is match('^[a-z_][a-z0-9_-]{0,31}$')
+
+- name: Validate each administrator public key before changing authorization
+  ansible.builtin.command:
+    argv: [ssh-keygen, -l, -f, /dev/stdin]
+    stdin: "{{ item }}"
+  loop: "{{ employee_admin_public_keys }}"
+  changed_when: false
+  delegate_to: localhost
+  become: false
+
+- name: Locate the existing administrator home directory
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ employee_admin_user }}"
+
+- name: Create the existing administrator SSH directory
+  ansible.builtin.file:
+    path: "{{ ansible_facts.getent_passwd[employee_admin_user][4] }}/.ssh"
+    state: directory
+    owner: "{{ employee_admin_user }}"
+    mode: '0700'
+
+- name: Replace administrator authorization with the authoritative key set
+  ansible.builtin.copy:
+    dest: "{{ ansible_facts.getent_passwd[employee_admin_user][4] }}/.ssh/authorized_keys"
+    owner: "{{ employee_admin_user }}"
+    mode: '0600'
+    content: "{{ employee_admin_public_keys | join('\n') }}\n"

@@ -1,0 +1,28 @@
+network:
+  version: 2
+  ethernets:
+    employee-uplink:
+      match:
+        macaddress: '{{ employee_access_uplink_mac }}'
+      set-name: employee-uplink
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      addresses: ['{{ employee_access_uplink_address }}']
+      routes:
+        - to: default
+          via: '{{ employee_access_uplink_gateway }}'
+      nameservers:
+        addresses: ['{{ employee_access_dns_server }}']
+{% for id, net in employee_access_networks | dictsort %}
+    {{ net.interface }}:
+      match:
+        macaddress: '{{ net.gateway_mac }}'
+      set-name: '{{ net.interface }}'
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      addresses: ['{{ net.gateway_address }}']
+{% endfor %}

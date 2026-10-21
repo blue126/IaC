@@ -1,0 +1,293 @@
+---
+- name: Validate network structure before any boundary mutation
+  ansible.builtin.include_tasks: validate-network.yml
+  vars:
+    employee_access_action: deploy
+
+- name: Validate employee access deployment inputs
+  ansible.builtin.assert:
+    that:
+      - employee_access_networks | length > 0
+      - employee_access_maintenance_sources | length > 0
+      - employee_access_home_public_ipv4 | length > 0
+      - employee_access_wireguard_address | length > 0
+      - employee_access_pve_host in hostvars
+      - employee_access_admin_user is match('^[a-z_][a-z0-9_-]{0,31}$')
+      - employee_access_uplink_mac is match('^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+      - employee_access_host_keys | length == employee_access_networks | length
+    fail_msg: Complete the approved network, public hairpin, maintenance and host-key inventory before deploying.
+
+- name: Validate device account identifiers and fixed assignments
+  ansible.builtin.assert:
+    that:
+      - item.key is match('^ed-[a-z0-9-]{1,25}$')
+      - item.value.employee in employee_access_networks
+      - item.value.enabled is boolean
+      - item.value.ssh_public_key is match('^ssh-ed25519 [A-Za-z0-9+/=]+( .*)?$')
+      - item.value.wireguard_public_key is match('^[A-Za-z0-9+/]{43}=$')
+  loop: "{{ employee_access_devices | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Validate all required system credentials before changing managed hosts
+  ansible.builtin.command:
+    argv: ["{{ ansible_playbook_python }}", "{{ role_path }}/files/validate-credentials.py"]
+    stdin: "{{ {'networks': employee_access_networks, 'devices': employee_access_devices, 'private_keys': employee_access_private_keys, 'wireguard_private_key': employee_access_wireguard_private_key} | to_json }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Reconcile existing gateway administrator access
+  ansible.builtin.include_tasks: admin-keys.yml
+  vars:
+    employee_admin_user: "{{ employee_access_admin_user }}"
+    employee_admin_public_keys: "{{ employee_access_admin_public_keys_json | from_json }}"
+
+- name: Install gateway software for an authorized deployment
+  ansible.builtin.apt:
+    name: [nftables, wireguard-tools, openssh-server, openssh-client, python3]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install PVE boundary before enabling routing
+  ansible.builtin.include_tasks: pve.yml
+
+- name: Create managed gateway directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /etc/employee-access
+    - /etc/employee-access/devices
+    - /etc/employee-access/keys
+    - /etc/employee-access/authorized-keys
+    - /var/empty/employee-access
+    - /usr/local/lib
+
+- name: Create isolated device group
+  ansible.builtin.group:
+    name: employee-devices
+    system: true
+
+- name: Create device accounts without user-owned homes
+  ansible.builtin.user:
+    name: "{{ item.key }}"
+    group: employee-devices
+    groups: ''
+    home: /var/empty/employee-access
+    create_home: false
+    shell: /bin/sh
+    password: '*'
+    system: true
+  loop: "{{ employee_access_devices | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Install command dispatcher
+  ansible.builtin.copy:
+    src: employee-dispatch.py
+    dest: /usr/local/lib/employee-dispatch.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Reconcile device mappings and session revocations
+  ansible.builtin.include_tasks: device.yml
+  loop: "{{ employee_access_devices | dict2items }}"
+  loop_control:
+    loop_var: employee_device
+    label: "{{ employee_device.key }}"
+
+- name: Derive enabled device public credentials without exposing private values
+  ansible.builtin.command:
+    argv: [ssh-keygen, -y, -f, "/etc/employee-access/keys/{{ item.key }}"]
+  loop: "{{ employee_access_devices | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: item.value.enabled | bool and not employee_access_networks[item.value.employee].disabled | bool
+  changed_when: false
+  register: employee_access_derived_keys
+
+- name: Find device identities removed from the roster
+  ansible.builtin.find:
+    paths: /etc/employee-access/devices
+    patterns: '*.json'
+  register: employee_access_saved_devices
+
+- name: Revoke removed device identities
+  ansible.builtin.include_tasks: revoke.yml
+  vars:
+    employee_revoke_account: "{{ item.path | basename | regex_replace('\\.json$', '') }}"
+  loop: "{{ employee_access_saved_devices.files }}"
+  when: (item.path | basename | regex_replace('\\.json$', '')) not in employee_access_devices
+  loop_control:
+    label: "{{ item.path | basename }}"
+
+- name: Pin independently verified workspace host keys
+  ansible.builtin.copy:
+    dest: /etc/employee-access/known-hosts
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      {% for id, key in employee_access_host_keys | dictsort %}
+      employee-{{ id }} {{ key }}
+      {% endfor %}
+
+- name: Bind administrator SSH only to the uplink
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-employee-admin.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      ListenAddress {{ employee_access_uplink_address.split('/')[0] }}
+      AllowUsers {{ employee_access_admin_user }}
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      DisableForwarding yes
+      PermitRootLogin no
+  notify: Reload administrator SSH
+
+- name: Inspect administrator SSH effective configuration
+  ansible.builtin.command: /usr/sbin/sshd -T
+  register: employee_admin_sshd
+  changed_when: false
+
+- name: Reject wildcard administrator listeners or extra authorized users
+  ansible.builtin.assert:
+    that:
+      - "'listenaddress 0.0.0.0:' not in employee_admin_sshd.stdout"
+      - "'listenaddress [::]:' not in employee_admin_sshd.stdout"
+      - (employee_admin_sshd.stdout_lines | select('match', '^allowusers ') | map('regex_replace', '^allowusers +', '') | map('split') | flatten | unique | sort) == [employee_access_admin_user]
+
+- name: Disable Ubuntu SSH socket activation on the dedicated gateway
+  ansible.builtin.systemd:
+    name: ssh.socket
+    state: stopped
+    enabled: false
+  notify: Reload administrator SSH
+
+- name: Keep IPv4 routing disabled until the firewall is loaded
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-employee-access.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      net.ipv4.ip_forward=0
+      net.ipv4.conf.all.accept_redirects=0
+      net.ipv4.conf.all.send_redirects=0
+      net.ipv6.conf.all.disable_ipv6=1
+      net.ipv6.conf.default.disable_ipv6=1
+
+- name: Apply safe gateway sysctls before opening routing
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/90-employee-access.conf
+  changed_when: true
+
+- name: Install gateway firewall controller
+  ansible.builtin.copy:
+    src: employee-firewall.py
+    dest: /usr/local/lib/employee-firewall.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy gateway firewall
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/employee-access.nft
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/sbin/nft --check --file %s
+  notify: Reload gateway firewall
+
+- name: Deploy gateway firewall boot unit
+  ansible.builtin.template:
+    src: firewall.service.j2
+    dest: /etc/systemd/system/employee-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Start gateway firewall before configuring network
+  ansible.builtin.systemd:
+    name: employee-firewall
+    daemon_reload: true
+    enabled: true
+    state: reloaded
+
+- name: Apply pending firewall policy before routing
+  ansible.builtin.meta: flush_handlers
+
+- name: Disable cloud-init network regeneration
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-employee-network.cfg
+    owner: root
+    group: root
+    mode: '0644'
+    content: 'network: {config: disabled}'
+
+- name: Replace cloned cloud-init network with MAC-pinned interfaces
+  ansible.builtin.template:
+    src: netplan.yml.j2
+    dest: /etc/netplan/50-cloud-init.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Apply employee network
+
+- name: Deploy WireGuard peer configuration
+  ansible.builtin.template:
+    src: wireguard.conf.j2
+    dest: /etc/wireguard/wg-employee.conf
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+
+- name: Apply interface changes before synchronizing WireGuard
+  ansible.builtin.meta: flush_handlers
+
+- name: Reconcile actual WireGuard state on every deployment
+  ansible.builtin.include_tasks: sync-wireguard.yml
+
+- name: Deploy employee SSH daemon configuration
+  ansible.builtin.template:
+    src: sshd-config.j2
+    dest: /etc/ssh/employee-sshd.conf
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload employee SSH
+
+- name: Deploy employee SSH daemon unit
+  ansible.builtin.template:
+    src: employee-sshd.service.j2
+    dest: /etc/systemd/system/employee-sshd.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload employee SSH
+
+- name: Activate network and service configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Start managed entry services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop:
+    - wg-quick@wg-employee
+    - employee-sshd
