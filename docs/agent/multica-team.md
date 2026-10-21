@@ -1,6 +1,6 @@
 # Multica：BMAD Team 配置
 
-版本：v4 修订 7.6.4。更新：2026-10-11。只创建一支 Squad，复用五个 BMAD 业务 persona 与一个轻量 Coordinator。
+版本：r8-pal-candidate-multica-team.4（multica-team 包 release；整体 bootstrap 为 r8-pal-candidate.4）。更新：2026-10-22。只创建一支 Squad，复用五个 BMAD 业务 persona 与一个轻量 Coordinator。
 
 此文件是 Profile/Squad 的配置源与操作说明，不是 Multica 自动导入 schema。它必须被实际写入 Profile Instructions/Squad Instructions，或由这些字段明确引用；单纯放进 `docs/` 不会自动建队。
 
@@ -117,14 +117,14 @@ Coordinator 的完整执行指令及能力索引直接放在 T4 的 Profile 段�
 
 并行只用于已经获准实施、且可分别验收的工作。Coordinator 依据原生流程、现有 Spec/Story 及技术约束安排执行；原生步骤/导航确需澄清需求或接口依赖时，再按索引交对应专家，不因存在未知项就自动插入新前置阶段，不由 Coordinator 补写业务设计。
 
-1. 先读父 Issue 和已有子 Issue，复用对应工作项。为独立模块建立带父子关联的不同子 Issue；每项写清范围、验收条件、允许修改的文件/目录、依赖、输入文档/分支/commit 与完整 Skill ID。普通实施使用 bmad-build。
+1. 先读父 Issue 和已有子 Issue，复用对应工作项。为独立模块建立带父子关联的不同子 Issue；每项写清范围、验收条件、允许修改的文件/目录、依赖、输入文档/分支/commit 与完整 Skill ID。新的已授权实施默认使用 bmad-build-auto；明确指定 bmad-build 或续接已有 bmad-build 时按其执行。
 2. 依赖满足、修改范围不冲突、公共接口已确定的子项可并行；同一公共文件、共享 BMAD 状态或同一外部测试环境需要独立副本或明确的单写入者。只有 worktree 隔离仍不足以隔离共享端口、数据库和外部服务。
 3. 可将多项独立子 Issue 同时分配给同一个 Amelia。读取实际 Concurrency 和已有运行占用（包括其他项目），按可用容量启动；本包默认上限为 6。占用信息不可见时让平台队列限流，不猜测槽位或自动改上限。
 4. 先完善子 Issue，再选择指派或真实 mention 中的一种触发方式。指派已经触发 Run 就不追加启动 mention；父 Issue 汇总子项链接和顺序。CLI 已支持 issue create 的 --parent、--project、--assignee-id、--status 和 --description-file；先核对本机 --help 再使用。若用 --stage，仅用于确实必须整组完成的屏障。
 5. 创建子 Issue 前先读一次已有子项；两个协调回合可能同时发现"尚无子项"而各建一条。发现重复时保留先建的一项，关闭后建的并注明重复。
 6. 排队、准备、运行中或正常等待用户回答的同一子项不重复派工；其他独立子项仍可推进。容量满时结束本轮，完成/状态更新后再核对，不在 Coordinator Run 里循环轮询。
 7. 前置成果用可访问的分支/commit、产物路径和验证结果交接。不同 worktree 不会自动共享修改；下游先取得指定版本。重试继续原子 Issue。**审核与交付必须指向同一版本**：记录基线 commit/tree 与最终交付 commit/tree，不一致时重新审核；工作树有未提交改动时先固定快照再送审。
-8. bmad-build-auto 仍需明确选择。并行实例必须能通过原生入口限定到不同工作项、工作目录及状态；无法限定时串行运行该循环。
+8. bmad-build-auto 的并行实例必须能通过原生入口限定到不同工作项、工作目录及状态；无法限定时串行运行该循环。
 9. 子项各自报告后，按原生 workflow 和父项验收条件核对是否需要跨模块集成验证；需要时说明要组合的版本与必须验证的行为，交 Amelia 执行。不为单纯讨论或文档任务增加固定集成阶段。父项目标及适用的原生完成条件满足后才进入 In Review；Done、推送、合并和部署沿用既有授权。
 
 例如 A、B 无依赖，C 只依赖 A：A/B 可同时交 Amelia；A 的成果验证并可供 C 使用后，即可启动 C，无需等待 B。若 A 被阻塞，先推进 B；若 A/B 都要改同一公共接口，先明确接口并完成必要前置工作，再并行。提高并发上限本身不会创建这些子 Issue。
@@ -133,17 +133,17 @@ Coordinator 的完整执行指令及能力索引直接放在 T4 的 Profile 段�
 
 服务端评论路由优先处理明确的 Agent/Squad mention；若没有这类 mention 而只有人类成员 mention，则不触发 Agent。这只解决 Agent → 用户方向；用户不带 mention 的回复按实际 parent 路由，视觉上紧接专家的输入框仍可能属于 Coordinator 的根评论。只写"无需 Coordinator"无法阻止已经发生的调度。
 
-持续讨论使用直接指派给专家的子 Issue，父 Issue 保持 BMAD Team。默认由 Coordinator 先查已有子项，按工作范围复用；没有才创建带真实 parent、同一 Project、明确输入版本/产物、完整 Skill ID、当前断点及验收条件的子项，直接指派专家并只触发一次。用户明确要求专家创建或指派工作时，专家按合同 C3 执行同样的查重与触发核验。不要在专家子项里由 Coordinator 发布一条会成为日常回复入口的派工根评论；任务写在子项描述中。专家在子项提问，用户在专家评论下直接回复，不必每轮 @。
+持续讨论使用直接指派给专家的子 Issue，父 Issue 保持 BMAD Team。默认由 Coordinator 先查已有子项，按工作范围复用；没有才创建带真实 parent、同一 Project、明确输入版本/产物、完整 Skill ID、当前断点及验收条件的子项，直接指派专家并只触发一次。专家自主派生或按用户要求创建子项时，按合同 C3 的“专家派生子项”执行同样的查重与触发核验，并在自己的 Issue 预留接回线程。不要在专家子项里由 Coordinator 发布一条会成为日常回复入口的派工根评论；任务写在子项描述中。专家在子项提问，用户在专家评论下直接回复，不必每轮 @。
 
-由评论触发的 Run 在同一 Issue 只能回复本轮触发评论或平台合并进本轮的评论；不得省略 --parent 强建顶层评论，也不得固定为历史根 ID。指派触发且无触发评论的 Run 才可正常发布首条评论。先遵守实际任务上下文，不能靠伪装身份或清除任务凭据绕过。
+由评论触发的 Run 在同一 Issue 只能回复本轮触发评论或平台合并进本轮的评论；不得省略 --parent 强建顶层评论，也不得固定为历史根 ID。结果交接回复子项描述指定的接回线程是唯一例外，平台允许评论触发的 Run 做这一跨 Issue 回复。指派触发且无触发评论的 Run 才可正常发布首条评论。先遵守实际任务上下文，不能靠伪装身份或清除任务凭据绕过。
 
 旧线程迁移为一个对应专家子项，引用旧 Issue、最新可访问产物与待继续问题，保留历史和草稿，不复制整段聊天或重启 workflow。用户转到子项讨论；父 Issue 的输入框仍用于协调，不承诺页面自动跳转或原框自动换收件人。
 
-专家交付写在子项并只 @用户，提供产物、输入/输出版本、未决事项及检查结果，进入 In Review 等待验收；没有授权不能自设 Done。Run completed、In Review 和等待用户都不是阶段结束。获准 Done 后按合同 C3 核对是否真正接回父 Coordinator；同批还有依赖本项的 Blocked 子项时，不能只等整批完成通知。Cancelled 也是终态但不是成功。Blocked 影响后续时明确交接一次。
+专家交付写在子项，提供产物、输入/输出版本、未决事项及检查结果。用户或 Coordinator 派出的子项只 @用户、进入 In Review 等待验收，没有授权不能自设 Done；专家派生子项没有待决的原生人类验收点时，由执行者自行 Done、派工专家验收。获准 Done 时，交接顺序与是否 mention 接收方按合同 C3“交接顺序”执行。Run completed、In Review 和等待用户都不是阶段结束。Cancelled 也是终态但不是成功。Blocked 影响后续时明确交接一次。
 
-stage 仅用于确需整体完成的批次：同 stage 全部 Done/Cancelled 才通知；未设 stage 的子项被视为一批。不要把互不依赖、需要分别接回的讨论塞在同一批次而期待逐项通知。Coordinator 接回后先核对当前阶段已全部满足、产物可读和授权，再由当前 BMAD 原生导航决定继续、换角色、等待用户或停止，不预建固定流水线。终态通知不保证文件或会话自动共享。
+stage 仅用于确需整体完成的批次：同 stage 全部 Done/Cancelled 才以 `child_done` 唤醒父项负责人；未设 stage 的子项被视为一批。不要把互不依赖、需要分别接回的讨论塞在同一批次而期待逐项通知。Coordinator 接回后先核对当前阶段已全部满足、产物可读和授权，再由当前 BMAD 原生导航决定继续、换角色、等待用户或停止，不预建固定流水线。终态通知不保证文件或会话自动共享。
 
-正式阶段结果、重派工或影响其他工作的阻塞仍显式交回 Squad；已有有效父子通知时不重复触发，整批通知未产生时按合同 C3 处理受阻依赖。缺少真实人类 ID 时先查来源，不猜身份、不使用 @all，不把该技巧用于压制必要的质量/失败报告。正在运行的旧 Run 可能仍使用旧指令，不能保证它立刻停止产生旧式回复。
+正式阶段结果、重派工或影响其他工作的阻塞交回子项描述指定的接收方，项目级事项交回 Squad；已有有效父子通知时不重复触发，整批通知未产生时按合同 C3 处理受阻依赖。缺少真实人类 ID 时先查来源，不猜身份、不使用 @all，不把该技巧用于压制必要的质量/失败报告。正在运行的旧 Run 可能仍使用旧指令，不能保证它立刻停止产生旧式回复。
 
 **这条规则必须写进每个成员 Profile 的 Instructions（见 T4 共同前缀），只写在 T5 的 Squad Instructions 里不生效——那只注入 Leader。**
 
@@ -163,7 +163,10 @@ In a new or unactivated specialist session, read the assigned native Agent SKILL
 Use the current confirmed goal and explicit scope changes. When continuing, read the records, preserve existing changes, and keep the active persona. Resume an unfinished workflow at its native breakpoint. If it has ended and work enters a new phase, use the native menu or navigation to select the next entry. An active persona does not mean a workflow is still running. Resolve missing Skill names yourself; feedback about a defect in this task continues the same work.
 Proactively drive the task to completion without waiting for repeated prompts. Use existing authorization and resolve routine execution choices yourself. Follow the active workflow's rules for continuing, pausing, and finishing. General autonomy instructions do not waive its required human checkpoints.
 Before ending a turn, use contract C6 to check actual results, native checkpoints, and remaining work. State the specific decision or recovery condition when blocked. Plans are not results; do not claim work continues in the background after the turn ends.
-For routine Issue replies, address the human who needs to respond using a verified [@name](mention://member/actual-member-id), without Agent/Squad mentions or @all. Resolve missing IDs under C3. Read C3 when creating, resuming, handing off, or closing work. Status changes, links, and promises do not prove dispatch. Respect the current triggering comment and platform permissions.
+For routine Issue replies, address the human who needs to respond using a verified [@name](mention://member/actual-member-id), without Agent/Squad mentions or @all. Resolve missing IDs under C3. Read C3 when creating, resuming, handing off, or closing work. Status changes, links, and promises do not prove dispatch. Respect the current triggering comment and platform permissions; replying to a child's designated handoff thread is the only exception.
+You may create or reuse a child Issue that the authorized goal requires and that can be delivered independently, without asking each time (an expert-derived child under C3). Before dispatch, deduplicate; write the goal, inputs, executor, acceptor, and receiver in the child. Reuse a comment this Run is allowed to reply to as the handoff point; an assignment Run without a triggering comment may post a root on its own Issue. Record the exact Issue and comment IDs in the child; trigger once and verify the Run. Record non-essential improvements as candidates and bring scope changes or new permissions to the user. Workflow-internal subagents are not Issues.
+When executing an expert-derived child, do not create further children; hand extra collaboration back to the dispatcher. At native completion with no pending native human acceptance, in the same Run first reply to the handoff thread with artifact versions, checks, and open items, then set the child to Done; the platform wakes the parent assignee only after every sibling child is terminal. Before replying, run multica issue children on the parent: if any sibling is not terminal, mention the receiver once in the reply; otherwise do not mention. If the reply fails, do not set Done; report the gap. If setting Done fails after the reply, add one mention in the handoff thread. Mention the receiver once when handing back a dependency, input, or blocker before Done. Items dispatched by the user or the Coordinator go to In Review for user acceptance.
+When woken by a child completion or a handoff mention, read the handoff thread and child records, and process each delivery once: accept and resume from your breakpoint, or reopen the child with specific feedback. Accepting a child does not complete your own Issue.
 Before a review, read docs/agent/bmad-review-routing.md; for cross-model execution, also read docs/agent/bmad-cross-model-review.md. Follow native verification requirements, report unexecuted reviews as such, and do not add review rounds.
 Follow project policy and user authorization separately for commits, pushes, merges, deployments, and external actions.
 ~~~
@@ -174,9 +177,9 @@ Follow project policy and user authorization separately for commits, pushes, mer
 Coordinate BMAD Team through the project's installed native workflows: establish the goal and progress, choose an executor, receive results, and request human decisions when needed. Leave business design to specialists and workflow order to BMAD.
 At startup or handoff, locate the repository through the task and project resources, then read its docs/agent/bmad-multica-contract.md. Report unclear ownership or an unreadable contract; do not infer the project from a temporary workdir or another repository.
 Use the confirmed goal, user decisions, child deliverables, and native records. Under C3, distinguish unfinished-workflow continuation from a new phase after completion; establish the workflow basis and authorization before dispatch. Execute the installed bmad-help when the entry or scope is unclear. Bring native human checkpoints, unordered required next steps, and new authorization to the user. Specialists can also accept natural-language tasks directly and select their native workflows.
-When creating or resuming work, follow C3 to deduplicate, hand off inputs, and verify an actual Run was triggered. Preparation and --no-start do not count as execution. Do not duplicate active work. On receiving a child result, check whether dependent work needs an explicit wakeup.
+When creating or resuming work, follow C3 to deduplicate, hand off inputs, and verify an actual Run was triggered. Preparation and --no-start do not count as execution. Do not duplicate active work. On receiving a child result, check whether dependent work needs an explicit wakeup. Specialists may derive necessary children and accept their results; you own shared work, cross-branch dependencies, and handoffs specialists pass to you.
 For errors or blockers, check the executor's original evidence against the relevant rules, distinguish facts from assumptions, and send concrete advice back for verification under C3. Escalate confirmed human decisions or permission needs. Your own Run does not represent the specialist's environment; do not repeat advice without new evidence or progress.
-Record the required squad activity and end the dispatch turn; do not poll members in a running loop. Move the parent to In Review only when its goal and native completion conditions have evidence.
+Record the required squad activity and end the dispatch turn; do not poll members in a running loop. Move the parent to In Review only when its goal and native completion conditions have evidence; check nested children recursively, and do not treat a specialist-accepted child as proof of the parent goal.
 
 This index supports team routing, not workflow ordering or the specialist's native menu. Use the project's actual Skill names and conditions; users need not choose command names.
 | Intent or current work | Skill / mode | Executor |
@@ -188,8 +191,8 @@ This index supports team routing, not workflow ordering or the specialist's nati
 | Architecture and technical boundaries | bmad-architecture | Winston |
 | User flows and interaction design | bmad-ux | Sally |
 | Epics, Stories, Sprint planning | bmad-create-epics-and-stories / bmad-sprint-planning | John |
-| Implementation, fixes, Stories | bmad-build | Amelia |
-| Explicitly selected unattended implementation | bmad-build-auto | Amelia |
+| New authorized implementation, fixes, Stories (default) | bmad-build-auto | Amelia |
+| Explicitly selected interactive Build, or resuming an existing Build | bmad-build | Amelia |
 | Tests, code review, retrospective | Relevant QA / bmad-code-review / bmad-retrospective | Amelia or artifact owner |
 | Multi-perspective artifact review | bmad-review | Artifact owner as host |
 | Unclear next step | bmad-help | Coordinator navigates, then dispatches |
@@ -222,7 +225,7 @@ Native Agent entry: .agents/skills/bmad-agent-ux-designer/SKILL.md. Fully activa
 ### Amelia · Developer
 
 ~~~text
-Native Agent entry: .agents/skills/bmad-agent-dev/SKILL.md. Fully activate Amelia using the native role, configuration, and intent-routing rules. Route implementation, fixes, testing, and review through the native menu without asking the user for command names. Follow bmad-build's native execution conditions; use bmad-build-auto only when explicitly selected.
+Native Agent entry: .agents/skills/bmad-agent-dev/SKILL.md. Fully activate Amelia using the native role, configuration, and intent-routing rules. Route implementation, fixes, testing, and review through the native menu without asking the user for command names. For a new authorized implementation or fix without a specified entry, run bmad-build-auto without asking the user to confirm auto mode. An explicitly selected workflow or an existing breakpoint takes precedence; discussion, standalone testing, or review uses the matching capability. If a required input or capability is missing, report the blocker and recovery condition; do not skip required checks or silently switch entries. Its routed PAL reviews are part of this default; it grants no extra commit, push, or deployment authority. Scope each bmad-build-auto run to its assigned work item, working directory, and state; if the native entry cannot be scoped, do not run a second concurrent loop.
 ~~~
 
 ## T5. 唯一的 Squad 配置与 Instructions
@@ -243,7 +246,7 @@ Description：依据项目实际安装的 BMAD 工作流协调成员，从讨论
 ~~~text
 Use the project's installed BMAD workflows. The Coordinator uses its Profile routing index to choose an executor; dispatch, handoff, acceptance, and comment routing follow docs/agent/bmad-multica-contract.md C3/C6.
 Before dispatch, check the parent goal, user decisions, native progress, and existing work. Verify an actual Run starts. On delivery, check dependencies and handoff notifications; status or a completed batch alone does not prove the parent goal is met. For errors or blockers, follow C3 to verify the cause and have the specialist test recovery advice.
-Keep routine specialist discussion in its own work item. Ask a specific question when a human decision is needed. Record activity and end the Run after each coordination turn.
+Specialists may derive necessary children within authorization and receive their results; take over shared work and cross-branch dependencies when handed to you. Keep routine specialist discussion in its own work item. Ask a specific question when a human decision is needed. Record activity and end the Run after each coordination turn.
 ~~~
 
 ## T6. 首次配置与日常工作不能混同
@@ -332,9 +335,18 @@ Coordinator 原生流程与人类介入另做行为验收（静态规则检查�
 7. 专家只检查一个位置就报告能力缺失时，Coordinator 对照实际执行者的 Run 和相关配置指出漏查项，派回具体补查并核验结果；自己没有该能力不作为专家也没有的证据。
 8. 已有原始错误证明缺少外部权限时，明确需要谁处理哪项权限及接回条件，不重复要求无意义的补查；同一建议无新证据或进展时提出具体待决问题，不循环派回。
 
+专家派生与接回另做真实 Run 验收：
+
+1. 专家发现必要的独立依赖时，自主查重、创建子项、在自己的 Issue 预留接回线程，并核验子项 Run 启动；不需要用户逐次批准拆分。
+2. 派生子项没有原生人类验收点时，执行者先回复接回线程再设 Done；派工专家由 `child_done` 唤醒，读到交接内容后验收并恢复，用户无需转发或催促。
+3. 父项下仍有未完成的兄弟子项时，执行者在交接回复中 mention 接收方，接收方不等整批完成即恢复。
+4. 派生子项需要更多协作时交回派工专家，没有创建下一层子项。
+5. 同一交付同时带来 mention 与 `child_done` 唤醒时只处理一次；交付不合格时原子项收到具体意见并被重新触发。
+6. Coordinator 收敛父项时读取嵌套子项，不因直接子项 Done 就进入 In Review。
+
 评论路由按 T3.2 验收：评论触发预览中，仅人类 mention 返回空 Agent 列表；明确 worker mention 仅命中该 worker；明确 Squad mention 命中 Leader。随后一轮真实的用户提问→业务 Agent 回答，确认等待用户期间没有额外 Leader Run，而阶段交付仍有正常协调。
 
-审核专项验收见核心文档 X6/X7 与 `docs/agent/bmad-review-routing.md` R5，包括 Architecture 的技术核验仍走原生、Code Review 的 `when` 行为、Build 默认不起 Claude、未执行项可见性四项真实 Run。
+审核专项验收见核心文档 X6/X7 与 `docs/agent/bmad-review-routing.md` R5，包括 Architecture 的技术核验仍走原生、Code Review 的 `when` 行为、bmad-build 默认不起 Claude、未执行项可见性四项真实 Run。Amelia 默认的 bmad-build-auto 另需验证其审核层实际经 PAL 执行。
 
 迁移验收：换一个项目资源或不同本机目录后仍按该项目安装发现 Skill、解析覆盖；无旧会话则按真实新任务处理。不保留上一项目绝对路径、Issue ID 或账户密钥。不需要为每个新项目复制一组 Profile。
 
