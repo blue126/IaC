@@ -11,3 +11,18 @@ proxmox_storage_vm_disk:
   disk: scsi0
   volume: mainpool:vm-250-disk-0
   dataset: mainpool/vm-250-disk-0
+
+# Standalone local SSD storage kept separate from the main ZFS mirror.
+pve2_local_ssd_storage:
+  device: /dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_BTWL404609D8800RGN
+  serial: BTWL404609D8800RGN
+  storage_id: pve2-ssd
+  mount_path: /mnt/pve/pve2-ssd
+  filesystem: ext4
+  content:
+    - images
+    - rootdir
+    - iso
+    - vztmpl
+    - backup
+    - snippets
