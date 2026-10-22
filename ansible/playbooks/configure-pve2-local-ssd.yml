@@ -1,0 +1,249 @@
+---
+- name: Deploy standalone pve2 SSD storage
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read Proxmox storage definitions
+      ansible.builtin.command:
+        argv: [pvesh, get, /storage, --output-format, json]
+      register: pve2_local_ssd_storage_probe
+      changed_when: false
+      check_mode: false
+
+    - name: Parse the existing Proxmox storage definition
+      ansible.builtin.set_fact:
+        pve2_local_ssd_existing_storage: "{{ (pve2_local_ssd_storage_probe.stdout | from_json | selectattr('storage', 'equalto', pve2_local_ssd_storage.storage_id) | list | first) | default({}) }}"
+
+    - name: Verify the Proxmox storage ID is unused or already matches
+      ansible.builtin.assert:
+        that:
+          - >-
+            pve2_local_ssd_existing_storage | length == 0 or
+            (pve2_local_ssd_existing_storage.type == 'dir' and
+             pve2_local_ssd_existing_storage.path == pve2_local_ssd_storage.mount_path and
+             pve2_local_ssd_existing_storage.nodes | default('') == inventory_hostname and
+             pve2_local_ssd_existing_storage.is_mountpoint | default('') in [pve2_local_ssd_storage.mount_path, 'yes', '1', 1] and
+             pve2_local_ssd_existing_storage.content.split(',') | sort == pve2_local_ssd_storage.content | sort)
+        fail_msg: The Proxmox storage ID exists with a different configuration.
+
+    - name: Read local SSD identity and layout
+      ansible.builtin.command:
+        argv:
+          - lsblk
+          - --json
+          - --paths
+          - --output
+          - NAME,TYPE,SERIAL,FSTYPE,LABEL,UUID,PARTLABEL,MOUNTPOINT
+          - "{{ pve2_local_ssd_storage.device }}"
+      register: pve2_local_ssd_disk_probe
+      changed_when: false
+      check_mode: false
+
+    - name: Parse local SSD layout
+      ansible.builtin.set_fact:
+        pve2_local_ssd_block: "{{ (pve2_local_ssd_disk_probe.stdout | from_json).blockdevices | first }}"
+        pve2_local_ssd_partitions: "{{ ((pve2_local_ssd_disk_probe.stdout | from_json).blockdevices | first).children | default([]) }}"
+
+    - name: Verify local SSD identity and expected blank or configured layout
+      ansible.builtin.assert:
+        that:
+          - pve2_local_ssd_block.type == 'disk'
+          - pve2_local_ssd_block.serial == pve2_local_ssd_storage.serial
+          - >-
+            (pve2_local_ssd_partitions | length == 0 and
+             pve2_local_ssd_block.fstype | default('', true) == '') or
+            (pve2_local_ssd_partitions | length == 1 and
+             pve2_local_ssd_partitions[0].type == 'part' and
+             pve2_local_ssd_partitions[0].partlabel == pve2_local_ssd_storage.storage_id and
+             pve2_local_ssd_partitions[0].fstype | default('', true) in ['', pve2_local_ssd_storage.filesystem] and
+             pve2_local_ssd_partitions[0].label | default('', true) in ['', pve2_local_ssd_storage.storage_id] and
+             pve2_local_ssd_partitions[0].mountpoint | default('', true) in ['', pve2_local_ssd_storage.mount_path])
+        fail_msg: The target disk identity or layout differs from the approved pve2 SSD.
+
+    - name: Create a GPT partition for the local SSD
+      ansible.builtin.command:
+        argv:
+          - sgdisk
+          - --new=1:0:0
+          - --typecode=1:8300
+          - "--change-name=1:{{ pve2_local_ssd_storage.storage_id }}"
+          - "{{ pve2_local_ssd_storage.device }}"
+      when:
+        - not ansible_check_mode
+        - pve2_local_ssd_partitions | length == 0
+      changed_when: true
+
+    - name: Wait for udev to settle after partitioning
+      ansible.builtin.command:
+        argv: [udevadm, settle]
+      when:
+        - not ansible_check_mode
+        - pve2_local_ssd_partitions | length == 0
+      changed_when: false
+
+    - name: Wait for the partition device to appear
+      ansible.builtin.wait_for:
+        path: "{{ pve2_local_ssd_storage.device }}-part1"
+        state: present
+        timeout: 15
+      when:
+        - not ansible_check_mode
+        - pve2_local_ssd_partitions | length == 0
+
+    - name: Read the local SSD filesystem type
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - --probe
+          - --match-tag
+          - TYPE
+          - --output
+          - value
+          - "{{ pve2_local_ssd_storage.device }}-part1"
+      register: pve2_local_ssd_filesystem_type
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Read the local SSD filesystem label
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - --probe
+          - --match-tag
+          - LABEL
+          - --output
+          - value
+          - "{{ pve2_local_ssd_storage.device }}-part1"
+      register: pve2_local_ssd_filesystem_label
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Verify the partition is blank or has the expected filesystem
+      ansible.builtin.assert:
+        that:
+          - pve2_local_ssd_filesystem_type.stdout in ['', pve2_local_ssd_storage.filesystem]
+          - pve2_local_ssd_filesystem_label.stdout in ['', pve2_local_ssd_storage.storage_id]
+          - pve2_local_ssd_filesystem_type.stdout == '' or pve2_local_ssd_filesystem_label.stdout == pve2_local_ssd_storage.storage_id
+        fail_msg: The partition contains an unexpected filesystem or label; refusing to format it.
+      when: not ansible_check_mode
+
+    - name: Create the ext4 filesystem on the blank partition
+      ansible.builtin.command:
+        argv:
+          - mkfs.ext4
+          - -m
+          - '0'
+          - -L
+          - "{{ pve2_local_ssd_storage.storage_id }}"
+          - "{{ pve2_local_ssd_storage.device }}-part1"
+      when:
+        - not ansible_check_mode
+        - pve2_local_ssd_filesystem_type.stdout == ''
+      changed_when: true
+
+    - name: Read the local SSD filesystem UUID
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - --match-tag
+          - UUID
+          - --output
+          - value
+          - "{{ pve2_local_ssd_storage.device }}-part1"
+      register: pve2_local_ssd_uuid
+      changed_when: false
+      check_mode: false
+      when: not ansible_check_mode
+
+    - name: Verify the local SSD filesystem UUID
+      ansible.builtin.assert:
+        that:
+          - pve2_local_ssd_uuid.stdout | length > 0
+      when: not ansible_check_mode
+
+    - name: Create the local SSD mount directory
+      ansible.builtin.file:
+        path: "{{ pve2_local_ssd_storage.mount_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      when: not ansible_check_mode
+
+    - name: Mount the local SSD by filesystem UUID
+      ansible.posix.mount:
+        path: "{{ pve2_local_ssd_storage.mount_path }}"
+        src: "UUID={{ pve2_local_ssd_uuid.stdout }}"
+        fstype: "{{ pve2_local_ssd_storage.filesystem }}"
+        opts: defaults,noatime
+        dump: '0'
+        passno: '2'
+        state: mounted
+      when: not ansible_check_mode
+
+    - name: Register the standalone SSD as Proxmox directory storage
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - add
+          - dir
+          - "{{ pve2_local_ssd_storage.storage_id }}"
+          - --path
+          - "{{ pve2_local_ssd_storage.mount_path }}"
+          - --content
+          - "{{ pve2_local_ssd_storage.content | join(',') }}"
+          - --is_mountpoint
+          - 'yes'
+          - --nodes
+          - "{{ inventory_hostname }}"
+      when:
+        - not ansible_check_mode
+        - pve2_local_ssd_existing_storage | length == 0
+      changed_when: true
+
+    - name: Report the planned SSD storage configuration in check mode
+      ansible.builtin.debug:
+        msg: >-
+          Configure {{ pve2_local_ssd_storage.storage_id }} from
+          {{ pve2_local_ssd_storage.device }} at {{ pve2_local_ssd_storage.mount_path }}.
+      when: ansible_check_mode
+
+- name: Verify standalone pve2 SSD storage
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Read the mounted local SSD
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - --noheadings
+          - --output
+          - TARGET,FSTYPE
+          - --target
+          - "{{ pve2_local_ssd_storage.mount_path }}"
+      register: pve2_local_ssd_mount_status
+      changed_when: false
+      check_mode: false
+
+    - name: Verify the local SSD mount
+      ansible.builtin.assert:
+        that:
+          - pve2_local_ssd_mount_status.stdout.split() == [pve2_local_ssd_storage.mount_path, pve2_local_ssd_storage.filesystem]
+
+    - name: Read Proxmox storage status
+      ansible.builtin.command:
+        argv: [pvesm, status, --storage, "{{ pve2_local_ssd_storage.storage_id }}"]
+      register: pve2_local_ssd_pvesm_status
+      changed_when: false
+      check_mode: false
+
+    - name: Verify Proxmox reports the local SSD as active
+      ansible.builtin.assert:
+        that:
+          - pve2_local_ssd_storage.storage_id in pve2_local_ssd_pvesm_status.stdout
+          - "'active' in pve2_local_ssd_pvesm_status.stdout"
