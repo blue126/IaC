@@ -14,6 +14,7 @@
     - { key: SCRAPER_DATA_DIR, value: "{{ n8n_runtime_scraper_data_dir }}" }
     - { key: N8N_PORT, value: "{{ n8n_runtime_port }}" }
     - { key: N8N_LISTEN_ADDRESS, value: "{{ n8n_runtime_listen_address }}" }
+    - { key: N8N_RUNNERS_BROKER_PORT, value: "{{ n8n_runtime_broker_port }}" }
     - { key: N8N_HOST, value: "{{ n8n_host }}" }
     - { key: N8N_PROTOCOL, value: "{{ n8n_protocol }}" }
     - { key: N8N_EDITOR_BASE_URL, value: "{{ n8n_editor_base_url }}" }
