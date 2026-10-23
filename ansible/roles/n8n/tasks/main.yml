@@ -172,12 +172,24 @@
 - name: Execute the brief n8n cutover after staging succeeds
   when: not ansible_check_mode
   block:
-    - name: Stop and mask the legacy n8n service
+    - name: Stop and disable the legacy n8n service
       ansible.builtin.systemd_service:
         name: n8n
         state: stopped
         enabled: false
-        masked: true
+        daemon_reload: true
+
+    # Masking cannot be used here: the unit file lives directly in
+    # /etc/systemd/system, and systemd refuses to replace a real unit file with
+    # the /dev/null symlink that masking requires. Renaming the unit file is
+    # equally restart-proof and fully reversible.
+    - name: Move the legacy n8n unit file aside
+      ansible.builtin.command:
+        cmd: mv /etc/systemd/system/n8n.service /etc/systemd/system/n8n.service.pre-docker
+        creates: /etc/systemd/system/n8n.service.pre-docker
+
+    - name: Reload systemd after moving the legacy unit file
+      ansible.builtin.systemd_service:
         daemon_reload: true
 
     - name: Create a rollback archive before copying SQLite state
@@ -280,6 +292,11 @@
         state: absent
       when: n8n_cutover_compose is defined
       failed_when: false
+
+    - name: Move the legacy n8n unit file back after a failed cutover
+      ansible.builtin.command:
+        cmd: mv /etc/systemd/system/n8n.service.pre-docker /etc/systemd/system/n8n.service
+        removes: /etc/systemd/system/n8n.service.pre-docker
 
     - name: Restore the legacy n8n service after a failed cutover
       ansible.builtin.systemd_service:
