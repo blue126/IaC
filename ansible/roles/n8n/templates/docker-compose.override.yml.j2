@@ -7,7 +7,14 @@ services:
     ports: !reset []
     environment:
       HERMES_WEBHOOK_SECRET: ${HERMES_WEBHOOK_SECRET:-}
+      # Host networking removes the ports mapping, so the container process must
+      # receive the real port and listen address instead of relying on the
+      # defaults (5678 on ::) that the base image uses.
+      N8N_PORT: ${N8N_PORT:-5678}
       N8N_LISTEN_ADDRESS: ${N8N_LISTEN_ADDRESS:-::}
+      # The task broker binds 127.0.0.1:5679 by default, which collides with the
+      # broker of the legacy systemd n8n while it is still running.
+      N8N_RUNNERS_BROKER_PORT: ${N8N_RUNNERS_BROKER_PORT:-5679}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-}
       N8N_DISABLE_PRODUCTION_MAIN_PROCESS: ${N8N_DISABLE_PRODUCTION_MAIN_PROCESS:-false}
       NODE_FUNCTION_ALLOW_EXTERNAL: ${NODE_FUNCTION_ALLOW_EXTERNAL:-}

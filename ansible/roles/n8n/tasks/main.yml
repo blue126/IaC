@@ -106,6 +106,9 @@
     n8n_runtime_scraper_data_dir: "{{ n8n_staging_scraper_data_dir }}"
     n8n_runtime_port: "{{ n8n_staging_port }}"
     n8n_runtime_listen_address: "127.0.0.1"
+    # The legacy systemd n8n keeps its task broker on 127.0.0.1:5679 while
+    # staging runs, so the staged container must move its broker out of the way.
+    n8n_runtime_broker_port: "{{ n8n_staging_broker_port }}"
     n8n_disable_production_webhooks: true
 
 - name: Render the LXC Docker network override
@@ -230,6 +233,9 @@
         n8n_runtime_scraper_data_dir: "{{ n8n_scraper_data_dir }}"
         n8n_runtime_port: "5678"
         n8n_runtime_listen_address: "0.0.0.0"
+        # The legacy n8n (and its task broker) is stopped by the time the
+        # production container starts, so the default broker port is free.
+        n8n_runtime_broker_port: "5679"
         n8n_disable_production_webhooks: false
 
     - name: Set ownership for Docker-mounted n8n data
