@@ -27,19 +27,20 @@ Deploy play 会按以下顺序工作：
 2. 校验旧的 `/root/.n8n/config`、磁盘余量，并 checkout 固定的 `n8n-rental` 版本。
 3. 保留旧环境文件中的 `HERMES_WEBHOOK_SECRET`，生成 staging Compose 配置；候选实例使用空数据目录、`127.0.0.1:5680`，task broker 移到 `5681`，并设置 `N8N_DISABLE_PRODUCTION_MAIN_PROCESS=true`。
 4. 在旧 systemd n8n 仍监听 `5678` 时，完成 Docker pull/build、启动候选实例并等待 `5680/healthz/readiness`；失败时只清理候选实例，旧服务不受影响。
-5. 候选验证通过后才停止并 mask 旧 `n8n.service`，创建 `/root/n8n-pre-docker-migration.tgz`（如尚不存在），复制完整 `.n8n` 到 `n8n-data`，并复制既有 scraper cache。
+5. 候选验证通过后才停止并 disable 旧 `n8n.service`，并把 unit 文件改名为 `/etc/systemd/system/n8n.service.pre-docker`（systemd 不允许 mask 直接位于 `/etc/systemd/system` 的真实 unit 文件，改名同样能防止重启拉起且完全可逆），创建 `/root/n8n-pre-docker-migration.tgz`（如尚不存在），复制完整 `.n8n` 到 `n8n-data`，并复制既有 scraper cache。
 6. 将 Compose 切到生产端口 `5678` 和真实数据目录；复用已构建镜像启动，不在停机窗口再次 pull/build。
 
 随后 Verify play 会确认 Docker active、旧 systemd 服务不再 active、Compose 中的 `n8n` 服务正在运行、容器内版本为 `2.39.5`，以及生产 readiness endpoint 返回 200。
 
 ## 失败与回滚
 
-staging 构建或健康检查失败时，旧 systemd 从未停止。只有真实 cutover 失败时，Ansible 才会执行 `docker compose down`、解除 mask 并恢复旧 systemd 服务。若需要人工回滚：
+staging 构建或健康检查失败时，旧 systemd 从未停止。只有真实 cutover 失败时，Ansible 才会执行 `docker compose down`、把 unit 文件改回原名并恢复旧 systemd 服务。若需要人工回滚：
 
 ```bash
 cd /opt/n8n-rental
 docker compose down
-systemctl unmask n8n
+mv /etc/systemd/system/n8n.service.pre-docker /etc/systemd/system/n8n.service
+systemctl daemon-reload
 systemctl enable --now n8n
 ```
 
