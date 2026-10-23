@@ -172,12 +172,20 @@
 - name: Execute the brief n8n cutover after staging succeeds
   when: not ansible_check_mode
   block:
+    - name: Check whether the legacy n8n unit is still in place
+      ansible.builtin.stat:
+        path: /etc/systemd/system/n8n.service
+      register: n8n_legacy_unit
+
+    # Skipped on re-runs after a successful cutover, where the unit file has
+    # already been renamed aside and systemd reports no n8n unit at all.
     - name: Stop and disable the legacy n8n service
       ansible.builtin.systemd_service:
         name: n8n
         state: stopped
         enabled: false
         daemon_reload: true
+      when: n8n_legacy_unit.stat.exists
 
     # Masking cannot be used here: the unit file lives directly in
     # /etc/systemd/system, and systemd refuses to replace a real unit file with
