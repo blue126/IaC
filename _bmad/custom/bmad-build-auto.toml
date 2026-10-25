@@ -1,9 +1,0 @@
-# PAL transport-only customization; native reviewer arrays remain installed-version owned.
-[workflow]
-activation_steps_prepend = ["PAL-REVIEW: Load {project-root}/docs/agent/bmad-cross-model-review.md and docs/agent/bmad-review-routing.md. At selected native reviewer dispatch, use clink with the explicitly approved and validated cli_name (claude, agy, codebuddy, dsh, or legacy gemini) and matching isolated role from the Run reviewer-selection.json instead of the native spawn transport. Keep the complete installed native child task, conditions, method, output format and synchronization. Verify the current Run service cwd and authorized per-role input directories per X2/X3; if unavailable, mark that selected review not executed, never silently fall back."]
-persistent_facts = [
-  "file:{project-root}/docs/agent/bmad-cross-model-review.md",
-  "Route only the native active review_layers through their same-name PAL roles. Preserve native state transitions and all human checkpoints. No extra review passes.",
-  "Keep independent reviewer sessions separate (no shared continuation_id), await the native group before triage, and inspect actual return_code, is_error, permission_denials and full findings. If content is truncated, recover only complete raw output from that same response (Claude: metadata.raw.result; Gemini: metadata.raw.response); otherwise record the layer incomplete. No automatic duplicate launch, extra review round, CR-1 process extraction or fabricated zero findings.",
-  "Record actual target version, model and available usage alongside results, not inside native findings. Required unexecuted reviews remain visible and cannot count as acceptance. Source, spec and other reports must obey the per-role input boundaries in X3; text-only isolation is not sufficient."
-]
