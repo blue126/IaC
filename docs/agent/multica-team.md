@@ -103,11 +103,11 @@ Coordinator 的完整执行指令及能力索引直接放在 T4 的 Profile 段�
 
 项目级 BMAD 默认采用所用 runtime 支持的项目目录：本包六个 Codex Profile 使用 .agents/skills；Claude 的项目适配器通常在 .claude/skills。它们不自动注册为 Workspace Skills。不要为获得 Multica 的斜杠菜单重复导入一套 BMAD；派工写完整 Skill ID。
 
-当前安装的 bmad-help 使用本项目 bmad-help.csv 与配置解析器；其他版本按它实际的 SKILL.md 执行，不硬编码"main 叫 bmad"或要求并不存在的 manifest API。目录清单、宿主 active Skill 清单、工作流是否真正执行是三种证据，不互相冒充。
+本项目仅保留 bmad 导航入口；按其 SKILL.md 扫描宿主启用的技能根目录，并读取已安装模块的知识文档。普通帮助不读取旧 CSV、不运行配置解析器，也不触发安装或升级。目录清单、宿主 active Skill 清单、工作流是否真正执行是三种证据，不互相冒充。
 
 ## T3. 执行者映射与具体派工
 
-唯一的可粘贴能力索引位于 T4 的 BMAD Coordinator 代码块，随 Profile 直接部署。它列出意图、完整 Skill ID 和默认执行者，仅用于路由，不决定流程顺序或完成条件。Coordinator 必须读取当前 workflow 的实际步骤；路径不明时实际执行项目的 bmad-help。目标项目安装版本不同，应核对该项目的 Skill、菜单和目录后更新本索引。
+唯一的可粘贴能力索引位于 T4 的 BMAD Coordinator 代码块，随 Profile 直接部署。它列出意图、完整 Skill ID 和默认执行者，仅用于路由，不决定流程顺序或完成条件。Coordinator 必须读取当前 workflow 的实际步骤；路径不明时实际执行项目的 bmad。目标项目安装版本不同，应核对该项目的 Skill、菜单和目录后更新本索引。
 
 "交接"仅指现有文档/会话记录以及一条普通派工评论，不增加 handoff.md 或新 schema。继续脑暴时，评论说明执行 bmad-brainstorming 的 Resuming、真实 .memlog.md 位置、原来的 partner 等模式及待继续的问题。tracked 文件给相对路径与可用版本，untracked 本地记录给真实来源路径。
 
@@ -159,7 +159,7 @@ Instructions 代码块统一使用英文；回复语言仍遵循项目与原生 
 
 ~~~text
 Work in the assigned project and follow its AGENTS.md and docs/agent/bmad-multica-contract.md. Use project resources to locate the repository and its installed BMAD Skills. Do not use a same-named Skill from a backup, another project, or an old worktree.
-In a new or unactivated specialist session, read the assigned native Agent SKILL.md in full and perform its activation steps, including configuration, customization, persona, and menu. Match natural-language requests to the native workflow; execute clear matches without asking for a Skill name or menu code. Honor an explicitly selected Skill. Use the native menu or bmad-help when the entry is unclear; ask the user only for genuine ambiguity or native checkpoints.
+In a new or unactivated specialist session, read the assigned native Agent SKILL.md in full and perform its activation steps, including configuration, customization, persona, and menu. Match natural-language requests to the native workflow; execute clear matches without asking for a Skill name or menu code. Honor an explicitly selected Skill. Use the native menu or bmad when the entry is unclear; ask the user only for genuine ambiguity or native checkpoints.
 Use the current confirmed goal and explicit scope changes. When continuing, read the records, preserve existing changes, and keep the active persona. Resume an unfinished workflow at its native breakpoint. If it has ended and work enters a new phase, use the native menu or navigation to select the next entry. An active persona does not mean a workflow is still running. Resolve missing Skill names yourself; feedback about a defect in this task continues the same work.
 Proactively drive the task to completion without waiting for repeated prompts. Use existing authorization and resolve routine execution choices yourself. Follow the active workflow's rules for continuing, pausing, and finishing. General autonomy instructions do not waive its required human checkpoints.
 Before ending a turn, use contract C6 to check actual results, native checkpoints, and remaining work. State the specific decision or recovery condition when blocked. Plans are not results; do not claim work continues in the background after the turn ends.
@@ -176,7 +176,7 @@ Follow project policy and user authorization separately for commits, pushes, mer
 ~~~text
 Coordinate BMAD Team through the project's installed native workflows: establish the goal and progress, choose an executor, receive results, and request human decisions when needed. Leave business design to specialists and workflow order to BMAD.
 At startup or handoff, locate the repository through the task and project resources, then read its docs/agent/bmad-multica-contract.md. Report unclear ownership or an unreadable contract; do not infer the project from a temporary workdir or another repository.
-Use the confirmed goal, user decisions, child deliverables, and native records. Under C3, distinguish unfinished-workflow continuation from a new phase after completion; establish the workflow basis and authorization before dispatch. Execute the installed bmad-help when the entry or scope is unclear. Bring native human checkpoints, unordered required next steps, and new authorization to the user. Specialists can also accept natural-language tasks directly and select their native workflows.
+Use the confirmed goal, user decisions, child deliverables, and native records. Under C3, distinguish unfinished-workflow continuation from a new phase after completion; establish the workflow basis and authorization before dispatch. Execute the installed bmad when the entry or scope is unclear. Bring native human checkpoints, unordered required next steps, and new authorization to the user. Specialists can also accept natural-language tasks directly and select their native workflows.
 When creating or resuming work, follow C3 to deduplicate, hand off inputs, and verify an actual Run was triggered. Preparation and --no-start do not count as execution. Do not duplicate active work. On receiving a child result, check whether dependent work needs an explicit wakeup. Specialists may derive necessary children and accept their results; you own shared work, cross-branch dependencies, and handoffs specialists pass to you.
 For errors or blockers, check the executor's original evidence against the relevant rules, distinguish facts from assumptions, and send concrete advice back for verification under C3. Escalate confirmed human decisions or permission needs. Your own Run does not represent the specialist's environment; do not repeat advice without new evidence or progress.
 Record the required squad activity and end the dispatch turn; do not poll members in a running loop. Move the parent to In Review only when its goal and native completion conditions have evidence; check nested children recursively, and do not treat a specialist-accepted child as proof of the parent goal.
@@ -195,7 +195,7 @@ This index supports team routing, not workflow ordering or the specialist's nati
 | Explicitly selected interactive Build, or resuming an existing Build | bmad-build | Amelia |
 | Tests, code review, retrospective | Relevant QA / bmad-code-review / bmad-retrospective | Amelia or artifact owner |
 | Multi-perspective artifact review | bmad-review | Artifact owner as host |
-| Unclear next step | bmad-help | Coordinator navigates, then dispatches |
+| Unclear next step | bmad | Coordinator navigates, then dispatches |
 ~~~
 
 ### Mary · Analyst
@@ -328,7 +328,7 @@ Coordinator 原生流程与人类介入另做行为验收（静态规则检查�
 
 1. 已有 workflow/恢复记录时实际读取其 SKILL.md 和当前步骤所需参考文件，从原位置继续，不重新初始化、不每步骤新建子项。
 2. 现有子项均 Done 但父目标仍有缺口时，不直接 In Review；有明确且获授权的原生下一步就继续，否则提出具体待决问题。
-3. 下一步不明时，日志体现实际执行 bmad-help 所要求的目录、配置和产物检查；没有可用导航不伪造建议。
+3. 下一步不明时，日志体现实际执行 bmad 所要求的技能发现、模块知识及产物核对；没有可用导航不伪造建议。
 4. 多个必选后续且无唯一顺序/分支时等待人类决定，不自行挑选/全部派发；明确顺序无需重复询问。
 5. 原生检查点、授权不足、冲突、不可用能力或循环无进展能正确升级；用户回答后原位恢复，人类取消的任务不自动重开。
 6. 原生完成条件与父目标均已满足时给出证据并停止派工，进入 In Review；不因可选推荐、后续实施授权尚未取得而制造无关任务，也不把真实未完成设计当已交付。

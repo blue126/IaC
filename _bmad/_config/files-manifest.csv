@@ -198,7 +198,6 @@ type,name,module,path,hash
 "md","SKILL","core","core/bmad-customize/SKILL.md","ef42ffe69d1758ee12f22d6c143262926f715dd13fecb874c8a5971916d41598"
 "md","SKILL","core","core/bmad-deep-recon/SKILL.md","e6de27d7c037e2951c5684d976186f6772cc724279af4b3cac05e21c42156db5"
 "md","SKILL","core","core/bmad-forge-idea/SKILL.md","e44d0008db0c0b30f3fa533e987efe66b2c852530b70fed03f0d4d9cbabe2b4b"
-"md","SKILL","core","core/bmad-help/SKILL.md","72573fbbd205cab6119015b7a20951055c7f1f583162674ebed7a68368dc889c"
 "md","SKILL","core","core/bmad-party-mode/SKILL.md","7bf82a11627595762244c969cdcc836869c935c5aa99a7c5ec5657581c1f4dd0"
 "md","SKILL","core","core/bmad-review/SKILL.md","c571dd7d3aa75f3b40749cf9db352c5e76244de22139cfb13c26629d28be1fa7"
 "md","structure-models","core","core/bmad-review/references/structure-models.md","f84f85070e1af75f2482757aba9d37d69d805a20826d185527e598f2ba6b9292"
