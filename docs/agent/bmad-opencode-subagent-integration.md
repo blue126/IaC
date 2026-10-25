@@ -327,7 +327,7 @@ Amelia 标记 → 任务完成 ✅
 ## 🎓 学习资源
 
 **了解 BMAD Method**：
-- `/bmad-help` - BMAD 帮助系统
+- `/bmad` - BMAD 帮助系统
 - `_bmad/bmm/workflows/` - 查看所有工作流
 
 **了解 OpenCode Subagents**：
