@@ -44,6 +44,8 @@ systemctl daemon-reload
 systemctl enable --now n8n
 ```
 
+> 迁移验收通过后（2026-10-25），旧 npm 全局安装 `n8n` 已按单独授权从 LXC 移除。此后的手工回滚在 `systemctl enable --now n8n` 之前需要先重装运行时：`npm install -g n8n@2.39.5`。数据回滚路径（`/root/n8n-pre-docker-migration.tgz` 与 `/root/.n8n`）不受影响。
+
 不要删除 `/root/n8n-pre-docker-migration.tgz`、`/root/.n8n` 或 `/opt/n8n-rental/n8n-data`。如果 Docker 版本已经迁移了 SQLite schema，恢复前必须先保留现有副本并单独确认兼容性。
 
 ## 验收
