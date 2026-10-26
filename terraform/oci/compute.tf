@@ -4,9 +4,10 @@ resource "oci_core_instance" "oracle_cloud_ubuntu2404" {
   display_name        = "oracle-cloud-ubuntu2404"
   shape               = "VM.Standard.A1.Flex"
 
+  # Matches the running instance; it was resized outside Terraform after the import.
   shape_config {
-    memory_in_gbs = 24
-    ocpus         = 4
+    memory_in_gbs = 12
+    ocpus         = 2
   }
 
   source_details {
