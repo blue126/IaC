@@ -16,11 +16,16 @@ table inet employee_access {
 {% for id, net in employee_access_networks | dictsort %}
 {% if not net.disabled | bool %}
     iifname "{{ net.interface }}" ip saddr {{ net.ip }} ip protocol icmp icmp type { destination-unreachable, time-exceeded, parameter-problem } ct state related accept
-    iifname "{{ net.interface }}" ip saddr {{ net.ip }} tcp sport 22 ct state established accept
+    iifname "{{ net.interface }}" ip saddr {{ net.ip }} tcp sport { 22, 6081 } ct state established accept
 {% endif %}
     iifname "{{ net.interface }}" drop
 {% endfor %}
     iifname "wg-employee" ip daddr {{ employee_access_wireguard_address.split('/')[0] }} tcp dport 22 accept
+{% for name, device in employee_access_devices | default({}) | dictsort %}
+{% if device.enabled | bool and not employee_access_networks[device.employee].disabled | bool %}
+    iifname "wg-employee" ip saddr {{ device.address }} ip daddr {{ employee_access_wireguard_address.split('/')[0] }} tcp dport 8443 accept
+{% endif %}
+{% endfor %}
     iifname "wg-employee" drop
     ct state established,related accept
     iifname "employee-uplink" udp dport 51820 accept
@@ -61,7 +66,7 @@ table inet employee_access {
     oifname "{{ net.interface }}" drop
 {% else %}
     oifname "{{ net.interface }}" ip daddr {{ net.ip }} ip protocol icmp icmp type { destination-unreachable, time-exceeded, parameter-problem } ct state related accept
-    oifname "{{ net.interface }}" ip daddr {{ net.ip }} tcp dport 22 accept
+    oifname "{{ net.interface }}" ip daddr {{ net.ip }} tcp dport { 22, 6081 } accept
     oifname "{{ net.interface }}" drop
 {% endif %}
 {% endfor %}

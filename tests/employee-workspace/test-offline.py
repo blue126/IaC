@@ -72,6 +72,20 @@ class DispatchTests(unittest.TestCase):
 
 
 class InventoryTests(unittest.TestCase):
+    def test_removing_prefix_does_not_allow_killing_system_accounts(self):
+        tasks=yaml.safe_load((ROLE/'tasks/revoke.yml').read_text())
+        policy=next(t['ansible.builtin.assert']['that'][0] for t in tasks if t['name']=='Refuse revocation of unmanaged operating-system accounts')
+        expression=jinja2.Environment().compile_expression(policy)
+        cases=[(None,True),(['*','995','995','','/var/empty/employee-access','/bin/sh'],True),(['x','0','0','','/root','/bin/bash'],False),(['x','1000','1000','','/home/ubuntu','/bin/bash'],False)]
+        for account,expected in cases:
+            self.assertEqual(bool(expression(ansible_facts={'getent_passwd':{'zhang171903992':account}},employee_revoke_account='zhang171903992')),expected)
+
+    def test_unprefixed_device_account_is_valid(self):
+        data=copy.deepcopy(FIXTURE)
+        device=data['devices'].pop('ed-alice-laptop')
+        data['devices']['zhang171903992']=device
+        VALIDATOR.validate(data)
+
     def test_valid_fixture(self):
         VALIDATOR.validate(FIXTURE)
 
@@ -203,7 +217,7 @@ class PolicyRenderTests(unittest.TestCase):
     def test_disabled_vm_remains_stopped_after_terraform_reconciliation(self):
         employee = (ROOT / 'terraform/proxmox/employee-workspace.tf').read_text()
         for field in ('started', 'on_boot'):
-            self.assertRegex(employee, rf'(?m)^  {field}\s*= var\.employee_access\.boundary_ready && !each\.value\.disabled$')
+            self.assertRegex(employee, rf'(?m)^  {field}\s*= var\.employee_access\.boundary_ready && each\.value\.start_ready && !each\.value\.disabled$')
         self.assertRegex(employee, r'(?m)^    disconnected\s*= each\.value\.disabled$')
 
     def test_boundary_startup_is_scoped_to_employee_vms(self):

@@ -1,0 +1,54 @@
+---
+- name: Deploy dedicated employee snippet storage on the selected standalone node
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Verify the pinned clean cloud image before using it
+      ansible.builtin.command: sha256sum /var/lib/vz/template/iso/ubuntu-26.04-server-cloudimg-amd64.img
+      register: employee_image_digest
+      changed_when: false
+      failed_when: not employee_image_digest.stdout.startswith('8196be9d7958059cb56c6c75c80fdf6cee8a8885bc149ea791d7db1c7ef93035 ')
+    - name: Inspect the employee snippet storage
+      ansible.builtin.command: pvesh get /storage/employee-snippets --output-format json
+      register: employee_snippet_storage
+      changed_when: false
+      failed_when: employee_snippet_storage.rc not in [0, 255]
+    - name: Reject an existing storage with an unexpected identity
+      ansible.builtin.assert:
+        that:
+          - (employee_snippet_storage.stdout | from_json).type == 'dir'
+          - (employee_snippet_storage.stdout | from_json).path == '/var/lib/employee-snippets'
+          - (employee_snippet_storage.stdout | from_json).content == 'snippets'
+      when: employee_snippet_storage.rc == 0
+    - name: Create the dedicated employee snippet directory
+      ansible.builtin.file:
+        path: /var/lib/employee-snippets
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Register dedicated snippet storage without editing existing storage
+      ansible.builtin.command:
+        argv: [pvesm, add, dir, employee-snippets, --path, /var/lib/employee-snippets, --content, snippets, --nodes, pve2]
+      when: employee_snippet_storage.rc != 0
+      changed_when: true
+    - name: Verify dedicated storage identity and supported content
+      ansible.builtin.command: pvesh get /storage/employee-snippets --output-format json
+      register: employee_snippet_verified
+      changed_when: false
+      failed_when: >-
+        (employee_snippet_verified.stdout | from_json).path != '/var/lib/employee-snippets'
+        or (employee_snippet_verified.stdout | from_json).content != 'snippets'
+
+- name: Verify the employee snippet storage is active
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify dedicated snippet storage availability
+      ansible.builtin.command: pvesm status --storage employee-snippets
+      register: employee_snippet_status
+      changed_when: false
+      failed_when: "'active' not in employee_snippet_status.stdout"

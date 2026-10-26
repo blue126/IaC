@@ -14,8 +14,17 @@
 
 - name: Validate all selected device account identifiers
   ansible.builtin.assert:
-    that: item.key is match('^ed-[a-z0-9-]{1,25}$')
+    that: item.key is match('^[a-z][a-z0-9-]{0,27}$')
   loop: "{{ employee_access_devices | dict2items }}"
+
+- name: Inspect whether the authorization viewer is installed
+  ansible.builtin.stat:
+    path: /etc/employee-auth-viewer.conf
+  register: employee_auth_viewer_installed
+
+- name: Cut revoked viewer sessions before subsequent operations
+  ansible.builtin.include_tasks: auth-viewer-policy.yml
+  when: employee_auth_viewer_installed.stat.exists
 
 - name: Block all employee VM traffic before fallible identity or hypervisor operations
   when: employee_disable_kind == 'employee'

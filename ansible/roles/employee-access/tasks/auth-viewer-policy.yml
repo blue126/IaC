@@ -1,0 +1,17 @@
+---
+- name: Reconcile fixed device authorization viewer mappings
+  ansible.builtin.template:
+    src: auth-viewer-nginx.conf.j2
+    dest: /etc/employee-auth-viewer.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/sbin/nginx -t -c %s
+  register: employee_auth_viewer_config
+
+- name: Reconcile viewer routing and terminate sessions after identity changes
+  ansible.builtin.systemd:
+    name: employee-auth-viewer
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if (employee_auth_viewer_config.changed or (employee_auth_viewer_unit is defined and employee_auth_viewer_unit.changed)) else 'started' }}"

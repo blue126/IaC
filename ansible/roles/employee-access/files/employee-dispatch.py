@@ -44,7 +44,7 @@ def command(mapping, original, tty=False):
 def main():
     try:
         account = pwd.getpwuid(os.getuid()).pw_name
-        if not re.fullmatch(r'ed-[a-z0-9-]{1,25}', account):
+        if not re.fullmatch(r'[a-z][a-z0-9-]{0,27}', account):
             raise ValueError('unknown device')
         mapping = json.loads((ROOT / 'devices' / (account + '.json')).read_text())
         args = command(mapping, os.environ.get('SSH_ORIGINAL_COMMAND', ''), bool(os.environ.get('SSH_TTY')))

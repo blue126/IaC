@@ -83,7 +83,7 @@ def validate(config):
         if config.get('require_host_keys', True) or employee in config.get('host_keys', {}):
             public_key(config['host_keys'][employee])
     for name, device in devices.items():
-        require(re.fullmatch(r'ed-[a-z0-9-]{1,25}', name), 'Invalid device account')
+        require(re.fullmatch(r'[a-z][a-z0-9-]{0,27}', name), 'Invalid device account')
         require(device['employee'] in networks and type(device['enabled']) is bool, 'Invalid device assignment/state')
         address = ipaddress.IPv4Address(device['address'])
         require(address in wg.network and address not in (wg.ip, wg.network.network_address, wg.network.broadcast_address) and address not in addresses, 'Invalid/duplicate device address')

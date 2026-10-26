@@ -1,7 +1,20 @@
 ---
 - name: Validate revoked device account scope
   ansible.builtin.assert:
-    that: employee_revoke_account is match('^ed-[a-z0-9-]{1,25}$')
+    that: employee_revoke_account is match('^[a-z][a-z0-9-]{0,27}$')
+
+- name: Inspect the revoked operating-system account
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ employee_revoke_account }}"
+    fail_key: false
+  no_log: true
+
+- name: Refuse revocation of unmanaged operating-system accounts
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.getent_passwd.get(employee_revoke_account) is none or (ansible_facts.getent_passwd[employee_revoke_account][1] | int > 0 and ansible_facts.getent_passwd[employee_revoke_account][4] == '/var/empty/employee-access')
+    fail_msg: Refuse to revoke or terminate an unmanaged operating-system account.
 
 - name: Clear revoked device authorization before terminating sessions
   ansible.builtin.copy:
@@ -17,6 +30,7 @@
   register: employee_revoke_kill
   changed_when: employee_revoke_kill.rc == 0
   failed_when: employee_revoke_kill.rc not in [0, 1]
+  when: ansible_facts.getent_passwd.get(employee_revoke_account) is not none
 
 - name: Remove revoked mapping and system credential
   ansible.builtin.file:

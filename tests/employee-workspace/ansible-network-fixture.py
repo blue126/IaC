@@ -80,7 +80,7 @@ elif any(a in args for a in ('start','reload')):
         offline = fixture_spec.module_from_spec(offline_spec)
         offline_spec.loader.exec_module(offline)
         (base / 'gw.nft').write_text(offline.render('nftables.conf.j2', original))
-        deploy = yaml.safe_load((role / 'tasks/deploy.yml').read_text())
+        deploy = yaml.safe_load((role / 'tasks/gateway-network.yml').read_text())
         reload_task = next(task for task in deploy if task['name'] == 'Start gateway firewall before configuring network')
         reload_play = base / 'reload.yml'
         reload_play.write_text(yaml.safe_dump([{'hosts': 'gw', 'gather_facts': False, 'environment': {'PATH': str(binaries) + ':' + os.environ['PATH']}, 'tasks': [reload_task]}]))

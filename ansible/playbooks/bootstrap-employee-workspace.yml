@@ -1,0 +1,23 @@
+---
+- name: Deploy initial employee network without opening employee SSH
+  hosts: employee_access
+  become: true
+  tasks:
+    - name: Bootstrap external boundary and managed gateway network
+      ansible.builtin.include_role:
+        name: employee-access
+        tasks_from: bootstrap
+
+- name: Verify initial external network boundary
+  hosts: employee_access
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify gateway policy and enabled routing
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify --routing
+      changed_when: false
+    - name: Verify PVE bridge policy
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify
+      delegate_to: "{{ employee_access_pve_host }}"
+      changed_when: false

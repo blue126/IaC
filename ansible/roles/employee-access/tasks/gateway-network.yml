@@ -1,0 +1,70 @@
+---
+- name: Keep IPv4 routing disabled until the firewall is loaded
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-employee-access.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      net.ipv4.ip_forward=0
+      net.ipv4.conf.all.accept_redirects=0
+      net.ipv4.conf.all.send_redirects=0
+      net.ipv6.conf.all.disable_ipv6=1
+      net.ipv6.conf.default.disable_ipv6=1
+
+- name: Apply safe gateway sysctls before opening routing
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/90-employee-access.conf
+  changed_when: true
+
+- name: Install gateway firewall controller
+  ansible.builtin.copy:
+    src: employee-firewall.py
+    dest: /usr/local/lib/employee-firewall.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy gateway firewall
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/employee-access.nft
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/sbin/nft --check --file %s
+  notify: Reload gateway firewall
+
+- name: Deploy gateway firewall boot unit
+  ansible.builtin.template:
+    src: firewall.service.j2
+    dest: /etc/systemd/system/employee-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Start gateway firewall before configuring network
+  ansible.builtin.systemd:
+    name: employee-firewall
+    daemon_reload: true
+    enabled: true
+    state: reloaded
+
+- name: Apply pending firewall policy before routing
+  ansible.builtin.meta: flush_handlers
+
+- name: Disable cloud-init network regeneration
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-employee-network.cfg
+    owner: root
+    group: root
+    mode: '0644'
+    content: 'network: {config: disabled}'
+
+- name: Replace cloned cloud-init network with MAC-pinned interfaces
+  ansible.builtin.template:
+    src: netplan.yml.j2
+    dest: /etc/netplan/50-cloud-init.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Apply employee network
