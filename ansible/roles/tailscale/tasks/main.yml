@@ -51,6 +51,7 @@
   delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
   command: "pct reboot {{ proxmox_vmid }}"
   when: lxc_config_changed | default(false) | bool
+  changed_when: true
 
 - name: Wait for container to come back up
   wait_for_connection:
@@ -91,6 +92,7 @@
     - name: Run Tailscale installer
       ansible.builtin.command:
         argv: [/bin/sh, "{{ tailscale_installer.path }}"]
+      changed_when: true
   always:
     - name: Remove Tailscale installer file
       ansible.builtin.file:

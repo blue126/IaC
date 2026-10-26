@@ -56,6 +56,14 @@
     version: "{{ homepage_version }}"
     update: true
     force: true
+  register: homepage_source
+
+# Rebuild only when the pinned source moved or no build exists yet;
+# `pnpm start` serves the existing .next build.
+- name: Check for an existing Homepage build
+  ansible.builtin.stat:
+    path: "{{ homepage_install_dir }}/.next/BUILD_ID"
+  register: homepage_build
 
 - name: Install Homepage dependencies
   ansible.builtin.command:
@@ -63,11 +71,15 @@
     chdir: "{{ homepage_install_dir }}"
   environment:
     CI: "true"
+  when: homepage_source.changed or not homepage_build.stat.exists
+  changed_when: true
 
 - name: Build Homepage
   ansible.builtin.command:
     cmd: pnpm build
     chdir: "{{ homepage_install_dir }}"
+  when: homepage_source.changed or not homepage_build.stat.exists
+  changed_when: true
   notify: Restart Homepage
 
 # Import configuration tasks

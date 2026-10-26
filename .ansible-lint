@@ -4,7 +4,6 @@ skip_list:
   - fqcn
   - name
   - risky-file-permissions
-  - no-changed-when
   - command-instead-of-shell
   - schema
   - var-naming
