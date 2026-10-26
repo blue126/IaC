@@ -74,7 +74,9 @@ fatal: [target]: FAILED! => {
 }
 ```
 
-**触发场景**: 使用 `password_hash` 过滤器生成密码（如 Caddy WebDAV 的 bcrypt 哈希）
+**触发场景**: 使用 `password_hash` 过滤器生成密码。
+
+> 2026-10-26 起 Caddy WebDAV 的 bcrypt 哈希改为预先生成并存入 vault（`vault_caddy_webdav_password_hash`），仓库不再使用 `password_hash`，`passlib` 也已从依赖中移除。再遇到此错误，说明有新代码引入了 `password_hash`：优先改用预存哈希，而不是重新加回 `passlib`。
 
 ### 症状 B: Ansible Collections 缺失
 ```
@@ -137,7 +139,6 @@ sbx kit validate .sandbox-kit
 sandbox。进入 sandbox 后检查依赖并运行 Ansible syntax check：
 
 ```bash
-python3 -c 'import passlib'
 ansible-galaxy collection list | grep ansible.posix
 cd ansible
 ansible-playbook playbooks/<service>.yml --syntax-check

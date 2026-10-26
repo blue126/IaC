@@ -859,7 +859,7 @@ bin_ansible_callbacks = True  # 推荐：允许 ad-hoc 命令也使用此回调
 ERROR! Unexpected failure during Ansible execution: No module named 'passlib'
 ```
 
-**原因**: `password_hash` 过滤器调用 Python 的 `passlib` 库。
+**原因**: `password_hash` 过滤器调用 Python 的 `passlib` 库。仓库已不再使用 `password_hash`（Caddy WebDAV 哈希改为预存于 vault），`passlib` 不再是依赖；新代码需要哈希时同样优先预先生成后存入 vault。
 
 **症状 2**: `sysctl` 模块不存在
 
@@ -887,7 +887,6 @@ sbx kit validate .sandbox-kit
 中的对应 `sbx run` 命令创建新的 sandbox。进入 sandbox 后验证依赖和 Ansible：
 
 ```bash
-python3 -c 'import passlib'
 ansible-galaxy collection list | grep ansible.posix
 cd ansible
 ansible-playbook playbooks/<service>.yml --syntax-check

@@ -20,6 +20,7 @@
         - iac-deploy
       register: jenkins_agent_account_ids
       changed_when: false
+      check_mode: false
 
     - name: Assert Jenkins agent accounts are non-root
       assert:
