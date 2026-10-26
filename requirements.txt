@@ -11,4 +11,6 @@ requests
 netaddr
 pyvmomi
 passlib
+# passlib backend for password_hash("blowfish") in the caddy role
+bcrypt
 notion-client==2.2.1

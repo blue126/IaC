@@ -48,6 +48,7 @@
   delegate_to: "{{ ubuntu_vm_verifier }}"
   register: ubuntu_vm_key_check
   changed_when: false
+  check_mode: false
   when: not ansible_check_mode
 
 - name: Validate existing SSH configuration before changing it

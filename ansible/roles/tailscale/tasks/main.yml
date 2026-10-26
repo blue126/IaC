@@ -61,7 +61,8 @@
 - name: Check if Tailscale is installed
   shell: command -v tailscale
   register: tailscale_check
-  failed_when: tailscale_check.rc not in [0, 1]
+  # A missing command exits 1 under bash/busybox but 127 under dash.
+  failed_when: tailscale_check.rc not in [0, 1, 127]
   changed_when: false
   check_mode: false
 
@@ -116,6 +117,7 @@
   command: tailscale status --json
   register: tailscale_status
   changed_when: false
+  check_mode: false
   failed_when: false
   when: tun_device.stat.exists
 
@@ -173,6 +175,7 @@
   command: tailscale ip -4
   register: tailscale_ip
   changed_when: false
+  check_mode: false
   when: tun_device.stat.exists
 
 - name: Display Tailscale Info

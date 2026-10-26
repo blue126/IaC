@@ -36,6 +36,7 @@
     cmd: df --output=avail -B1 /
   register: n8n_available_space
   changed_when: false
+  check_mode: false
 
 - name: Refuse staging when Docker would risk filling the LXC rootfs
   ansible.builtin.assert:

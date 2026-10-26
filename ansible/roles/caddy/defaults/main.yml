@@ -22,5 +22,9 @@ caddy_reverse_proxy_domain: ""
 caddy_reverse_proxy_upstream: ""
 # Cloudflare API token for DNS challenge (vault indirect reference)
 cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
-# WebDAV basic auth password, hashed for Caddy (vault indirect reference)
-caddy_webdav_password_hash: "{{ vault_caddy_webdav_password | password_hash('blowfish') }}"
+# WebDAV basic auth password, hashed for Caddy (vault indirect reference).
+# A fixed per-host salt keeps the hash, and so the Caddyfile, stable across runs;
+# without it every run re-renders the Caddyfile and reloads Caddy. The salt is
+# not derived from the password; its last character must be one of ".Oeu".
+caddy_webdav_password_salt: "{{ (('caddy-webdav-' ~ inventory_hostname) | hash('sha256'))[:21] }}e"
+caddy_webdav_password_hash: "{{ vault_caddy_webdav_password | password_hash('blowfish', salt=caddy_webdav_password_salt) }}"

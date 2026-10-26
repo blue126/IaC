@@ -45,6 +45,7 @@
       command: "zpool list -H -o health {{ pbs_zfs_pool_name | default(pbs_verify_defaults.pbs_zfs_pool_name) }}"
       register: zpool_status
       changed_when: false
+      check_mode: false
 
     - name: Assert ZFS pool is ONLINE
       assert:
@@ -56,6 +57,7 @@
       command: proxmox-backup-manager datastore list --output-format json
       register: ds_list
       changed_when: false
+      check_mode: false
 
     - name: Verify the configured datastore and path
       ansible.builtin.assert:

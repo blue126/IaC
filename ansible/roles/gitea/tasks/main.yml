@@ -55,6 +55,7 @@
   command: "grep '^SECRET_KEY' {{ gitea_config_dir }}/app.ini"
   register: gitea_existing_secret_key
   changed_when: false
+  check_mode: false
   failed_when: false
   when: gitea_appini_stat.stat.exists
 
@@ -62,6 +63,15 @@
   command: "grep '^INTERNAL_TOKEN' {{ gitea_config_dir }}/app.ini"
   register: gitea_existing_internal_token
   changed_when: false
+  check_mode: false
+  failed_when: false
+  when: gitea_appini_stat.stat.exists
+
+- name: Read existing JWT_SECRET from app.ini
+  command: "grep '^JWT_SECRET' {{ gitea_config_dir }}/app.ini"
+  register: gitea_existing_jwt_secret
+  changed_when: false
+  check_mode: false
   failed_when: false
   when: gitea_appini_stat.stat.exists
 
@@ -76,6 +86,12 @@
   register: gitea_generated_internal_token
   changed_when: true
   when: not gitea_appini_stat.stat.exists or (gitea_existing_internal_token.rc | default(1)) != 0
+
+- name: Generate JWT_SECRET
+  command: "{{ gitea_binary_path }} generate secret JWT_SECRET"
+  register: gitea_generated_jwt_secret
+  changed_when: true
+  when: not gitea_appini_stat.stat.exists or (gitea_existing_jwt_secret.rc | default(1)) != 0
 
 # C1: no_log prevents secrets from appearing in verbose Ansible output / callback logs
 - name: Set gitea_secret_key fact
@@ -94,6 +110,14 @@
          else gitea_existing_internal_token.stdout | regex_replace('^INTERNAL_TOKEN\s*=\s*', '') }}
   no_log: true
 
+- name: Set gitea_jwt_secret fact
+  set_fact:
+    gitea_jwt_secret: >-
+      {{ gitea_generated_jwt_secret.stdout
+         if (not gitea_appini_stat.stat.exists or (gitea_existing_jwt_secret.rc | default(1)) != 0)
+         else gitea_existing_jwt_secret.stdout | regex_replace('^JWT_SECRET\s*=\s*', '') }}
+  no_log: true
+
 # Approach A: git user owns app.ini so Gitea can write auto-generated secrets
 # (JWT_SECRET etc.) at startup without permission errors
 - name: Deploy Gitea app.ini
@@ -102,7 +126,8 @@
     dest: "{{ gitea_config_dir }}/app.ini"
     owner: "{{ gitea_user }}"
     group: "{{ gitea_group }}"
-    mode: '0640'
+    # Gitea saves the file as 0600 whenever it rewrites it
+    mode: '0600'
   notify: Restart gitea
 
 - name: Deploy Gitea systemd service
@@ -149,6 +174,7 @@
   become_user: "{{ gitea_user }}"
   register: gitea_admin_check
   changed_when: false
+  check_mode: false
   failed_when: gitea_admin_check.rc not in [0, 1]
   environment:
     GITEA_WORK_DIR: "{{ gitea_work_dir }}"

@@ -44,11 +44,13 @@
       command: terraform version
       register: terraform_check
       changed_when: false
+      check_mode: false
 
     - name: Verify Ansible is installed
       command: ansible --version
       register: ansible_check
       changed_when: false
+      check_mode: false
 
     - name: Load CI toolchain BOM for verification
       include_vars:

@@ -31,7 +31,7 @@ printf '[defaults]\ncollections_path = /home/agent/.ansible/collections\n' > "$A
 terraform version
 ansible --version
 /opt/iac-venv/bin/python -m pip --version
-/opt/iac-venv/bin/python -c 'import proxmoxer, requests, netaddr, pyVmomi, passlib, notion_client'
+/opt/iac-venv/bin/python -c 'import proxmoxer, requests, netaddr, pyVmomi, passlib, bcrypt, notion_client'
 ansible-galaxy collection list --format json > "$work_dir/collections.json"
 /opt/iac-venv/bin/python - "$work_dir/collections.json" <<'PY'
 import json
