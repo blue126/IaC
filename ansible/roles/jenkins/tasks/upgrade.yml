@@ -396,6 +396,7 @@
               - >-
                 {{ jenkins_home }}/plugins/{{ item.id }}.{{
                    (item.id in jenkins_upgrade_live_hpi_ids) | ternary('hpi', 'jpi') }}
+          changed_when: true
           loop: "{{ ci_toolchain_bom.jenkins.plugin_upgrade.lock }}"
           loop_control:
             label: "{{ item.id }} (with_dependencies=false)"

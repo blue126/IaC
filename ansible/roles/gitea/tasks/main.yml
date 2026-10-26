@@ -192,6 +192,7 @@
   become: true
   become_user: "{{ gitea_user }}"
   when: gitea_admin_check.rc != 0
+  changed_when: true
   no_log: true
   environment:
     GITEA_WORK_DIR: "{{ gitea_work_dir }}"

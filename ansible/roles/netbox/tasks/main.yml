@@ -60,6 +60,9 @@
   command: docker compose pull
   args:
     chdir: "{{ netbox_install_dir }}"
+  # A pulled image only takes effect when "Start Netbox" recreates a
+  # container, and that task reports the change.
+  changed_when: false
 
 - name: Start Netbox
   command: docker compose up -d
@@ -67,6 +70,11 @@
     chdir: "{{ netbox_install_dir }}"
   async: 600
   poll: 10
+  register: netbox_up
+  # Compose reports untouched containers as "Running".
+  changed_when: >-
+    'Created' in netbox_up.stderr or 'Recreated' in netbox_up.stderr
+    or 'Started' in netbox_up.stderr
 
 - name: Wait for Netbox to become healthy
   shell: |

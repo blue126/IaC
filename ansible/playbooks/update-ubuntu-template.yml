@@ -29,10 +29,12 @@
     - name: Convert template to VM (remove template flag)
       command: qm set {{ template_id }} --template 0
       register: revert_result
+      changed_when: true
 
     - name: Start the VM
       command: qm start {{ template_id }}
-      
+      changed_when: true
+
     - name: Wait for VM to boot (60 seconds)
       pause:
         seconds: 60
@@ -105,6 +107,7 @@
 
     - name: Clean cloud-init
       command: cloud-init clean
+      changed_when: true
 
     - name: Remove cloud-init instances
       file:
@@ -113,6 +116,7 @@
 
     - name: Truncate machine-id
       command: truncate -s 0 /etc/machine-id
+      changed_when: true
 
     - name: Remove dbus machine-id
       file:
@@ -158,6 +162,7 @@
 
     - name: Convert VM back to template
       command: qm template {{ template_id }}
+      changed_when: true
 
     - name: Verify template conversion
       shell: |
