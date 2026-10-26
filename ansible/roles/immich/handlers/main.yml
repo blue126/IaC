@@ -7,3 +7,4 @@
     chdir: "{{ immich_app_dir }}"
   become: true
   become_user: "{{ immich_host_user }}"
+  changed_when: true

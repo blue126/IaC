@@ -22,6 +22,7 @@
   ansible.builtin.command: java -version
   register: java_version
   changed_when: false
+  check_mode: false
 
 - name: Display Java version
   ansible.builtin.debug:
@@ -87,6 +88,7 @@
   ansible.builtin.command: terraform version
   register: terraform_version
   changed_when: false
+  check_mode: false
 
 - name: Display Terraform version
   ansible.builtin.debug:
@@ -134,6 +136,7 @@
   ansible.builtin.command: ansible --version
   register: ansible_version_output
   changed_when: false
+  check_mode: false
 
 - name: Display Ansible version
   ansible.builtin.debug:

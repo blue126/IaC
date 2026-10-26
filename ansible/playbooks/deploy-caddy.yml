@@ -7,6 +7,7 @@
       ansible.builtin.command: pct status 105
       register: lxc_status
       changed_when: false
+      check_mode: false
       ignore_errors: true
 
     - name: Install and enable SSH on Caddy LXC
@@ -44,6 +45,7 @@
       ansible.builtin.command: tailscale ip -4
       register: tailscale_ipv4
       changed_when: false
+      check_mode: false
       failed_when: false
       tags: [summary]
 
@@ -86,6 +88,7 @@
         timeout: 5
         use_netrc: false
       register: caddy_webdav_auth_check
+      check_mode: false
 
     - name: Assert WebDAV requests require Basic authentication
       ansible.builtin.assert:

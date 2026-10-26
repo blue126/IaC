@@ -3,7 +3,6 @@ skip_list:
   - yaml
   - name
   - risky-file-permissions
-  - no-changed-when
   - command-instead-of-shell
   - schema
   - var-naming

@@ -63,6 +63,7 @@
       delegate_to: pve2
       register: pnetlab_pve_config
       changed_when: false
+      check_mode: false
       no_log: true
       when: pnetlab_install_completed | bool
 
@@ -87,5 +88,6 @@
       delegate_to: pve2
       register: pnetlab_qga_network
       changed_when: false
+      check_mode: false
       failed_when: "'192.168.1.250' not in pnetlab_qga_network.stdout"
       when: pnetlab_install_completed | bool

@@ -27,6 +27,7 @@
       - jenkins
   register: jenkins_installed_package_version
   changed_when: false
+  check_mode: false
 
 - name: Assert Jenkins core matches the BOM
   ansible.builtin.assert:

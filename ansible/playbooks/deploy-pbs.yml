@@ -30,6 +30,7 @@
         validate_certs: no
         status_code: [200, 401]
       register: pbs_api
+      check_mode: false
 
     - name: Check PBS service status
       ansible.builtin.service_facts:
@@ -45,6 +46,7 @@
       ansible.builtin.command: "zpool list -H -o health {{ pbs_zfs_pool_name | default(pbs_verify_defaults.pbs_zfs_pool_name) }}"
       register: zpool_status
       changed_when: false
+      check_mode: false
 
     - name: Assert ZFS pool is ONLINE
       ansible.builtin.assert:
@@ -56,6 +58,7 @@
       ansible.builtin.command: proxmox-backup-manager datastore list --output-format json
       register: ds_list
       changed_when: false
+      check_mode: false
 
     - name: Verify the configured datastore and path
       ansible.builtin.assert:

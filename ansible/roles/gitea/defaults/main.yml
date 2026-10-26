@@ -21,6 +21,8 @@ gitea_protocol: http
 # C6: Override this in host_vars when behind a reverse proxy (e.g. https://gitea.willfan.me)
 #     Default constructs URL from protocol/domain/port for direct access
 gitea_root_url: "{{ gitea_protocol }}://{{ gitea_domain }}:{{ gitea_http_port }}/"
+# Gitea's default ("external") blocks webhooks to LAN targets such as Jenkins
+gitea_webhook_allowed_host_list: "loopback, private"
 
 # Database
 gitea_db_type: sqlite3

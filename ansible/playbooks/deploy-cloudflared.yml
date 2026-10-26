@@ -30,6 +30,7 @@
       ansible.builtin.command: cloudflared tunnel info {{ cloudflared_tunnel_name }}
       register: tunnel_info
       changed_when: false
+      check_mode: false
       failed_when: false
 
     - name: Assert tunnel is reachable
