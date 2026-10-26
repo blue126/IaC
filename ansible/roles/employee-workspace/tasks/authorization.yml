@@ -1,0 +1,14 @@
+---
+- name: Reconcile company second-leg SSH authorization
+  ansible.builtin.copy:
+    dest: "/home/{{ employee_workspace_user }}/.ssh/authorized_keys"
+    owner: "{{ employee_workspace_user }}"
+    group: "{{ employee_workspace_user }}"
+    mode: '0600'
+    content: |
+      # Managed company access; no entries means no employee device is authorized.
+      {% for result in hostvars[employee_workspace_gateway].employee_access_derived_keys.results %}
+      {% if not result.skipped | default(false) and result.item.value.employee == employee_workspace_id %}
+      from="{{ (hostvars[employee_workspace_gateway].employee_access_networks_json | from_json)[employee_workspace_id].gateway }}" {{ result.stdout }}
+      {% endif %}
+      {% endfor %}

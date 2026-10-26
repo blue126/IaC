@@ -1,0 +1,95 @@
+---
+- name: Read the employee browser target architecture
+  ansible.builtin.command: dpkg --print-architecture
+  changed_when: false
+  register: employee_workspace_browser_architecture
+
+- name: Require the supported employee browser architecture
+  ansible.builtin.assert:
+    that: employee_workspace_browser_architecture.stdout == 'amd64'
+    fail_msg: The employee browser baseline currently supports the approved AMD64 VM image.
+
+- name: Install package verification prerequisites
+  ansible.builtin.apt:
+    name: [ca-certificates, gnupg]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Create the APT key directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+- name: Download the official Mozilla repository key
+  ansible.builtin.get_url:
+    url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+    dest: /etc/apt/keyrings/employee-browser-mozilla.asc
+    mode: '0644'
+- name: Inspect the official Mozilla key fingerprint
+  ansible.builtin.command:
+    argv: [gpg, --batch, --show-keys, --with-colons, /etc/apt/keyrings/employee-browser-mozilla.asc]
+  changed_when: false
+  register: employee_workspace_browser_key
+- name: Require the documented Mozilla signing fingerprint
+  ansible.builtin.assert:
+    that: "'fpr:::::::::35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3:' in employee_workspace_browser_key.stdout"
+- name: Configure the signed official Mozilla repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/employee-browser-mozilla.sources
+    mode: '0644'
+    content: |
+      Types: deb
+      URIs: https://packages.mozilla.org/apt
+      Suites: mozilla
+      Components: main
+      Signed-By: /etc/apt/keyrings/employee-browser-mozilla.asc
+- name: Prefer the native Firefox package from Mozilla
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/employee-browser-mozilla
+    mode: '0644'
+    content: |
+      Package: firefox firefox-l10n-*
+      Pin: origin packages.mozilla.org
+      Pin-Priority: 1000
+- name: Install native Firefox and browser fonts
+  ansible.builtin.apt:
+    name: [firefox, fonts-dejavu-core, fonts-noto-cjk]
+    state: present
+    update_cache: true
+- name: Read official Browsh binary checksums
+  ansible.builtin.uri:
+    url: https://github.com/browsh-org/browsh/releases/download/v1.8.2/browsh_1.8.2_checksums.txt
+    return_content: true
+  register: employee_workspace_browsh_checksums
+- name: Select the published AMD64 static binary checksum
+  ansible.builtin.set_fact:
+    employee_workspace_browsh_binary_checksum: "{{ employee_workspace_browsh_checksums.content | regex_findall('(?m)^([a-f0-9]{64})  browsh_1[.]8[.]2_linux_amd64$') }}"
+- name: Require one matching published binary checksum
+  ansible.builtin.assert:
+    that: employee_workspace_browsh_binary_checksum | length == 1
+- name: Create the Browsh runtime directory
+  ansible.builtin.file:
+    path: /usr/local/lib/browsh
+    state: directory
+    mode: '0755'
+- name: Install the official checksum verified Browsh binary
+  ansible.builtin.get_url:
+    url: https://github.com/browsh-org/browsh/releases/download/v1.8.2/browsh_1.8.2_linux_amd64
+    checksum: "sha256:{{ employee_workspace_browsh_binary_checksum[0] }}"
+    dest: /usr/local/lib/browsh/browsh
+    mode: '0755'
+
+- name: Enable the required local Firefox controller compatibility
+  ansible.builtin.copy:
+    dest: /usr/local/lib/browsh/firefox
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      exec /usr/bin/firefox --remote-allow-system-access "$@"
+- name: Provide the Browsh command with its Firefox compatibility launcher
+  ansible.builtin.copy:
+    dest: /usr/local/bin/browsh
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      exec /usr/local/lib/browsh/browsh --firefox.path /usr/local/lib/browsh/firefox "$@"

@@ -1,0 +1,88 @@
+---
+- name: Deploy initial employee boundary before first VM startup
+  hosts: employee_access
+  become: true
+  gather_facts: false
+  tags: [never, boundary]
+  roles:
+    - role: employee-access
+      employee_access_action: boundary
+
+- name: Deploy managed employee access
+  hosts: employee_access
+  become: true
+  roles:
+    - employee-access
+
+- name: Deploy persistent employee workspaces
+  hosts: employee_workspaces
+  gather_facts: false
+  become: true
+  roles:
+    - role: employee-workspace
+      when: not employee_workspace_disabled | bool
+
+- name: Verify managed employee access configuration
+  hosts: employee_access
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify gateway policy matches the applied kernel tables and routing state
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify --routing
+      changed_when: false
+    - name: Verify PVE policy matches the applied kernel table
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify
+      delegate_to: "{{ employee_access_pve_host }}"
+      changed_when: false
+    - name: Verify managed SSH effective configuration
+      ansible.builtin.command: sshd -T -f /etc/ssh/employee-sshd.conf
+      register: employee_sshd_effective
+      changed_when: false
+    - name: Assert managed entry restrictions
+      ansible.builtin.assert:
+        that:
+          - "'disableforwarding yes' in employee_sshd_effective.stdout"
+          - "'permituserenvironment no' in employee_sshd_effective.stdout"
+          - "'forcecommand /usr/bin/python3 -I /usr/local/lib/employee-dispatch.py' in employee_sshd_effective.stdout"
+    - name: Verify managed entry services are active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, employee-firewall, wg-quick@wg-employee, employee-sshd]
+      changed_when: false
+
+- name: Verify employee baseline
+  hosts: employee_workspaces
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify employee passwordless sudo
+      ansible.builtin.command:
+        argv: [sudo, -n, -u, employee, sudo, -n, 'true']
+      changed_when: false
+      when: not employee_workspace_disabled | bool
+    - name: Verify Claude executable without authenticating
+      ansible.builtin.command:
+        argv: [sudo, -n, -u, employee, /usr/local/bin/claude, --version]
+      changed_when: false
+      when: not employee_workspace_disabled | bool
+    - name: Verify employee Firefox without authenticating
+      ansible.builtin.command: firefox --version
+      become: true
+      become_user: employee
+      changed_when: false
+      tags: [employee_browser]
+      when: not employee_workspace_disabled | bool
+    - name: Verify employee Browsh without authenticating
+      ansible.builtin.command: browsh --version
+      become: true
+      become_user: employee
+      changed_when: false
+      tags: [employee_browser]
+      when: not employee_workspace_disabled | bool
+    - name: Verify employee login helper installation without authenticating
+      ansible.builtin.command: /usr/local/bin/workspace-login --check
+      become: true
+      become_user: employee
+      changed_when: false
+      tags: [workspace_login]
+      when: not employee_workspace_disabled | bool

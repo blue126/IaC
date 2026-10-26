@@ -158,7 +158,7 @@ module "netbox" {
 | 平台 | 用途 | 管理工具 | Terraform Provider |
 |------|------|----------|-------------------|
 | **Proxmox VE** | 主要虚拟化平台，运行大部分服务 | Web UI (8006), CLI | `bpg/proxmox` 0.70.0 |
-| **独立 Proxmox pve2** | T7910，PBS VM100；实验 VM 不在本次纳管范围 | Web UI (.52:8006), CLI | `bpg/proxmox` 0.70.0，独立 alias |
+| **独立 Proxmox pve2** | T7910，PBS VM100 及员工工作区 VM；与 pve0/pve1 集群分离 | Web UI (.52:8006), CLI | `bpg/proxmox` 0.70.0，独立 alias |
 | **VMware ESXi（已退役）** | 用户确认宿主退役，T7910 已改为 pve2；仅保留历史代码/state依据 | 无活动部署入口 | 历史 `vmware/vsphere` |
 | **Oracle Cloud** | 公有云实例（未来扩展） | OCI Console | `oracle/oci` |
 
@@ -278,6 +278,8 @@ terraform/
 ```
 
 ### Per-Service 文件模式
+
+通用 `proxmox-vm` 模块适用于按模板名称克隆、单网卡和标准 Cloud-Init 的 VM。员工网关和个人 VM 是当前例外：多张隔离网卡、vendor-data、启动 hook、受控首次启动及保盘约束写在员工专属 Terraform 资源中。员工资源统一使用已有的 `proxmox.pve2` token provider；它不是 VM 模块，也不创建独立 state。原 `proxmox.employee` 别名使用同一节点的 `root@pam` API 认证，已在六个员工资源的零资源变更计划及 state provider 绑定核验后移除。今后迁移到通用模块仍须审查 state 与计划，不能使已登记 VM 或磁盘重建。实施细节见[员工工作区部署指引](../guides/employee-claude-workspace.md#terraform-模块与-provider)。
 
 每个服务一个独立的 `.tf` 文件，包含三个资源：
 

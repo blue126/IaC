@@ -1,0 +1,98 @@
+---
+- name: Validate approved base CLI artifact
+  ansible.builtin.assert:
+    that:
+      - not employee_workspace_disabled | bool
+      - employee_workspace_user == 'employee'
+      - employee_workspace_claude_binary_url is match('^https://')
+      - employee_workspace_claude_sha256 is match('^[a-f0-9]{64}$')
+      - hostvars[employee_workspace_gateway].employee_access_derived_keys is defined
+    fail_msg: Supply an approved native Claude binary and checksum; deploy the gateway first.
+
+- name: Validate the preinstalled baseline before skipping installation
+  ansible.builtin.include_tasks: verify-baked-baseline.yml
+  when: employee_workspace_baseline_id | length > 0
+
+- name: Reconcile existing workspace administrator access
+  ansible.builtin.include_tasks: "{{ role_path }}/../employee-access/tasks/admin-keys.yml"
+  vars:
+    employee_admin_user: ubuntu
+    employee_admin_public_keys: "{{ employee_workspace_admin_public_keys_json | from_json }}"
+
+- name: Install baseline workspace tools
+  ansible.builtin.apt:
+    name: "{{ employee_workspace_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: not employee_workspace_baseline_ready | bool
+
+- name: Create persistent employee account with sudo
+  ansible.builtin.user:
+    name: "{{ employee_workspace_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+    password: '*'
+
+- name: Permit employee tool and dependency administration
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/employee-workspace
+    owner: root
+    group: root
+    mode: '0440'
+    content: "{{ employee_workspace_user }} ALL=(ALL) NOPASSWD: ALL\n"
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Create employee SSH directory
+  ansible.builtin.file:
+    path: "/home/{{ employee_workspace_user }}/.ssh"
+    state: directory
+    owner: "{{ employee_workspace_user }}"
+    group: "{{ employee_workspace_user }}"
+    mode: '0700'
+
+- name: Reconcile company second-leg SSH authorization
+  ansible.builtin.include_tasks: authorization.yml
+
+- name: Install approved base Claude native executable
+  ansible.builtin.get_url:
+    url: "{{ employee_workspace_claude_binary_url }}"
+    checksum: "sha256:{{ employee_workspace_claude_sha256 }}"
+    dest: /usr/local/bin/claude
+    owner: root
+    group: root
+    mode: '0755'
+  when: not employee_workspace_baseline_ready | bool
+
+- name: Install the VM browser for employee authorization
+  ansible.builtin.include_tasks:
+    file: browser.yml
+    apply:
+      tags: [employee_browser]
+  tags: [employee_browser]
+  when: not employee_workspace_baseline_ready | bool
+
+- name: Install the single terminal authorization entry
+  ansible.builtin.include_tasks:
+    file: login.yml
+    apply:
+      tags: [workspace_login]
+  tags: [workspace_login]
+
+- name: Disable SSH password authentication
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-employee-key-only.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+  notify: Reload workspace SSH
+
+- name: Validate SSH configuration
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false

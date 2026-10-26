@@ -1,0 +1,89 @@
+---
+# Persist enabled:false (device) or disabled:true (employee) in the roster first.
+- name: Deploy employee revocation
+  hosts: employee_access
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Require an explicit revocation scope
+      ansible.builtin.assert:
+        that:
+          - employee_disable_kind | default('') in ['device', 'employee']
+          - employee_disable_id | default('') | length > 0
+  roles:
+    - role: employee-access
+      employee_access_action: disable
+
+- name: Verify revocation and retained disks
+  hosts: employee_access
+  become: true
+  gather_facts: false
+  tags: [verify]
+  vars:
+    employee_access_networks: "{{ employee_access_networks_json | from_json }}"
+  tasks:
+    - name: Require a real persisted revocation target before verification
+      ansible.builtin.assert:
+        that:
+          - employee_disable_kind | default('') in ['device', 'employee']
+          - >-
+            (employee_disable_kind == 'device' and employee_disable_id in (employee_access_devices | default({})) and not employee_access_devices[employee_disable_id].enabled | bool)
+            or (employee_disable_kind == 'employee' and employee_disable_id in employee_access_networks and employee_access_networks[employee_disable_id].disabled | bool)
+    - name: Select the exact company device identities under verification
+      ansible.builtin.set_fact:
+        employee_verify_devices: "{{ (employee_access_devices | default({}) | dict2items | selectattr('key', 'equalto', employee_disable_id) | list) if employee_disable_kind == 'device' else (employee_access_devices | default({}) | dict2items | selectattr('value.employee', 'equalto', employee_disable_id) | list) }}"
+    - name: Reject a device verification with no matching identity
+      ansible.builtin.assert:
+        that: employee_verify_devices | length == 1
+      when: employee_disable_kind == 'device'
+    - name: Read remaining WireGuard peer addresses without private material
+      ansible.builtin.command: wg show wg-employee allowed-ips
+      register: employee_verify_peers
+      changed_when: false
+    - name: Verify revoked peers are absent
+      ansible.builtin.assert:
+        that: (item.value.address + '/32') not in employee_verify_peers.stdout.split()
+      loop: "{{ employee_verify_devices }}"
+      loop_control:
+        label: "{{ item.key }}"
+    - name: Verify revoked authorization and mapping are absent
+      ansible.builtin.shell: >-
+        test ! -s /etc/employee-access/authorized-keys/{{ item.key | quote }} &&
+        test ! -f /etc/employee-access/devices/{{ (item.key + '.json') | quote }} &&
+        test ! -f /etc/employee-access/keys/{{ item.key | quote }}
+      loop: "{{ employee_verify_devices }}"
+      loop_control:
+        label: "{{ item.key }}"
+      changed_when: false
+    - name: Verify target company identities have no active processes
+      ansible.builtin.command:
+        argv: [pgrep, -u, "{{ item.key }}"]
+      loop: "{{ employee_verify_devices }}"
+      register: employee_disabled_processes
+      changed_when: false
+      failed_when: employee_disabled_processes.rc != 1
+    - name: Verify applied gateway boundary remains present in the kernel
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify --routing
+      changed_when: false
+      when: employee_disable_kind == 'employee'
+    - name: Verify applied PVE boundary remains present in the kernel
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify
+      delegate_to: "{{ employee_access_pve_host }}"
+      changed_when: false
+      when: employee_disable_kind == 'employee'
+    - name: Verify employee VM is stopped
+      ansible.builtin.command:
+        argv: [qm, status, "{{ employee_access_networks[employee_disable_id].vmid | string }}"]
+      delegate_to: "{{ employee_access_pve_host }}"
+      register: employee_disabled_vm
+      changed_when: false
+      failed_when: "'status: stopped' not in employee_disabled_vm.stdout"
+      when: employee_disable_kind == 'employee'
+    - name: Verify retained employee disk remains configured
+      ansible.builtin.command:
+        argv: [qm, config, "{{ employee_access_networks[employee_disable_id].vmid | string }}"]
+      delegate_to: "{{ employee_access_pve_host }}"
+      register: employee_retained_config
+      changed_when: false
+      failed_when: "'scsi0:' not in employee_retained_config.stdout or 'onboot: 0' not in employee_retained_config.stdout"
+      when: employee_disable_kind == 'employee'

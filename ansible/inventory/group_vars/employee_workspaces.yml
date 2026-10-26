@@ -1,0 +1,7 @@
+---
+# Dedicated group deliberately avoids pve_vms password/role inheritance.
+employee_workspace_user: employee
+ansible_ssh_common_args: '-o StrictHostKeyChecking=yes'
+
+employee_workspace_claude_binary_url: https://downloads.claude.ai/claude-code-releases/2.1.304/linux-x64/claude
+employee_workspace_claude_sha256: ea0f135784631619a7a409d07322ecec964f9cc4fd377508ed1ba3f141f27912

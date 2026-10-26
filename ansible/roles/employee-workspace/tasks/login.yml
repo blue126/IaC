@@ -1,0 +1,93 @@
+---
+- name: Ensure the login terminal multiplexer is installed
+  ansible.builtin.apt:
+    name: [tmux, xvfb, xauth, x11vnc, novnc, websockify, openbox, dbus-daemon]
+    state: present
+  when: not employee_workspace_baseline_ready | bool
+
+- name: Create the employee login helper directory
+  ansible.builtin.file:
+    path: /usr/local/lib/employee-workspace
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure the fixed private authorization viewer
+  ansible.builtin.copy:
+    dest: /etc/employee-workspace-browser.json
+    owner: root
+    group: root
+    mode: '0644'
+    content: "{{ {'bind_address': ansible_host, 'viewer_url': 'http://' + hostvars[employee_workspace_gateway].employee_access_wireguard_address.split('/')[0] + ':8443/vnc.html#autoconnect=1&resize=scale&reconnect=0'} | to_nice_json }}"
+
+- name: Install the temporary graphical browser supervisor
+  ansible.builtin.copy:
+    src: auth-browser.py
+    dest: /usr/local/lib/employee-workspace/auth-browser.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the independent browser control command
+  ansible.builtin.copy:
+    src: workspace-browser.py
+    dest: /usr/local/bin/workspace-browser
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the employee browser service without restarting personal sessions
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/employee-browser.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Employee personal VM browser
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=exec
+      User=employee
+      Group=employee
+      Environment=HOME=/home/employee
+      RuntimeDirectory=employee-browser
+      RuntimeDirectoryMode=0700
+      WorkingDirectory=/home/employee
+      ExecStart=/usr/bin/dbus-run-session -- /usr/local/lib/employee-workspace/auth-browser.py /run/employee-browser about:blank --persistent
+      KillMode=control-group
+      TimeoutStopSec=20
+      StandardOutput=null
+      StandardError=null
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Load the employee browser unit without enabling automatic startup
+  ansible.builtin.systemd:
+    name: employee-browser
+    daemon_reload: true
+    enabled: false
+
+- name: Install the single terminal employee login helper
+  ansible.builtin.copy:
+    src: workspace-login.py
+    dest: /usr/local/bin/workspace-login
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the VM browser authorization opener
+  ansible.builtin.copy:
+    src: open-auth-browser.sh
+    dest: /usr/local/lib/employee-workspace/open-auth-browser
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Check employee login helper installation without accessing credentials
+  ansible.builtin.command: /usr/local/bin/workspace-login --check
+  become: true
+  become_user: employee
+  changed_when: false

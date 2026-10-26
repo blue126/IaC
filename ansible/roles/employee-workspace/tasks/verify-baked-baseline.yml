@@ -1,0 +1,52 @@
+---
+- name: Read the requested baked baseline record
+  ansible.builtin.slurp:
+    src: /etc/employee-workspace-baseline.json
+  register: employee_baked_record
+
+- name: Verify the baked Claude executable checksum
+  ansible.builtin.stat:
+    path: /usr/local/bin/claude
+    checksum_algorithm: sha256
+  register: employee_baked_claude
+
+- name: Verify required packages from the baked baseline
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - '-f=${db:Status-Status}\n'
+      - git
+      - curl
+      - ca-certificates
+      - sudo
+      - openssh-server
+      - python3
+      - tmux
+      - unzip
+      - firefox
+      - fonts-dejavu-core
+      - fonts-noto-cjk
+      - xvfb
+      - xauth
+      - x11vnc
+      - novnc
+      - websockify
+      - openbox
+      - dbus-daemon
+      - qemu-guest-agent
+  register: employee_baked_packages
+  changed_when: false
+
+- name: Require the approved baseline and actual installed software
+  ansible.builtin.assert:
+    that:
+      - (employee_baked_record.content | b64decode | from_json).id == employee_workspace_baseline_id
+      - (employee_baked_record.content | b64decode | from_json).claude_sha256 == employee_workspace_claude_sha256
+      - employee_baked_claude.stat.checksum == employee_workspace_claude_sha256
+      - employee_baked_packages.stdout_lines | unique | list == ['installed']
+    fail_msg: The cloned baseline does not match the approved image; rebuild the template before onboarding.
+
+- name: Skip only the already verified generic software installation
+  ansible.builtin.set_fact:
+    employee_workspace_baseline_ready: true

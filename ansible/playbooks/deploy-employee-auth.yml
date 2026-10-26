@@ -1,0 +1,59 @@
+---
+- name: Deploy the private authorization viewer
+  hosts: employee_access
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Deploy the fixed viewer and boundary
+      ansible.builtin.include_role:
+        name: employee-access
+        tasks_from: auth-viewer
+
+- name: Deploy employee graphical authorization
+  hosts: employee_workspaces
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Deploy the employee login entry
+      ansible.builtin.include_role:
+        name: employee-workspace
+        tasks_from: login
+      when: not employee_workspace_disabled | bool
+
+- name: Verify the private viewer boundary
+  hosts: employee_access
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify actual firewall and routing
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify --routing
+      changed_when: false
+    - name: Inspect dedicated viewer service state
+      ansible.builtin.service_facts:
+    - name: Verify the dedicated viewer is active
+      ansible.builtin.assert:
+        that: ansible_facts.services['employee-auth-viewer.service'].state == 'running'
+    - name: Inspect viewer socket bindings
+      ansible.builtin.command: ss -H -lntp
+      register: employee_viewer_sockets
+      changed_when: false
+    - name: Assert the sole viewer entry is the WireGuard address
+      ansible.builtin.assert:
+        that:
+          - (employee_access_wireguard_address.split('/')[0] + ':8443') in employee_viewer_sockets.stdout
+          - "'0.0.0.0:8443' not in employee_viewer_sockets.stdout"
+          - "(employee_access_uplink_address.split('/')[0] + ':8443') not in employee_viewer_sockets.stdout"
+          - "'*:8443' not in employee_viewer_sockets.stdout"
+
+- name: Verify the employee login installation
+  hosts: employee_workspaces
+  become: true
+  become_user: employee
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify login components without accessing personal credentials
+      ansible.builtin.command: /usr/local/bin/workspace-login --check
+      changed_when: false
+      when: not employee_workspace_disabled | bool
