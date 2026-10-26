@@ -65,7 +65,7 @@ PR validation is `.github/workflows/repo-validation.yml`: it classifies the chan
 - **Module structure**: `main.tf`, `variables.tf`, `outputs.tf` (3-file standard)
 - **Sensitive variables**: Always mark `sensitive = true`
 - **Backend**: HCP Terraform Cloud (`cloud { organization = "homelab-roseville" }`), **Local execution mode** — plan/apply run on this machine, HCP only stores state
-- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/`, `iac-oci` → `terraform/oci/`. The retired `iac-esxi-lab` workspace was backed up and deleted with user approval on 2026-09-21; `terraform/esxi/` is historical and has no cloud binding. Do not recreate it during init. Read active `cloud` blocks rather than assuming workspace names.
+- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/`, `iac-oci` → `terraform/oci/`. The retired `iac-esxi-lab` workspace was backed up and deleted with user approval on 2026-09-21; `terraform/esxi/` is historical and has no cloud binding. Do not recreate it during init. `terraform/netbox-integration/` intentionally has no `cloud` block and keeps local state; do not add a backend. Read active `cloud` blocks rather than assuming workspace names.
 - **Lifecycle blocks**: Use `ignore_changes` for clone, full_clone, efidisk, ostemplate, description
 
 ### Ansible
