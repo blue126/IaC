@@ -1363,3 +1363,11 @@ followup_review_recommended=false：本轮patch虽有3个medium，但已按原�
 - docs/architecture/homelab-iac-architecture.md在保留最新main员工工作区/BWS等新增内容的前提下合入已审迁移节点/存储事实，不覆盖无关内容。
 
 实施者仅修改上述冲突文件及必要的直接兼容修正，不stage/commit/cherry-pick continue，不修改main/其他worktree。父负责Git操作及最终当前main的仓库验证和独立维护上下文完整/定向plan。可在既有Sandbox的独占临时目录验证相应HCL/Markdown，不安装、不接触生产凭据/运行时，不写HCP/global/jobs。遇到新main接口需要对应变动时先据新module定义做最小修正，给出依据；不扩大架构或重启任何取消任务。交回实际文件diff、验证结果、未完成项；本段之后由父接管提交、推送和PR创建。
+
+### 专用PR分支冲突处理完成
+
+origin/main固定61d9c5c60c6e6e4c7aca65804b01f7f17733b5a3；规划原提交已映射b547c66，已审源码7fc7456448523b679e6c5175c4f9bd5aa8b1c456经4处必要冲突处理成为7e82ea4。PDM逐字采用已审direct resource，PNETLab逐字采用main新模块接口，旧ubuntu-2604入口维持删除；架构唯一冲突行合并PBS/108及main员工workspace事实，所有员工/BWS新增内容保留。集成检查额外纠正该图3个此次迁移后失效的pve1节点注释为实际pve0（HA存储vmdata），没有重排无关架构。
+
+原实施者针对相应HCL使用无backend/凭据的Sandbox独立目录验证fmt/validate0；父逐字核PDM和PNETLab与选定来源相同，冲突标记空/diffcheck0。原execution工作树已有已审源码commit；本机temp-cleanup JSON/审批输入清单未提交且保留。
+
+最终验证使用无生产凭据源码快照及CI fixture，复用Sandbox现有依赖，不运行验证脚本中会安装pip/collections的bootstrap段。Sandbox缺少Hugo且全局collection版本与CI pin不完全相同，本地不安装；本地检查如实标环境版本，完整固定版本与Hugo由新PR现有Repository Validation自动检查。真实生产plan另用批准维护上下文，仅plan/readback，不apply或state写。Git commit/push/PR已获批准，PR合并/Jenkins解冻仍不在本次授权内。

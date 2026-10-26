@@ -178,8 +178,8 @@ Proxmox VE Cluster
 │   ├── immich (VMID 101)        # 照片管理
 │   ├── rustdesk (VMID 102)      # 远程桌面
 │   ├── netbox (VMID 104)        # IPAM/DCIM
-│   ├── home-assistant (VMID 114) # pve1 HAOS, local-lvm, operator-managed
-│   └── proxmox-datacenter-manager (VMID 117) # pve1 多节点管理
+│   ├── home-assistant (VMID 114) # pve0 HAOS, vmdata, operator-managed
+│   └── proxmox-datacenter-manager (VMID 117) # pve0 多节点管理
 │
 └── LXC Containers (Debian 12；118 为 Ubuntu 24.04)
     ├── anki (VMID 100)          # Anki 同步服务器
@@ -188,7 +188,7 @@ Proxmox VE Cluster
     ├── n8n (VMID 106)           # 工作流自动化
     ├── jenkins (VMID 107)       # CI/CD
     ├── fileserver (VMID 111)    # 文件与 Time Machine 存储
-    └── hindsight (VMID 118)     # pve1 非特权 LXC，Docker host 网络，operator-managed
+    └── hindsight (VMID 118)     # pve0 非特权 LXC，Docker host 网络，operator-managed
 
 独立 Proxmox pve2
 └── container-lab (VMID 108)     # Ubuntu 26.04；PVE 实机名 containerlab；stopped/onboot0
