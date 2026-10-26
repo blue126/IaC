@@ -1,0 +1,27 @@
+# Dedicated employee service; administrator sshd remains separate.
+Port 22
+ListenAddress {{ employee_access_wireguard_address.split('/')[0] }}
+PidFile /run/employee-sshd.pid
+HostKey /etc/ssh/ssh_host_ed25519_key
+AuthorizedKeysFile /etc/employee-access/authorized-keys/%u
+StrictModes yes
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+UsePAM no
+AllowGroups employee-devices
+DisableForwarding yes
+AllowTcpForwarding no
+AllowStreamLocalForwarding no
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+PermitUserRC no
+PermitUserEnvironment no
+PermitTTY yes
+MaxSessions 1
+LogLevel VERBOSE
+Subsystem sftp employee-sftp
+ForceCommand /usr/bin/python3 -I /usr/local/lib/employee-dispatch.py

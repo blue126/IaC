@@ -1,0 +1,19 @@
+---
+- name: Reload administrator SSH
+  ansible.builtin.shell: /usr/sbin/sshd -t && systemctl restart ssh
+  changed_when: true
+
+- name: Reload gateway firewall
+  ansible.builtin.systemd:
+    name: employee-firewall
+    state: reloaded
+
+- name: Apply employee network
+  ansible.builtin.command: netplan apply
+  changed_when: true
+
+- name: Reload employee SSH
+  ansible.builtin.systemd:
+    name: employee-sshd
+    daemon_reload: true
+    state: reloaded

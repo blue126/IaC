@@ -1,0 +1,86 @@
+---
+- name: Validate network structure before any boundary mutation
+  ansible.builtin.include_tasks: validate-network.yml
+  vars:
+    employee_access_action: disable
+
+- name: Validate persistent revocation state
+  ansible.builtin.assert:
+    that:
+      - >-
+        (employee_disable_kind == 'device' and employee_disable_id in employee_access_devices and not employee_access_devices[employee_disable_id].enabled | bool)
+        or (employee_disable_kind == 'employee' and employee_disable_id in employee_access_networks and employee_access_networks[employee_disable_id].disabled | bool)
+    fail_msg: Persist the disabled state in the authoritative roster before revocation.
+
+- name: Validate all selected device account identifiers
+  ansible.builtin.assert:
+    that: item.key is match('^[a-z][a-z0-9-]{0,27}$')
+  loop: "{{ employee_access_devices | dict2items }}"
+
+- name: Inspect whether the authorization viewer is installed
+  ansible.builtin.stat:
+    path: /etc/employee-auth-viewer.conf
+  register: employee_auth_viewer_installed
+
+- name: Cut revoked viewer sessions before subsequent operations
+  ansible.builtin.include_tasks: auth-viewer-policy.yml
+  when: employee_auth_viewer_installed.stat.exists
+
+- name: Block all employee VM traffic before fallible identity or hypervisor operations
+  when: employee_disable_kind == 'employee'
+  block:
+    - name: Apply disabled employee gateway boundary
+      ansible.builtin.template:
+        src: nftables.conf.j2
+        dest: /etc/employee-access.nft
+        owner: root
+        group: root
+        mode: '0600'
+        validate: /usr/sbin/nft --check --file %s
+    - name: Reconcile actual gateway denial even when the policy file is unchanged
+      ansible.builtin.systemd:
+        name: employee-firewall
+        state: reloaded
+    - name: Apply disabled employee bridge boundary after independent gateway denial
+      ansible.builtin.include_tasks: pve.yml
+
+- name: Revoke selected device identities and both SSH legs
+  ansible.builtin.include_tasks: revoke.yml
+  vars:
+    employee_revoke_account: "{{ item.key }}"
+  loop: "{{ employee_access_devices | dict2items }}"
+  when: (employee_disable_kind == 'device' and item.key == employee_disable_id) or (employee_disable_kind == 'employee' and item.value.employee == employee_disable_id)
+
+- name: Reconcile WireGuard peers after revocation
+  ansible.builtin.template:
+    src: wireguard.conf.j2
+    dest: /etc/wireguard/wg-employee.conf
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+
+- name: Reconcile actual WireGuard state after revocation
+  ansible.builtin.include_tasks: sync-wireguard.yml
+
+- name: Stop employee VM externally and retain all disks
+  when: employee_disable_kind == 'employee'
+  block:
+    - name: Disable VM autostart at the PVE boundary
+      ansible.builtin.command:
+        argv: [qm, set, "{{ employee_access_networks[employee_disable_id].vmid | string }}", --onboot, '0']
+      delegate_to: "{{ employee_access_pve_host }}"
+      changed_when: true
+    - name: Inspect VM running state
+      ansible.builtin.command:
+        argv: [qm, status, "{{ employee_access_networks[employee_disable_id].vmid | string }}"]
+      delegate_to: "{{ employee_access_pve_host }}"
+      register: employee_stop_status
+      changed_when: false
+    - name: Stop VM independently of guest cooperation
+      ansible.builtin.command:
+        argv: [qm, stop, "{{ employee_access_networks[employee_disable_id].vmid | string }}"]
+      delegate_to: "{{ employee_access_pve_host }}"
+      when: "'status: stopped' not in employee_stop_status.stdout"
+      changed_when: true

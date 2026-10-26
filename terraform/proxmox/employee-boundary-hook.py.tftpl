@@ -1,0 +1,50 @@
+#!/usr/bin/python3
+"""Guard only this employee VM; unrelated PVE guests have no dependency."""
+import json
+import subprocess
+import sys
+
+
+def has_port_drop(rules, chain, port, direction):
+    expected = {'family': 'bridge', 'table': 'employee_boundary', 'name': chain,
+                'type': 'filter', 'hook': chain, 'prio': -200, 'policy': 'accept'}
+    attached = any(all(item.get('chain', {}).get(key) == value for key, value in expected.items())
+                   for item in rules['nftables'])
+    if not attached:
+        return False
+    for item in rules['nftables']:
+        rule = item.get('rule', {})
+        if rule.get('chain') != chain or rule.get('family') != 'bridge' or rule.get('table') != 'employee_boundary':
+            continue
+        expressions = rule.get('expr', [])
+        if len(expressions) != 2 or expressions[1] != {'drop': None}:
+            continue
+        match = expressions[0].get('match', {})
+        if match == {'op': '==', 'left': {'meta': {'key': direction}}, 'right': port}:
+            return True
+    return False
+
+
+def main():
+    if len(sys.argv) != 3 or sys.argv[1] != '${vmid}':
+        raise RuntimeError('Unexpected hook target')
+    if sys.argv[2] != 'pre-start':
+        return
+    if '${disabled}' == 'true':
+        raise RuntimeError('Employee is disabled')
+    subprocess.run(['/usr/bin/systemctl', 'start', 'employee-firewall.service'], check=True)
+    subprocess.run(['/usr/bin/python3', '/usr/local/lib/employee-firewall.py', 'verify'], check=True)
+    output = subprocess.check_output(['/usr/sbin/nft', '-j', 'list', 'table', 'bridge', 'employee_boundary'], text=True)
+    rules = json.loads(output)
+    for chain, direction in [('input', 'iifname'), ('forward', 'iifname'), ('output', 'oifname')]:
+        for port in ['tap${vmid}i0', '${gateway_tap}']:
+            if not has_port_drop(rules, chain, port, direction):
+                raise RuntimeError('Employee port boundary is absent')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, KeyError, subprocess.CalledProcessError):
+        print('Employee VM start denied: external boundary unavailable.', file=sys.stderr)
+        sys.exit(1)

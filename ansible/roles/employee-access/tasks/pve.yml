@@ -1,0 +1,44 @@
+---
+- name: Install PVE firewall controller without changing host routing
+  ansible.builtin.copy:
+    src: employee-firewall.py
+    dest: /usr/local/lib/employee-firewall.py
+    owner: root
+    group: root
+    mode: '0755'
+  delegate_to: "{{ employee_access_pve_host }}"
+
+- name: Verify nftables is already available on the PVE host
+  ansible.builtin.command: /usr/sbin/nft --version
+  delegate_to: "{{ employee_access_pve_host }}"
+  changed_when: false
+
+- name: Deploy PVE bridge boundary without touching existing tables
+  ansible.builtin.template:
+    src: pve-nftables.conf.j2
+    dest: /etc/employee-access.nft
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/sbin/nft --check --file %s
+  delegate_to: "{{ employee_access_pve_host }}"
+  register: employee_pve_policy
+
+- name: Deploy PVE boundary boot unit
+  vars:
+    employee_firewall_routing: false
+  ansible.builtin.template:
+    src: firewall.service.j2
+    dest: /etc/systemd/system/employee-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+  delegate_to: "{{ employee_access_pve_host }}"
+
+- name: Activate PVE boundary
+  ansible.builtin.systemd:
+    name: employee-firewall
+    daemon_reload: true
+    enabled: true
+    state: reloaded
+  delegate_to: "{{ employee_access_pve_host }}"

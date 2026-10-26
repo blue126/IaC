@@ -80,10 +80,11 @@ PR validation is `.github/workflows/repo-validation.yml`: it classifies the chan
 
 ### Ansible Vault
 
-- **Single vault file**: `ansible/inventory/group_vars/all/vault.yml`, auto-decrypted via `ansible/.vault_pass`
+- **IaC vault file**: `ansible/inventory/group_vars/all/vault.yml`, auto-decrypted via `ansible/.vault_pass`
 - **Naming**: All vault variables use `vault_` prefix. Consumer variables drop the prefix
 - **Indirection**: Host-specific → `host_vars/`, group-shared → `group_vars/`, role config → `roles/<role>/defaults/main.yml`
-- **Terraform bridge**: `scripts/get-secrets.sh` extracts vault secrets into `*.auto.tfvars` (gitignored). Ansible Vault is the single source of truth
+- **Terraform bridge**: `scripts/get-secrets.sh` extracts IaC vault secrets into `*.auto.tfvars` (gitignored). Ansible Vault is the source of truth for IaC credentials.
+- **Employee credential exception**: Employee workspace SSH and WireGuard private keys are stored in the dedicated Bitwarden Secrets Manager `EmployeeWorkspace` project, managed only by the private `~/Projects/employee-workspace-admin/onboard.sh` workflow. Do not add these keys to the global Vault or run employee Ansible plays with that Vault alone; the private workflow composes a temporary encrypted runtime Vault from BWS and the IaC Vault.
 - Never store plaintext credentials in inventory or defaults — always use vault indirection
 
 ### Naming Conventions

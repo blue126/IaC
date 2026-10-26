@@ -1,0 +1,74 @@
+{
+  "networks": {
+    "alice": {
+      "vmid": 501,
+      "bridge": "vmbr501",
+      "address": "10.231.1.2/30",
+      "gateway": "10.231.1.1",
+      "ip": "10.231.1.2",
+      "gateway_address": "10.231.1.1/30",
+      "mac_address": "02:00:00:00:01:02",
+      "gateway_mac": "02:00:00:00:01:01",
+      "interface": "emp0",
+      "gateway_nic": 1,
+      "disabled": false,
+      "nic_slot": 1
+    },
+    "bob": {
+      "vmid": 502,
+      "bridge": "vmbr502",
+      "address": "10.231.2.2/30",
+      "gateway": "10.231.2.1",
+      "ip": "10.231.2.2",
+      "gateway_address": "10.231.2.1/30",
+      "mac_address": "02:00:00:00:02:02",
+      "gateway_mac": "02:00:00:00:02:01",
+      "interface": "emp1",
+      "gateway_nic": 2,
+      "disabled": false,
+      "nic_slot": 2
+    }
+  },
+  "devices": {
+    "ed-alice-laptop": {
+      "employee": "alice",
+      "enabled": true,
+      "address": "10.230.0.2",
+      "ssh_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB47MgYesEVqT9kYtWug/AO1N+lpdZq8V3Bd2JNGK9fO",
+      "wireguard_public_key": "inZTMJPSEuwswn0IuMKONWMT2Yw/uljke39ruSHJXAY="
+    },
+    "ed-alice-spare": {
+      "employee": "alice",
+      "enabled": true,
+      "address": "10.230.0.3",
+      "ssh_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGLE7yQu1f2lDch0DKblcGdCEqc/exuXeTrDyuZdQXL1",
+      "wireguard_public_key": "RLdIi8R4E5fcMybtjp/i1vnlMre/ZqnKMsDFVe0nml8="
+    },
+    "ed-bob-laptop": {
+      "employee": "bob",
+      "enabled": true,
+      "address": "10.230.0.4",
+      "ssh_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILAiL5HeW97+/mpp6WJ1LQKebx3Q3wcHzg2lOPtobds3",
+      "wireguard_public_key": "CErg5Sqzb+tCJNk5CxiB+JuOoRpdbi22LdTBB3J9+Fw="
+    }
+  },
+  "wireguard_address": "10.230.0.1/24",
+  "uplink_address": "192.168.50.2/24",
+  "uplink_gateway": "192.168.50.1",
+  "uplink_mac": "02:00:00:00:00:01",
+  "dns_server": "1.1.1.1",
+  "gateway_vmid": 500,
+  "maintenance_sources": [
+    "192.168.50.10/32"
+  ],
+  "protected_ipv4": [
+    "203.0.113.0/28"
+  ],
+  "home_public_ipv4": [
+    "198.51.100.20/32"
+  ],
+  "host_keys": {
+    "alice": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGDOEzJ2EKgGGh8LiBX4kgpwji2XsUM7hwg8YjMNh8ZW",
+    "bob": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKD3p8ASZueoAS+kjQj1Xp76DlOMVRTstcaGuPtKxUky"
+  }
+}
