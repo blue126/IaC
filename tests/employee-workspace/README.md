@@ -127,3 +127,16 @@ WireGuard采用共享 `tasks/sync-wireguard.yml`，原同步handler已移除；�
 最终完整相关验证位于 `iac-employee-claude-verify-direct-v130:/tmp/employee-workspace-verify-parent-final/`：离线24、runtime18、SSH/SFTP48、network58、Terraform mock17、3组启动状态、4个磁盘计划正反对照全部通过；全部新增角色和两个playbook的lint覆盖31文件（0failure/0warning），两份syntax、fmt/validate、nft/sshd有效配置及systemd静态检查通过。JSON逐条预期/实际已核对；三个运行实验stderr为空。复跑没有访问生产系统。
 
 Sandbox重启后/run/sshd可能不存在；上面的重放命令已补创建该临时运行目录。该缺目录曾使父侧第一次sshd检查退出255；补齐后继续尚未完成的检查，未重复已有通过项。实际PVE、systemd启动、WireGuard握手、TUN通道及OAuth的验证限制仍如上文。
+
+
+## 单窗口登录助手回归
+
+在已经安装tmux的获准Linux环境中，以非root用户执行`python3 tests/employee-workspace/test-login.py -v`。测试使用真实PTY和独立tmux服务器、合成Claude/浏览器程序及一次性HOME目录，不联网、不使用真实账号或令牌。覆盖链接自动交付、已有订阅复用、同窗授权码输入、取消及SIGTERM清理、保留其他tmux会话、非法目标、CLI失败和不覆盖其他凭据来源。另行获准的真实连通检查使用空白配置及实际CLI/浏览器，只打开匿名授权页后取消；两类检查都不替代本人OAuth验收。
+
+### 图形授权修复后的验证范围（2026-10-22）
+
+test-login.py 的合成浏览器改为图形 supervisor 替身，仍使用真实 PTY/tmux；9 项覆盖通过。生产组件的匿名验收另外实际验证 WireGuard → 固定映射网关 → WebSocket/RFB 的点击与键盘输入，并在 Firefox DOM 核对未提交的测试文字；验证异源拒绝、已有／新连接撤销、跨员工带正对照隔离，以及完成测试后的后端关闭。真实 native CLI 的空配置启动／取消验证确认无遗留自有进程。这些部署验收不属于离线 PR 验证，须有目标环境授权，详细证据见 employee-workspace-deployment.md；不代表真实个人 OAuth 或中国侧用户验收完成。
+
+### 日常浏览器生命周期追加
+
+日常浏览器获得独立 systemd 生命周期后，test-login.py 的 9 项回归验证授权结束保留浏览器，合成服务进程仅在测试 teardown 清理。已授权 control 部署验收以独立空 HOME 实际运行服务／Firefox／WireGuard，验证重复启动、同实例新标签、真实输入及重连、native Claude 复用与取消保留、显式停止关闭后端、profile 留存和重启共 12 项。详见部署记录的日常浏览器章节；未使用个人账号，不替代本人 OAuth 验收。
