@@ -1,7 +1,7 @@
 # Proxmox Datacenter Manager VM
 # PDM is installed separately with a one-off Ansible playbook.
 module "proxmox_datacenter_manager" {
-  source = "../modules/proxmox-cloud-image-vm"
+  source = "../modules/proxmox-vm"
 
   providers = {
     proxmox = proxmox.root
@@ -16,10 +16,11 @@ module "proxmox_datacenter_manager" {
   image_url                = "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
   image_checksum           = "95e110dfcdbd0ed8a82a75ed9579802f9950cabf51a810dcc6388e81bc778188713878b9f28d583a0ea602fbf48b35996ae9ad37f584166d8fbd6489df248f53"
   image_checksum_algorithm = "sha512"
+  cicustom                 = null # native Cloud-Init, no template snippet
 
   cores          = 2
   memory         = 4096
-  disk_size_gb   = 40
+  disk_size      = "40G"
   storage_pool   = "local-lvm"
   network_bridge = "vmbr1"
   bios           = "seabios"

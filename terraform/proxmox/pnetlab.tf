@@ -14,7 +14,7 @@ resource "terraform_data" "pnetlab_allocation" {
 }
 
 module "pnetlab" {
-  source = "../modules/proxmox-cloud-image-vm"
+  source = "../modules/proxmox-vm"
 
   depends_on = [terraform_data.pnetlab_allocation]
 
@@ -30,18 +30,19 @@ module "pnetlab" {
   image_file_name = "ubuntu-26.04-server-cloudimg-amd64.img"
   image_url       = "https://cloud-images.ubuntu.com/releases/26.04/release-20260823/ubuntu-26.04-server-cloudimg-amd64.img"
   image_checksum  = "8196be9d7958059cb56c6c75c80fdf6cee8a8885bc149ea791d7db1c7ef93035"
+  cicustom        = null # native Cloud-Init, no template snippet
 
   cores                 = 16
   memory                = 65536
   balloon_memory        = 0
-  disk_size_gb          = 400
+  disk_size             = "400G"
   storage_pool          = "mainpool"
   efidisk_storage       = "local-lvm"
   efi_pre_enrolled_keys = false
   network_bridge        = "vmbr0"
   network_mac_address   = "02:50:00:00:00:FA"
   ip_address            = "192.168.1.250/24"
-  on_boot               = false
+  onboot                = false
   protection            = true
   sshkeys               = var.sshkeys
   tags                  = ["iac", "network-lab", "pnetlab"]

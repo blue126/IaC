@@ -19,7 +19,7 @@ provider "proxmox" {
 }
 
 module "ubuntu_2604" {
-  source = "../modules/proxmox-cloud-image-vm"
+  source = "../modules/proxmox-vm"
 
   providers = {
     proxmox = proxmox.cloud_image
@@ -35,10 +35,11 @@ module "ubuntu_2604" {
   image_file_name = "ubuntu-26.04-server-cloudimg-amd64.img"
   image_url       = "https://cloud-images.ubuntu.com/releases/26.04/release-20260823/ubuntu-26.04-server-cloudimg-amd64.img"
   image_checksum  = "8196be9d7958059cb56c6c75c80fdf6cee8a8885bc149ea791d7db1c7ef93035"
+  cicustom        = null # native Cloud-Init, no template snippet
 
   cores        = 4
   memory       = 32768
-  disk_size_gb = 100
+  disk_size    = "100G"
   storage_pool = var.storage_pool
   ip_address   = "192.168.1.108/24"
   sshkeys      = var.sshkeys

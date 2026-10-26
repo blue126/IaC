@@ -9,9 +9,39 @@ variable "target_node" {
 }
 
 variable "template_name" {
-  description = "The template to clone from"
+  description = "The template to clone from (ignored when image_url is set)"
   type        = string
   default     = "ubuntu-24.04-template"
+}
+
+variable "image_url" {
+  description = "Pinned URL of a cloud image to import as the system disk; null clones template_name instead"
+  type        = string
+  default     = null
+}
+
+variable "image_file_name" {
+  description = "Filename for the downloaded cloud image (required with image_url)"
+  type        = string
+  default     = null
+}
+
+variable "image_checksum" {
+  description = "Checksum of the cloud image (required with image_url)"
+  type        = string
+  default     = null
+}
+
+variable "image_checksum_algorithm" {
+  description = "Checksum algorithm used for the cloud image"
+  type        = string
+  default     = "sha256"
+}
+
+variable "image_datastore" {
+  description = "Datastore used to cache the downloaded cloud image"
+  type        = string
+  default     = "local"
 }
 
 variable "full_clone" {
@@ -79,6 +109,13 @@ variable "sshkeys" {
   default     = []
 }
 
+variable "bootstrap_password" {
+  description = "Initial Cloud-Init password; Ansible disables SSH password login after key verification"
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
 variable "agent" {
   description = "Enable QEMU Guest Agent"
   type        = number
@@ -137,6 +174,18 @@ variable "efidisk_storage" {
   default     = null
 }
 
+variable "efi_pre_enrolled_keys" {
+  description = "Whether the EFI disk enrolls Microsoft Secure Boot keys"
+  type        = bool
+  default     = true
+}
+
+variable "network_mac_address" {
+  description = "Fixed MAC address for the VirtIO network device, or null to auto-generate"
+  type        = string
+  default     = null
+}
+
 variable "nameserver" {
   description = "DNS Nameserver"
   type        = string
@@ -157,6 +206,18 @@ variable "cloudinit_slot" {
 
 variable "onboot" {
   description = "Whether to start the VM on boot"
+  type        = bool
+  default     = true
+}
+
+variable "protection" {
+  description = "Whether Proxmox protects the VM from deletion"
+  type        = bool
+  default     = false
+}
+
+variable "started" {
+  description = "Whether the VM should be running"
   type        = bool
   default     = true
 }
