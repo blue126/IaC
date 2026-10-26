@@ -19,28 +19,28 @@
   tags: [verify]
   tasks:
     - name: Wait for Gitea web port
-      wait_for:
+      ansible.builtin.wait_for:
         port: 3000
         timeout: 30
 
     - name: Check Gitea HTTP endpoint
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:3000"
         status_code: [200, 301, 302]
 
     - name: Check Gitea service status
-      systemd:
+      ansible.builtin.systemd:
         name: gitea
       register: gitea_svc
 
     - name: Assert Gitea is running
-      assert:
+      ansible.builtin.assert:
         that: gitea_svc.status.ActiveState == "active"
         success_msg: "✅ Gitea is running"
         fail_msg: "❌ Gitea service is not active"
 
     - name: Display deployment summary
-      debug:
+      ansible.builtin.debug:
         msg:
           - "======================================="
           - "✅ Gitea Deployment Successful"

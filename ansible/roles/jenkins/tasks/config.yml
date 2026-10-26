@@ -1,6 +1,6 @@
 ---
 - name: Validate Jenkins controller lifecycle gates
-  assert:
+  ansible.builtin.assert:
     that:
       - jenkins_controller_change_authorized | bool
       - jenkins_controller_watchdog_ready | bool
@@ -14,12 +14,12 @@
       and their non-secret audit evidence identifiers.
 
 - name: Load CI toolchain BOM
-  include_vars:
+  ansible.builtin.include_vars:
     file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
     name: ci_toolchain_bom
 
 - name: Read installed Jenkins package version
-  command:
+  ansible.builtin.command:
     argv:
       - dpkg-query
       - -W
@@ -30,7 +30,7 @@
   check_mode: false
 
 - name: Assert Jenkins core matches the BOM
-  assert:
+  ansible.builtin.assert:
     that:
       - jenkins_installed_package_version.stdout == ci_toolchain_bom.jenkins.core.package_version
     fail_msg: >-
@@ -52,7 +52,7 @@
   notify: Restart Jenkins
 
 - name: Read managed Jenkins plugin checksums
-  stat:
+  ansible.builtin.stat:
     path: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
     checksum_algorithm: sha256
   loop: "{{ ci_toolchain_bom.jenkins.managed_plugins }}"
@@ -61,7 +61,7 @@
   register: jenkins_managed_plugin_files
 
 - name: Assert managed Jenkins plugins match the BOM
-  assert:
+  ansible.builtin.assert:
     that:
       - item.stat.exists
       - item.stat.checksum == item.item.sha256
@@ -71,7 +71,7 @@
     label: "{{ item.item.id }}"
 
 - name: Create Jenkins JCasC configuration directory
-  file:
+  ansible.builtin.file:
     path: "{{ jenkins_casc_dir }}"
     state: directory
     owner: root
@@ -79,7 +79,7 @@
     mode: "0750"
 
 - name: Deploy Jenkins JCasC configuration
-  template:
+  ansible.builtin.template:
     src: jenkins.yaml.j2
     dest: "{{ jenkins_casc_config_path }}"
     owner: root
@@ -88,7 +88,7 @@
   notify: Restart Jenkins
 
 - name: Create Jenkins systemd override directory
-  file:
+  ansible.builtin.file:
     path: "{{ jenkins_systemd_override_dir }}"
     state: directory
     owner: root
@@ -96,7 +96,7 @@
     mode: "0755"
 
 - name: Configure Jenkins JCasC environment
-  template:
+  ansible.builtin.template:
     src: jenkins.service.override.conf.j2
     dest: "{{ jenkins_systemd_override_dir }}/10-casc.conf"
     owner: root

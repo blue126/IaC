@@ -10,7 +10,7 @@
     _docker_apt_distribution: "{{ 'ubuntu' if ansible_distribution == 'Ubuntu' else 'debian' }}"
 
 - name: Install required system packages
-  apt:
+  ansible.builtin.apt:
     name:
       - ca-certificates
       - curl
@@ -21,29 +21,29 @@
 - name: Add Docker GPG key
   block:
     - name: Create keyrings directory
-      file:
+      ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
         mode: '0755'
 
     - name: Download Docker's official GPG key
-      get_url:
+      ansible.builtin.get_url:
         url: "https://download.docker.com/linux/{{ _docker_apt_distribution }}/gpg"
         dest: /etc/apt/keyrings/docker.asc
         mode: '0644'
 
 - name: Set Docker apt architecture
-  set_fact:
+  ansible.builtin.set_fact:
     _docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(ansible_architecture, 'amd64') }}"
 
 - name: Add Docker repository
-  apt_repository:
+  ansible.builtin.apt_repository:
     repo: "deb [arch={{ _docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ _docker_apt_distribution }} {{ ansible_distribution_release }} stable"
     state: present
     filename: docker
 
 - name: Install Docker Engine and Compose
-  apt:
+  ansible.builtin.apt:
     name:
       - docker-ce
       - docker-ce-cli
@@ -54,13 +54,13 @@
     update_cache: yes
 
 - name: Add user to docker group
-  user:
+  ansible.builtin.user:
     name: "{{ ansible_user }}"
     groups: docker
     append: yes
 
 - name: Enable and start Docker service
-  systemd:
+  ansible.builtin.systemd:
     name: docker
     enabled: true
     state: started

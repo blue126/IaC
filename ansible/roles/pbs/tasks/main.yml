@@ -1,28 +1,28 @@
 ---
 # PBS core setup
-- include_tasks: install.yml
+- ansible.builtin.include_tasks: install.yml
   tags: [install]
 
-- include_tasks: configure.yml
+- ansible.builtin.include_tasks: configure.yml
   tags: [configure]
 
-- include_tasks: users.yml
+- ansible.builtin.include_tasks: users.yml
   tags: [users]
 
 # ZFS storage setup
-- include_tasks: zfs-verify.yml
+- ansible.builtin.include_tasks: zfs-verify.yml
   tags: [verify, zfs]
   args:
     apply:
       tags: [verify, zfs]
 
-- include_tasks: zfs-pool.yml
+- ansible.builtin.include_tasks: zfs-pool.yml
   tags: [zfs]
   args:
     apply:
       tags: [zfs]
 
-- include_tasks: zfs-datastore.yml
+- ansible.builtin.include_tasks: zfs-datastore.yml
   tags: [pbs_datastore]
   args:
     apply:

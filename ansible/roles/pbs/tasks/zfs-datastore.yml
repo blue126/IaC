@@ -1,6 +1,6 @@
 ---
 - name: Create PBS Datastore
-  command: >
+  ansible.builtin.command: >
     proxmox-backup-manager datastore create {{ pbs_datastore_name }}
     {{ pbs_zfs_mount_point }}
   register: ds_create

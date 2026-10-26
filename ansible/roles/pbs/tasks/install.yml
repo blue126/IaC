@@ -1,18 +1,18 @@
 ---
 - name: Update apt cache
-  apt:
+  ansible.builtin.apt:
     update_cache: yes
     cache_valid_time: 3600
 
 - name: Install ZFS utilities
-  apt:
+  ansible.builtin.apt:
     name:
       - zfsutils-linux
       - zfs-dkms
     state: present
 
 - name: Install system utilities
-  apt:
+  ansible.builtin.apt:
     name:
       - vim
       - htop
@@ -23,7 +23,7 @@
     state: present
 
 - name: Ensure chrony is running
-  service:
+  ansible.builtin.service:
     name: chrony
     state: started
     enabled: yes

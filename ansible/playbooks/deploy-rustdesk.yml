@@ -15,16 +15,16 @@
   tags: [verify]
   tasks:
     - name: Wait for RustDesk hbbs port
-      wait_for:
+      ansible.builtin.wait_for:
         port: 21116
         timeout: 60
 
     - name: Check Docker containers running
-      command: docker ps --filter name=rustdesk
+      ansible.builtin.command: docker ps --filter name=rustdesk
       register: rustdesk_containers
       changed_when: false
       check_mode: false
 
     - name: Display deployment status
-      debug:
+      ansible.builtin.debug:
         msg: "{{ rustdesk_containers.stdout_lines }}"

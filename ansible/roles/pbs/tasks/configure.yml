@@ -1,10 +1,10 @@
 ---
 - name: Set timezone
-  timezone:
+  community.general.timezone:
     name: "{{ pbs_timezone | default('Australia/Sydney') }}"
 
 - name: Configure ZFS ARC limits
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/modprobe.d/zfs.conf
     line: "options zfs zfs_arc_max={{ pbs_zfs_arc_max_bytes }}"
     create: yes

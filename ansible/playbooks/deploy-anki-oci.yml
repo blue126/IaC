@@ -52,19 +52,19 @@
     anki_sync_server_port: "{{ hostvars[inventory_hostname].anki_sync_server_port | default(8080) }}"
   tasks:
     - name: Wait for sync server to be ready
-      wait_for:
+      ansible.builtin.wait_for:
         port: "{{ anki_sync_server_port }}"
         host: 0.0.0.0
         delay: 2
         timeout: 30
 
     - name: Check sync server service status
-      systemd:
+      ansible.builtin.systemd:
         name: anki-sync-server
       register: service_status
 
     - name: Assert sync server is running
-      assert:
+      ansible.builtin.assert:
         that:
           - service_status.status.ActiveState == "active"
           - service_status.status.SubState == "running"
@@ -86,7 +86,7 @@
       register: ldoce5_info
 
     - name: Assert ldoce5-api is running
-      assert:
+      ansible.builtin.assert:
         that: ldoce5_info.container.State.Running
         fail_msg: "❌ ldoce5-api container is not running"
         success_msg: "✅ ldoce5-api is running"
@@ -97,13 +97,13 @@
       register: writer_info
 
     - name: Assert anki-writer is running
-      assert:
+      ansible.builtin.assert:
         that: writer_info.container.State.Running
         fail_msg: "❌ anki-writer container is not running"
         success_msg: "✅ anki-writer is running"
 
     - name: Test ldoce5-api health endpoint
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:{{ ldoce5_port }}/health"
         timeout: 10
         status_code: [200]
@@ -112,7 +112,7 @@
       failed_when: false
 
     - name: Test anki-writer health endpoint
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:{{ anki_writer_port }}/health"
         timeout: 10
         status_code: [200]
@@ -157,7 +157,7 @@
         success_msg: "✅ Anki API endpoints are healthy"
 
     - name: Display deployment summary
-      debug:
+      ansible.builtin.debug:
         msg:
           - "============================================"
           - "✅ Anki Stack Deployment on OCI Successful"

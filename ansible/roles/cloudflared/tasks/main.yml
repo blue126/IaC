@@ -12,32 +12,32 @@
 # === Install cloudflared ===
 
 - name: Add Cloudflare GPG key
-  get_url:
+  ansible.builtin.get_url:
     url: https://pkg.cloudflare.com/cloudflare-main.gpg
     dest: /usr/share/keyrings/cloudflare-main.gpg
     mode: '0644'
 
 - name: Add Cloudflare apt repository
-  copy:
+  ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/cloudflared.list
     content: "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main\n"
     mode: '0644'
   register: cloudflared_repo
 
 - name: Install cloudflared
-  apt:
+  ansible.builtin.apt:
     name: cloudflared
     state: present
     update_cache: "{{ cloudflared_repo.changed }}"
 
 - name: Verify cloudflared installation
-  command: cloudflared --version
+  ansible.builtin.command: cloudflared --version
   register: cloudflared_version
   changed_when: false
   check_mode: false
 
 - name: Display cloudflared version
-  debug:
+  ansible.builtin.debug:
     msg: "{{ cloudflared_version.stdout }}"
 
 # === Configure tunnel ===
@@ -46,7 +46,7 @@
   when: cloudflared_configure_tunnel | bool
   block:
     - name: Validate Cloudflare Tunnel configuration
-      assert:
+      ansible.builtin.assert:
         that:
           - cloudflared_tunnel_name | length > 0
           - cloudflared_tunnel_id | length > 0
@@ -57,7 +57,7 @@
           is enabled.
 
     - name: Validate Cloudflare Tunnel ingress rules
-      assert:
+      ansible.builtin.assert:
         that:
           - item.hostname is defined
           - item.hostname | length > 0
@@ -69,19 +69,19 @@
       loop: "{{ cloudflared_ingress_rules }}"
 
     - name: Create cloudflared config directory
-      file:
+      ansible.builtin.file:
         path: "{{ cloudflared_config_dir }}"
         state: directory
         mode: '0755'
 
     - name: Create cloudflared credentials directory
-      file:
+      ansible.builtin.file:
         path: "{{ cloudflared_credentials_dir }}"
         state: directory
         mode: '0700'
 
     - name: Deploy Cloudflare Tunnel credentials
-      copy:
+      ansible.builtin.copy:
         content: "{{ cloudflared_tunnel_credentials | to_nice_json }}\n"
         dest: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
         mode: '0600'
@@ -90,12 +90,12 @@
       notify: Restart cloudflared
 
     - name: Check tunnel credentials file exists
-      stat:
+      ansible.builtin.stat:
         path: "{{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json"
       register: tunnel_credentials
 
     - name: Fail if tunnel credentials not found
-      fail:
+      ansible.builtin.fail:
         msg: >
           Tunnel credentials file not found at
           {{ cloudflared_credentials_dir }}/{{ cloudflared_tunnel_id }}.json.
@@ -104,14 +104,14 @@
       when: not tunnel_credentials.stat.exists
 
     - name: Deploy cloudflared config
-      template:
+      ansible.builtin.template:
         src: config.yml.j2
         dest: "{{ cloudflared_config_dir }}/config.yml"
         mode: '0600'
       notify: Restart cloudflared
 
     - name: Install cloudflared as systemd service
-      command: cloudflared service install
+      ansible.builtin.command: cloudflared service install
       register: service_install
       failed_when:
         - service_install.rc != 0
@@ -119,7 +119,7 @@
       changed_when: service_install.rc == 0
 
     - name: Enable and start cloudflared service
-      systemd:
+      ansible.builtin.systemd:
         name: cloudflared
         enabled: true
         state: started

@@ -2,7 +2,7 @@
 # ── 1. System packages ─────────────────────────────────────────────────
 
 - name: Install prerequisite packages
-  apt:
+  ansible.builtin.apt:
     name:
       - curl
       - ca-certificates
@@ -38,7 +38,7 @@
     creates: /usr/share/keyrings/nodesource.gpg
 
 - name: Add NodeSource apt repository
-  deb822_repository:
+  ansible.builtin.deb822_repository:
     name: nodesource
     types: deb
     uris: "https://deb.nodesource.com/node_{{ nodejs_major }}.x"
@@ -69,7 +69,7 @@
     creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 
 - name: Add Caddy apt repository
-  deb822_repository:
+  ansible.builtin.deb822_repository:
     name: caddy-stable
     types: deb
     uris: https://dl.cloudsmith.io/public/caddy/stable/deb/debian
@@ -80,24 +80,24 @@
   register: caddy_repo
 
 - name: Update apt cache after adding repositories
-  apt:
+  ansible.builtin.apt:
     update_cache: true
   when: nodesource_repo.changed or caddy_repo.changed
 
 - name: Install Node.js {{ nodejs_major }}
-  apt:
+  ansible.builtin.apt:
     name: nodejs
     state: present
 
 - name: Install Caddy
-  apt:
+  ansible.builtin.apt:
     name: caddy
     state: present
 
 # ── 4. Firewall ────────────────────────────────────────────────────────
 
 - name: Allow HTTP (80) through iptables
-  iptables:
+  ansible.builtin.iptables:
     chain: INPUT
     protocol: tcp
     destination_port: "80"
@@ -105,7 +105,7 @@
     state: present
 
 - name: Allow HTTPS (443) through iptables
-  iptables:
+  ansible.builtin.iptables:
     chain: INPUT
     protocol: tcp
     destination_port: "443"
@@ -113,13 +113,13 @@
     state: present
 
 - name: Persist iptables rules
-  command: netfilter-persistent save
+  ansible.builtin.command: netfilter-persistent save
   changed_when: false
 
 # ── 5. Application code ────────────────────────────────────────────────
 
 - name: Create install directory
-  file:
+  ansible.builtin.file:
     path: "{{ proxy_install_dir }}"
     state: directory
     owner: ubuntu
@@ -127,7 +127,7 @@
     mode: "0755"
 
 - name: Clone / update unified-proxy repository
-  git:
+  ansible.builtin.git:
     repo: "{{ repo_url }}"
     dest: "{{ repo_clone_dir }}"
     version: "{{ repo_version }}"
@@ -138,7 +138,7 @@
   tags: [code]
 
 - name: Copy server.js from repo
-  copy:
+  ansible.builtin.copy:
     src: "{{ repo_clone_dir }}/server.js"
     dest: "{{ proxy_install_dir }}/server.js"
     remote_src: true
@@ -149,7 +149,7 @@
   tags: [code]
 
 - name: Copy package.json from repo
-  copy:
+  ansible.builtin.copy:
     src: "{{ repo_clone_dir }}/package.json"
     dest: "{{ proxy_install_dir }}/package.json"
     remote_src: true
@@ -159,7 +159,7 @@
   tags: [code]
 
 - name: Clean up temporary clone directory
-  file:
+  ansible.builtin.file:
     path: "{{ repo_clone_dir }}"
     state: absent
   tags: [code]
@@ -167,7 +167,7 @@
 # ── 6. Sensitive data (from vault) ────────────────────────────────────
 
 - name: Deploy auth.json from vault
-  copy:
+  ansible.builtin.copy:
     content: "{{ vault_auth_json }}"
     dest: "{{ proxy_install_dir }}/auth.json"
     owner: ubuntu
@@ -210,7 +210,7 @@
 # ── 7. systemd service ─────────────────────────────────────────────────
 
 - name: Deploy systemd service unit
-  template:
+  ansible.builtin.template:
     src: unified-proxy.service.j2
     dest: /etc/systemd/system/unified-proxy.service
     mode: "0644"
@@ -219,7 +219,7 @@
     - Restart unified-proxy
 
 - name: Enable and start unified-proxy
-  systemd:
+  ansible.builtin.systemd:
     name: unified-proxy
     enabled: true
     state: started

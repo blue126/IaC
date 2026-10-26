@@ -15,25 +15,25 @@
   tags: [verify]
   tasks:
     - name: Wait for Jenkins to start
-      wait_for:
+      ansible.builtin.wait_for:
         port: 8080
         delay: 5
         timeout: 120
 
     - name: Check Jenkins service status
-      systemd:
+      ansible.builtin.systemd:
         name: jenkins
       register: service_status
 
     - name: Assert Jenkins service is active
-      assert:
+      ansible.builtin.assert:
         that:
           - service_status.status.ActiveState == "active"
         success_msg: "Jenkins service is running"
         fail_msg: "Jenkins service is not running"
 
     - name: Test Jenkins HTTP accessibility
-      uri:
+      ansible.builtin.uri:
         url: http://localhost:8080/login
         status_code: 200
         timeout: 10
@@ -42,25 +42,25 @@
       ignore_errors: yes
 
     - name: Verify Terraform is installed
-      command: terraform version
+      ansible.builtin.command: terraform version
       register: terraform_check
       changed_when: false
       check_mode: false
 
     - name: Verify Ansible is installed
-      command: ansible --version
+      ansible.builtin.command: ansible --version
       register: ansible_check
       changed_when: false
       check_mode: false
 
     - name: Load CI toolchain BOM for verification
-      include_vars:
+      ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/../../ci/toolchain-bom.yml"
         name: ci_toolchain_bom
       when: jenkins_manage_casc | bool
 
     - name: Check JCasC-managed Jenkins node files
-      stat:
+      ansible.builtin.stat:
         path: "/var/lib/jenkins/nodes/{{ item }}/config.xml"
       loop:
         - iac-plan
@@ -69,7 +69,7 @@
       when: jenkins_manage_casc | bool
 
     - name: Assert JCasC-managed Jenkins nodes exist
-      assert:
+      ansible.builtin.assert:
         that:
           - item.stat.exists
           - item.stat.isreg
@@ -79,7 +79,7 @@
       when: jenkins_manage_casc | bool
 
     - name: Verify JCasC-managed Jenkins node boundaries
-      shell: |
+      ansible.builtin.shell: |
         set -o pipefail
         grep -F '<numExecutors>1</numExecutors>' "{{ item.config }}" >/dev/null
         grep -F '<mode>EXCLUSIVE</mode>' "{{ item.config }}" >/dev/null
@@ -99,7 +99,7 @@
       when: jenkins_manage_casc | bool
 
     - name: Verify controller executor bootstrap count
-      command:
+      ansible.builtin.command:
         argv:
           - grep
           - -F
@@ -109,7 +109,7 @@
       when: jenkins_manage_casc | bool
 
     - name: Display deployment info
-      debug:
+      ansible.builtin.debug:
         msg: |
           ======================================
           Jenkins Deployment Complete

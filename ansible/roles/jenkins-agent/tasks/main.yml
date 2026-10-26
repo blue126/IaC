@@ -1,6 +1,6 @@
 ---
 - name: Validate Jenkins agent configuration
-  assert:
+  ansible.builtin.assert:
     that:
       - jenkins_agent_controller_url | length > 0
       - jenkins_agent_jar_checksum is match('^sha256:[0-9a-f]{64}$')
@@ -11,7 +11,7 @@
       identities are required.
 
 - name: Validate Jenkins agent connection secrets
-  assert:
+  ansible.builtin.assert:
     that:
       - item.secret | length > 0
     fail_msg: "A Vault-backed connection secret is required for each Jenkins agent."
@@ -19,7 +19,7 @@
   no_log: true
 
 - name: Install Jenkins agent runtime packages
-  apt:
+  ansible.builtin.apt:
     name:
       - ca-certificates
       - "{{ jenkins_agent_java_package }}"
@@ -27,7 +27,7 @@
     update_cache: true
 
 - name: Create Jenkins agent groups
-  group:
+  ansible.builtin.group:
     name: "{{ item.name }}"
     system: true
     state: present
@@ -36,7 +36,7 @@
     label: "{{ item.name }}"
 
 - name: Create Jenkins agent base directory
-  file:
+  ansible.builtin.file:
     path: "{{ jenkins_agent_base_dir }}"
     state: directory
     owner: root
@@ -44,7 +44,7 @@
     mode: "0755"
 
 - name: Create Jenkins agent accounts
-  user:
+  ansible.builtin.user:
     name: "{{ item.name }}"
     group: "{{ item.name }}"
     groups: ""
@@ -59,7 +59,7 @@
     label: "{{ item.name }}"
 
 - name: Create Jenkins agent installation directory
-  file:
+  ansible.builtin.file:
     path: "{{ jenkins_agent_jar_path | dirname }}"
     state: directory
     owner: root
@@ -67,7 +67,7 @@
     mode: "0755"
 
 - name: Download pinned Jenkins agent runtime
-  get_url:
+  ansible.builtin.get_url:
     url: "{{ jenkins_agent_jar_url }}"
     dest: "{{ jenkins_agent_jar_path }}"
     checksum: "{{ jenkins_agent_jar_checksum }}"
@@ -77,7 +77,7 @@
   notify: Restart Jenkins agent services
 
 - name: Create private Jenkins agent directories
-  file:
+  ansible.builtin.file:
     path: >-
       {{ jenkins_agent_base_dir }}/{{ item.0.name }}{{ '/' + item.1 if item.1 else '' }}
     state: directory
@@ -94,7 +94,7 @@
       - tmp
 
 - name: Create Jenkins agent configuration directory
-  file:
+  ansible.builtin.file:
     path: "{{ jenkins_agent_config_dir }}"
     state: directory
     owner: root
@@ -102,7 +102,7 @@
     mode: "0755"
 
 - name: Create Jenkins agent secret directories
-  file:
+  ansible.builtin.file:
     path: "{{ jenkins_agent_config_dir }}/{{ item.name }}"
     state: directory
     owner: root
@@ -113,7 +113,7 @@
     label: "{{ item.name }}"
 
 - name: Deploy Jenkins agent connection secrets
-  copy:
+  ansible.builtin.copy:
     content: "{{ item.secret }}\n"
     dest: "{{ jenkins_agent_config_dir }}/{{ item.name }}/secret"
     owner: root
@@ -126,7 +126,7 @@
   notify: Restart Jenkins agent services
 
 - name: Deploy Jenkins agent systemd service template
-  template:
+  ansible.builtin.template:
     src: jenkins-agent.service.j2
     dest: /etc/systemd/system/jenkins-agent@.service
     owner: root
@@ -135,7 +135,7 @@
   notify: Restart Jenkins agent services
 
 - name: Enable and start Jenkins agent services
-  systemd:
+  ansible.builtin.systemd:
     name: "jenkins-agent@{{ item.name }}"
     enabled: true
     state: started

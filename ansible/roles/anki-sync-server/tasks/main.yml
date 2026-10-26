@@ -1,7 +1,7 @@
 ---
 # Tasks for deploying Anki Sync Server using pip method
 - name: Install Python3 and venv
-  apt:
+  ansible.builtin.apt:
     name:
       - python3
       - python3-venv
@@ -10,7 +10,7 @@
     update_cache: yes
 
 - name: Create install directory
-  file:
+  ansible.builtin.file:
     path: "{{ anki_install_dir }}"
     state: directory
     owner: root
@@ -18,18 +18,18 @@
     mode: '0755'
 
 - name: Create Python virtual environment
-  command:
+  ansible.builtin.command:
     cmd: python3 -m venv {{ anki_venv_path }}
     creates: "{{ anki_venv_path }}/bin/python"
 
 - name: Install anki package via pip
-  pip:
+  ansible.builtin.pip:
     name: anki
     virtualenv: "{{ anki_venv_path }}"
     state: present
 
 - name: Deploy systemd service file
-  template:
+  ansible.builtin.template:
     src: anki-sync-server.service.j2
     dest: /etc/systemd/system/anki-sync-server.service
     owner: root
@@ -38,7 +38,7 @@
   notify: Restart anki-sync-server
 
 - name: Enable and start anki-sync-server service
-  systemd:
+  ansible.builtin.systemd:
     name: anki-sync-server
     enabled: yes
     state: started

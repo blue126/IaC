@@ -1,11 +1,11 @@
 ---
 - name: Wait for PBS API
-  wait_for:
+  ansible.builtin.wait_for:
     port: 8007
     timeout: 60
 
 - name: Create PBS backup user
-  uri:
+  ansible.builtin.uri:
     url: "https://{{ ansible_host }}:8007/api2/json/access/users"
     method: POST
     user: root@pam

@@ -15,7 +15,7 @@
   tasks:
     # Wait for Netbox web port
     - name: Wait for Netbox web server to be ready
-      wait_for:
+      ansible.builtin.wait_for:
         port: "{{ netbox_port | default(8080) }}"
         timeout: 60
       register: netbox_port_result
@@ -23,13 +23,13 @@
 
     # Check Docker service status
     - name: Check Docker service status
-      systemd:
+      ansible.builtin.systemd:
         name: docker
       register: docker_status
       tags: [summary]
 
     - name: Assert Docker service is running
-      assert:
+      ansible.builtin.assert:
         that:
           - docker_status.status.ActiveState == "active"
           - docker_status.status.SubState == "running"
@@ -39,7 +39,7 @@
 
     # Check Netbox containers health
     - name: Get Netbox containers status
-      command: docker compose ps
+      ansible.builtin.command: docker compose ps
       args:
         chdir: "{{ netbox_install_dir | default('/opt/netbox-docker') }}"
       register: compose_ps_result
@@ -48,7 +48,7 @@
       tags: [summary]
 
     - name: Check for healthy containers
-      shell: |
+      ansible.builtin.shell: |
         set -o pipefail
         docker compose ps | awk '/netbox.*healthy/ {count++} END {print count+0}'
       args:
@@ -60,7 +60,7 @@
       tags: [summary]
 
     - name: Assert Netbox containers are healthy
-      assert:
+      ansible.builtin.assert:
         that:
           - healthy_count.stdout | int > 0
         fail_msg: "❌ No healthy Netbox containers found"
@@ -69,7 +69,7 @@
 
     # Test HTTP endpoint
     - name: Test Netbox web interface
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:{{ netbox_port | default(8080) }}"
         method: GET
         status_code: [200, 302]
@@ -79,7 +79,7 @@
       tags: [summary]
 
     - name: Assert Netbox web interface is accessible
-      assert:
+      ansible.builtin.assert:
         that:
           - netbox_http_result.status in [200, 302]
         fail_msg: "❌ Netbox web interface not accessible"
@@ -88,7 +88,7 @@
 
     # Test API endpoint
     - name: Test Netbox login page
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:{{ netbox_port | default(8080) }}/login/"
         method: GET
         status_code: [200]
@@ -98,7 +98,7 @@
       tags: [summary]
 
     - name: Assert Netbox login page is accessible
-      assert:
+      ansible.builtin.assert:
         that:
           - netbox_login_result.status == 200
         fail_msg: "❌ Netbox login page not accessible"
@@ -107,7 +107,7 @@
 
     # Check PostgreSQL connectivity
     - name: Test database connectivity
-      shell: >
+      ansible.builtin.shell: >
         docker compose exec -T postgres 
         pg_isready -U netbox -d netbox
       args:
@@ -119,7 +119,7 @@
       tags: [summary]
 
     - name: Assert database is accessible
-      assert:
+      ansible.builtin.assert:
         that:
           - db_check.rc == 0
           - "'accepting connections' in db_check.stdout"
@@ -130,7 +130,7 @@
     # Display deployment summary
     # Display deployment summary
     - name: Get Tailscale IPv4
-      command: tailscale ip -4
+      ansible.builtin.command: tailscale ip -4
       register: tailscale_ipv4
       changed_when: false
       check_mode: false
@@ -138,7 +138,7 @@
       tags: [summary]
 
     - name: Display deployment summary
-      debug:
+      ansible.builtin.debug:
         msg: |
           =========================================
           ✅ Netbox Deployment Successful
