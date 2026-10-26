@@ -74,7 +74,7 @@ setup:
         /opt/iac-venv/bin/pip install --upgrade pip;
         /opt/iac-venv/bin/pip install
         'ansible-core>=2.16,<2.21'
-        ansible-lint ansible-dev-tools proxmoxer requests netaddr pyvmomi passlib
+        ansible-lint ansible-dev-tools proxmoxer requests netaddr pyvmomi
         'notion-client==2.2.1';
         for executable in ansible ansible-config ansible-galaxy ansible-inventory ansible-lint ansible-playbook ansible-vault; do
           ln -sfn "/opt/iac-venv/bin/${executable}" "/usr/local/bin/${executable}";

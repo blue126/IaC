@@ -38,17 +38,20 @@
         status_code: 200
         timeout: 10
       register: http_check
+      check_mode: false
       ignore_errors: yes
 
     - name: Verify Terraform is installed
       command: terraform version
       register: terraform_check
       changed_when: false
+      check_mode: false
 
     - name: Verify Ansible is installed
       command: ansible --version
       register: ansible_check
       changed_when: false
+      check_mode: false
 
     - name: Load CI toolchain BOM for verification
       include_vars:
