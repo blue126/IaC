@@ -1,4 +1,12 @@
 mock_provider "proxmox" {}
+mock_provider "proxmox" {
+  alias = "employee"
+  mock_resource "proxmox_virtual_environment_file" {
+    defaults = {
+      id = "local:snippets/employee-fixture.yaml"
+    }
+  }
+}
 mock_provider "ansible" {}
 variables {
   employee_access = {
@@ -33,19 +41,45 @@ run "empty" {
     employee_workspaces = {}
   }
   assert {
-    condition     = length(proxmox_virtual_environment_vm.employee_access) == 0 && length(proxmox_virtual_environment_vm.employee_workspace) == 0
+    condition     = length(proxmox_virtual_environment_vm.employee_access) == 0 && length(proxmox_virtual_environment_vm.employee_workspace) == 0 && length(proxmox_virtual_environment_vm.employee_template) == 0 && length(proxmox_virtual_environment_file.employee_guest_bootstrap) == 0
     error_message = "Default inputs must create zero employee resources."
   }
 }
 run "bootstrap" {
   command = plan
+  assert {
+    condition     = proxmox_virtual_environment_vm.employee_template[0].template && !proxmox_virtual_environment_vm.employee_template[0].started && !proxmox_virtual_environment_vm.employee_template[0].on_boot
+    error_message = "The source template must never boot or carry employee login state."
+  }
 }
 run "ready" {
   command = plan
+  assert {
+    condition = alltrue(concat(
+      [for vm in proxmox_virtual_environment_vm.employee_access : vm.cpu[0].type == "host"],
+      [for vm in proxmox_virtual_environment_vm.employee_template : vm.cpu[0].type == "host"],
+      [for vm in values(proxmox_virtual_environment_vm.employee_workspace) : vm.cpu[0].type == "host"]
+    ))
+    error_message = "The gateway, clean template and all employee VMs must use the host CPU model."
+  }
   variables {
     employee_access = merge(var.employee_access, { boundary_ready = true })
   }
 }
+run "new_workspace_waits_for_boundary" {
+  command = plan
+  variables {
+    employee_access = merge(var.employee_access, { boundary_ready = true })
+    employee_workspaces = {
+      alice = merge(var.employee_workspaces.alice, { start_ready = false })
+    }
+  }
+  assert {
+    condition     = !proxmox_virtual_environment_vm.employee_workspace["alice"].started && !proxmox_virtual_environment_vm.employee_workspace["alice"].on_boot
+    error_message = "A new workspace must stay stopped until its own isolation is installed, even when the existing gateway is ready."
+  }
+}
+
 run "disabled" {
   command = plan
   variables {
@@ -54,8 +88,40 @@ run "disabled" {
   }
 }
 
+run "baked_workspace_uses_approved_template_and_bootstrap" {
+  command = plan
+  variables {
+    employee_access = merge(var.employee_access, { boundary_ready = true })
+    employee_workspaces = {
+      alice = merge(var.employee_workspaces.alice, {
+        template_id    = 9001
+        baseline_id    = "baseline-fixture"
+        bootstrap_file = "employee-snippets:snippets/employee-workspace-baked-bootstrap.yaml"
+      })
+    }
+  }
+  assert {
+    condition     = proxmox_virtual_environment_vm.employee_workspace["alice"].clone[0].vm_id == 9001 && proxmox_virtual_environment_vm.employee_workspace["alice"].initialization[0].vendor_data_file_id == "employee-snippets:snippets/employee-workspace-baked-bootstrap.yaml"
+    error_message = "A baked workspace must use the approved image and lightweight first-boot file."
+  }
+}
+
+run "reject_partial_baked_baseline" {
+  command = plan
+  variables {
+    employee_workspaces = {
+      alice = merge(var.employee_workspaces.alice, { template_id = 9001 })
+    }
+  }
+  expect_failures = [var.employee_workspaces]
+}
+
 run "allocated" {
   command = apply
+  assert {
+    condition     = proxmox_virtual_environment_vm.employee_access[0].initialization[0].vendor_data_file_id == proxmox_virtual_environment_file.employee_guest_bootstrap[0].id && proxmox_virtual_environment_vm.employee_workspace["alice"].initialization[0].vendor_data_file_id == proxmox_virtual_environment_file.employee_guest_bootstrap[0].id
+    error_message = "Both first-boot consumers must receive the guest-agent bootstrap."
+  }
   variables {
     employee_workspaces = {
       alice = var.employee_workspaces.alice

@@ -3,7 +3,7 @@
 import json
 import sys
 
-expected = {'bootstrap': False, 'ready': True, 'disabled': False}
+expected = {'bootstrap': False, 'ready': True, 'disabled': False, 'new_workspace_waits_for_boundary': False}
 seen = set()
 empty_seen = False
 for row in map(json.loads, open(sys.argv[1])):

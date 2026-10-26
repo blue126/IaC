@@ -19,8 +19,9 @@ variable "employee_access" {
 }
 
 resource "proxmox_virtual_environment_vm" "employee_access" {
+  provider   = proxmox.pve2
   count      = var.employee_access == null ? 0 : 1
-  depends_on = [terraform_data.employee_slot]
+  depends_on = [terraform_data.employee_slot, proxmox_virtual_environment_vm.employee_template]
   name       = "employee-access"
   node_name  = var.employee_access.node
   vm_id      = var.employee_access.vmid
@@ -30,12 +31,17 @@ resource "proxmox_virtual_environment_vm" "employee_access" {
     full  = true
   }
   agent { enabled = true }
-  cpu { cores = 2 }
+  vga { type = "serial0" }
+  cpu {
+    cores = 2
+    type  = "host"
+  }
   memory { dedicated = 2048 }
   disk {
     datastore_id = var.employee_access.storage_pool
     interface    = "scsi0"
     size         = 20
+    discard      = "on"
   }
   network_device {
     bridge      = var.employee_access.uplink_bridge
@@ -51,7 +57,8 @@ resource "proxmox_virtual_environment_vm" "employee_access" {
     }
   }
   initialization {
-    datastore_id = var.employee_access.storage_pool
+    datastore_id        = var.employee_access.storage_pool
+    vendor_data_file_id = proxmox_virtual_environment_file.employee_guest_bootstrap[0].id
     ip_config {
       ipv4 {
         address = var.employee_access.uplink_address

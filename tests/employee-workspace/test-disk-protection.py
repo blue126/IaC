@@ -10,11 +10,13 @@ root, log = Path(sys.argv[1]), Path(sys.argv[2])
 state = next(row['test_state'] for row in map(json.loads, log.read_text().splitlines()) if row.get('@testrun') == 'allocated' and 'test_state' in row)
 resources = {}
 for resource in state['root_module']['resources']:
-    if resource['type'] == 'proxmox_virtual_environment_vm':
+    if resource['type'] == 'proxmox_virtual_environment_vm' and resource['name'] != 'employee_template':
         resource['values']['template'] = False
     if resource['type'] == 'terraform_data':
         for name in ('input', 'output'):
             resource['values'][name] = {'value': resource['values'][name], 'type': ['object', {key: 'number' if isinstance(value, (int, float)) else 'string' for key, value in resource['values'][name].items()}]}
+    if resource['type'] == 'proxmox_virtual_environment_vm' and resource['name'] == 'employee_workspace':
+        resource['values']['vga'] = [{'type': 'serial0', 'memory': 16, 'clipboard': ''}]
     key = (resource['type'], resource['name'])
     item = resources.setdefault(key, {'mode': resource['mode'], 'type': resource['type'], 'name': resource['name'], 'provider': 'provider["' + resource['provider_name'] + '"]', 'instances': []})
     item['instances'].append({'index_key': resource['index'], 'schema_version': resource['schema_version'], 'attributes': resource['values'], 'sensitive_attributes': []})
@@ -25,13 +27,27 @@ varfile = root / 'protection.tfvars.json'
 varfile.write_text(json.dumps(variables))
 env = {key: value for key, value in os.environ.items() if not key.startswith(('TF_', 'TFC_', 'PROXMOX_'))}
 env.update(TF_CLI_CONFIG_FILE='/dev/null', PROXMOX_VE_ENDPOINT='https://127.0.0.1:1', PROXMOX_VE_API_TOKEN='test@pve!test=00000000-0000-0000-0000-000000000000')
-for label, flags in [('unchanged-positive-control', []), ('destroy', ['-destroy']), ('forced-replacement', ['-replace=proxmox_virtual_environment_vm.employee_workspace["alice"]']), ('vmid-change', [])]:
+for label, flags in [('unchanged-positive-control', []), ('first-start-preserves-inherited-vga', ['-out=' + str(root / 'first-start.tfplan')]), ('destroy', ['-destroy']), ('forced-replacement', ['-replace=proxmox_virtual_environment_vm.employee_workspace["alice"]']), ('vmid-change', [])]:
+    variables['employee_access']['boundary_ready'] = label == 'first-start-preserves-inherited-vga'
+    varfile.write_text(json.dumps(variables))
     if label == 'vmid-change':
         variables['employee_workspaces']['alice']['vmid'] = 601
         varfile.write_text(json.dumps(variables))
     result = subprocess.run(['terraform', 'plan', '-no-color', '-input=false', '-refresh=false', '-var-file=' + str(varfile)] + flags, cwd=root, env=env, text=True, capture_output=True)
     (root / (label + '.log')).write_text(result.stdout + result.stderr)
     ok = result.returncode == 0 if label == 'unchanged-positive-control' else result.returncode != 0 and 'proxmox_virtual_environment_vm.employee_workspace["alice"]' in result.stderr and 'lifecycle.prevent_destroy' in result.stderr
+    if label == 'first-start-preserves-inherited-vga' and result.returncode == 0:
+        plan = json.loads(subprocess.check_output(['terraform', 'show', '-json', str(root / 'first-start.tfplan')], cwd=root, env=env, text=True))
+        changes = [item for item in plan.get('resource_changes', []) if item['type'] == 'proxmox_virtual_environment_vm' and item['name'] == 'employee_workspace']
+        ok = len(changes) == 2
+        for item in changes:
+            change = item['change']
+            ok = ok and item['type'] == 'proxmox_virtual_environment_vm' and item['name'] == 'employee_workspace' and change['actions'] == ['update']
+            before, after = change['before'], change['after']
+            ok = ok and after['started'] and after['on_boot']
+            ok = ok and len(before['vga']) == len(after['vga']) == 1
+            ok = ok and before['vga'][0]['type'] == after['vga'][0]['type'] == 'serial0'
+            ok = ok and before['vga'][0]['memory'] == after['vga'][0]['memory']
     print(json.dumps({'case': label, 'protected': ok}), flush=True)
     if not ok:
         print(result.stdout + result.stderr, file=sys.stderr)

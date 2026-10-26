@@ -1,19 +1,32 @@
 variable "employee_workspaces" {
   description = "Persistent employee roster; disable, never remove, an allocated entry"
   type = map(object({
-    nic_slot    = number
-    vmid        = number
-    bridge      = string
-    address     = string
-    gateway     = string
-    mac_address = string
-    gateway_mac = string
-    cores       = optional(number, 2)
-    memory      = optional(number, 4096)
-    disk_size   = optional(string, "50G")
-    disabled    = optional(bool, false)
+    nic_slot       = number
+    vmid           = number
+    bridge         = string
+    address        = string
+    gateway        = string
+    mac_address    = string
+    gateway_mac    = string
+    cores          = optional(number, 2)
+    memory         = optional(number, 4096)
+    disk_size      = optional(string, "50G")
+    disabled       = optional(bool, false)
+    start_ready    = optional(bool, true)
+    template_id    = optional(number)
+    baseline_id    = optional(string)
+    bootstrap_file = optional(string)
   }))
   default = {}
+  validation {
+    condition = alltrue([for vm in values(var.employee_workspaces) :
+      (vm.template_id == null && vm.baseline_id == null && vm.bootstrap_file == null) || try(
+        vm.template_id >= 100 && floor(vm.template_id) == vm.template_id && vm.template_id != vm.vmid &&
+        can(regex("^[a-z][a-z0-9-]+$", vm.baseline_id)) &&
+      can(regex("^[a-z0-9-]+:snippets/[a-z0-9-]+[.]yaml$", vm.bootstrap_file)), false)
+    ])
+    error_message = "A baked workspace requires a distinct template ID, baseline ID, and lightweight bootstrap file together."
+  }
   validation {
     condition = alltrue([for id, vm in var.employee_workspaces :
       can(regex("^[a-z][a-z0-9-]{0,19}$", id)) &&
@@ -77,6 +90,7 @@ resource "terraform_data" "employee_slot" {
 }
 
 resource "proxmox_virtual_environment_network_linux_bridge" "employee" {
+  provider   = proxmox.pve2
   depends_on = [terraform_data.employee_slot]
   for_each   = var.employee_workspaces
   node_name  = var.employee_access.node
@@ -93,6 +107,7 @@ resource "proxmox_virtual_environment_network_linux_bridge" "employee" {
 }
 
 resource "proxmox_virtual_environment_file" "employee_boundary_hook" {
+  provider     = proxmox.pve2
   for_each     = var.employee_workspaces
   node_name    = var.employee_access.node
   datastore_id = var.employee_access.snippet_datastore
@@ -111,16 +126,21 @@ resource "proxmox_virtual_environment_file" "employee_boundary_hook" {
 
 # Dedicated persistent resource: its disks cannot be destroyed or replaced by a plan.
 resource "proxmox_virtual_environment_vm" "employee_workspace" {
+  provider  = proxmox.pve2
   for_each  = var.employee_workspaces
   name      = "employee-${each.key}"
   node_name = var.employee_access.node
   vm_id     = each.value.vmid
   clone {
-    vm_id = var.employee_access.template_id
+    vm_id = coalesce(each.value.template_id, var.employee_access.template_id)
     full  = true
   }
   agent { enabled = true }
-  cpu { cores = each.value.cores }
+  vga { type = "serial0" }
+  cpu {
+    cores = each.value.cores
+    type  = "host"
+  }
   memory { dedicated = each.value.memory }
   scsi_hardware = "virtio-scsi-pci"
   disk {
@@ -138,7 +158,8 @@ resource "proxmox_virtual_environment_vm" "employee_workspace" {
     disconnected = each.value.disabled
   }
   initialization {
-    datastore_id = var.employee_access.storage_pool
+    datastore_id        = var.employee_access.storage_pool
+    vendor_data_file_id = each.value.bootstrap_file != null ? each.value.bootstrap_file : proxmox_virtual_environment_file.employee_guest_bootstrap[0].id
     ip_config {
       ipv4 {
         address = each.value.address
@@ -151,15 +172,15 @@ resource "proxmox_virtual_environment_vm" "employee_workspace" {
       keys     = var.employee_access.admin_public_keys
     }
   }
-  on_boot             = var.employee_access.boundary_ready && !each.value.disabled
-  started             = var.employee_access.boundary_ready && !each.value.disabled
+  on_boot             = var.employee_access.boundary_ready && each.value.start_ready && !each.value.disabled
+  started             = var.employee_access.boundary_ready && each.value.start_ready && !each.value.disabled
   hook_script_file_id = proxmox_virtual_environment_file.employee_boundary_hook[each.key].id
   tags                = ["employee-workspace", each.key]
   lifecycle {
     prevent_destroy = true
     ignore_changes  = [clone, initialization[0].user_account[0].keys]
   }
-  depends_on = [terraform_data.employee_slot]
+  depends_on = [terraform_data.employee_slot, proxmox_virtual_environment_vm.employee_template]
 }
 
 resource "ansible_host" "employee_workspace" {
@@ -175,5 +196,6 @@ resource "ansible_host" "employee_workspace" {
     employee_workspace_pve_host               = var.employee_access.pve_inventory_host
     employee_workspace_admin_public_keys_json = jsonencode(var.employee_access.admin_public_keys)
     employee_workspace_gateway                = "employee-access"
+    employee_workspace_baseline_id            = each.value.baseline_id != null ? each.value.baseline_id : ""
   }
 }
