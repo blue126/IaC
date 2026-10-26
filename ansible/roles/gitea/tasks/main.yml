@@ -94,10 +94,11 @@
   when: not gitea_appini_stat.stat.exists or (gitea_existing_jwt_secret.rc | default(1)) != 0
 
 # C1: no_log prevents secrets from appearing in verbose Ansible output / callback logs
+# The generate tasks are skipped in check mode, hence default('') below.
 - name: Set gitea_secret_key fact
   set_fact:
     gitea_secret_key: >-
-      {{ gitea_generated_secret_key.stdout
+      {{ gitea_generated_secret_key.stdout | default('')
          if (not gitea_appini_stat.stat.exists or (gitea_existing_secret_key.rc | default(1)) != 0)
          else gitea_existing_secret_key.stdout | regex_replace('^SECRET_KEY\s*=\s*', '') }}
   no_log: true
@@ -105,7 +106,7 @@
 - name: Set gitea_internal_token fact
   set_fact:
     gitea_internal_token: >-
-      {{ gitea_generated_internal_token.stdout
+      {{ gitea_generated_internal_token.stdout | default('')
          if (not gitea_appini_stat.stat.exists or (gitea_existing_internal_token.rc | default(1)) != 0)
          else gitea_existing_internal_token.stdout | regex_replace('^INTERNAL_TOKEN\s*=\s*', '') }}
   no_log: true
@@ -113,7 +114,7 @@
 - name: Set gitea_jwt_secret fact
   set_fact:
     gitea_jwt_secret: >-
-      {{ gitea_generated_jwt_secret.stdout
+      {{ gitea_generated_jwt_secret.stdout | default('')
          if (not gitea_appini_stat.stat.exists or (gitea_existing_jwt_secret.rc | default(1)) != 0)
          else gitea_existing_jwt_secret.stdout | regex_replace('^JWT_SECRET\s*=\s*', '') }}
   no_log: true
