@@ -1,5 +1,9 @@
 # 备份架构整合 — 实施规范
 
+> **VM108现行说明（2026-10-26）**：服务统一称 `container-lab`，实际位于独立pve2、PVE名称仍为 `containerlab`，验证后stopped/onboot0；按用户免备份修订不加入目标备份作业。
+> 当前代码为 `terraform/proxmox/container-lab.tf`、inventory `ansible_host.container_lab`、output `container_lab_ip`（保留 `192.168.1.108/24`）及 `ansible/playbooks/deploy-container-lab.yml`；known_hosts配置使用 `known_hosts-container-lab`。
+> 以下带日期的部署/备份实录保留旧名和当时文件名，不作为当前入口；迁移及备份范围的最新事实见[执行计划](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
+
 > **版本**: 1.15
 > **日期**: 2026-10-02
 > **状态**: 阶段一完成（步骤 1–9）；**PBS 已迁至 pve2 并重建 datastore**，D16 的 zvol 方案被 [D18](#d18--pbs-回到直通盘客机内-zfs推翻-d16) 推翻；108/109 已进入生产备份作业

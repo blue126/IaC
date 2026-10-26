@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-25",
+  "status": "final",
+  "pending_user_choices": [],
+  "final_hashes": {
+    "ARCHITECTURE-SPINE.md": "b63f57c02db470ede8e0aa927f2d0e6a6e2f117ad80e8dab934583f2612241f5",
+    "solution-design.md": "eae25f389ef68f24dd58084320ddf7e744495d5dca66b77965079e59443f7fdd",
+    "runbook.md": "5fb8562bec683b620deba6bfde8de7784c2b7f9365a140e56a6f6a84ff03c373",
+    "validation-and-rollback.md": "9de0056716d32013b800e97115667779733d238b08d4d97fe6523761db2e8ac3",
+    "preflight-evidence.md": "d196e7cf144c9d056f2c54fa37e0770ac70ba4f09ec9b5cadfa4adc084d895c1"
+  },
+  "review_execution_files": [
+    "execution-architecture.json",
+    "execution-editorial.json"
+  ],
+  "fix_trace": "review-triage.md",
+  "bash_syntax_blocks": 15,
+  "helper_code_unchanged": true,
+  "production_mutations_executed": false,
+  "decisions": {
+    "timemachine_report_gib": 760,
+    "zfs_hard_quota_gib": 800,
+    "margin_gib": 40,
+    "memory": "observed controlled overcommit; runbook Appendix G",
+    "failure_domain": "existing pve2 PBS/VM108 accepted; no double-host-failure rollback guarantee"
+  },
+  "implementation_ready": false,
+  "reviewed_versions_differ_from_final": true
+}

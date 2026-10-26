@@ -1,6 +1,6 @@
 ---
-- name: Deploy Ubuntu 26.04 baseline
-  hosts: ubuntu-2604
+- name: Deploy container-lab Ubuntu 26.04 baseline
+  hosts: container-lab
   become: true
   gather_facts: false
   pre_tasks:
@@ -43,12 +43,13 @@
     - common
     - ubuntu-vm
 
-- name: Verify Ubuntu 26.04 baseline through independent key access
-  hosts: ubuntu-2604
+- name: Verify container-lab Ubuntu 26.04 baseline through independent key access
+  hosts: container-lab
   gather_facts: false
   tags: [verify]
   vars:
     ubuntu_vm_verifier: pve0
+    ubuntu_vm_pve_node: pve2
     ubuntu_vm_known_hosts: /root/.ssh/known_hosts-ubuntu-2604
   tasks:
     - name: Check guest OS and SSH policy through a fresh key-only connection
@@ -133,8 +134,8 @@
 
     - name: Read exact PVE hardware configuration
       ansible.builtin.command:
-        argv: [pvesh, get, /nodes/pve0/qemu/108/config, --output-format, json]
-      delegate_to: "{{ ubuntu_vm_verifier }}"
+        argv: [pvesh, get, "/nodes/{{ ubuntu_vm_pve_node }}/qemu/108/config", --output-format, json]
+      delegate_to: "{{ ubuntu_vm_pve_node }}"
       register: ubuntu_vm_pve_config
       changed_when: false
       no_log: true
@@ -143,7 +144,7 @@
     - name: Verify requested PVE identity and hardware
       ansible.builtin.assert:
         that:
-          - ubuntu_vm_hardware.name == 'ubuntu-2604'
+          - ubuntu_vm_hardware.name == 'containerlab'
           - ubuntu_vm_hardware.cores | int == 4
           - ubuntu_vm_hardware.sockets | int == 1
           - ubuntu_vm_hardware.memory | int == 32768
@@ -155,7 +156,7 @@
     - name: Bind inventory IP to the QGA guest identity
       ansible.builtin.command:
         argv: [qm, guest, cmd, '108', network-get-interfaces]
-      delegate_to: "{{ ubuntu_vm_verifier }}"
+      delegate_to: "{{ ubuntu_vm_pve_node }}"
       register: ubuntu_vm_qga_network
       changed_when: false
       failed_when: >-
@@ -166,6 +167,6 @@
     - name: Verify PVE guest identity and QGA response
       ansible.builtin.command:
         argv: [qm, guest, cmd, '108', ping]
-      delegate_to: "{{ ubuntu_vm_verifier }}"
+      delegate_to: "{{ ubuntu_vm_pve_node }}"
       changed_when: false
       check_mode: false

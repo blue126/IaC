@@ -8,7 +8,7 @@
   vars:
     timemachine_path: /srv/timemachine
     timemachine_share_name: TimeMachine
-    timemachine_size_quota: 1T
+    timemachine_size_quota: 760G
     timemachine_user: timemachine
     timemachine_group: timemachine
     timemachine_uid: 2000

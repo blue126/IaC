@@ -158,7 +158,7 @@ module "netbox" {
 | 平台 | 用途 | 管理工具 | Terraform Provider |
 |------|------|----------|-------------------|
 | **Proxmox VE** | 主要虚拟化平台，运行大部分服务 | Web UI (8006), CLI | `bpg/proxmox` 0.70.0 |
-| **独立 Proxmox pve2** | T7910，PBS VM100 及员工工作区 VM；与 pve0/pve1 集群分离 | Web UI (.52:8006), CLI | `bpg/proxmox` 0.70.0，独立 alias |
+| **独立 Proxmox pve2** | T7910，PBS VM100、container-lab VM108 及员工工作区 VM；与 pve0/pve1 集群分离 | Web UI (.52:8006), CLI | `bpg/proxmox` 0.70.0，独立 alias |
 | **VMware ESXi（已退役）** | 用户确认宿主退役，T7910 已改为 pve2；仅保留历史代码/state依据 | 无活动部署入口 | 历史 `vmware/vsphere` |
 | **Oracle Cloud** | 公有云实例（未来扩展） | OCI Console | `oracle/oci` |
 
@@ -178,9 +178,8 @@ Proxmox VE Cluster
 │   ├── immich (VMID 101)        # 照片管理
 │   ├── rustdesk (VMID 102)      # 远程桌面
 │   ├── netbox (VMID 104)        # IPAM/DCIM
-│   ├── ubuntu-2604 (VMID 108)   # Ubuntu 26.04 基础 VM
-│   ├── home-assistant (VMID 114) # pve1 HAOS, local-lvm, operator-managed
-│   └── proxmox-datacenter-manager (VMID 117) # pve1 多节点管理
+│   ├── home-assistant (VMID 114) # pve0 HAOS, vmdata, operator-managed
+│   └── proxmox-datacenter-manager (VMID 117) # pve0 多节点管理
 │
 └── LXC Containers (Debian 12；118 为 Ubuntu 24.04)
     ├── anki (VMID 100)          # Anki 同步服务器
@@ -189,8 +188,17 @@ Proxmox VE Cluster
     ├── n8n (VMID 106)           # 工作流自动化
     ├── jenkins (VMID 107)       # CI/CD
     ├── fileserver (VMID 111)    # 文件与 Time Machine 存储
-    └── hindsight (VMID 118)     # pve1 非特权 LXC，Docker host 网络，operator-managed
+    └── hindsight (VMID 118)     # pve0 非特权 LXC，Docker host 网络，operator-managed
+
+独立 Proxmox pve2
+└── container-lab (VMID 108)     # Ubuntu 26.04；PVE 实机名 containerlab；stopped/onboot0
 ```
+
+> **VM108现行命名（2026-10-26）**：用户可见名称为 `container-lab`，代码入口为
+> `terraform/proxmox/container-lab.tf`、`ansible/playbooks/deploy-container-lab.yml`；
+> inventory 地址为 `ansible_host.container_lab`，output 为 `container_lab_ip`（仍为 `192.168.1.108/24`）。
+> 原 inventory 资源通过显式 `moved` 保留身份；实际 PVE 名称 `containerlab`、guest hostname、Cloud-Init、硬件及停止状态不因本次整理改变。
+> 后续旧名 `ubuntu-2604` 的日期记录保留历史含义，迁移进度以[执行计划](../../_bmad-output/plan-proxmox-consolidation-execution.md)为准。
 
 > **退役状态（2026-08-12）**：pve0 的 LXC 109 `claude-agent` 已通过
 > Terraform 定向 saved plan 销毁，手工 VM 110 `claude-desktop` 已在优雅关机后

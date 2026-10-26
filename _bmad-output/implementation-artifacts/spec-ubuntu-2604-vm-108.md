@@ -8,6 +8,8 @@ baseline_commit: '3237b58bcabf747e229c08b718213b4c62394dc9'
 context: []
 ---
 
+> 本文保留2026-09-11创建阶段的旧名称和执行记录。2026-10-26起，当前代码入口为 `terraform/proxmox/container-lab.tf`、`ansible/playbooks/deploy-container-lab.yml`，inventory资源为 `ansible_host.container_lab`（host为 `container-lab`）、output为 `container_lab_ip`；实际PVE名称仍为containerlab。下方旧文件名的链接已指向更名后的文件，原冻结意图和历史state地址不改；当前迁移事实见[执行计划](../plan-proxmox-consolidation-execution.md)。
+
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
 
 ## Intent
@@ -93,14 +95,14 @@ Evidence: enhanced Verify passed 7/7 with changed=0; six tests of the actual Clo
 **创建入口与镜像**
 
 - 核对108资源、运行时密码输入与专属SSH provider。
-  [ubuntu-2604.tf:1](../../terraform/proxmox/ubuntu-2604.tf#L1)
+  [ubuntu-2604.tf:1（现container-lab.tf）](../../terraform/proxmox/container-lab.tf#L1)
 - 核对镜像校验、原生Cloud-Init与首次启动QGA等待。
   [main.tf:9](../../terraform/modules/proxmox-cloud-image-vm/main.tf#L9)
 
 **初始化与安全验收**
 
 - 先看Cloud-Init错误门禁，再看独立Verify流程。
-  [deploy-ubuntu-2604.yml:1](../../ansible/playbooks/deploy-ubuntu-2604.yml#L1)
+  [deploy-ubuntu-2604.yml:1（现deploy-container-lab.yml）](../../ansible/playbooks/deploy-container-lab.yml#L1)
 - 密钥验证成功后才禁用密码，并校验、加载SSH配置。
   [tasks/main.yml:1](../../ansible/roles/ubuntu-vm/tasks/main.yml#L1)
 
