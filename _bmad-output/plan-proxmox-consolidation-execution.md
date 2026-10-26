@@ -3,7 +3,7 @@ title: 'Proxmox 来宾整合迁移与迁后 adoption'
 type: 'feature'
 ticket: ''
 created: '2026-10-25'
-status: 'in-progress'
+status: 'built'
 baseline_revision: 'd7a929423256277e49f92e4256bacb025009f740'
 route: 'full'
 route_source: 'auto'
@@ -70,7 +70,7 @@ blocking_condition: ''
 - [x] container_lab inventory原生更名及container_lab_ip等值输出改名已同步；47个无关raw资源组及其他outputs/check_results值保留，员工会话的99版变更保留。
 - [x] 本线程观察已按用户最新指示取消，所有owned采样正常收尾，唤醒暂停；两Mac/24–48h后续退出本线程职责。
 - [x] 原生Step04 Quick/PAL正式代码评审完成，8条逐项核实，6项最小修复及实际完整/定向plan验证通过。
-- [ ] Git最终收尾未获提交授权；不自动commit/push，Jenkins继续冻结。
+- [x] Git最终收尾已获用户明确授权，已审源码及main集成结果均纳入专用PR分支；推送/PR状态以GitHub和本会话附件为准，Jenkins继续冻结。
 
 **Acceptance Criteria (当前有效范围):**
 - 实际迁后配置与绑定一致，112113111定向plan零变更；完整plan没有PVE创建/销毁/替换/回迁/启停动作，PBS VM100零动作。
@@ -1371,3 +1371,14 @@ origin/main固定61d9c5c60c6e6e4c7aca65804b01f7f17733b5a3；规划原提交已�
 原实施者针对相应HCL使用无backend/凭据的Sandbox独立目录验证fmt/validate0；父逐字核PDM和PNETLab与选定来源相同，冲突标记空/diffcheck0。原execution工作树已有已审源码commit；本机temp-cleanup JSON/审批输入清单未提交且保留。
 
 最终验证使用无生产凭据源码快照及CI fixture，复用Sandbox现有依赖，不运行验证脚本中会安装pip/collections的bootstrap段。Sandbox缺少Hugo且全局collection版本与CI pin不完全相同，本地不安装；本地检查如实标环境版本，完整固定版本与Hugo由新PR现有Repository Validation自动检查。真实生产plan另用批准维护上下文，仅plan/readback，不apply或state写。Git commit/push/PR已获批准，PR合并/Jenkins解冻仍不在本次授权内。
+
+
+### Auto Run Result — 最新main集成已构建验证，进入获准PR交付（2026-10-27）
+
+本段替代此前“未获Git授权”的旧断点。用户已批准commit/push/PR，专用codex/proxmox-consolidation-pr从最新main61d9c5c集成，4处冲突处理完毕，所有上游员工/BWS及PR176共享模块改造保留。实际修改仍是已审迁移接管、container-lab命名和同值output/最小lifecycle修复；PNETLab源码完全采用main（不再保留已移除的started输入）。父已阅读全文冲突差异/核对选定来源，未加第二轮模型审核或架构重构。
+
+当前main对应CI分类：39个路径；Terraform/proxmox、Ansible、文档/Hugo适用，无shell/python代码及governance变更。独立无生产凭据Sandbox源码检查：repo-validation及review-policy契约、Terraform fmt/backendfalse-init/validate、Ansible shell契约/lint/YAML、全部36个playbook syntax均exit0；文档offline合同/一致性全部通过。首个文档检查因archive源码无Git metadata导致revision=UNKNOWN失败，补入与源码完全相同真实commit的Git对象/HEAD后原检查通过，未改测试、伪造revision或放松规则。复用预装Python/collections，未pip/galaxy安装；本地Hugo缺失及collection patch版本差异如实记录，PR原生GitHub Actions负责固定版本完整验证/Hugo。
+
+独立已授权维护上下文中，使用该集成源码真实HCP plan：迁移目标全部NoOp；完整计划所有PVE资源NoOp，原4项employee inventory变量更新不应用。来自已合并PR176的PNETLab image→image[0]为NoOp moved，pnetlab_ip仅上游新增(Proxmox VM)格式后缀；不是本PR新增业务漂移，均不apply。定向首次因上游5个moved地址被target排除而失败，按Terraform原生要求纳入旧moved地址后完整/定向均通过；未用target apply绕过全量检查。HCP serial104前后不变，无生产state/apply/业务启停。
+
+私有完整日志：Sandbox /tmp/iac-proxmox-pr-validation-20261027-01/local-checks及/tmp/iac-consolidation-maintenance-20261026/pr-main-integration-20261027-01；源码校验commit fcdac77dece5a756f1aa7eb47b71b6e9cea428f0，后续仅本段验证记录/交付元数据提交，不改已测产品代码。原执行工作树仍保留本机运行材料，当前集成工作树目标为提交后clean。PR创建/CI真实结果通过GitHub与聊天附件交付；本轮不合并PR或解冻Jenkins，取消的观察/备份/校验不重启。
