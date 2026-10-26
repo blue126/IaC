@@ -20,7 +20,7 @@ args = sys.argv[1:]
 with Path(os.environ["MOCK_SBX_LOG"]).open("a") as handle:
     handle.write(json.dumps(args) + "\n")
 command = args[0]
-if command not in {"version", "kit", "ls", "create", "exec", "stop"}:
+if command not in {"version", "kit", "ls", "create", "policy", "exec", "stop"}:
     raise SystemExit(99)
 if command == "version":
     print("sbx version: v0.39.0 mock")
@@ -67,6 +67,8 @@ def main():
             create = next(call for call in calls if call[0] == "create")
             name = create[create.index("--name") + 1]
             assert stops == [["stop", name]], (mode, calls)
+            policies = [call for call in calls if call[0] == "policy"]
+            assert policies == [["policy", "allow", "network", "--sandbox", name, "192.168.1.0/24"]], (mode, calls)
         if mode in {"approval-required", "nested-sandbox"}:
             assert not calls, calls
         assert all(call[0] != "rm" for call in calls)

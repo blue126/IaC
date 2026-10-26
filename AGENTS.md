@@ -26,7 +26,7 @@ docs/               # Deployment guides, technical guides, learning notes
 
 ## Key Commands
 
-**Where these run:** `ansible-playbook` and `terraform` are installed both on the macOS host (in `~/.local/bin`; ansible-core is a `uv` tool) and inside the Docker Sandbox. Detect where you are before assuming:
+**Where these run:** run this repository's Ansible inside the Docker Sandbox. The macOS host also has `terraform` and `ansible-core` in `~/.local/bin`, but that Ansible belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Do not use or change the host Ansible for this repository. Detect where you are before assuming:
 
 ```bash
 [ -n "$SANDBOX_ID" ] && echo sandbox || echo host
