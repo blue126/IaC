@@ -88,6 +88,7 @@
         status_code: [200, 302, 301]
         timeout: 10
       register: immich_http_result
+      check_mode: false
       until: immich_http_result.status in [200, 301, 302]
       retries: 12
       delay: 10

@@ -1,7 +1,7 @@
+{# Gitea rewrites this file in its own layout on startup (single-space "key = value",
+   no blank lines inside the global section). Keep the template in that layout, or
+   every run reports a change and restarts Gitea. #}
 ; Managed by Ansible - do not edit manually
-; Gitea rewrites this file in its own layout on startup (single-space "key = value",
-; no blank lines inside the global section), so keep the template in that layout
-; or every run reports a change.
 ; F8: RUN_USER and RUN_MODE belong in the unnamed global section
 ; (before any [section] header) — go-ini does NOT treat [DEFAULT] as global
 RUN_USER = {{ gitea_user }}

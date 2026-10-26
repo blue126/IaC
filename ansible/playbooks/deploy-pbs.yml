@@ -30,6 +30,7 @@
         validate_certs: no
         status_code: [200, 401]
       register: pbs_api
+      check_mode: false
 
     - name: Check PBS service status
       service_facts:

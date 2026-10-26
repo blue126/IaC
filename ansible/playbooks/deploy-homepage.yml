@@ -17,6 +17,7 @@
         url: "http://{{ ansible_host }}:{{ homepage_port }}"
         status_code: 200
       register: homepage_verify_response
+      check_mode: false
       until: homepage_verify_response.status == 200
       retries: 15
       delay: 2

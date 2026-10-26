@@ -91,6 +91,7 @@
         status_code: 200
         timeout: 5
       register: n8n_readiness
+      check_mode: false
       until: n8n_readiness.status == 200
       retries: 6
       delay: 5

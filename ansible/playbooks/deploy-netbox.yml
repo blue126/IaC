@@ -75,6 +75,7 @@
         status_code: [200, 302]
         timeout: 10
       register: netbox_http_result
+      check_mode: false
       tags: [summary]
 
     - name: Assert Netbox web interface is accessible
@@ -93,6 +94,7 @@
         status_code: [200]
         timeout: 10
       register: netbox_login_result
+      check_mode: false
       tags: [summary]
 
     - name: Assert Netbox login page is accessible
