@@ -1377,7 +1377,7 @@ origin/main固定61d9c5c60c6e6e4c7aca65804b01f7f17733b5a3；规划原提交已�
 
 本段替代此前“未获Git授权”的旧断点。用户已批准commit/push/PR，专用codex/proxmox-consolidation-pr从最新main61d9c5c集成，4处冲突处理完毕，所有上游员工/BWS及PR176共享模块改造保留。实际修改仍是已审迁移接管、container-lab命名和同值output/最小lifecycle修复；PNETLab源码完全采用main（不再保留已移除的started输入）。父已阅读全文冲突差异/核对选定来源，未加第二轮模型审核或架构重构。
 
-当前main对应CI分类：39个路径；Terraform/proxmox、Ansible、文档/Hugo适用，无shell/python代码及governance变更。独立无生产凭据Sandbox源码检查：repo-validation及review-policy契约、Terraform fmt/backendfalse-init/validate、Ansible shell契约/lint/YAML、全部36个playbook syntax均exit0；文档offline合同/一致性全部通过。首个文档检查因archive源码无Git metadata导致revision=UNKNOWN失败，补入与源码完全相同真实commit的Git对象/HEAD后原检查通过，未改测试、伪造revision或放松规则。复用预装Python/collections，未pip/galaxy安装；本地Hugo缺失及collection patch版本差异如实记录，PR原生GitHub Actions负责固定版本完整验证/Hugo。
+当前main对应CI分类：39个路径；Terraform/proxmox、Ansible、文档/Hugo适用，无shell/python代码及governance变更。独立无生产凭据Sandbox源码检查：repo-validation及review-policy契约、Terraform fmt/backendfalse-init/validate、Ansible shell契约/lint/YAML、全部33个playbook syntax均exit0；文档offline合同/一致性全部通过。首个文档检查因archive源码无Git metadata导致revision=UNKNOWN失败，补入与源码完全相同真实commit的Git对象/HEAD后原检查通过，未改测试、伪造revision或放松规则。复用预装Python/collections，未pip/galaxy安装；本地Hugo缺失及collection patch版本差异如实记录，PR原生GitHub Actions负责固定版本完整验证/Hugo。
 
 独立已授权维护上下文中，使用该集成源码真实HCP plan：迁移目标全部NoOp；完整计划所有PVE资源NoOp，原4项employee inventory变量更新不应用。来自已合并PR176的PNETLab image→image[0]为NoOp moved，pnetlab_ip仅上游新增(Proxmox VM)格式后缀；不是本PR新增业务漂移，均不apply。定向首次因上游5个moved地址被target排除而失败，按Terraform原生要求纳入旧moved地址后完整/定向均通过；未用target apply绕过全量检查。HCP serial104前后不变，无生产state/apply/业务启停。
 
