@@ -14,7 +14,7 @@ terraform/
   esxi/             # ESXi host management (vmware/vsphere provider)
   oci/              # Oracle Cloud Infrastructure
   netbox-integration/ # Netbox resource management
-  modules/          # Reusable modules: proxmox-vm/, proxmox-lxc/, proxmox-cloud-image-vm/, esxi-vm/
+  modules/          # Reusable modules: proxmox-vm/, proxmox-lxc/, esxi-vm/
 ansible/
   playbooks/        # Deployment playbooks (one per service)
   roles/            # Modular roles (common, docker, tailscale, netbox, pbs, etc.)
