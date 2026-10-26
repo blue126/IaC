@@ -1,6 +1,6 @@
-# 迁移操作手册（方案定稿，尚未执行）
+# 迁移操作手册
 
-读者：操作者本人/持root权限的运维。按单来宾串行执行；本轮所有生产命令均未执行。命令标明主机，不在Mac运行qm/pct/pvesm；Terraform/Ansible只在仓库Sandbox运行。章节中的备份、停机、配额、注册交接、恢复、state及清理命令均须相应执行授权。
+读者：操作者本人/持root权限的运维。按单来宾串行执行；本文定义操作要求，实际阶段、用户修订和完成证据以[执行计划](../../../plan-proxmox-consolidation-execution.md)实录为准。命令标明主机，不在Mac运行qm/pct/pvesm；Terraform/Ansible只在仓库Sandbox运行。章节中的备份、停机、配额、注册交接、恢复、state及清理命令均须相应执行授权。
 
 **红线：PBS/pve2不可达、同ID交接演练未通过、完整性证据不完整，或内存/容量现场准入不满足时不执行。** 本手册不能当作一键脚本；runtime输入必须来自本次变更的私有清单。禁止force/skiplock、destroy guest及按VMID扫描删盘。
 
@@ -60,7 +60,7 @@ PBS：核对存储可访问、目标namespace/owner、可用字节及T0/T1保留
 - VM114：暂停有物理副作用的自动化，再正常关闭HAOS。
 - VM115：停止新请求、等待识别任务落盘，再按既有方法停应用；不导出容器环境变量。
 - CT118：已核实Compose唯一服务为hindsight、文件为/opt/hindsight/compose.yaml。在源pve1经执行授权用pct exec 118 -- docker compose -f /opt/hindsight/compose.yaml stop停止服务、核实落盘，再正常停CT。该源侧操作只在本节做一次，不在恢复目标后重做源停写。
-- CT111：在两Mac执行tmutil stopbackup，确认完成；停止源SMB/所有其他写入者。此时只确认写入停止；容器关机并完成T0验证后，在仍注册的宿主离线视图生成完整清单。lost+found权限错误转宿主核验，不能忽略。
+- CT111：按2026-10-26用户修订，从服务端阻止新SMB写入，沿已安装Samba正常机制结束现有会话并停止SMBD及其他全部写入者，确认实际数据挂载无剩余写入句柄后正常落盘、关闭CT。保存SMBD原enabled状态并仅为本次维护mask，目标隔离启动后仍保持停止。两Mac可由用户执行tmutil stopbackup配合，但Mac控制通道或人工操作不作为服务器迁移前置。容器关机并完成T0验证后，在仍注册的宿主离线视图生成完整清单。lost+found权限错误转宿主核验，不能忽略；两Mac旧历史/增量/文件恢复仍在迁后实际验收。
 
 在源节点，先记录原onboot，再关闭自启并优雅关机；关机超时停止本批，不自动硬停。
 
@@ -194,13 +194,13 @@ zfs get -p available "$SYS_DATASET"
 
 reservation/quota设置失败即停止，不降低系统余量；先保护数据，不为“通过”释放源盘。实际可用空间不是只看reservation扣除后的一个available数：账本同时列pool free/available、child used/reservation及实际系统dataset available；64GiB线以实际系统可写余量为准，不用zpool FREE替代。当前lost+found权限问题必须解释并补采；PVE restore所有warning都归档，不屏蔽。
 
-容器仍停止时按附录B对比完整相对路径/内容/元数据清单；直接宿主挂载视图必须采用一致的UID映射口径。验证完成才隔离启动容器（SMB保持停止/生产链路封闭），核对df/挂载点、Samba配置、身份与权限，绝不能让SMB写入错误的空目录。按用户选定值通过既有Webmin/操作者把fruit:time machine max size改为760G；先核对部署版本单位，期望816043786240字节，ZFS硬限额保持858993459200字节，差额42949672960字节（40GiB）。私有保存原Samba配置及差异，运行testparm检查有效共享参数，按既有方式重载并从两Mac核对报告容量（允许客户端显示单位换算/取整，不把760字符串当字节证据）；不重跑1T bootstrap。确认元数据/写入余量及stop备份模式，仍报告800G或校验失败时禁止解除CT111网络栅栏。只在通过这些检查、目标有可用空间且源仍未注册时开放两Mac访问，分别完成历史识别、增量和文件恢复。
+容器仍停止时按附录B对比完整相对路径/内容/元数据清单；直接宿主挂载视图必须采用一致的UID映射口径。验证完成才隔离启动容器（SMB保持停止/生产链路封闭），核对df/挂载点、Samba配置、身份与权限，绝不能让SMB写入错误的空目录。按用户选定值通过既有Webmin/操作者把fruit:time machine max size改为760G；先核对部署版本单位，期望816043786240字节，ZFS硬限额保持858993459200字节，差额42949672960字节（40GiB）。私有保存原Samba配置及差异，运行testparm检查有效共享参数，不重跑1T bootstrap。服务端完整性、真实限额/单位、元数据/写入余量、stop备份模式及唯一权威检查通过后，按2026-10-26用户修订正常关机解除栅栏并恢复唯一SMB服务，再从两Mac核对报告容量、旧历史、增量和代表性文件恢复。客户端显示允许单位换算/取整，但不能把760字符串或服务端单测当客户端字节证据；报告仍800G或客户端校验失败时保全处理、停止相应验收，不宣称本台全部通过。缺失客户端操作配合时记录未完成边界，不将Mac控制通道作为服务器切换前置。
 
 
 ### CT111服务停止、核对与开放
 
 1. 源已核实smbd.service active/enabled。目标全网卡断链后才首次启动
-2. 用pct exec 111 -- systemctl stop smbd.service停止SMB，再pct exec 111 -- systemctl mask smbd.service，记录此mask为本次临时栅栏（不覆盖原本masked的服务）。核实/srv/timemachine真实挂载及无其他写入者
+2. 源停写阶段按§3保存原SMBD状态、正常停止并仅添加本次mask；目标首次隔离启动前核实该状态随T0保留。分别用 `pct exec 111 -- systemctl is-active smbd.service` 与 `pct exec 111 -- systemctl is-enabled smbd.service` 实际确认停止/masked，并核实/srv/timemachine真实挂载及无其他写入者；不得覆盖原本masked的服务或只以静态配置判断停止。
 3. 私有保存systemctl is-active/is-enabled结果。完整性/本地testparm完成后，目标仍隔离运行时先按原状态撤销本次mask（只对本次由enabled转为masked的smbd执行unmask+enable，二者不启动服务），然后正常关机，再按上文unfence和启动。两Mac只在目标为唯一生产写入者后恢复备份。任何其他服务mask均遵守同样的原状态恢复，不批量unmask。
 
 ## 7. 管理同步与观察
@@ -486,9 +486,11 @@ proxmox-backup-client snapshot protected show "$PBS_SNAPSHOT" --repository "$PBS
 
 根namespace的CLI表示随已安装版本核实：不接受空值隐式继承，若根应省略--ns，清单写明root并使用已核实的不带--ns命令，不能将字面字符串root当命名空间名。保护只是防误删，管理者仍可取消；取消保护、prune或源卷清理都需另行授权。源CT111盘的最终清理还必须有迁后数据盘备份及至少一次verify通过的恢复点。
 
-## 附录E：确定的IaC重新收编流程（仅计划，未执行）
+## 附录E：IaC重新收编操作流程
 
-保持Terraform ownership，采用**服务文件中的直接adoption资源 + 精确state rm/import**。不修改共享模块lifecycle，不使用跨endpoint的moved猜测，不把资源转手工，也不把创建镜像重新download/import来“修复计划”。本轮不编辑Terraform业务代码和远端state。
+**2026-10-26命名修订**：VM108当前入口为 `terraform/proxmox/container-lab.tf` 和 `ansible/playbooks/deploy-container-lab.yml`，output改为 `container_lab_ip`、值仍为 `192.168.1.108/24`。inventory经显式 `moved` 从 `ansible_host.ubuntu_2604` 转为 `ansible_host.container_lab`、name为 `container-lab`；根VM资源仍为 `proxmox_virtual_environment_vm.containerlab`，实际PVE名称及guest均不改变。下列旧module地址是历史精确交接依据，已移除的旧绑定不可重做。
+
+保持Terraform ownership，采用**服务文件中的直接adoption资源 + 精确state rm/import**。不修改共享模块lifecycle，不使用跨endpoint的moved猜测，不把资源转手工，也不把创建镜像重新download/import来“修复计划”。本附录为操作流程，实际代码、state变更及执行状态以[执行计划](../../../plan-proxmox-consolidation-execution.md)实录为准。
 
 | 服务 | 精确旧state地址 | 新直接资源及导入ID |
 |---|---|---|
@@ -496,7 +498,7 @@ proxmox-backup-client snapshot protected show "$PBS_SNAPSHOT" --repository "$PBS
 | CT111 | module.fileserver.proxmox_virtual_environment_container.lxc | proxmox_virtual_environment_container.fileserver；pve0/111；集群root provider |
 | VM117 | module.proxmox_datacenter_manager.proxmox_virtual_environment_vm.vm | proxmox_virtual_environment_vm.proxmox_datacenter_manager；pve0/117；集群provider |
 
-创建阶段镜像资源module.ubuntu_2604.proxmox_virtual_environment_download_file.image、module.proxmox_datacenter_manager.proxmox_virtual_environment_download_file.image只从state解除，**不删源镜像文件**。ansible_host原逻辑地址保留并更新实际节点/命名；服务outputs转为新直接资源引用。所有旧地址执行前与state list核对，不按module前缀批量rm。
+创建阶段镜像资源module.ubuntu_2604.proxmox_virtual_environment_download_file.image、module.proxmox_datacenter_manager.proxmox_virtual_environment_download_file.image只从state解除，**不删源镜像文件**。除VM108上述已批准的inventory更名外，ansible_host原逻辑地址保留并更新实际节点/命名；服务outputs转为新直接资源引用。所有旧地址执行前与state list核对，不按module前缀批量rm。
 
 实施人员先在本任务分支准备3个直接资源：据目标读回列现有CPU/RAM/磁盘/EFI/TPM/网络/Cloud-Init；VM108显式started=false/on_boot=false和现有MAC；CT111根8G、实际新mp0 volid、size=800G和既有非特权映射；3个资源都prevent_destroy=true。不填创建专用disk.file_id、clone、bootstrap password或重放初始密钥。仅在证实provider读不回某个创建字段时，才能只把该字段的最小路径加入该直接资源的lifecycle ignore_changes；禁止屏蔽node、disk/mount_point及运行状态以掩盖漂移。若import后仍replace，保持冻结、停止修订，不自动换ownership或apply。
 

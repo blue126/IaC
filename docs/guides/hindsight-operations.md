@@ -1,14 +1,20 @@
-# Hindsight 运维指南（pve1 LXC 118）
+# Hindsight 运维指南（pve0 LXC 118）
+
+**2026-10-26现行位置**：同一LXC118已整体冷恢复到pve0（`192.168.1.50`），当前rootfs为 `vmdata:subvol-118-disk-0`（24GiB）。服务IP/API/MCP/控制台、`/opt/hindsight/`目录、原CID/镜像/三个bind及原登录不变，仍手工管理。当前PVE命令在pve0执行；本文明确标注2026-10-10/19的pve1记录保留历史含义。原source只退配置且旧盘保留，不能启动为并发实例。
+
+本次T0/T1均创建即protected、精确verify与目标读回通过；目标running/onboot1，单机观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时尚未完成。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。本次按原实例整体冷备份恢复，未做逻辑导出/导入、重建数据库、下载镜像/模型或重新登录。详见[迁移执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
+
+**2026-10-19 原说明（历史保留）**
 
 **更新日期**：2026-10-19；**状态**：现行。Hindsight 已于 2026-10-10 从网关搬到 pve1 上的 LXC 118（`192.168.1.118`），Claude Code、Codex、CodeBuddy 已切换到新地址；网关上的旧部署已由用户删除。网页控制台**没有登录**（后端地址已修好，第 10 节）。当天下午万兆交换机故障造成过崩溃重启，已加离线模式和持久模型缓存（第 8.2 节、第 11 节）。Hermes 已接入（第 13 节）。2026-10-19 起嵌入模型是多语言的 `BAAI/bge-m3`，重排走回退链 Mac 上的 eeANE → Voyage → 本地 mmarco（第 8.2 节、第 16 节）。备份由运维方另行规划，本文只记录逻辑导出的方法。架构、网络与未验证边界见 [Hindsight 共享记忆服务架构](../architecture/hindsight-memory-architecture.md)。
 
-> 本文是操作参考，不构成对任何变更的授权。会改变 LXC、容器或客户端状态的步骤（启停、快照回滚、升级、轮换 key、重做 Codex 登录、改端口或防火墙、导出与导入、修改 `compose.yaml`）须先得到用户明确同意；只读检查可以直接执行。pve1 是 Proxmox 集群节点，其上的 `pct`、防火墙和存储操作影响同机的其他来宾，网关承担家庭路由和 PVE 见证，二者的变更都须事先获得明确授权。
+> 本文是操作参考，不构成对任何变更的授权。会改变 LXC、容器或客户端状态的步骤（启停、快照回滚、升级、轮换 key、重做 Codex 登录、改端口或防火墙、导出与导入、修改 `compose.yaml`）须先得到用户明确同意；只读检查可以直接执行。pve0 是 Proxmox 集群节点，其上的 `pct`、防火墙和存储操作影响同机的其他来宾，网关承担家庭路由和 PVE 见证，二者的变更都须事先获得明确授权。
 >
 > 全程不要打印密钥：不要 `cat .env`，不要读取或贴出 `codex/auth.json`，不要运行不带 `--format` 的 `docker inspect` 或 `docker exec … env`，它们会输出环境变量，包括 key。**`docker compose config` 会把 env_file 里的值展开打印出来，其中包含 API key**；语法检查只能用 `docker compose config --quiet`，不要不带 `--quiet` 运行。
 
 ## 1. 位置与目录结构
 
-服务运行在 pve1（`192.168.1.51`）上的 LXC 118（hostname `hindsight`，`192.168.1.118`），LXC 里用 Docker Compose 管理一个容器 `hindsight`。登录方式：`ssh root@192.168.1.118`（用户已有的公钥，免密），或者在 pve1 上 `pct enter 118`。
+服务当前运行在 pve0（`192.168.1.50`）上的 LXC 118（hostname `hindsight`，`192.168.1.118`），LXC 里用 Docker Compose 管理一个容器 `hindsight`。登录方式：`ssh root@192.168.1.118`（用户已有的公钥，免密），或者在 pve0 上 `pct enter 118`。
 
 部署目录 `/opt/hindsight/`（2026-10-10 核对）：
 
@@ -56,7 +62,7 @@ free -m
 df -h /
 ```
 
-在 pve1 上看 LXC 本身：`pct status 118`、`pct config 118`（只读）。
+在 pve0 上看 LXC 本身：`pct status 118`、`pct config 118`（只读）。
 
 容器没有配置 Docker 健康检查，`docker ps` 不会显示 healthy，以 `/health` 为准。`/health` 正常只说明进程和数据库连接正常，不证明 LLM 路径可用；LLM 路径看启动日志里的 `Codex LLM verified: gpt-6-luna`，或者做一次带 key 的写入或 reflect（会产生一次 LLM 调用，需用户同意）。
 
@@ -90,15 +96,25 @@ hs_curl -o /dev/null -w 'http=%{http_code}\n' http://192.168.1.118:9077/v1/defau
 | 停止 | `docker compose stop` | 保留容器与数据；`restart: unless-stopped` 下，手动停止后 Docker 重启时也不会自动拉起 |
 | 再启动 | `docker compose start` | |
 
-LXC 层（在 pve1 上）见第 4 节。LXC 配置了 `onboot: 1`，Docker 服务是 enabled，容器是 `restart: unless-stopped`，pve1 或 LXC 重启后预期会自动恢复；这条链路没有做过重启实验。
+**2026-10-26已验证的正常维护停写**：先只阻止本CT原eth0/.118的tcp9077/19077新连接（独占comment的临时INPUT NEW规则，保留ESTABLISHED/SSH/其他端口），本机用原私有key通道逐页核全bank pending/processing均0，确认原在途请求自然结束；随后使用下列原生停止请求。原镜像的TERM trap有自己的30秒清理，Docker默认10秒截止不足；`--timeout -1`只取消Docker的SIGKILL截止，不改变镜像内部逻辑或restart policy。
+
+```bash
+# Inside the current CT118, after original requests and async operations have drained.
+docker stop --signal SIGTERM --timeout -1 hindsight
+/opt/hindsight/data/installation/18.1.0/bin/pg_controldata /opt/hindsight/data/instances/hindsight/data
+```
+
+实际验收同时核对wrapper `All services stopped cleanly`、API `Embedded PostgreSQL stopped`、PG control状态 `shut down`/postmaster.pid不存在、容器exit0/OOMfalse/无restart及无signal9。不能仅以CLI0或镜像内部超时强杀称正常停写。仅撤本次精确INPUT规则并读回原链后sync/正常停CT；恢复使用原 `docker compose -f /opt/hindsight/compose.yaml start`，不up/pull/recreate。此方法已在本次source、隔离target和T1停写实际通过，未改StopSignal/StopTimeout/镜像脚本或持久防火墙。
+
+LXC 层（在 pve0 上）见第 4 节。LXC 配置了 `onboot: 1`，Docker 服务是 enabled，容器是 `restart: unless-stopped`，pve0 或 LXC 重启后预期按原策略恢复；本次维护因应用已manual-stop，三次启动都显式compose start，未独立演练不经manual-stop的自动恢复。
 
 服务不可用期间，客户端的 hooks 和 MCP 会静默跳过，Agent 本身照常可用，但这段时间既不召回，也不写回记忆；网页控制台也随容器一起不可用。客户端已经切换到这里，所以停机会直接影响 Claude Code、Codex、CodeBuddy 的日常使用：提前通知，并选在没有会话进行的时候。启动后约 30 秒 `/health` 才返回 200（部署记录）。
 
 不要使用 `docker compose down -v`、`docker rm -f`、`docker system prune`，也不要删除或移动运行中的 `data/` 和 `codex/`。
 
-## 4. LXC 管理（pve1）
+## 4. LXC 管理（pve0）
 
-在 pve1 上执行（`ssh root@192.168.1.51`）。这些操作影响整个 LXC，以及（对资源类操作）同机的其他来宾。
+在 pve0 上执行（`ssh root@192.168.1.50`）。这些操作影响整个 LXC，以及（对资源类操作）同机的其他来宾。
 
 ```bash
 pct status 118                  # running / stopped
@@ -110,7 +126,7 @@ pct start 118
 pct stop 118                    # forced stop, last resort
 ```
 
-**快照**。`local-lvm` 是 LVM-thin，支持快照。升级、系统更新前先做一个：
+**快照**。当前rootfs为vmdata的ZFS子卷；本次迁移未新增升级快照或执行rollback。以下仍是另行维护时的参考：
 
 ```bash
 pct snapshot 118 before-upgrade
@@ -121,17 +137,17 @@ pct delsnapshot 118 before-upgrade
 
 快照是存储层的快照，不是文件级拷贝；它给出的是崩溃一致的状态，恢复没有演练过。`pct rollback` 会把整个 rootfs（包括 `data/` 和 `codex/`）回到快照时刻，之后写入的记忆会丢，除非先做逻辑导出（第 9 节）。快照和 LXC 在同一个存储上，不是异地副本。
 
-**备份**。备份由运维方另行规划；现有 PVE 备份任务（每日 00:00 到 `pbs`，VMID 列表 100–109）不含 118。任何覆盖整个 LXC 的备份都会带上 `.env`（key）和 `codex/auth.json`（Codex 登录）。
+**备份**。本次T0/T1已由原PBS/root namespace保护并verify，见顶部；118已加入顶部所列原pve0作业，enabled仍为0，其他配置不变。此前2026-10-10的100–109列表属于历史，不能作为当前范围。任何覆盖整个 LXC 的备份都会带上 `.env`（key）和 `codex/auth.json`（Codex 登录）。
 
 **调整资源**（2026-10-10 实测：`pct set 118 --cores 6` 不需要重启 LXC，容器重建后线程数生效）：
 
 ```bash
-pct set 118 --cores 6           # pve1 has 6 cores; the other guests share them
+pct set 118 --cores 6           # The node CPU is shared with its other guests
 pct set 118 --memory 6144       # MiB; keep the container's mem_limit below this
 pct resize 118 rootfs +8G       # grow the 24G rootfs
 ```
 
-改核数后，同步把 `/opt/hindsight/compose.yaml` 里的 `OMP_NUM_THREADS` 和 `MKL_NUM_THREADS` 改成同样的数，`docker compose config --quiet`，再 `docker compose up -d`；线程数大于可用核数会被限流，反而更慢。改内存后同步 `mem_limit`。召回会因此快多少没有测过；pve1 上的 `funasr` 等来宾也在用 CPU 和内存，先看 `free -m` 和 `uptime`。
+改核数后，同步把 `/opt/hindsight/compose.yaml` 里的 `OMP_NUM_THREADS` 和 `MKL_NUM_THREADS` 改成同样的数，`docker compose config --quiet`，再 `docker compose up -d`；线程数大于可用核数会被限流，反而更慢。改内存后同步 `mem_limit`。召回会因此快多少没有测过；pve0 上的 `funasr` 等来宾也在用 CPU 和内存，先看 `free -m` 和 `uptime`。
 
 不要 `pct destroy 118`：它会连同 `data/` 一起销毁。
 
@@ -146,7 +162,7 @@ pct resize 118 rootfs +8G       # grow the 24G rootfs
    ```
 
    阅读当前版本到目标版本之间的上游发布说明（数据库迁移、归档格式兼容、环境变量变化，尤其是 `openai-codex` 提供方和 `HINDSIGHT_API_RERANKER_LOCAL_*` 等设置是否仍被支持）；需要分段升级或新增依赖时先停下说明。确认 `df -h /` 有余量，并选在没有会话进行的时候。
-2. **先留退路。** 在 pve1 上 `pct snapshot 118 before-<tag>`；再按[第 9 节](#9-逻辑导出与跨主机迁移)把每个 bank 导出，核对每个 ZIP 非空、数量与 bank 列表一致。没有可用的导出就不升级。
+2. **先留退路。** 在 pve0 上 `pct snapshot 118 before-<tag>`；再按[第 9 节](#9-逻辑导出与跨主机迁移)把每个 bank 导出，核对每个 ZIP 非空、数量与 bank 列表一致。没有可用的导出就不升级。
 3. **保存旧配置。** `cp -p compose.yaml compose.yaml.bak-$(date +%Y%m%d)`；`.env` 和 `codex/` 不动。验证通过、确认不再需要回退后可以删除这个备份。
 4. **改 tag 并拉取。** 把 `compose.yaml` 的 `image:` 改成批准的**具体版本**，其他设置（`network_mode: host`、端口变量、线程数、两个挂载）原样保留；用 `docker compose config --quiet` 做语法检查（不带 `--quiet` 会打印 key），然后先执行 `docker compose pull`。拉取失败就停下，不要继续 `up`。
 5. **启动并验证。** `docker compose up -d`；等 `/health` 返回 200，`/version` 的 `api_version` 等于目标版本，日志里再次出现 `Codex LLM verified`；用带 key 的请求确认 bank 数量与升级前一致，再做一次召回，耗时应与基线（约 7~8.4 秒）相当；观察日志（注意脱敏）和 `docker stats` 约 10 分钟，确认没有反复重启、`OOMKilled` 为 false。
@@ -156,7 +172,7 @@ pct resize 118 rootfs +8G       # grow the 24G rootfs
 
 - 新版本尚未改动数据库（启动即失败、迁移未开始）：把 `image:` 改回旧 tag，`docker compose up -d`，再按第 5 步验证。
 - 新版本已经迁移数据库或状态不明：**不要让旧版本直接读取已迁移的 `data/`**（上游是否保证向下兼容未核实）。停止容器，把 `data/` 整体改名保留，例如 `mv data data.failed-$(date +%Y%m%d)`，新建属主 UID/GID 1000 的空 `data/`，用旧 tag 启动，再用升级前的导出按第 9 节恢复。
-- 或者在 pve1 上 `pct rollback 118 before-<tag>`：整个 rootfs 回到快照时刻，升级之后写入的记忆会丢。
+- 或者在 pve0 上 `pct rollback 118 before-<tag>`：整个 rootfs 回到快照时刻，升级之后写入的记忆会丢。
 - 这些路径都没有演练过，需要用户同意。跨版本的导出归档需要版本兼容；升级前先看上游发布说明。
 
 ## 6. 轮换 API key
@@ -233,7 +249,7 @@ ssh root@192.168.1.118 'cd /opt/hindsight && docker compose restart && sleep 20 
 
 ## 8. 资源与性能
 
-### 8.1 资源配置
+### 8.1 资源配置（2026-10-19源端记录）
 
 | 层 | 当前配置 | 说明 |
 |---|---|---|
@@ -387,7 +403,7 @@ curl -s -m 8 -o /dev/null -w 'console /api/banks http=%{http_code}\n' http://192
 host 网络下不能再用 `ports: 127.0.0.1:19077:9999` 这种写法，可选的办法有两种：
 
 1. **只监听 `127.0.0.1`，用 SSH 隧道访问**：先查清本版本控制台的监听地址设置（本文没有核实具体变量名），改成回环地址后重建容器；之后在 Mac 上 `ssh -N -L 19077:127.0.0.1:19077 root@192.168.1.118`，浏览器打开 `http://127.0.0.1:19077/`，Ctrl-C 关闭隧道。隧道只改变访问方式，不改变控制台没有登录的事实。
-2. **用 PVE 防火墙限制来源**：LXC 的 `net0` 已有 `firewall=1`，但要让规则生效，需要先启用数据中心防火墙，再给 LXC 118 写入站规则，只放行需要的来源访问 19077。这是整个集群范围的改动，写规则时必须同时放行 22（SSH）和 9077（客户端），并确认不会切断对 pve1 管理界面和 SSH 的访问，否则会把自己和客户端锁在外面。没有实测。
+2. **用 PVE 防火墙限制来源**：LXC 的 `net0` 已有 `firewall=1`，但要让规则生效，需要先启用数据中心防火墙，再给 LXC 118 写入站规则，只放行需要的来源访问 19077。这是整个集群范围的改动，写规则时必须同时放行 22（SSH）和 9077（客户端），并确认不会切断对 pve0 管理界面和 SSH 的访问，否则会把自己和客户端锁在外面。没有实测。
 
 重建容器期间约 30 秒记忆服务不可用（第 3 节）。收紧之后，从另一台局域网设备访问 `http://192.168.1.118:19077/` 应该连接失败（`curl` 的 `%{http_code}` 为 `000`）。
 
@@ -399,17 +415,17 @@ host 网络下不能再用 `ports: 127.0.0.1:19077:9999` 这种写法，可选�
 | 不小心把 key 打印到了终端、聊天或日志 | 想想是哪条命令：`docker compose config`（没带 `--quiet`）、`cat .env`、`docker inspect`（没带 `--format`）、`docker exec … env` 都会输出；`codex/auth.json` 被贴出同理 | 按泄露处理：key 按第 6 节轮换，Codex 登录按第 7 节重做，并清掉终端滚动缓冲和对应日志 |
 | 容器创建失败，报 `open sysctl net.ipv4.ip_unprivileged_port_start file: reopen fd 8: permission denied` | `compose.yaml` 里是否还有 `network_mode: host`；是否被改成了默认桥接网络、加了 `ports:` 或自定义 `networks:`；一次性的 `docker run` 是否漏了 `--network host` | 这是非特权 LXC 里 runc 1.3.4 的限制：容器必须用 host 网络。恢复 `network_mode: host`，删掉 `ports:` 和 `networks:`，端口只通过 `HINDSIGHT_API_PORT` 和 `HINDSIGHT_CP_PORT` 设置 |
 | 写入、归纳或反思失败，但 `/health` 正常 | 第 2 节的启动日志里是否有 `Codex LLM verified`；LXC 能否访问互联网；`HINDSIGHT_API_LLM_PROVIDER`、`HINDSIGHT_API_LLM_MODEL` 是否还在 `compose.yaml` | Codex 登录失效就按第 7 节重做；不要从别处拷贝 `auth.json` |
-| recall 明显变慢（远高于 7~8.4 秒），或客户端 hooks 超时（30 秒） | `docker stats` 看是否有导入等重负载；`uptime` 和 `free -m` 看 LXC 是否被挤占；pve1 上 `uptime` 和 `qm list` 看同机来宾的负载；`compose.yaml` 里的线程数是否与核数一致 | 负载来自导入就等它结束；线程数与核数不一致就改回一致（第 4 节）；pve1 整体繁忙时与用户商量错峰或调整核数 |
+| recall 明显变慢（远高于 7~8.4 秒），或客户端 hooks 超时（30 秒） | `docker stats` 看是否有导入等重负载；`uptime` 和 `free -m` 看 LXC 是否被挤占；pve0 上 `uptime` 和 `qm list` 看同机来宾的负载；`compose.yaml` 里的线程数是否与核数一致 | 负载来自导入就等它结束；线程数与核数不一致就改回一致（第 4 节）；pve0 整体繁忙时与用户商量错峰或调整核数 |
 | 网页控制台能打开但读不到数据（502） | 日志里是否又出现 `localhost:8888` 与 `ECONNREFUSED`；`compose.yaml` 里 `HINDSIGHT_CP_DATAPLANE_API_URL` 是否还在、是否指向 `http://127.0.0.1:9077`；API（9077）自己是否健康 | 变量丢了就恢复它并 `docker compose up -d`；API 不健康先按下面几行处理 |
 | 局域网内其他设备能打开控制台 | `ss -ltn` 看 19077 是否监听在 `0.0.0.0` | 这是当前设计，风险见第 10 节 |
 | 容器日志占用空间增长 | `docker inspect --format '{{.HostConfig.LogConfig.Config}}' hindsight` 应显示 `max-file:5 max-size:20m`；`df -h /` | 日志已按 20 MB × 5 个文件轮转；选项丢了就把 `logging` 恢复到 `compose.yaml` 后重建。日志含记忆内容，清理前注意 |
 | `/health` 迟迟不是 200 | `docker logs --tail 50 hindsight`（注意脱敏）；首次启动约 30 秒，升级后的迁移可能更久 | 先等待；日志里有数据库错误时保留日志，不要删除或移动 `data/` |
 | 容器反复重启，日志里有 `huggingface_hub` 和 `RuntimeError: Cannot send a request, as the client has been closed` | `docker inspect --format '{{.RestartCount}}' hindsight`；`compose.yaml` 里是否还有 `HF_HUB_OFFLINE: "1"` 和 `./hf-cache` 挂载；`ls /opt/hindsight/hf-cache/hub` 是否有两个 `models--` 目录 | 这是启动时联网检查模型失败（2026-10-10 网络故障时发生过）。恢复离线变量和缓存挂载后 `docker compose up -d`；缓存丢了就按第 8.2 节临时关闭离线开关、确认网络通畅，下载一次后再恢复 |
 | 到 LXC、pve0、pve1 的延迟高或丢包，但网关 `.1` 正常 | Mac 上同时 `ping 192.168.1.1` 和 `ping 192.168.1.51`；在 pve1 上 `ping` pve0 和网关；网关上 `dmesg \| grep 'eth2: NIC Link'`、`cat /sys/class/net/eth2/carrier_changes` | pve 之间正常而到网关异常，说明故障在网关 `eth2` 与万兆交换机这段（2026-10-10 的事故，用户重启交换机后恢复），先查交换机，不要动 LXC。详见架构文档的[网络依赖与已知事故](../architecture/hindsight-memory-architecture.md#网络依赖与已知事故) |
-| LXC 连不上 | 在 pve1 上 `pct status 118`；`ip -br addr`（用 `pct enter 118`）看 `192.168.1.118/24`；Mac 上 `ping 192.168.1.118` | LXC 没起来就 `pct start 118`（需要用户同意）；起来了仍不通就看 pve1 的 `vmbr1` 和网关 |
+| LXC 连不上 | 在 pve0 上 `pct status 118`；`ip -br addr`（用 `pct enter 118`）看 `192.168.1.118/24`；Mac 上 `ping 192.168.1.118` | LXC 没起来就 `pct start 118`（需要用户同意）；起来了仍不通就看 pve0 的 `vmbr1` 和网关 |
 | Mac 上 Agent 没有记忆但也不报错 | Mac 是否在局域网、能否访问 `192.168.1.118:9077`；客户端配置是否指向新地址；key 是否一致（第 6 节） | 离开局域网时 hooks 和 MCP 静默跳过，不影响 Agent 本身；回到局域网即恢复。局域网内也连不上时先按上面“延迟高或丢包”一行检查网络 |
 | 导入被拒绝，或提示库已存在、库不存在 | 路径里的引导库是否存在（必须已存在）；`target_bank_id` 指定的库是否已经存在（必须不存在） | 见第 9 节：先建引导库，目标库换名或在获得同意后删除 |
-| 容器反复重启，或 `OOMKilled` 为 true | `docker inspect` 的状态字段、`docker stats`、LXC 的 `free -m`；pve1 上 `journalctl -k \| grep -i oom` | 容器上限 6 GiB，LXC 总共 8 GiB：减少并发和大批量操作；确认 bge-m3 的 `max_seq_length` 仍是 1024（第 8.2 节）；需要更多内存就按第 4 节调整 LXC，再调整 `mem_limit` |
+| 容器反复重启，或 `OOMKilled` 为 true | `docker inspect` 的状态字段、`docker stats`、LXC 的 `free -m`；pve0 上 `journalctl -k \| grep -i oom` | 容器上限 6 GiB，LXC 总共 8 GiB：减少并发和大批量操作；确认 bge-m3 的 `max_seq_length` 仍是 1024（第 8.2 节）；需要更多内存就按第 4 节调整 LXC，再调整 `mem_limit` |
 | 召回比平时慢 2～3 秒，或日志里有 `Reranker member 0 (cohere) failed` | Mac 是否开机、在不在局域网、能否访问 `http://192.168.1.10:18090/health`；Mac 上的 LaunchAgent 状态（第 16 节） | Mac 不在线时自动由 Voyage 完成，不影响使用；Mac 在线仍失败就按第 16 节检查 eeANE |
 | 日志里有 `Reranker member 1 (litellm-sdk) failed` | Voyage 的 key 是否还在 `.env` 里（变量名带 `_1_`）；LXC 能否访问互联网 | 第 1、2 号成员都失败时由 mmarco 完成，召回仍可用 |
 | 磁盘空间告警 | `df -h /`；`du -sh /opt/hindsight/*` | 先清理过期的升级备份文件；`data/` 和 `codex/` 不要动 |
@@ -486,7 +502,7 @@ ssh root@192.168.1.1 'docker exec hermes hermes -p homelab-admin memory status |
 |---|---|---|
 | `memory status` 显示 not available | 网关上看 `config.json` 的属主是否是 10000:10000；`mode` 是否为 `local_external` | `chown -R 10000:10000 <home>/hindsight` |
 | 开发类 profile 在仓库里没有项目记忆 | 带 `-v` 运行看 `Hindsight bank` 行：是 `coding-agent::` 说明没拿到目录（补丁丢了），是 `coding-agent::<仓库名>` 但 `Recall: returned 0` 说明该库还不存在 | 重打补丁；库不存在属正常 |
-| 日志里 `prefetch timed out after 8.0s` | 服务端 `docker logs` 里 `[RECALL HTTP]` 的耗时；pve1 是否繁忙 | 第 8 节的提速办法；不要提高召回预算 |
+| 日志里 `prefetch timed out after 8.0s` | 服务端 `docker logs` 里 `[RECALL HTTP]` 的耗时；pve0 是否繁忙 | 第 8 节的提速办法；不要提高召回预算 |
 
 ## 14. 给新项目启用 Hindsight
 

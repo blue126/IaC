@@ -30,4 +30,4 @@ CPU历史3秒采样pve0/pve1为10.7%/10.0%；最近一周半小时均值12.2%/5.
 
 现装LVM导出raw+size、ZFSPool接收zfs，简单离线storage_migrate无共同流格式；并非本轮执行迁移失败。内部destroy_config仅退配置与qm/pct destroy删盘不同，但源码核验不是交接演练。高级CT恢复须显式全部rootfs/mp映射。真实Linux ACL/xattr、全量清单、网络断链、同ID缓存/锁/firewall恢复均待现场演练；macOS空xattr stub和Perl语法检查不能替代。
 
-定向代码依据：terraform/proxmox/{ubuntu-2604,fileserver,pdm,pve-cluster,provider,pbs,pnetlab}.tf及相关模块、Ansible pve2 host vars。执行前与当前代码交叉核对；bpg/proxmox固定0.70.0，VM108/CT111/PDM保持既有Terraform ownership。版本/模块哈希及官方机制链接沿用已采用证据文件，不把latest文档当现装版本。
+定向代码依据：terraform/proxmox/{container-lab,fileserver,pdm,pve-cluster,provider,pbs,pnetlab}.tf及相关模块、Ansible pve2 host vars。VM108原文件名ubuntu-2604.tf已按2026-10-26用户修订更名为container-lab.tf，以上现场数值仍保留原基线日期。执行前与当前代码交叉核对；bpg/proxmox固定0.70.0，VM108/CT111/PDM保持既有Terraform ownership。版本/模块哈希及官方机制链接沿用已采用证据文件，不把latest文档当现装版本。

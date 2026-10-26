@@ -1,38 +1,109 @@
-# Proxmox Datacenter Manager VM
-# PDM is installed separately with a one-off Ansible playbook.
-module "proxmox_datacenter_manager" {
-  source = "../modules/proxmox-vm"
+# Adopt the existing Proxmox Datacenter Manager and its managed Cloud-Init seed.
+resource "proxmox_virtual_environment_vm" "proxmox_datacenter_manager" {
+  provider = proxmox.root
 
-  providers = {
-    proxmox = proxmox.root
+  name      = "proxmox-datacenter-manager"
+  node_name = "pve0"
+  vm_id     = 117
+  started   = true
+  on_boot   = true
+
+  bios            = "seabios"
+  machine         = "q35"
+  boot_order      = ["scsi0"]
+  scsi_hardware   = "virtio-scsi-pci"
+  keyboard_layout = "en-us"
+  tablet_device   = true
+
+  # Preserve the existing PVE setting; QGA was already absent inside the guest.
+  agent {
+    enabled = true
+    timeout = "5s"
+    trim    = false
+    type    = "virtio"
   }
 
-  vm_name     = "proxmox-datacenter-manager"
-  target_node = "pve1"
-  vmid        = 117
+  cpu {
+    cores   = 2
+    sockets = 1
+    type    = "host"
+  }
 
-  image_datastore          = "local"
-  image_file_name          = "debian-13-genericcloud-amd64.img"
-  image_url                = "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
-  image_checksum           = "95e110dfcdbd0ed8a82a75ed9579802f9950cabf51a810dcc6388e81bc778188713878b9f28d583a0ea602fbf48b35996ae9ad37f584166d8fbd6489df248f53"
-  image_checksum_algorithm = "sha512"
-  cicustom                 = null # native Cloud-Init, no template snippet
+  memory {
+    dedicated = 4096
+    floating  = 4096
+  }
 
-  cores          = 2
-  memory         = 4096
-  disk_size      = "40G"
-  storage_pool   = "local-lvm"
-  network_bridge = "vmbr1"
-  bios           = "seabios"
-  ciuser         = "debian"
-  ip_address     = "192.168.1.117/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  sshkeys        = var.sshkeys
+  disk {
+    datastore_id      = "vmdata"
+    path_in_datastore = "vm-117-disk-0"
+    file_format       = "raw"
+    interface         = "scsi0"
+    size              = 40
+    aio               = "io_uring"
+    backup            = true
+    cache             = "none"
+    discard           = "on"
+    iothread          = false
+    replicate         = true
+    ssd               = false
+  }
+
+  # Existing vmdata:vm-117-cloudinit keeps the original NoCloud instance ID.
+  initialization {
+    datastore_id = "vmdata"
+    interface    = "ide2"
+
+    dns {
+      servers = ["192.168.1.1"]
+    }
+
+    ip_config {
+      ipv4 {
+        address = "192.168.1.117/24"
+        gateway = "192.168.1.1"
+      }
+    }
+
+    user_account {
+      username = "debian"
+      keys     = var.sshkeys
+    }
+  }
+
+  operating_system {
+    type = "other"
+  }
+
+  serial_device {
+    device = "socket"
+  }
+
+  vga {
+    type   = "serial0"
+    memory = 16
+  }
+
+  network_device {
+    bridge      = "vmbr1"
+    model       = "virtio"
+    mac_address = "BC:24:11:C8:86:83"
+    firewall    = false
+  }
+
+  lifecycle {
+    prevent_destroy = true
+
+    # Keep the module's creation-only credential policy; Ansible owns guest SSH.
+    ignore_changes = [
+      initialization[0].user_account[0].keys,
+      initialization[0].user_account[0].password,
+    ]
+  }
 }
 
 resource "ansible_host" "proxmox_datacenter_manager" {
-  depends_on = [module.proxmox_datacenter_manager]
+  depends_on = [proxmox_virtual_environment_vm.proxmox_datacenter_manager]
 
   name   = "proxmox-datacenter-manager"
   groups = ["pve_vms"]

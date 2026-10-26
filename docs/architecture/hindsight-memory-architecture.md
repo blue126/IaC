@@ -1,8 +1,20 @@
-# Hindsight 共享记忆服务架构（pve1 LXC 118）
+# Hindsight 共享记忆服务架构（pve0 LXC 118）
+
+## 2026-10-26 整合迁移后的现行位置
+
+当前服务在 **pve0（192.168.1.50）的 LXC 118**，原 API/MCP `192.168.1.118:9077`、控制台 `:19077`、VMID/IP/MAC、hostname、6 核/8192MiB/swap512、非特权映射和手工管理方式保持。rootfs 为 `vmdata:subvol-118-disk-0`，实际宿主路径 `/mainpool/vmdata/subvol-118-disk-0`，refquota24GiB，未设置 reservation/refreservation。原 `/opt/hindsight/{data,codex,hf-cache}` 三个 bind、0.10.2 镜像、原 CID、离线模型及 bge-m3 的 max_seq_length1024 均保留，没有拉取、重建、逻辑导入或新登录。
+
+本次先正常停止原应用和内置 PG18.1，再从已保护并验证的 T0 整体冷恢复；源 pve1 只退注册，原盘保留且不再启动。完整宿主离线清单的94913个共同路径逐字节相同，原内容/UID/GID/mode/mtime/ACL/xattrs/链接均保留；五个已证明为空的系统目录被原生默认规则省略，另有原生 `.pxarexclude-cli`，完整原始差异保留在迁移记录。原 PG system identifier、10个bank全部元数据/统计、15个原知识页ID与原Component map完整对象，以及19条原记忆按ID读取的全文SHA均已实际验证；沿原停止实例迁移原 Codex 登录，没有复制成并发登录。
+
+目标已恢复 running/onboot1。本次单台观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时观察尚未完成。T0 `ct/118/2026-10-25T19:40:41Z` 与 T1 `ct/118/2026-10-25T20:05:55Z` 在既有 PBS/root namespace，均创建即 protected、精确 verify OK、目标可读。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。未清理源盘、解除保护或关闭 pve1。
+
+下面2026-10-10/19的部署核对、性能与迁移历史保留原日期及原 pve1 事实，不能当成迁后的宿主资源读数。当前 PVE 操作使用 pve0；本次完整过程见[迁移执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
+
+**2026-10-19 原说明（历史保留）**
 
 **更新日期**：2026-10-19；**状态**：已搬迁并验证。2026-10-10 用户决定把 Hindsight 整体搬离网关，现在运行在 pve1 的 LXC 118（`192.168.1.118`）；Claude Code、Codex、CodeBuddy 已切换到新地址（Multica 任务自动跟随）。网关上的旧部署已由用户在当天删除，没有回滚副本。Hermes（Mac 6 个 profile、网关 2 个 profile）已于当天接入，见[Hermes 接入](#hermes-接入)。网页控制台**没有登录**，后端地址已于当天修好，见[网页控制台](#网页控制台)。当天下午万兆交换机故障造成过一次网络中断，Hindsight 因此崩溃重启 4 次，现已加上离线模式和持久模型缓存，见[网络依赖与已知事故](#网络依赖与已知事故)。2026-10-17 起 LLM 输出统一为英文；2026-10-19 起嵌入模型换成多语言的 `BAAI/bge-m3`，重排改为回退链：用户 Mac 上的 eeANE → Voyage → 本地 mmarco，见[召回与重排性能](#召回与重排性能调优记录实测记录)。备份由运维方另行规划，本文只记录逻辑导出的方法。本文保留了“为什么离开网关”的经验教训，见[网关旧部署与经验教训](#网关旧部署与经验教训)；操作步骤见 [Hindsight 运维指南](../guides/hindsight-operations.md)。
 
-**证据口径**：标“核对”的内容来自 2026-10-10 对 pve1、LXC 118 和网关的只读检查（`pct config`/`pct status`/`pct list`/`qm list`、`pvesm status`、`pve-firewall status`、`/etc/pve/jobs.cfg`、`docker ps` 与 `docker inspect --format` 的非敏感字段、`ls`/`stat`、`ss`/`netstat`、`/health` 与 `/version`、`compose.yaml` 的非密钥行、控制台只看 HTTP 状态码和页面标题、容器日志里的单行验证信息和错误行计数），以及对 Mac 上导出文件名称、`~/.hindsight/` 文件权限与修改时间的查看；没有读取 `.env`、`codex/auth.json`、容器环境变量、`coding-agent.json`、导出 ZIP 的内容或任何密钥文件。标“部署记录”“迁移记录”“切换记录”“调优记录”“实测记录”的内容来自部署者的验证和操作结果，本次整理没有重新执行（例如带 key 的请求、记忆库导出导入、客户端读写验证、召回和重排耗时的测量）。标“历史”的内容是网关上旧部署的事实，已不是现状。本文不记录任何 key、token 或 `auth.json` 的内容，只记录它们的存放位置和变量名。标“事故记录”的内容来自 2026-10-10 下午的现场检查和操作（对网关、pve1、LXC 118 的只读检查，以及修复 `compose.yaml` 的改动）。
+**证据口径（2026-10-10历史核对）**：标“核对”的内容来自 2026-10-10 对 pve1、LXC 118 和网关的只读检查（`pct config`/`pct status`/`pct list`/`qm list`、`pvesm status`、`pve-firewall status`、`/etc/pve/jobs.cfg`、`docker ps` 与 `docker inspect --format` 的非敏感字段、`ls`/`stat`、`ss`/`netstat`、`/health` 与 `/version`、`compose.yaml` 的非密钥行、控制台只看 HTTP 状态码和页面标题、容器日志里的单行验证信息和错误行计数），以及对 Mac 上导出文件名称、`~/.hindsight/` 文件权限与修改时间的查看；没有读取 `.env`、`codex/auth.json`、容器环境变量、`coding-agent.json`、导出 ZIP 的内容或任何密钥文件。标“部署记录”“迁移记录”“切换记录”“调优记录”“实测记录”的内容来自部署者的验证和操作结果，本次整理没有重新执行（例如带 key 的请求、记忆库导出导入、客户端读写验证、召回和重排耗时的测量）。标“历史”的内容是网关上旧部署的事实，已不是现状。本文不记录任何 key、token 或 `auth.json` 的内容，只记录它们的存放位置和变量名。标“事故记录”的内容来自 2026-10-10 下午的现场检查和操作（对网关、pve1、LXC 118 的只读检查，以及修复 `compose.yaml` 的改动）。
 
 ## 用途与范围
 
@@ -10,7 +22,7 @@ Hindsight 是 Vectorize 的开源长期记忆服务（上游：[vectorize-io/hin
 
 - **客户端**：用户 Mac 上的 Claude Code、Codex、CodeBuddy（通过 hooks 和 MCP 接入）；Multica 的任务读取同一份 HOME 下的配置，自动跟随。Hermes 通过 Hindsight 官方的 Hermes 插件接入：Mac 上的开发类 profile 只读当前项目库，default、advisor 读写各自的库，网关上的 homelab-admin 读写自己的运维库并只读 IaC 库，见[Hermes 接入](#hermes-接入)。
 - **记忆库（bank）** 按项目命名，形如 `coding-agent::<项目名>`。2026-10-10 的库是 `coding-agent::hermes`、`coding-agent::IaC`（项目库）和 `hermes-agent::default`、`hermes-agent::advisor`、`hermes-agent::homelab-admin`、`hermes-agent::telos`（Hermes 自己的库）；`coding-agent::mcpgateway` 和 2026-10-11 加入的 `coding-agent::llm-ops` 在第一次写入时才会建立；启用新项目的步骤见运维指南第 14 节。
-- **位置**：pve1 上的 LXC 118。2026-10-09 至 2026-10-10 这个服务曾经部署在网关上，见[历史](#网关旧部署与经验教训)。
+- **位置**：当前为 pve0 上的 LXC 118；2026-10-10至26日位于pve1，更早部署在网关上，见[历史](#网关旧部署与经验教训)。
 
 ## 拓扑
 
@@ -27,7 +39,7 @@ flowchart LR
     HERMES["Hermes（Mac 与网关）<br/>Hindsight 插件"]
     OPENAI["Codex 后端<br/>（互联网）"]
     GW["网关 192.168.1.1<br/>旧部署：已删除（2026-10-10）"]
-    subgraph PVE1["pve1 · 192.168.1.51 · i5-8500"]
+    subgraph PVE0["pve0 · 192.168.1.50"]
         subgraph LXC["LXC 118 hindsight · 192.168.1.118"]
             API["9077<br/>API 与 MCP · 需要 key"]
             CON["19077<br/>Web 控制台 · 无登录"]
@@ -51,7 +63,7 @@ flowchart LR
     GW -.->|"导出/导入迁移（已完成）"| API
 ```
 
-## 已核实的部署事实（核对）
+## 2026-10-10 源端部署事实（历史核对）
 
 | 项目 | 内容 |
 |---|---|
@@ -121,7 +133,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 ## 网络依赖与已知事故
 
-### 网络路径（核对）
+### 网络路径（2026-10-10历史核对）
 
 - 网关的 `br-lan` 桥接 `eth1`（2.5G，Mac 和 Wi-Fi 一侧）、`eth2`（10G，Intel ixgbe）和 `eth3`（无链路）。`brctl showmacs` 显示 PVE 主机和来宾（`.50`、`.51`、`.52`、`.100`–`.120` 等）的 MAC 都学在 `eth2` 上。`eth2` 插的是 SFP+ 的 10GBASE-T 铜口模块（模块 EEPROM 型号 `SFP-10G-T-X`），链路 10 Gbps，接万兆交换机。
 - 所以 Mac 访问 LXC 118 的路径是：Mac → 网关 `eth1` → `br-lan` → 网关 `eth2` → 万兆交换机 → pve1 → LXC 118；LXC 访问互联网（Codex、HuggingFace）也经网关出去。这条路径上任何一处故障，会同时影响客户端访问和 LXC 的外网访问。
@@ -160,7 +172,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 ## 资源与性能
 
-### 资源
+### 资源（2026-10-19源端记录）
 
 | 层 | 配置 | 说明 |
 |---|---|---|
@@ -194,7 +206,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 ## 备份与逻辑导出
 
-**备份由运维方另行规划，本文只记录逻辑导出的方法。**
+**2026-10-26已建立本次整体冷迁移的受保护T0/T1，见现行位置；以下为此前逻辑导出记录，本次未使用逻辑导出/导入。**
 
 - **技术事实**：`/opt/hindsight/data` 是运行中的 Postgres 数据目录，对它做文件级拷贝不保证崩溃一致性，不能当作备份手段。PVE 快照（`pct snapshot`）是存储层的快照，不是文件级拷贝；它给出的是崩溃一致的状态，恢复没有演练过，可恢复性仍以逻辑导出为准。
 - **逻辑导出与导入**（Hindsight 0.10.1 起提供，按 bank 操作，用法来自迁移记录）：导出是异步操作，产出 ZIP；导入用 multipart 上传 ZIP，`restore` 模式要求 `target_bank_id` 指定的目标库不存在，路径里则要放一个已存在的库来承载操作；导入时在目标端重新向量化，不调用 LLM、不消耗额度。本次从网关迁到 LXC 就是这样做的。请求格式、引导库、核对方法见运维指南的[逻辑导出与恢复](../guides/hindsight-operations.md#9-逻辑导出与跨主机迁移)。跨版本的归档要求版本兼容，升级前先看[上游 0.10.1 说明](https://hindsight.vectorize.io/blog/2026/09/22/move-a-memory-bank)和后续发布说明。
@@ -207,6 +219,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 | 事项 | 状态 | 说明 |
 |---|---|---|
+| pve1→pve0同ID整体冷迁移 | 已恢复，1810.083秒单台观察通过（2026-10-26） | 原实例/数据/登录保留；T0/T1已保护verify，118已加入原pve0作业，enabled0，其他配置不变 |
 | 把 Hindsight 搬到 pve1 的 LXC 118 | 已完成并验证（2026-10-10） | 见上文核对与记录 |
 | 数据迁移（从网关导出、在 LXC 导入） | 已完成（2026-10-10） | hermes 422 条/18 个文档、IaC 420 条/7 个文档，文档和知识页完全一致（迁移记录）；后台整理收敛后 hermes 433 条/19 个文档 |
 | 切换 Claude Code / Codex / CodeBuddy 到新地址 | 已完成（2026-10-10） | 切换记录：三者各做过一次读写验证，新写入只进新机器；Multica 任务自动跟随 |
@@ -224,7 +237,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 重排回退链 Mac → Voyage → mmarco | 已上线（2026-10-19） | Mac 上的 eeANE（LaunchAgent，`192.168.1.10:18090`，网关 DHCP 静态分配）；`budget: low` 候选上限 100；故障切换已在一次性容器里验证 |
 | 万兆交换机与网关 `eth2` 链路 | 重启后恢复，根因未确认 | 见[网络依赖与已知事故](#网络依赖与已知事故) |
 | 备份 | 由运维方另行规划 | 本文只记录逻辑导出的方法，见上一节 |
-| pve1 或 LXC 重启后的自动恢复 | 未验证 | 依赖 `onboot: 1`、`docker` 服务 enabled 和 `restart: unless-stopped` |
+| pve0或LXC重启后的原应用自动恢复 | 未独立演练 | 本次维护manual-stop后均显式compose start；原onboot1/docker enabled/unless-stopped保持 |
 | 升级与回滚演练 | 未演练 | 见运维指南 |
 
 ## 风险与未验证项
@@ -241,11 +254,11 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 | 日志含记忆内容 | 容器日志已限制为 20 MB × 5 个文件；日志里仍有 bank 名和召回查询文本，对外粘贴前要脱敏。 |
 | 网关 `eth2` 与万兆交换机链路 | 所有 PVE 一侧的流量（含 Mac 到 LXC、LXC 到外网）都走这条链路；2026-10-10 下午它出过故障，根因没有确认，可能再发生。发生时 API 和控制台时通时断，LXC 的 LLM 调用也会失败，见[网络依赖与已知事故](#网络依赖与已知事故)。 |
 | 离线模式 | `HF_HUB_OFFLINE=1` 下缓存缺失会让容器起不来；`hf-cache/` 不要删除或移动，换本地模型要先临时关闭离线开关。 |
-| pve1 资源共享 | LXC 的 6 个核与 VM、LXC 共用；`funasr` 占 12 GiB；`Windows11`（16 GiB）若启动，pve1 的内存余量会明显下降（按配置值估算，未验证）。 |
+| 迁前pve1资源共享（2026-10-19记录） | LXC 的 6 个核与 VM、LXC 共用；`funasr` 占 12 GiB；`Windows11`（16 GiB）若启动，pve1 的内存余量会明显下降（按配置值估算，未验证）。 |
 | 升级与回滚 | 新版本迁移数据库后，旧版本能否读取旧数据目录未核实；归档跨版本兼容要看上游说明；均未演练。 |
 | 手工部署 | LXC 118 由操作者用 `pct` 手工创建，不在 Terraform、Ansible 管理内，NetBox 实例未核对，没有自动漂移检测。 |
 | Hermes 插件本地补丁 | Mac 上 4 个开发类 profile 的插件副本打了本地补丁（见运维指南第 13 节），`hermes plugins update` 或重装会覆盖它；补丁失效时这些 profile 在 kanban 和经典命令行里查不到项目库（只是查不到，不会写错库）。 |
-| Hermes 8 秒上限 | Hermes 对每条消息前的记忆查询有写死的 8 秒上限（`agent/memory_manager.py` 的 `_EXTERNAL_PREFETCH_TIMEOUT_S`），超时就跳过；项目库变大或 pve1 繁忙时可能发生。 |
+| Hermes 8 秒上限 | Hermes 对每条消息前的记忆查询有写死的 8 秒上限（`agent/memory_manager.py` 的 `_EXTERNAL_PREFETCH_TIMEOUT_S`），超时就跳过；项目库变大或当前pve0繁忙时可能发生。 |
 | 中文召回质量 | 已处理：2026-10-10 重排换成多语言的 mmarco-mMiniLMv2-L12，中文查询第一条相关从 5/20 升到 19/20（[评估](./hindsight-multilingual-reranker-evaluation.md)）。剩余：嵌入模型 `bge-small-en-v1.5` 仍是英文模型，库变大后可能需要重新评估；重排比原来慢约 1.2 秒，多个客户端同时召回会排队。 |
 
 ## 网关旧部署与经验教训
@@ -291,7 +304,7 @@ Hindsight 用 LLM 提取事实、归纳和反思。现在它通过内置的 `ope
 
 ## 当前管理边界
 
-LXC 118 由操作者在 2026-10-10 通过 `pct` 和 SSH 手工创建并部署，`compose.yaml` 头部注释也写明了这一点；仓库的 `terraform/`、`ansible/` 中没有 Hindsight 或 VMID 118 的声明，NetBox 实例未核对。pve1 是 Proxmox 集群成员，其上的来宾有的由 Terraform 管理，LXC 118 不在其中；本文只记录实际状态，没有为此新增 Terraform 资源、Ansible role 或自动部署入口。网关在 Ansible inventory 中属于 `network_appliance` 组，被 `site.yml` 按名排除，网关上的任何改动都须事先获得明确授权。
+LXC 118 当前位于pve0，保持手工管理。它由操作者在 2026-10-10 通过 `pct` 和 SSH 手工创建并部署，`compose.yaml` 头部注释也写明了这一点；仓库的 `terraform/`、`ansible/` 中没有 Hindsight 或 VMID 118 的声明，NetBox 实例未核对。pve0/pve1是Proxmox集群成员，其中部分来宾由Terraform管理，LXC118仍不在其中；本文只记录实际状态，没有为此新增 Terraform 资源、Ansible role 或自动部署入口。网关在 Ansible inventory 中属于 `network_appliance` 组，被 `site.yml` 按名排除，网关上的任何改动都须事先获得明确授权。
 
 现场与本文不一致时以现场为准，并回写本文；容器、端口、镜像 tag、目录、权限和调优参数这类事实应随变更同步更新。接入 Hermes、收紧控制台等状态变化完成后，也要回写“实施状态与待办”。
 

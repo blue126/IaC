@@ -38,7 +38,7 @@
 
 | 来宾 | 内存GiB | 磁盘GiB | 目标/状态 |
 |---|---:|---:|---|
-| VM108 containerlab | 32 | 100 | pve2，优先pve2-ssd，未核实；默认关机 |
+| VM108 container-lab（PVE名containerlab） | 32 | 100 | pve2，优先pve2-ssd，未核实；默认关机 |
 | VM112 OpenBao bao | 4 | 20 | pve0/vmdata，运行 |
 | VM113 OpenBao control | 4 | 20 | pve0/vmdata，运行 |
 | VM117 PDM | 4 | 40 | pve0/vmdata，运行 |

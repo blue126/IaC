@@ -6,7 +6,7 @@
 
 | 顺序 | 来宾 | 内存GiB | 主盘GiB | 目标/验收后状态 |
 |---|---|---:|---:|---|
-| 1 | VM108 containerlab | 32 | 100 | pve2-ssd/vmbr0，接收能力用户确认；验证后关机/onboot0 |
+| 1 | VM108 container-lab（PVE名containerlab） | 32 | 100 | pve2-ssd/vmbr0，接收能力用户确认；验证后关机/onboot0 |
 | 2 | VM116 Windows11 | 16 | 100＋EFI/TPM | pve0/vmdata，提前验证后关机/onboot0 |
 | 3 | VM112 OpenBao bao | 4 | 20 | pve0/vmdata，运行 |
 | 4 | VM113 OpenBao control | 4 | 20 | pve0/vmdata，运行 |
