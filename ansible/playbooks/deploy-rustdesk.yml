@@ -23,6 +23,7 @@
       command: docker ps --filter name=rustdesk
       register: rustdesk_containers
       changed_when: false
+      check_mode: false
 
     - name: Display deployment status
       debug:

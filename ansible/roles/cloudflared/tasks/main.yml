@@ -34,6 +34,7 @@
   command: cloudflared --version
   register: cloudflared_version
   changed_when: false
+  check_mode: false
 
 - name: Display cloudflared version
   debug:

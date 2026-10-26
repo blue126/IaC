@@ -51,6 +51,7 @@
         https://mcp.willfan.me/mcp
       register: mcp_ingress_rule
       changed_when: false
+      check_mode: false
 
     - name: Display MCP ingress rule
       debug:

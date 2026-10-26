@@ -63,6 +63,7 @@
         timeout: 5
         status_code: [200, 404, 405]  # Accept these codes (Anki may return 404/405 for root path)
       register: http_test
+      check_mode: false
       failed_when: false              # Don't fail task even if HTTP check fails
     
     # Print summary of deployment status
@@ -71,6 +72,7 @@
       command: tailscale ip -4
       register: tailscale_ipv4
       changed_when: false
+      check_mode: false
       failed_when: false
 
     - name: Display deployment summary
@@ -115,6 +117,7 @@
         timeout: 5
         status_code: [200, 404]
       register: ankiconnect_test
+      check_mode: false
       failed_when: false
 
     - name: Assert AnkiConnect is reachable
@@ -129,6 +132,7 @@
         timeout: 5
         status_code: [200, 404]
       register: webui_test
+      check_mode: false
       failed_when: false
 
     - name: Assert Web UI is reachable

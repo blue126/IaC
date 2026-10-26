@@ -18,6 +18,7 @@
         executable: /bin/bash
       register: template_check
       changed_when: false
+      check_mode: false
       failed_when: false
 
     - name: Fail if template not found
