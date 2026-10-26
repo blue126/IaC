@@ -64,6 +64,7 @@ class DispatchTests(unittest.TestCase):
                 DISPATCH.command(value_map, '')
 
     def test_missing_mapping_denies_without_exec(self):
+        # getpwuid is a POSIX account lookup, not a password or credential.
         with patch.object(DISPATCH.pwd, 'getpwuid') as pw, patch.object(DISPATCH.os, 'execve') as execute:
             pw.return_value.pw_name = 'ed-missing'
             with patch.object(DISPATCH, 'ROOT', Path('/nonexistent-employee-test')):
