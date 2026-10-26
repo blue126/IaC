@@ -92,7 +92,7 @@ resource "proxmox_virtual_environment_vm" "containerlab" {
 }
 
 output "container_lab_ip" {
-  value = proxmox_virtual_environment_vm.containerlab.initialization[0].ip_config[0].ipv4[0].address
+  value = "${ansible_host.container_lab.variables.ansible_host}/24"
 }
 
 resource "ansible_host" "container_lab" {

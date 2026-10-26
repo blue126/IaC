@@ -126,6 +126,7 @@ resource "proxmox_virtual_environment_vm" "openbao_testbed" {
   }
 }
 
+# Retain the existing state object; this is not a new authorization gate.
 resource "terraform_data" "openbao_testbed_authorization" {}
 
 resource "ansible_host" "openbao_testbed" {
