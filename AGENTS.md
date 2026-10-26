@@ -10,7 +10,7 @@ This is a **homelab Infrastructure as Code** repository managing VM/LXC provisio
 
 ```
 terraform/
-  proxmox/          # Primary - Proxmox VMs/LXCs (telmate/proxmox provider)
+  proxmox/          # Primary - Proxmox VMs/LXCs (bpg/proxmox provider)
   esxi/             # ESXi host management (vmware/vsphere provider)
   oci/              # Oracle Cloud Infrastructure
   netbox-integration/ # Netbox resource management
@@ -26,7 +26,7 @@ docs/               # Deployment guides, technical guides, learning notes
 
 ## Key Commands
 
-**Where these run:** `ansible-playbook` and `terraform` are installed **only inside the Docker Sandbox**, not on the macOS host. On the host these commands do not exist, and installing them needs explicit user permission. Detect where you are before assuming:
+**Where these run:** `ansible-playbook` and `terraform` are installed both on the macOS host (in `~/.local/bin`; ansible-core is a `uv` tool) and inside the Docker Sandbox. Detect where you are before assuming:
 
 ```bash
 [ -n "$SANDBOX_ID" ] && echo sandbox || echo host
@@ -34,7 +34,7 @@ docs/               # Deployment guides, technical guides, learning notes
 
 `SANDBOX_ID`, `SANDBOX_NAME` and `SANDBOX_VM_ID` are set in the process environment of every shell in a Sandbox, login or not. Do **not** test for `/.dockerenv` or `/run/.containerenv`: the Sandbox runtime is `io.containerd.nerdbox.v1` and neither file exists there.
 
-From the host, run them with `sbx exec <sandbox> bash -lc '...'`. Two things bite:
+To run them in a Sandbox from the host, use `sbx exec <sandbox> bash -lc '...'`. Two things bite:
 
 - `sbx exec` **hangs with no output** while an interactive `sbx` TUI is attached to that sandbox. It is not a timeout, a permission problem, or a stdin problem -- the call never reaches the daemon, so nothing appears in its log either. Close the TUI and retry.
 - A clone-mode Sandbox has **its own copy of the repository**, usually on `main`. It does not see the host working tree, and its clone may carry broken codex checkpoint refs that make `git fetch` fail. Copy what you need in with `sbx cp <dir> <sandbox>:/tmp/<path>/`, then `sudo chown -R "$(id -u):$(id -g)"` the copy -- `.vault_pass` arrives owned by the host uid and Ansible cannot read it.
@@ -54,7 +54,7 @@ ansible-playbook playbooks/<service>.yml --tags verify     # health check
 ./scripts/get-secrets.sh
 ```
 
-The repository has Jenkins deployment pipelines and a GitHub Pages documentation workflow, but no general-purpose PR validation workflow, Makefile, or automated test framework. Validation is primarily manual. Never treat a deploy, publish, apply, release, image-push, or other external-write pipeline as PR validation.
+PR validation is `.github/workflows/repo-validation.yml`: it classifies the changed files, then runs `scripts/ci/validate-repository.sh`, which applies only the relevant checks (`terraform fmt -check` / `validate` with `init -backend=false`, `ansible-lint` and `--syntax-check`, documentation and Hugo builds) plus the contract tests under `tests/ci/`. There is no Makefile or general-purpose test framework; deployment behavior is still validated manually. Jenkins pipelines and the GitHub Pages workflow deploy or publish. Never treat a deploy, publish, apply, release, image-push, or other external-write pipeline as PR validation.
 
 ## Code Style Guidelines
 
