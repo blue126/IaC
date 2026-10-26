@@ -4,7 +4,7 @@
   become: true
   pre_tasks:
     - name: Verify connectivity
-      ping:
+      ansible.builtin.ping:
 
   roles:
     - pbs
@@ -20,40 +20,40 @@
         name: pbs_verify_defaults
 
     - name: Wait for PBS web interface
-      wait_for:
+      ansible.builtin.wait_for:
         port: 8007
         timeout: 60
 
     - name: Check PBS API endpoint
-      uri:
+      ansible.builtin.uri:
         url: "https://{{ ansible_host }}:8007/api2/json/version"
         validate_certs: no
         status_code: [200, 401]
       register: pbs_api
 
     - name: Check PBS service status
-      service_facts:
+      ansible.builtin.service_facts:
 
     - name: Assert PBS service is running
-      assert:
+      ansible.builtin.assert:
         that:
           - "'proxmox-backup.service' in ansible_facts.services"
           - "ansible_facts.services['proxmox-backup.service'].state == 'running'"
         fail_msg: "PBS service is not running"
 
     - name: Check ZFS pool health
-      command: "zpool list -H -o health {{ pbs_zfs_pool_name | default(pbs_verify_defaults.pbs_zfs_pool_name) }}"
+      ansible.builtin.command: "zpool list -H -o health {{ pbs_zfs_pool_name | default(pbs_verify_defaults.pbs_zfs_pool_name) }}"
       register: zpool_status
       changed_when: false
 
     - name: Assert ZFS pool is ONLINE
-      assert:
+      ansible.builtin.assert:
         that:
           - zpool_status.stdout | trim == 'ONLINE'
         fail_msg: "ZFS pool is not healthy"
 
     - name: Check PBS datastore status
-      command: proxmox-backup-manager datastore list --output-format json
+      ansible.builtin.command: proxmox-backup-manager datastore list --output-format json
       register: ds_list
       changed_when: false
 
@@ -69,7 +69,7 @@
              | list }}
 
     - name: Show deployment summary
-      debug:
+      ansible.builtin.debug:
         msg:
           - "PBS API: {{ 'accessible' if pbs_api.status in [200, 401] else 'unreachable' }}"
           - "ZFS Pool: {{ 'ONLINE' if 'ONLINE' in zpool_status.stdout else 'PROBLEM' }}"

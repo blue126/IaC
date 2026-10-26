@@ -14,7 +14,7 @@
   tags: [verify]
   tasks:
     - name: Read Jenkins agent account IDs
-      command: "id -u {{ item }}"
+      ansible.builtin.command: "id -u {{ item }}"
       loop:
         - iac-plan
         - iac-deploy
@@ -22,7 +22,7 @@
       changed_when: false
 
     - name: Assert Jenkins agent accounts are non-root
-      assert:
+      ansible.builtin.assert:
         that:
           - item.stdout | int > 0
       loop: "{{ jenkins_agent_account_ids.results }}"
@@ -30,7 +30,7 @@
         label: "{{ item.item }}"
 
     - name: Check Jenkins agent private directories
-      stat:
+      ansible.builtin.stat:
         path: >-
           /var/lib/jenkins-agent/{{ item.0 }}{{ '/' + item.1 if item.1 else '' }}
       loop: "{{ ['iac-plan', 'iac-deploy'] | product(['', 'workspace', 'tmp']) | list }}"
@@ -39,7 +39,7 @@
       register: jenkins_agent_directory_stats
 
     - name: Assert Jenkins agent directories are private
-      assert:
+      ansible.builtin.assert:
         that:
           - item.stat.isdir
           - item.stat.mode == "0700"
@@ -50,7 +50,7 @@
         label: "{{ item.item.0 }}:{{ item.item.1 }}"
 
     - name: Check Jenkins agent service status
-      systemd:
+      ansible.builtin.systemd:
         name: "jenkins-agent@{{ item }}"
       loop:
         - iac-plan
@@ -58,7 +58,7 @@
       register: jenkins_agent_service_status
 
     - name: Assert Jenkins agent services are active
-      assert:
+      ansible.builtin.assert:
         that:
           - item.status.ActiveState == "active"
           - item.status.User == item.item
@@ -67,7 +67,7 @@
         label: "{{ item.item }}"
 
     - name: Check plan identity privilege boundaries
-      shell: |
+      ansible.builtin.shell: |
         set -o pipefail
         ! id -nG | tr ' ' '\n' | grep -Eq '^(sudo|docker)$'
         [[ ! -r /var/run/docker.sock && ! -w /var/run/docker.sock ]]

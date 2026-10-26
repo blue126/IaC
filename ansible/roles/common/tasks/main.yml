@@ -1,13 +1,13 @@
 ---
 - name: Ensure baseline packages are installed
-  apt:
+  ansible.builtin.apt:
     name: "{{ common_packages }}"
     state: present
     update_cache: yes
   when: ansible_os_family == "Debian"
 
 - name: Ensure baseline packages are installed on Alpine
-  package:
+  ansible.builtin.package:
     name: "{{ common_packages }}"
     state: present
   when: ansible_os_family == "Alpine"
@@ -15,14 +15,14 @@
 - name: Setup authorized keys for the primary user
   tags:
     - ssh_keys
-  authorized_key:
+  ansible.posix.authorized_key:
     user: "{{ ansible_user }}"
     key: "{{ item }}"
     state: present
   loop: "{{ common_authorized_keys }}"
 
 - name: Check whether sudo and visudo are available
-  stat:
+  ansible.builtin.stat:
     path: "{{ item }}"
   loop:
     - /usr/bin/sudo
@@ -30,7 +30,7 @@
   register: common_sudo_binaries
 
 - name: Allow 'sudo' group to have passwordless sudo
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/sudoers
     state: present
     regexp: "^%{{ 'wheel' if ansible_os_family == 'Alpine' else 'sudo' }}"

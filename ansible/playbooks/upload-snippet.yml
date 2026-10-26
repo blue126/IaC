@@ -5,13 +5,13 @@
   become: true
   tasks:
     - name: Ensure snippets directory exists
-      file:
+      ansible.builtin.file:
         path: /var/lib/vz/snippets
         state: directory
         mode: '0755'
 
     - name: Upload snippet
-      copy:
+      ansible.builtin.copy:
         src: "{{ playbook_dir | dirname }}/files/cloud-init-ubuntu.yml"
         dest: /var/lib/vz/snippets/cloud-init-ubuntu.yml
         mode: '0640'

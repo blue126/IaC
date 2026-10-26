@@ -1,19 +1,19 @@
 ---
 - name: Create rustdesk data directory
-  file:
+  ansible.builtin.file:
     path: "{{ rustdesk_data_dir }}"
     state: directory
     mode: '0755'
 
 - name: Create docker-compose.yml for RustDesk
-  template:
+  ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ rustdesk_data_dir }}/docker-compose.yml"
     mode: '0644'
   register: rustdesk_compose_file
 
 - name: Pull RustDesk Server OSS images
-  docker_image:
+  community.docker.docker_image:
     name: "{{ item }}"
     source: pull
     state: present
@@ -29,34 +29,34 @@
     COMPOSE_HTTP_TIMEOUT: "300"
 
 - name: Wait for RustDesk hbbs to be ready
-  wait_for:
+  ansible.builtin.wait_for:
     port: 21116
     timeout: 30
 
 - name: Get RustDesk server config
   block:
     - name: Check if ID key exists
-      stat:
+      ansible.builtin.stat:
         path: "{{ rustdesk_data_dir }}/data/id_ed25519"
       register: rustdesk_id_key_stat
 
     - name: Wait for ID key generation
-      wait_for:
+      ansible.builtin.wait_for:
         path: "{{ rustdesk_data_dir }}/data/id_ed25519"
         timeout: 30
       when: not rustdesk_id_key_stat.stat.exists
 
     - name: Read RustDesk ID
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ rustdesk_data_dir }}/data/id_ed25519.pub"
       register: rustdesk_id_key
 
     - name: Extract public key
-      set_fact:
+      ansible.builtin.set_fact:
         rustdesk_public_key: "{{ rustdesk_id_key.content | b64decode | regex_findall('pk:([A-Za-z0-9/+=]+)') | first | default('UNKNOWN_KEY') }}"
 
 - name: Display RustDesk connection info
-  debug:
+  ansible.builtin.debug:
     msg: |
       RustDesk Server deployed successfully!
       ID Server: {{ rustdesk_relay_host }}

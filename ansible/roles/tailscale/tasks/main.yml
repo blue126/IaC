@@ -1,7 +1,7 @@
 ---
 - name: Ensure TUN device permission in LXC configuration
   delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "/etc/pve/lxc/{{ proxmox_vmid }}.conf"
     line: 'lxc.cgroup2.devices.allow: c 10:200 rwm'
     state: present
@@ -13,7 +13,7 @@
 
 - name: Ensure TUN mount entry in LXC configuration
   delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: "/etc/pve/lxc/{{ proxmox_vmid }}.conf"
     line: 'lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file'
     state: present
@@ -24,7 +24,7 @@
     - proxmox_node is defined
 
 - name: Track LXC TUN configuration changes
-  set_fact:
+  ansible.builtin.set_fact:
     lxc_config_changed: >-
       {{
         (lxc_tun_device_config.changed | default(false))
@@ -36,37 +36,37 @@
     - proxmox_node is defined
 
 - name: Prevent Proxmox from overwriting resolv.conf (LXC only)
-  file:
+  ansible.builtin.file:
     path: /etc/.pve-ignore.resolv.conf
     state: touch
   when: ansible_facts.virtualization_type == 'lxc'
 
 - name: Ensure valid DNS resolver (LXC only)
-  copy:
+  ansible.builtin.copy:
     dest: /etc/resolv.conf
     content: "nameserver {{ tailscale_dns_server }}"
   when: ansible_facts.virtualization_type == 'lxc'
 
 - name: Restart LXC container to apply changes
   delegate_to: "{{ proxmox_node | default(inventory_hostname) }}"
-  command: "pct reboot {{ proxmox_vmid }}"
+  ansible.builtin.command: "pct reboot {{ proxmox_vmid }}"
   when: lxc_config_changed | default(false) | bool
 
 - name: Wait for container to come back up
-  wait_for_connection:
+  ansible.builtin.wait_for_connection:
     delay: 10
     timeout: 60
   when: lxc_config_changed | default(false) | bool
 
 - name: Check if Tailscale is installed
-  shell: command -v tailscale
+  ansible.builtin.shell: command -v tailscale
   register: tailscale_check
   failed_when: tailscale_check.rc not in [0, 1]
   changed_when: false
   check_mode: false
 
 - name: Install curl
-  package:
+  ansible.builtin.package:
     name: curl
     state: present
 
@@ -99,7 +99,7 @@
       when: tailscale_installer.path is defined
 
 - name: Enable IP forwarding
-  sysctl:
+  ansible.posix.sysctl:
     name: net.ipv4.ip_forward
     value: '1'
     sysctl_set: yes
@@ -108,19 +108,19 @@
     reload: "{{ ansible_facts.virtualization_type != 'lxc' }}"
 
 - name: Check for /dev/net/tun
-  stat:
+  ansible.builtin.stat:
     path: /dev/net/tun
   register: tun_device
 
 - name: Check Tailscale connection state
-  command: tailscale status --json
+  ansible.builtin.command: tailscale status --json
   register: tailscale_status
   changed_when: false
   failed_when: false
   when: tun_device.stat.exists
 
 - name: Authenticate Tailscale when disconnected
-  command: >-
+  ansible.builtin.command: >-
     tailscale up --authkey={{ tailscale_auth_key }} --ssh --reset
     --accept-risk=lose-ssh
     --accept-dns={{ tailscale_accept_dns | bool | lower }}
@@ -134,7 +134,7 @@
   no_log: true
 
 - name: Configure Tailscale preferences when connected
-  command: >-
+  ansible.builtin.command: >-
     tailscale set --ssh --accept-risk=lose-ssh
     --accept-dns={{ tailscale_accept_dns | bool | lower }}
   when:
@@ -157,7 +157,7 @@
 #
 # The LXC branch above has always declared a resolver. Hypervisors never did.
 - name: Ensure a resolver survives Tailscale handing DNS back (hosts, not LXC)
-  copy:
+  ansible.builtin.copy:
     dest: /etc/resolv.conf
     content: |
       search {{ tailscale_dns_search }}
@@ -170,11 +170,11 @@
     - not (tailscale_accept_dns | bool)
 
 - name: Get Tailscale IPv4
-  command: tailscale ip -4
+  ansible.builtin.command: tailscale ip -4
   register: tailscale_ip
   changed_when: false
   when: tun_device.stat.exists
 
 - name: Display Tailscale Info
-  debug:
+  ansible.builtin.debug:
     msg: "Device: {{ inventory_hostname }} | Tailscale IP: {{ tailscale_ip.stdout }}"

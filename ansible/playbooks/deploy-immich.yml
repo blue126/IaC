@@ -27,19 +27,19 @@
   tasks:
     # Wait for Immich web server port
     - name: Wait for Immich web server to be ready
-      wait_for:
+      ansible.builtin.wait_for:
         port: 2283
         timeout: 60
       register: immich_port_result
 
     # Check Docker service status
     - name: Check Docker service status
-      systemd:
+      ansible.builtin.systemd:
         name: docker
       register: docker_status
 
     - name: Assert Docker service is running
-      assert:
+      ansible.builtin.assert:
         that:
           - docker_status.status.ActiveState == "active"
           - docker_status.status.SubState == "running"
@@ -49,7 +49,7 @@
 
     # Get Docker Compose services status
     - name: Get Immich containers status
-      command: docker compose ps
+      ansible.builtin.command: docker compose ps
       args:
         chdir: "{{ immich_app_dir }}"
       become: true
@@ -59,7 +59,7 @@
 
     # Check for running containers
     - name: Count running containers
-      shell: |
+      ansible.builtin.shell: |
         set -o pipefail
         docker compose ps --status running | awk '/Up/ {count++} END {print count+0}'
       args:
@@ -71,7 +71,7 @@
       changed_when: false
 
     - name: Assert containers are running
-      assert:
+      ansible.builtin.assert:
         that:
           - running_count.stdout | int > 0
         fail_msg: "❌ No Immich containers are running"
@@ -80,7 +80,7 @@
 
     # Test HTTP endpoint
     - name: Test Immich web interface
-      uri:
+      ansible.builtin.uri:
         url: "http://localhost:2283"
         method: GET
         status_code: [200, 302, 301]
@@ -92,7 +92,7 @@
       when: not ansible_check_mode
 
     - name: Assert Immich web interface is accessible
-      assert:
+      ansible.builtin.assert:
         that:
           - immich_http_result.status in [200, 301, 302]
         fail_msg: "❌ Immich web interface not accessible"
@@ -101,7 +101,7 @@
 
     # Check database connectivity (via immich-server container)
     - name: Test database connectivity
-      command: >
+      ansible.builtin.command: >
         docker compose exec -T immich-server 
         sh -c 'pg_isready -h immich_postgres -U {{ immich_db_username }}'
       args:
@@ -114,7 +114,7 @@
       when: not ansible_check_mode
 
     - name: Assert database is accessible
-      assert:
+      ansible.builtin.assert:
         that:
           - db_check.rc == 0
           - "'accepting connections' in db_check.stdout"
@@ -124,13 +124,13 @@
 
     # Display deployment summary
     - name: Get Tailscale IPv4
-      command: tailscale ip -4
+      ansible.builtin.command: tailscale ip -4
       register: tailscale_ipv4
       changed_when: false
       failed_when: false
 
     - name: Display deployment summary
-      debug:
+      ansible.builtin.debug:
         msg:
           - "========================================="
           - "✅ Immich Deployment Successful"

@@ -1,30 +1,30 @@
 ---
 - name: Install git
-  apt:
+  ansible.builtin.apt:
     name: git
     state: present
     update_cache: yes
 
 - name: Check if Netbox directory is a git repo
-  stat:
+  ansible.builtin.stat:
     path: "{{ netbox_install_dir }}/.git"
   register: netbox_git_dir
 
 - name: Remove existing non-git directory
-  file:
+  ansible.builtin.file:
     path: "{{ netbox_install_dir }}"
     state: absent
   when: not netbox_git_dir.stat.exists
 
 - name: Clone Netbox Docker repository
-  git:
+  ansible.builtin.git:
     repo: "{{ netbox_git_repo }}"
     dest: "{{ netbox_install_dir }}"
     version: "{{ netbox_git_version }}"
     force: yes
 
 - name: Create docker-compose.override.yml
-  copy:
+  ansible.builtin.copy:
     dest: "{{ netbox_install_dir }}/docker-compose.override.yml"
     content: |
       services:
@@ -57,19 +57,19 @@
           restart: unless-stopped
 
 - name: Pull Netbox images
-  command: docker compose pull
+  ansible.builtin.command: docker compose pull
   args:
     chdir: "{{ netbox_install_dir }}"
 
 - name: Start Netbox
-  command: docker compose up -d
+  ansible.builtin.command: docker compose up -d
   args:
     chdir: "{{ netbox_install_dir }}"
   async: 600
   poll: 10
 
 - name: Wait for Netbox to become healthy
-  shell: |
+  ansible.builtin.shell: |
     set -o pipefail
     docker compose ps | grep netbox | grep healthy
   args:

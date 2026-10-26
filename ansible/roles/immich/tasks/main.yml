@@ -2,7 +2,7 @@
 # Main tasks for deploying Immich
 
 - name: Ensure Immich application directories exist
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     owner: "{{ immich_host_user }}"
@@ -14,7 +14,7 @@
     - "{{ immich_db_dir }}"
 
 - name: Download official Immich docker-compose.yml
-  get_url:
+  ansible.builtin.get_url:
     url: "{{ immich_compose_source }}"
     dest: "{{ immich_compose_path }}"
     mode: "0644"
@@ -23,7 +23,7 @@
   register: immich_compose_file
 
 - name: Render Immich environment configuration
-  template:
+  ansible.builtin.template:
     src: env.j2
     dest: "{{ immich_env_path }}"
     mode: "0640"
@@ -32,7 +32,7 @@
   notify: Restart Immich stack
 
 - name: Pull Immich container images
-  command: docker compose pull
+  ansible.builtin.command: docker compose pull
   args:
     chdir: "{{ immich_app_dir }}"
   become: true
@@ -41,7 +41,7 @@
   changed_when: "'Pulling' in pull_result.stderr or 'Downloaded' in pull_result.stderr"
 
 - name: Launch Immich stack
-  command: docker compose up -d
+  ansible.builtin.command: docker compose up -d
   args:
     chdir: "{{ immich_app_dir }}"
   become: true

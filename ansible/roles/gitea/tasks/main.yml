@@ -1,12 +1,12 @@
 ---
 # F3: Create group first, before user module references it
 - name: Create git system group
-  group:
+  ansible.builtin.group:
     name: "{{ gitea_group }}"
     system: yes
 
 - name: Create git system user
-  user:
+  ansible.builtin.user:
     name: "{{ gitea_user }}"
     group: "{{ gitea_group }}"
     system: yes
@@ -15,7 +15,7 @@
     create_home: yes
 
 - name: Create Gitea work directories
-  file:
+  ansible.builtin.file:
     path: "{{ gitea_work_dir }}/{{ item }}"
     state: directory
     owner: "{{ gitea_user }}"
@@ -27,7 +27,7 @@
     - log
 
 - name: Create Gitea config directory
-  file:
+  ansible.builtin.file:
     path: "{{ gitea_config_dir }}"
     state: directory
     owner: root
@@ -37,7 +37,7 @@
 # F2: checksum also fixes F4 (version upgrade idempotency) —
 #     mismatched checksum forces re-download when version bumps
 - name: Download Gitea binary
-  get_url:
+  ansible.builtin.get_url:
     url: "https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-amd64"
     dest: "{{ gitea_binary_path }}"
     checksum: "sha256:https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-amd64.sha256"
@@ -47,39 +47,39 @@
 # F6: Read existing secrets from app.ini if it already exists,
 #     so subsequent playbook runs reuse the same values (idempotent)
 - name: Check if Gitea app.ini already exists
-  stat:
+  ansible.builtin.stat:
     path: "{{ gitea_config_dir }}/app.ini"
   register: gitea_appini_stat
 
 - name: Read existing SECRET_KEY from app.ini
-  command: "grep '^SECRET_KEY' {{ gitea_config_dir }}/app.ini"
+  ansible.builtin.command: "grep '^SECRET_KEY' {{ gitea_config_dir }}/app.ini"
   register: gitea_existing_secret_key
   changed_when: false
   failed_when: false
   when: gitea_appini_stat.stat.exists
 
 - name: Read existing INTERNAL_TOKEN from app.ini
-  command: "grep '^INTERNAL_TOKEN' {{ gitea_config_dir }}/app.ini"
+  ansible.builtin.command: "grep '^INTERNAL_TOKEN' {{ gitea_config_dir }}/app.ini"
   register: gitea_existing_internal_token
   changed_when: false
   failed_when: false
   when: gitea_appini_stat.stat.exists
 
 - name: Generate SECRET_KEY
-  command: "{{ gitea_binary_path }} generate secret SECRET_KEY"
+  ansible.builtin.command: "{{ gitea_binary_path }} generate secret SECRET_KEY"
   register: gitea_generated_secret_key
   changed_when: true
   when: not gitea_appini_stat.stat.exists or (gitea_existing_secret_key.rc | default(1)) != 0
 
 - name: Generate INTERNAL_TOKEN
-  command: "{{ gitea_binary_path }} generate secret INTERNAL_TOKEN"
+  ansible.builtin.command: "{{ gitea_binary_path }} generate secret INTERNAL_TOKEN"
   register: gitea_generated_internal_token
   changed_when: true
   when: not gitea_appini_stat.stat.exists or (gitea_existing_internal_token.rc | default(1)) != 0
 
 # C1: no_log prevents secrets from appearing in verbose Ansible output / callback logs
 - name: Set gitea_secret_key fact
-  set_fact:
+  ansible.builtin.set_fact:
     gitea_secret_key: >-
       {{ gitea_generated_secret_key.stdout
          if (not gitea_appini_stat.stat.exists or (gitea_existing_secret_key.rc | default(1)) != 0)
@@ -87,7 +87,7 @@
   no_log: true
 
 - name: Set gitea_internal_token fact
-  set_fact:
+  ansible.builtin.set_fact:
     gitea_internal_token: >-
       {{ gitea_generated_internal_token.stdout
          if (not gitea_appini_stat.stat.exists or (gitea_existing_internal_token.rc | default(1)) != 0)
@@ -97,7 +97,7 @@
 # Approach A: git user owns app.ini so Gitea can write auto-generated secrets
 # (JWT_SECRET etc.) at startup without permission errors
 - name: Deploy Gitea app.ini
-  template:
+  ansible.builtin.template:
     src: app.ini.j2
     dest: "{{ gitea_config_dir }}/app.ini"
     owner: "{{ gitea_user }}"
@@ -106,7 +106,7 @@
   notify: Restart gitea
 
 - name: Deploy Gitea systemd service
-  template:
+  ansible.builtin.template:
     src: gitea.service.j2
     dest: /etc/systemd/system/gitea.service
     owner: root
@@ -115,7 +115,7 @@
   notify: Restart gitea
 
 - name: Enable and start Gitea service
-  systemd:
+  ansible.builtin.systemd:
     name: gitea
     enabled: yes
     state: started
@@ -123,10 +123,10 @@
 
 # Flush handlers here so "Restart gitea" fires before wait_for checks the port
 - name: Flush handlers
-  meta: flush_handlers
+  ansible.builtin.meta: flush_handlers
 
 - name: Wait for Gitea to be ready
-  wait_for:
+  ansible.builtin.wait_for:
     port: "{{ gitea_http_port }}"
     timeout: 30
 
@@ -134,7 +134,7 @@
 #     grep -xF does full-line exact match, avoiding "admin" matching "myadmin".
 # Do not use -q: draining the pipe avoids upstream SIGPIPE under pipefail.
 - name: Check if Gitea admin user exists
-  shell: |
+  ansible.builtin.shell: |
     set -o pipefail
     if ! gitea_users="$({{ gitea_binary_path | quote }} admin user list \
       --config {{ (gitea_config_dir + '/app.ini') | quote }})"; then
@@ -155,7 +155,7 @@
 
 # F1: Password passed via --password flag but suppressed from all logs with no_log: true
 - name: Create Gitea admin user
-  command: >
+  ansible.builtin.command: >
     {{ gitea_binary_path }} admin user create
     --config {{ gitea_config_dir }}/app.ini
     --username {{ gitea_admin_user }}

@@ -15,30 +15,30 @@
   tags: [verify]
   tasks:
     - name: Check cloudflared service status
-      systemd:
+      ansible.builtin.systemd:
         name: cloudflared
       register: service_status
 
     - name: Assert cloudflared service is active
-      assert:
+      ansible.builtin.assert:
         that:
           - service_status.status.ActiveState == "active"
         success_msg: "cloudflared service is running"
         fail_msg: "cloudflared service is not running"
 
     - name: Verify tunnel connectivity
-      command: cloudflared tunnel info {{ cloudflared_tunnel_name }}
+      ansible.builtin.command: cloudflared tunnel info {{ cloudflared_tunnel_name }}
       register: tunnel_info
       changed_when: false
       failed_when: false
 
     - name: Assert tunnel is reachable
-      assert:
+      ansible.builtin.assert:
         that:
           - tunnel_info.rc == 0
         success_msg: "Tunnel {{ cloudflared_tunnel_name }} is active"
         fail_msg: "Tunnel connectivity check failed: {{ tunnel_info.stderr | default('unknown error') }}"
 
     - name: Display tunnel info
-      debug:
+      ansible.builtin.debug:
         msg: "{{ tunnel_info.stdout_lines | default(['Tunnel info not available']) }}"
