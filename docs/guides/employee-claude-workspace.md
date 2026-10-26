@@ -79,7 +79,7 @@ employee_access_devices:
     wireguard_public_key: REPLACE_WITH_DEVICE_WIREGUARD_PUBLIC_KEY
 ```
 
-系统第二段 SSH 私钥采用 Vault 中的 `vault_employee_access_private_keys` 字典（按设备账户索引），网关 WireGuard 私钥采用 `vault_employee_access_wireguard_private_key`；角色 defaults 只作间接引用，部署任务 `no_log`。修改受管主机前，控制端以已有 Ansible Python/cryptography 和 ssh-keygen 检查必需私钥可解析且唯一；缺失或损坏时先失败，不更改账户或边界。管理员按既有 Vault 流程配置系统密钥，不将秘密放在 Terraform、Cloud-Init、示例、命令行或 Git 明文中。员工 OAuth 凭据不放在此 Vault。已有 `admin_public_keys` 经Terraform专属inventory传入两个角色，持续替换既有管理员账户的完整公钥集合；更换后旧公钥失效，不新增管理员用户。设备及host公钥在修改前解析真实Ed25519 wire格式；首次boundary校验不要求尚未生成的VM host keys。网关只从私钥导出公钥供 workspace 授权；密钥文件每设备独立、账户只读，父目录及 dispatcher 为 root 管理。
+系统第二段 SSH 私钥采用 `vault_employee_access_private_keys` 字典（按设备账户索引），网关 WireGuard 私钥采用 `vault_employee_access_wireguard_private_key`。这四组员工接入私钥现由私有管理员项目在 Bitwarden Secrets Manager 的 `EmployeeWorkspace` 项目管理；`onboard.sh` 在运行时把它们与 IaC Vault 合成为临时加密 Vault，角色 defaults 仍只作间接引用，部署任务 `no_log`。修改受管主机前，控制端以已有 Ansible Python/cryptography 和 ssh-keygen 检查必需私钥可解析且唯一；缺失或损坏时先失败，不更改账户或边界。不要把员工私钥放回全局 Vault、Terraform、Cloud-Init、示例或 Git 明文。员工 OAuth 凭据不由管理员托管。已有 `admin_public_keys` 经Terraform专属inventory传入两个角色，持续替换既有管理员账户的完整公钥集合；更换后旧公钥失效，不新增管理员用户。设备及host公钥在修改前解析真实Ed25519 wire格式；首次boundary校验不要求尚未生成的VM host keys。网关只从私钥导出公钥供 workspace 授权；密钥文件每设备独立、账户只读，父目录及 dispatcher 为 root 管理。
 
 CPU约定：员工VM、网关和干净模板均显式设置`cpu.type = "host"`，保持本仓库通用VM模块的既有默认。变更运行VM的CPU型号会触发重新启动，须安排验收或工作中断窗口；检查配置与实际运行CPU均已生效，不能只看Terraform源码。
 
@@ -94,7 +94,7 @@ CPU约定：员工VM、网关和干净模板均显式设置`cpu.type = "host"`�
 
 用户已选择管理员预配每设备接入包。员工不再手工生成或提交SSH/WireGuard公钥；管理员为每台设备分别准备公司SSH、WireGuard身份并登记公钥，接入包包含本设备私钥、固定配置、预核验入口known_hosts及连接脚本。包视为凭据，通过用户指定的私密渠道交付，不进入Git或普通日志。个人Claude凭据不在包内。
 
-设备客户端私钥分别加密存于vault_employee_access_client_private_keys与vault_employee_access_client_wireguard_private_keys；它们不同于网关到VM第二段使用的vault_employee_access_private_keys。保留每设备单独撤销能力。
+设备客户端私钥分别存于 BWS 中的 `vault_employee_access_client_private_keys` 与 `vault_employee_access_client_wireguard_private_keys`；它们不同于网关到 VM 第二段使用的 `vault_employee_access_private_keys`。保留每设备单独撤销能力。
 
 - [Windows员工指引](employee-claude-windows.md)
 - [macOS员工指引](employee-claude-macos.md)

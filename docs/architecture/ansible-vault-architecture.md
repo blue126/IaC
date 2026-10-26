@@ -1,6 +1,6 @@
 # Ansible Vault Architecture Design
 
-**Last Updated**: 2026-08-28
+**Last Updated**: 2026-10-26
 **Status**: ✅ Implemented  
 **Owner**: Homelab IaC Project
 
@@ -8,16 +8,18 @@
 
 本文档定义了 Homelab IaC 项目中 Ansible Vault 的架构设计原则、变量组织方式、间接引用模式选择规则，以及与 Terraform 的集成机制。
 
+员工工作区接入密钥是单独的凭据域：四组员工 SSH/WireGuard 私钥已迁至 Bitwarden Secrets Manager 的 `EmployeeWorkspace` 项目。机器账号 `employee-workspace-admin` 仅有该项目读写权限。私有管理员入口 `~/Projects/employee-workspace-admin/onboard.sh` 在每次员工 Ansible 运行前从 BWS 读取密钥，与 IaC Vault 临时合成一个加密运行时 Vault，退出后清理临时文件。Terraform 继续管理员工 VM；公开 IaC 仓库的全局 Vault 不保存员工接入私钥。不得直接用全局 Vault 单独运行员工部署 playbook。
+
 ## 设计目标
 
-1. **单一密码源** — 所有密码集中在 Ansible Vault，Terraform 通过桥接脚本同步
+1. **IaC 密码源** — 基础设施密码集中在 Ansible Vault，Terraform 通过桥接脚本同步；员工接入私钥由 BWS 单独管理
 2. **清晰的变量流向** — 任何人都能快速追踪一个密码从 vault 到消费点的完整路径
 3. **语义化的组织方式** — 密码的存放位置反映其作用域（主机/组/角色）
 4. **可维护性** — 新增服务时有明确规则指导密码应该放在哪里
 
 ## 架构组成
 
-### 1. 单一 Vault 文件
+### 1. IaC 的单一 Vault 文件
 
 ```
 ansible/
@@ -26,7 +28,7 @@ ansible/
 └── inventory/
     └── group_vars/
         └── all/
-            └── vault.yml                    # 唯一的加密文件，所有主机自动继承
+            └── vault.yml                    # IaC 共享加密文件，所有主机自动继承
 ```
 
 **设计决策**:
