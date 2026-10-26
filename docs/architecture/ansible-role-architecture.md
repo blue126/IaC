@@ -185,7 +185,7 @@ role defaults (优先级 2)          → 可覆盖的默认值
 | `caddy_domain` | `localhost` | 域名（实际值在 `host_vars/caddy.yml`） |
 | `caddy_reverse_proxies` | `[]` | 反向代理列表（实际值在 `host_vars/caddy.yml`） |
 | `cloudflare_api_token` | vault 间接引用 | Cloudflare DNS API Token |
-| `caddy_webdav_password_hash` | vault 间接引用 + hash | WebDAV 密码的 bcrypt hash |
+| `caddy_webdav_password_hash` | vault 间接引用 | WebDAV 密码的 bcrypt hash，预先用 `caddy hash-password` 生成后存入 vault；改密码时需同步更新 |
 
 **homepage**
 | 变量 | 默认值 | 说明 |

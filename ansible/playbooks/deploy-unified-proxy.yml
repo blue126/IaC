@@ -47,6 +47,7 @@
         status_code: 200
         return_content: true
       register: health
+      check_mode: false
       changed_when: false
 
     - name: Print health check result
