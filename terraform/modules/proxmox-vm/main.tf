@@ -88,7 +88,6 @@ resource "proxmox_virtual_environment_vm" "vm" {
   machine    = var.machine
   on_boot    = var.onboot
   protection = var.protection
-  started    = var.started
   tags       = var.tags
 
   cpu {
@@ -188,6 +187,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
       # them forces VM replacement; Ansible manages access after provisioning.
       initialization[0].user_account[0].keys,
       initialization[0].user_account[0].password,
+
+      # Power state is operated by hand (VMs are stopped for maintenance or
+      # kept off on purpose); Terraform must never start or stop a VM. A new
+      # VM still boots once on creation, the provider default.
+      started,
     ]
   }
 }

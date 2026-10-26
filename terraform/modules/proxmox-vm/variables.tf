@@ -216,12 +216,6 @@ variable "protection" {
   default     = false
 }
 
-variable "started" {
-  description = "Whether the VM should be running"
-  type        = bool
-  default     = true
-}
-
 variable "vga_type" {
   description = "VGA type (serial0 for serial console, std for standard VGA)"
   type        = string
