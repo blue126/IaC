@@ -57,11 +57,32 @@
   tasks:
     - name: Verify employee passwordless sudo
       ansible.builtin.command:
-        argv: [sudo, -n, -u, employee, sudo, -n, true]
+        argv: [sudo, -n, -u, employee, sudo, -n, 'true']
       changed_when: false
       when: not employee_workspace_disabled | bool
     - name: Verify Claude executable without authenticating
       ansible.builtin.command:
         argv: [sudo, -n, -u, employee, /usr/local/bin/claude, --version]
       changed_when: false
+      when: not employee_workspace_disabled | bool
+    - name: Verify employee Firefox without authenticating
+      ansible.builtin.command: firefox --version
+      become: true
+      become_user: employee
+      changed_when: false
+      tags: [employee_browser]
+      when: not employee_workspace_disabled | bool
+    - name: Verify employee Browsh without authenticating
+      ansible.builtin.command: browsh --version
+      become: true
+      become_user: employee
+      changed_when: false
+      tags: [employee_browser]
+      when: not employee_workspace_disabled | bool
+    - name: Verify employee login helper installation without authenticating
+      ansible.builtin.command: /usr/local/bin/workspace-login --check
+      become: true
+      become_user: employee
+      changed_when: false
+      tags: [workspace_login]
       when: not employee_workspace_disabled | bool

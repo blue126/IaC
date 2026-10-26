@@ -9,6 +9,10 @@
       - hostvars[employee_workspace_gateway].employee_access_derived_keys is defined
     fail_msg: Supply an approved native Claude binary and checksum; deploy the gateway first.
 
+- name: Validate the preinstalled baseline before skipping installation
+  ansible.builtin.include_tasks: verify-baked-baseline.yml
+  when: employee_workspace_baseline_id | length > 0
+
 - name: Reconcile existing workspace administrator access
   ansible.builtin.include_tasks: "{{ role_path }}/../employee-access/tasks/admin-keys.yml"
   vars:
@@ -21,6 +25,7 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
+  when: not employee_workspace_baseline_ready | bool
 
 - name: Create persistent employee account with sudo
   ansible.builtin.user:
@@ -59,6 +64,22 @@
     owner: root
     group: root
     mode: '0755'
+  when: not employee_workspace_baseline_ready | bool
+
+- name: Install the VM browser for employee authorization
+  ansible.builtin.include_tasks:
+    file: browser.yml
+    apply:
+      tags: [employee_browser]
+  tags: [employee_browser]
+  when: not employee_workspace_baseline_ready | bool
+
+- name: Install the single terminal authorization entry
+  ansible.builtin.include_tasks:
+    file: login.yml
+    apply:
+      tags: [workspace_login]
+  tags: [workspace_login]
 
 - name: Disable SSH password authentication
   ansible.builtin.copy:
