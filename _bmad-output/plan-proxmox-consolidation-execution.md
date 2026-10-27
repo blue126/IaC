@@ -52,11 +52,19 @@ blocking_condition: ''
 
 </intent-contract>
 
+## 最终状态（2026-10-27 11:20 AEDT）
+
+本次迁移按用户最后确认的范围已完成。PR178/179 已合并；11:06 完整 live refresh 全部 PVE 资源 NoOp、HCP serial104，仅四项无关员工 inventory 差异未 apply。11:10 Jenkins 原任务恢复启用且未主动触发构建；11:11 CT111 原 pve1 根8GiB/数据900GiB两 LV 已按原 UUID/容量/无引用无挂载无占用核实后删除。其余源业务卷及演练资源早已按批准清单清理。原始提交、未提交执行记录、正式证据及保护的 PBS 恢复点已归档保留。
+
+五个原任务 worktree、六个本地任务分支、两个远端任务分支、188项临时文件、任务Sandbox及已归档的tmpfs采样副本已清理。父账本111 source_cleanup COMPLETE、Jenkins restored enabled，其他guest及容量claim金额不变。剩余fullscan/T1/verify/观察及双Mac/24–48h已由用户取消或移出本线程，不重开、不冒称通过。下文按日期追加的冻结、保留源盘、未合并等断点是历史，不再作为当前待办。
+
+pve1 仍在线且为集群成员，但已无来宾、业务卷和迁移活动任务；pve0 无依赖pve1的共享挂载/复制/HA来宾。QDevice/N100证书及规则现场复核通过，具备正常关机条件；尚未实际关机。关机后仍须核对pve0仲裁，保持N100见证在线，见[关机说明](../docs/guides/proxmox-pve1-shutdown.md)。正式证据位于pve0 `/root/migration-proxmox-20261025/closure-20261027/` 和各原执行目录；原源盘删除证据位于pve1 `/root/migration-proxmox-20261025/ct111-source-cleanup-20261027/`。
+
 ## Code Map
 
 - `terraform/proxmox/container-lab.tf`：VM108已接管为独立pve2直接资源；按最新命名修订使用container_lab inventory/output，started/on_boot=false。
-- `terraform/proxmox/fileserver.tf`：CT111现pve1、根8G、mp0为900G；迁后直接接管pve0真实新800G卷。
-- `terraform/proxmox/pdm.tf`：VM117现pve1模块；迁后接管pve0真实磁盘、网络和Cloud-Init配置。
+- `terraform/proxmox/fileserver.tf`：CT111已接管pve0、根vmdata8GiB、mp0为local-zfs800GiB；pve1旧源卷已删除。
+- `terraform/proxmox/pdm.tf`：VM117已在pve0接管真实磁盘、网络和Cloud-Init配置；pve1旧源卷已删除。
 - `terraform/proxmox/provider.tf`、`versions.tf`：复用现有provider和固定版本；不改PBS。
 - `runbook.md`附录A/B/C/D/E/G：仅退配置交接、Linux全量清单、网络栅栏、恢复点保护、adoption、内存停止线。工具原文保留草稿标记，本轮合成实机演练已通过；生产使用另受批准边界约束。
 - `validation-and-rollback.md`：完整性、R0/R1、按池累计容量账本与业务验收。
@@ -70,7 +78,7 @@ blocking_condition: ''
 - [x] container_lab inventory原生更名及container_lab_ip等值输出改名已同步；47个无关raw资源组及其他outputs/check_results值保留，员工会话的99版变更保留。
 - [x] 本线程观察已按用户最新指示取消，所有owned采样正常收尾，唤醒暂停；两Mac/24–48h后续退出本线程职责。
 - [x] 原生Step04 Quick/PAL正式代码评审完成，8条逐项核实，6项最小修复及实际完整/定向plan验证通过。
-- [x] Git最终收尾已获用户明确授权，已审源码及main集成结果均纳入专用PR分支；推送/PR状态以GitHub和本会话附件为准，Jenkins继续冻结。
+- [x] Git最终收尾已获用户明确授权，已审源码及main集成结果均纳入专用PR分支；PR178/179已合并，Jenkins已恢复启用；原冻结状态不再适用。
 
 **Acceptance Criteria (当前有效范围):**
 - 实际迁后配置与绑定一致，112113111定向plan零变更；完整plan没有PVE创建/销毁/替换/回迁/启停动作，PBS VM100零动作。

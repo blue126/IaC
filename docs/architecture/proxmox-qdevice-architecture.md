@@ -2,6 +2,12 @@
 
 **更新日期**：2026-10-02（2026-10-10 补充一条 N100 上 Hindsight 的历史说明，见“当前管理边界”）；**状态**：已实施。本文记录本次现场配置和验收边界。
 
+## 2026-10-27 pve1 关机前复核
+
+迁移及源盘清理后，pve1 已无来宾和业务卷；仍保留为集群成员，不做节点删除、降票或 QDevice 重建。现场核实 pve0/pve1 各1票、QDevice 1票、quorum2；pve0 客户端 Connected/TLS active，N100 qnetd 两客户端证书 verified，全部现有 guard ingress hook 与 .50/.51:5403 允许规则在位。pve0 无到 pve1 的 NFS/CIFS 挂载、复制任务或 HA 来宾依赖。
+
+当前条件满足 pve1 正常关机前的检查，尚未实际关机或演练单节点故障。关机后应在 pve0 确认仍 quorate、total votes2；期间保持 N100及见证路径在线。原文以下配置和历史证据仍按原日期解读。步骤见[关机说明](../guides/proxmox-pve1-shutdown.md)。
+
 ## 选择与拓扑
 
 `HomePVECluster` 保留 pve0、pve1 两个成员，以 N100/iStoreOS 网关上的独立 Debian Docker 容器提供外部见证票。见证不依赖任何 PVE 客机，也不把 N100 加入 PVE 集群；它与网关、Hermes/语音服务共享物理设备，并非另一台独立供电的服务器。

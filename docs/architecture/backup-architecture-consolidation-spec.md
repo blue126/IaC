@@ -1,8 +1,10 @@
 # 备份架构整合 — 实施规范
 
 > **VM108现行说明（2026-10-26）**：服务统一称 `container-lab`，实际位于独立pve2、PVE名称仍为 `containerlab`，验证后stopped/onboot0；按用户免备份修订不加入目标备份作业。
-> 当前代码为 `terraform/proxmox/container-lab.tf`、inventory `ansible_host.container_lab`、output `container_lab_ip`（保留 `192.168.1.108/24`）及 `ansible/playbooks/deploy-container-lab.yml`；known_hosts配置使用 `known_hosts-container-lab`。
+> 当前代码为 `terraform/proxmox/container-lab.tf`、inventory `ansible_host.container_lab`、output `container_lab_ip`（保留 `192.168.1.108/24`）及 `ansible/playbooks/deploy-container-lab.yml`；known_hosts配置保留现有信任文件 `known_hosts-ubuntu-2604`；服务及 playbook 名称使用 container-lab。
 > 以下带日期的部署/备份实录保留旧名和当时文件名，不作为当前入口；迁移及备份范围的最新事实见[执行计划](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
+
+> **2026-10-27 现行状态**：pve1 来宾已迁至 pve0，全部旧源业务卷已获准清理；108 位于独立 pve2，按用户决定不加入备份。pve0/PVE snapshot 与 pve1/all 两个既有作业当前均 `enabled=0`；pve0 当前成员为 `100,101,102,103,104,105,106,107,109,112,113,114,115,117,118`。CT111 已在 pve0 使用800GiB ZFS数据卷，迁后T1/verify按用户决定取消；Jenkins 已恢复。以下版本记录保留其历史日期，不能代替[当前拓扑](homelab-iac-architecture.md)及[执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
 
 > **版本**: 1.15
 > **日期**: 2026-10-02

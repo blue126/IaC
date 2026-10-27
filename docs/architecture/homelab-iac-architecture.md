@@ -20,7 +20,7 @@
 - [Ansible Vault 架构设计](ansible-vault-architecture.md) - 密码管理架构
 - [Ansible Role 架构设计](ansible-role-architecture.md) - Role 组织模式
 - [Proxmox 双节点与 N100 QDevice](proxmox-qdevice-architecture.md) - 当前仲裁、权限、启动与回滚
-- [Hindsight 共享记忆服务（pve1 LXC 118）](hindsight-memory-architecture.md) - 部署事实、Codex 登录、网络与认证（含无登录的网页控制台）、资源与重排性能、逻辑导出方法、网络依赖与已知事故、网关旧部署的经验教训
+- [Hindsight 共享记忆服务（pve0 LXC 118）](hindsight-memory-architecture.md) - 部署事实、Codex 登录、网络与认证（含无登录的网页控制台）、资源与重排性能、逻辑导出方法、网络依赖与已知事故、网关旧部署的经验教训
 - [快速参考指南](../guides/QUICK-REFERENCE.md) - 常用命令速查
 
 ## 架构层次图
@@ -107,7 +107,7 @@ module "netbox" {
 | **网络/IPAM** | Netbox | Terraform → Netbox (push), 未来计划 pull |
 | **备份业务策略** | PVE / PBS | 操作者管理；Ansible不下发作业和保留/GC/verify计划 |
 | **QDevice / HAOS appliance（2026-10-02）** | PVE 与 N100 的现场配置 | 当前由操作者维护；尚未纳入 Terraform/Ansible ownership，见 [QDevice 架构](proxmox-qdevice-architecture.md) |
-| **Hindsight 记忆服务（2026-10-10）** | pve1 LXC 118 `/opt/hindsight/` 的现场配置 | 当前由操作者维护；尚未纳入 Terraform/Ansible ownership，见 [Hindsight 架构](hindsight-memory-architecture.md) |
+| **Hindsight 记忆服务（2026-10-27）** | pve0 LXC 118 `/opt/hindsight/` 的现场配置 | 当前由操作者维护；尚未纳入 Terraform/Ansible ownership，见 [Hindsight 架构](hindsight-memory-architecture.md) |
 
 ### 4. 自动化验证 (Automated Verification)
 
@@ -219,9 +219,9 @@ Proxmox VE Cluster
 | 存储池 | 类型 | 用途 | 备份策略 |
 |--------|------|------|----------|
 | `local` | directory | ISO、模板、片段 | 不备份 |
-| `vmdata` | LVM/ZFS | VM 磁盘 | PBS 每日备份 |
+| `vmdata` | ZFS（pve0 `mainpool/vmdata`） | VM 与 LXC 根盘 | PBS 作业已配置，当前禁用 |
 | `local:vztmpl` | directory | LXC 模板 | 不备份 |
-| `pbs` | Proxmox Backup Server | pve0 → PBS datastore `backup` | 每日00:00，100–109；没有第二副本（D15） |
+| `pbs` | Proxmox Backup Server | pve0 → pve2 PBS datastore `backup` | 00:00 作业当前禁用；成员见下方现行拓扑，没有第二副本（D15） |
 
 ## 编排层架构 (Terraform)
 
@@ -545,10 +545,10 @@ ansible/roles/
 | **Homepage** | LXC | 3000 | 服务 Dashboard | ✅ | ✅ |
 | **Caddy** | LXC | 80/443 | 反向代理 + SSL | ❌ Native | ✅ |
 | **PBS** | pve2 VM100 | 8007 | Proxmox 备份服务器；state/inventory已纳管，恢复后完整plan无变更 | ❌ Native | ❌ |
-| **Proxmox Datacenter Manager** | pve1 VM117 | 8443 | 多节点管理；192.168.1.117，2核/4GiB/local-lvm 40G | ❌ Native | ❌ |
-| **Home Assistant OS** | pve1 VM114 | 80（2026-10-02 观测，后续可变） | `.114`；HAOS appliance，操作者维护 | ❌ HAOS 内部管理 | 未配置 |
+| **Proxmox Datacenter Manager** | pve0 VM117 | 8443 | 多节点管理；192.168.1.117，2核/4GiB/vmdata 40G | ❌ Native | ✅ Terraform 接管 |
+| **Home Assistant OS** | pve0 VM114 | 80（2026-10-02 观测，后续可变） | `.114`；HAOS appliance，操作者维护 | ❌ HAOS 内部管理 | 未配置 |
 | **Corosync qnetd** | N100 独立容器 | 5403 / TLS | `.53`；PVE 外部见证，仅允许 `.50/.51` | ✅ 操作者维护 | 不使用 |
-| **Hindsight** | pve1 LXC 118（非特权，Docker host 网络） | 9077（API + MCP）、19077（网页控制台，**无登录**）/ HTTP，监听 LXC 的所有接口 | AI Agent 共用长期记忆（API + MCP，需 Bearer key），经内置 `openai-codex` 提供方调 LLM（本机自己的 Codex 登录）；Claude Code/Codex/CodeBuddy 已切换；备份由运维方另行规划 | ✅ 操作者维护 | 未配置 |
+| **Hindsight** | pve0 LXC 118（非特权，Docker host 网络） | 9077（API + MCP）、19077（网页控制台，**无登录**）/ HTTP，监听 LXC 的所有接口 | AI Agent 共用长期记忆（API + MCP，需 Bearer key），经内置 `openai-codex` 提供方调 LLM（本机自己的 Codex 登录）；Claude Code/Codex/CodeBuddy 已切换；备份由运维方另行规划 | ✅ 操作者维护 | 未配置 |
 
 ### 服务依赖图
 
@@ -641,7 +641,7 @@ LXC 内的轻量服务使用 systemd：
 
 2026-10-02 的新增例外：qnetd `.53` 以 OpenWrt `dhcp.qnetd_witness` 静态记录维护，HAOS VM114
 在客机内使用静态 `.114`；本次未同步 NetBox 或改变 Terraform ownership。不能把上表当成这些新资源已被 IaC 纳管的证据。
-2026-10-10 起 Hindsight 运行在 pve1 的 LXC 118，使用静态 `192.168.1.118/24`（沿用“IP 末段 = VMID”的惯例），由操作者手工创建；
+2026-10-10 起 Hindsight 运行在 pve1 的 LXC 118，2026-10-26 已整体迁至 pve0，使用静态 `192.168.1.118/24`（沿用“IP 末段 = VMID”的惯例），由操作者手工创建；
 本次同样未改变 Terraform ownership，NetBox 实例未核对。
 
 #### Tailscale VPN 拓扑
@@ -741,9 +741,19 @@ terraform/netbox-integration/
 
 > 备份架构正处于分阶段整合中，权威文档是
 > [备份架构整合规范](../architecture/backup-architecture-consolidation-spec.md)（含关键决策记录）。
-> 本节只描述当前形态，细节与理由以该规范为准。
+> 本节区分现行拓扑与带日期的历史快照，细节与理由以该规范及最新执行记录为准。
 
-#### 备份拓扑（2026-09-21 配置快照）
+#### 迁移后的现行拓扑（2026-10-27）
+
+pve1 已无 VM/LXC，源业务卷已按用户授权删除。Fileserver CT111、OpenBao VM112/113、HAOS VM114、FunASR VM115、PDM VM117、Hindsight CT118 均位于 pve0；container-lab VM108 位于独立 pve2，保持 stopped/onboot0。Windows VM116 按用户授权删除。
+
+CT111 根盘为 pve0 `vmdata:subvol-111-disk-0`（8GiB），数据盘为 `local-zfs:subvol-111-disk-0`（800GiB，挂载 `/srv/timemachine`，quota/refquota/reservation 均为800GiB），SMB 报告容量760GiB。旧 pve1 8GiB/900GiB 两卷已删除。PBS 仍在独立 pve2 的 VM100（`192.168.1.249`），现用备份存储不依赖 pve1。
+
+2026-10-27 读取 `/etc/pve/jobs.cfg`：pve0 snapshot 作业成员为 `100,101,102,103,104,105,106,107,109,112,113,114,115,117,118`，00:00，**enabled=0**；pve1 的 all 作业也为 **enabled=0**。108 按用户决定免备份；111 的迁后 T1/verify 已取消，不列入该 snapshot 作业。这里记录当前配置，不代表周期备份正在执行；此次仅恢复 Jenkins，未启用备份作业。
+
+Jenkins `IaC-Homelab-Pipeline` 已恢复启用，跟踪 `main`，未主动触发构建；HCP state serial104，完整 live refresh plan 全部 PVE 资源 NoOp。全部迁移收尾和用户豁免见[执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。pve1 关机前后检查见[关机说明](../guides/proxmox-pve1-shutdown.md)。
+
+#### 历史备份拓扑（2026-09-21 配置快照）
 
 pve1承载Fileserver；原T7910 ESXi已退役，现为独立pve2并承载PBS。旧ESXi备份路径不再列为活动来源。业务计划在PVE/PBS管理，本次不更改。
 
@@ -782,13 +792,13 @@ pve1承载Fileserver；原T7910 ESXi已退役，现为独立pve2并承载PBS。�
 
 此次读取的备份作业只覆盖 pve0 的100–109；不据此推断 pve1 是否另有任务。ESXi 已退役，不再用旧循环备份理由替代当前业务决策；pve1 的备份范围由操作者决定。
 
-#### 备份职责划分
+#### 备份职责划分（现行）
 
 | 备份对象 | 机制 | 落点 | 频率 |
 |---|---|---|---|
-| pve0 的 VM/LXC | PBS 原生 | pve2 datastore `backup` | 每日 00:00 |
-| Mac | Time Machine over SMB | pve1 LXC111 的 `nvme-lvm:vm-111-disk-0`（900G） | 按客户端计划 |
-| Windows 物理机 | Veeam Agent 免费版 → SMB | pve1 | 按 Agent 计划 |
+| pve0 的 VM/LXC | PBS 原生 | pve2 datastore `backup` | 00:00 作业当前禁用，成员见现行拓扑 |
+| Mac | Time Machine over SMB | pve0 LXC111 的 `local-zfs:subvol-111-disk-0`（800GiB） | 按客户端计划 |
+| Windows 物理机 | Veeam Agent 免费版 → SMB | Fileserver 已迁至 pve0；本次未验收该客户端计划 | 按 Agent 计划 |
 | ESXi 虚机（已退役） | 历史 Veeam VBR CE（NBD） | 历史恢复点保留，不在本次清理范围 | 不再列为活动备份来源 |
 | Linux 主机 | `proxmox-backup-client` | pve2 datastore `backup` | 按主机计划 |
 
