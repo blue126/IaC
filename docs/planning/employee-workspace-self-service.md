@@ -1,15 +1,19 @@
 # 员工工作环境：申请、批准与 CD 自动开户
 
-> **2026-10-23 当前状态：** 下文自助申请门户与完整项目 ZIP 是历史保留方案，继续暂缓。当前采用管理员私有 Terraform/Ansible 编排及个人 OneDrive 交付，员工从公开 workspace-onboarding 获取源码，从私人共享取得每设备文件，不要求 GitHub 账号。
+> **2026-10-27 当前状态：** 下文自助申请门户与完整项目 ZIP 是保留的未来方案，尚未实施。现行开户由私有 `employee-workspace-admin` 项目编排 Terraform/Ansible；设备私钥保存在专用 BWS 项目，通用 bootstrap 源码来自公开 `workspace-onboarding` 仓库，员工无需 GitHub 账号。
 >
 > 已固化凭据、SSH agent、管理网络和十个永久员工槽位的只读预检。新员工使用从干净镜像构建并完成身份清理的预装基线；真实新克隆已验证 machine-id/SSH 主机密钥重新生成且无个人认证/MCP/浏览器数据。
 >
-> OneDrive 默认交付已改用经过真实验证的 Graph v1.0 createLink 指定人员只读链接，先核对收件人权限，再把实际 URL 填入提示词并自动通知。真实设备包的自动上传、权限/内容校验及邮件通知已通过，完成后重跑 changed=0、不重复发信；不依赖网页补救。管理员工具、令牌、回执和模板维护 Terraform state 均在 Git 忽略的本机私有目录。员工本机和个人 Claude 使用验收仍单独进行。
+> 现行交付将每设备文件装成 ZIP，上传至 Temp.sh，使用 HTTP POST 下载并核对整个 ZIP 的 SHA256，再通过 Microsoft Graph Mail.Send 向批准的邮箱发送实际链接、摘要和 Agent 提示词。上传或通知结果不明时停止并核对回执，不盲目重试；员工本机接入和个人 Claude 登录仍需单独验收。管理员工具、令牌和交付回执保存在私有管理员项目。
+>
+> 未来门户要求员工通过邮箱验证后领取文件，私密存储与下载须由认证服务控制；该存储尚未选定，不能把现行 Temp.sh 邮件链接交付直接视为门户的存储方案。OneDrive 是已替换的历史交付方式。
+>
+> IaC 仓库跟踪 `terraform/proxmox/employee-workspaces.auto.tfvars.json` 中的 VM 分配，以及 `ansible/inventory/host_vars/employee-access.yml` 中的设备公钥和网关接入配置。私有管理员项目负责开户编排、候选配置、设备包和交付回执；设备私钥留在 BWS。后续开户更新这两份 IaC 配置后，需要审查并提交对应 Git 变更，避免已部署配置只留在本地工作树。
 
 
-状态：方案保留，按用户决定暂缓实施，计划下周再继续。日期：2026-10-22。
+状态：自助申请与领取门户方案保留，暂缓实施；以下步骤描述未来方案，不代表现行 Temp.sh 开户流程。
 
-当前阶段员工数量和开户工作量不大，继续由管理员手动开户及私密交付每设备完整接入项目；沿用每员工独立 VM、每设备独立身份。此轮不实施申请门户、邮箱领取或自动开户 CD。下周继续时由用户恢复此项工作，本记录不创建定时任务或自动触发部署。员工无需 GitHub 账号仍是后续自动化方案的明确要求。
+当前阶段继续由管理员发起开户，沿用每员工独立 VM、每设备独立身份，并通过 Temp.sh 和邮件交付设备包。本方案不实施申请门户、邮箱验证领取或自动开户 CD；本记录不创建定时任务或自动触发部署。员工无需 GitHub 账号仍是后续自动化方案的明确要求。
 
 用户要求将已发布的本机 bootstrap 扩展成“员工申请 → 管理员批准 → CD 下发”，并已明确申请不应要求 GitHub 账号。员工侧使用网页申请和受保护的完整项目 ZIP 领取；GitHub 仅供后台维护代码及管理员审批变更。当前客户端项目 1.0.0 已发布；本文所述门户与服务端自动开户尚未实现、启用或验收。
 
@@ -29,12 +33,12 @@
 
 | 环节 | 当前证据 | 自动开户需补齐 |
 | --- | --- | --- |
-| 本机接入 | 私有 bootstrap 1.0.0，三平台合成 CI 通过 | 从无真实身份的固定版本源码构建每次交付 |
+| 本机接入 | 公开 `workspace-onboarding` 提供通用 bootstrap，员工 Agent 使用单独交付的设备包 | 门户方案需确定版本固定与领取后的 bootstrap 衔接 |
 | 服务端 | pve2 的 access、pilot、control 已部署；Terraform/Ansible 有资源和角色 | 申请转固定格式名单、资源分配、针对单次开户的流水线 |
 | 路由 | configure-employee-router.yml 仅含 pilot/control 两条路由 | 以已批准员工分配生成精确路由，保留不相关配置 |
 | CD | 通用 Jenkinsfile 支持 plan/apply/Ansible；有两次 input | 专用开户入口、审批绑定、实际执行节点和凭据就绪核对 |
-| 身份 | 已有设备 SSH/WireGuard 密钥在加密 Vault | 自动生成、加密保存、重跑复用、停用流程关联 |
-| 申请与领取 | 尚无员工自助门户 | 公开申请页、邮箱验证、私有项目 ZIP 领取、通知及失败恢复 |
+| 身份 | 设备 SSH/WireGuard 私钥按设备保存在专用 BWS 项目 | 将现有身份生成和重跑复用流程接入审批与停用状态 |
+| 申请与领取 | 管理员通过 Temp.sh 交付设备包，并用 Microsoft Graph 发邮件；尚无员工自助门户 | 公开申请页、邮箱验证、受控领取、通知及失败恢复；门户私密存储待选 |
 
 文件依据：terraform/proxmox/employee-access.tf、employee-workspace.tf；ansible/inventory/host_vars/employee-access.yml；ansible/playbooks/bootstrap-employee-workspace.yml、configure-employee-router.yml、deploy-employee-workspace.yml；Jenkinsfile。
 

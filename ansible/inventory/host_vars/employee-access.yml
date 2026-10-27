@@ -1,0 +1,59 @@
+employee_access_wireguard_address: 10.230.0.1/24
+employee_access_maintenance_sources:
+- 192.168.1.10/32
+employee_access_protected_ipv4:
+- 159.13.46.201/32
+employee_access_home_public_ipv4:
+- 114.76.119.2/32
+employee_access_devices:
+  ed-pilot-client:
+    employee: pilot
+    enabled: true
+    address: 10.230.0.2
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINivTii9h0iDXQ+LH2lU+JShltLuwi1i7smyZ3+Z8pfK
+    wireguard_public_key: 0S2qHQrojN+/thY8pLg09AhSzRohOy+cSSBOpISPZz0=
+  ed-pilot-spare:
+    employee: pilot
+    enabled: true
+    address: 10.230.0.3
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJVJRVneCtCz+bpC4iHIXexcetS7dFZ+zHPjdlkpf9D2
+    wireguard_public_key: VTYowEbiP+zOFpZEfqe6+U3hyJ5OnnGAmdsHrX2QQQc=
+  ed-control-test:
+    employee: control
+    enabled: true
+    address: 10.230.0.4
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN1uyCr4kTvkmkdjmuYfFa1+kUxfhrzQGNz6YQ7fhu9j
+    wireguard_public_key: ko/rruopaa3i2d5jBc3XxnieixeLs4l33osEMvoxaB8=
+  ed-willweifan-test:
+    employee: willweifan
+    enabled: true
+    address: 10.230.0.5
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8vnUrEbiftDjEpPZBRLZIfTne9aqGdHtYWEZdaJzyo
+    wireguard_public_key: 3NMr0mRvxN76EJekotFa9I66Reip5VnXpJqKm9zFzQQ=
+  zhang171903992:
+    employee: zhang171903992
+    enabled: true
+    address: 10.230.0.6
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA7cYtYfyDzbURh9Q9vciyUjOfrIuixcWlBxIWRqggxH
+    wireguard_public_key: gCoZ19yY8OgSoOdj2PDJbejTKz3F/EpQJY+rNWpuhxE=
+  user156561205:
+    employee: user156561205
+    enabled: true
+    address: 10.230.0.7
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB7QeW2wx6sIO95DuMZAr8SN8s9S1GCpXlZ4TBsOowWm
+    wireguard_public_key: tZCcnFlwcYqLGgX/pQ2Jtn9LzAb+NB3z4r+d2KnLwVI=
+  user181825738:
+    employee: user181825738
+    enabled: true
+    address: 10.230.0.8
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHDXfqt+VGC/DGpUpuh4y9UJehoSCiq7dxpDWWRaveOt
+    wireguard_public_key: IefGf8zNL948HMBtp6aj32sUFXplkoUSlO/+ujXgCWE=
+employee_access_host_keys:
+  control: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAzQvHmZ59qNx8zXU6c2EYdy91dwhH4aTzDlRMh0ldL
+    root@employee-control
+  pilot: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMo5es4++K2Zd5u+fz/fxzTG+HONHfJ3VT3PoSgzR7Cf
+    root@employee-pilot
+  willweifan: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILVG380ZAlr1NmCulUPtFzY0TD8wFV0hbgQ83nMjeBHp
+  zhang171903992: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM5OuzenEytldiSWwDkn0G/xSEV109TPKwZjIM+bl1l+
+  user156561205: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII8HVdfYtd1uS2dFTai6vL6TDGhmb3bqxHdArB1WwLy5
+  user181825738: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGsaJqLV8ZCovFxl7uvsUSS0rkXGaKnqxEGJCH9bN91B
