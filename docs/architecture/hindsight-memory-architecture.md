@@ -4,9 +4,9 @@
 
 当前服务在 **pve0（192.168.1.50）的 LXC 118**，原 API/MCP `192.168.1.118:9077`、控制台 `:19077`、VMID/IP/MAC、hostname、6 核/8192MiB/swap512、非特权映射和手工管理方式保持。rootfs 为 `vmdata:subvol-118-disk-0`，实际宿主路径 `/mainpool/vmdata/subvol-118-disk-0`，refquota24GiB，未设置 reservation/refreservation。原 `/opt/hindsight/{data,codex,hf-cache}` 三个 bind、0.10.2 镜像、原 CID、离线模型及 bge-m3 的 max_seq_length1024 均保留，没有拉取、重建、逻辑导入或新登录。
 
-本次先正常停止原应用和内置 PG18.1，再从已保护并验证的 T0 整体冷恢复；源 pve1 只退注册，原盘保留且不再启动。完整宿主离线清单的94913个共同路径逐字节相同，原内容/UID/GID/mode/mtime/ACL/xattrs/链接均保留；五个已证明为空的系统目录被原生默认规则省略，另有原生 `.pxarexclude-cli`，完整原始差异保留在迁移记录。原 PG system identifier、10个bank全部元数据/统计、15个原知识页ID与原Component map完整对象，以及19条原记忆按ID读取的全文SHA均已实际验证；沿原停止实例迁移原 Codex 登录，没有复制成并发登录。
+本次先正常停止原应用和内置 PG18.1，再从已保护并验证的 T0 整体冷恢复；源 pve1 先退注册，其旧盘随后已按用户批准的非111清单删除；只保留正式证据及 PBS 恢复点，不再有可启动的原源实例。完整宿主离线清单的94913个共同路径逐字节相同，原内容/UID/GID/mode/mtime/ACL/xattrs/链接均保留；五个已证明为空的系统目录被原生默认规则省略，另有原生 `.pxarexclude-cli`，完整原始差异保留在迁移记录。原 PG system identifier、10个bank全部元数据/统计、15个原知识页ID与原Component map完整对象，以及19条原记忆按ID读取的全文SHA均已实际验证；沿原停止实例迁移原 Codex 登录，没有复制成并发登录。
 
-目标已恢复 running/onboot1。本次单台观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时观察尚未完成。T0 `ct/118/2026-10-25T19:40:41Z` 与 T1 `ct/118/2026-10-25T20:05:55Z` 在既有 PBS/root namespace，均创建即 protected、精确 verify OK、目标可读。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。未清理源盘、解除保护或关闭 pve1。
+目标已恢复 running/onboot1。本次单台观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时观察已按用户决定退出本线程职责，不列为本次迁移待办。T0 `ct/118/2026-10-25T19:40:41Z` 与 T1 `ct/118/2026-10-25T20:05:55Z` 在既有 PBS/root namespace，均创建即 protected、精确 verify OK、目标可读。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。源盘已获准清理，未解除备份保护；pve1 关机检查见[关机说明](../guides/proxmox-pve1-shutdown.md)。
 
 下面2026-10-10/19的部署核对、性能与迁移历史保留原日期及原 pve1 事实，不能当成迁后的宿主资源读数。当前 PVE 操作使用 pve0；本次完整过程见[迁移执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
 

@@ -1,8 +1,8 @@
 # Hindsight 运维指南（pve0 LXC 118）
 
-**2026-10-26现行位置**：同一LXC118已整体冷恢复到pve0（`192.168.1.50`），当前rootfs为 `vmdata:subvol-118-disk-0`（24GiB）。服务IP/API/MCP/控制台、`/opt/hindsight/`目录、原CID/镜像/三个bind及原登录不变，仍手工管理。当前PVE命令在pve0执行；本文明确标注2026-10-10/19的pve1记录保留历史含义。原source只退配置且旧盘保留，不能启动为并发实例。
+**2026-10-26现行位置**：同一LXC118已整体冷恢复到pve0（`192.168.1.50`），当前rootfs为 `vmdata:subvol-118-disk-0`（24GiB）。服务IP/API/MCP/控制台、`/opt/hindsight/`目录、原CID/镜像/三个bind及原登录不变，仍手工管理。当前PVE命令在pve0执行；本文明确标注2026-10-10/19的pve1记录保留历史含义。原 source 已退配置，其旧盘已按用户批准清单删除，不能再按旧源启动或回退；正式证据及 PBS 恢复点保留。
 
-本次T0/T1均创建即protected、精确verify与目标读回通过；目标running/onboot1，单机观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时尚未完成。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。本次按原实例整体冷备份恢复，未做逻辑导出/导入、重建数据库、下载镜像/模型或重新登录。详见[迁移执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
+本次T0/T1均创建即protected、精确verify与目标读回通过；目标running/onboot1，单机观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时观察已按用户决定退出本线程职责。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。本次按原实例整体冷备份恢复，未做逻辑导出/导入、重建数据库、下载镜像/模型或重新登录。详见[迁移执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
 
 **2026-10-19 原说明（历史保留）**
 
