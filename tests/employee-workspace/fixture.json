@@ -52,6 +52,16 @@
       "wireguard_public_key": "CErg5Sqzb+tCJNk5CxiB+JuOoRpdbi22LdTBB3J9+Fw="
     }
   },
+  "mosh_devices": {
+    "ed-alice-laptop": {
+      "port_start": 60000,
+      "port_end": 60009
+    },
+    "ed-bob-laptop": {
+      "port_start": 60010,
+      "port_end": 60019
+    }
+  },
   "wireguard_address": "10.230.0.1/24",
   "uplink_address": "192.168.50.2/24",
   "uplink_gateway": "192.168.50.1",

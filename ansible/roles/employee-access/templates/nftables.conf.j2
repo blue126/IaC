@@ -21,6 +21,17 @@ table inet employee_access {
     iifname "{{ net.interface }}" drop
 {% endfor %}
     iifname "wg-employee" ip daddr {{ employee_access_wireguard_address.split('/')[0] }} tcp dport 22 accept
+{% set mosh_policies = employee_access_mosh_devices | default({}) %}
+{% if mosh_policies is mapping %}
+{% for name, ports in mosh_policies.items() %}
+{% if name in employee_access_devices and ports is mapping and ports.port_start is integer and ports.port_end is integer and 60000 <= ports.port_start <= ports.port_end <= 61000 %}
+{% set device = employee_access_devices[name] %}
+{% if device.enabled | bool and not employee_access_networks[device.employee].disabled | bool %}
+    iifname "wg-employee" ip saddr {{ device.address }} ip daddr {{ employee_access_wireguard_address.split('/')[0] }} udp dport {{ ports.port_start }}-{{ ports.port_end }} accept
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
 {% for name, device in employee_access_devices | default({}) | dictsort %}
 {% if device.enabled | bool and not employee_access_networks[device.employee].disabled | bool %}
     iifname "wg-employee" ip saddr {{ device.address }} ip daddr {{ employee_access_wireguard_address.split('/')[0] }} tcp dport 8443 accept

@@ -140,3 +140,13 @@ test-login.py 的合成浏览器改为图形 supervisor 替身，仍使用真实
 ### 日常浏览器生命周期追加
 
 日常浏览器获得独立 systemd 生命周期后，test-login.py 的 9 项回归验证授权结束保留浏览器，合成服务进程仅在测试 teardown 清理。已授权 control 部署验收以独立空 HOME 实际运行服务／Firefox／WireGuard，验证重复启动、同实例新标签、真实输入及重连、native Claude 复用与取消保留、显式停止关闭后端、profile 留存和重启共 12 项。详见部署记录的日常浏览器章节；未使用个人账号，不替代本人 OAuth 验收。
+
+## Mosh 及退役审查回归
+
+`test-offline.py` 包含 Mosh 端口范围/重叠/悬空设备预检、停用时的 fail-closed 渲染、断联网路超时的受限传递、扩展规则顺序和存在扩展时的 NAT 漂移拒绝。所有输入为合成数据。
+
+Terraform mock 场景新增默认不启动、只有 start_ready 仍不启动，以及退役标记保留。运行 `terraform test -json -verbose` 后，将其日志传给 `test-disk-protection.py`；该脚本只把 mock 状态写入临时 root，并以 `-refresh=false` 验证已存在 VM 的退役仍受保护、清除退役标记无法意外新建空白 VM。不要对生产 root 或真实 state 使用此脚本。
+
+Mosh 的完整 Verify 不因 OCI/浏览器中继配置存在而降级；真实中继 drop-in 的规则写入顺序和 reload 行为仍由对应任务验证，部署前应确认接口一致。
+
+`python3 tests/employee-workspace/test-mosh-verify.py` 在临时本地 inventory 中执行真实 Verify play，仅替换控制器状态、二进制路径和内核状态读取依赖。它证明中继存在时仍做全量检查、NAT 漂移会失败、旧控制器会失败，以及空/全停用名单不要求 Mosh 二进制；不连接真实网关、不调用 sudo 或读取部署凭据。
