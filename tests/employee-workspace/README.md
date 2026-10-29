@@ -32,7 +32,7 @@ Sandbox 的 Ansible syntax/lint 必须指定 `tests/ci/fixtures/ansible.cfg`、`
 | 停alice | bob业务和管理正常 | alice已存公网测试TCP断开、所有入口失效；PVE stopped/onboot=0，scsi0配置及磁盘仍保留 |
 | 既有业务 | 变更前WAN/DNS/DHCP/qnetd/代理/管理均可用 | 变更后上述正向对照仍可用 |
 
-真实测试还须核对源 [verification.md](../../_bmad-output/specs/spec-employee-claude-workspace/verification.md) 的CAP-2本人订阅/泄漏、CAP-4 VM内浏览器/澳洲出口、CAP-5真实中国网络/并发及Q-6凭据与保留盘许可。纯离线测试对这些项没有通过结论。
+真实测试还须核对源 [verification.md](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/verification.md) 的CAP-2本人订阅/泄漏、CAP-4 VM内浏览器/澳洲出口、CAP-5真实中国网络/并发及Q-6凭据与保留盘许可。纯离线测试对这些项没有通过结论。
 
 ## 可重放的 Terraform 与 SSH 检查
 
