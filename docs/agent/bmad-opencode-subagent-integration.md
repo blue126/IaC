@@ -336,8 +336,8 @@ Amelia 标记 → 任务完成 ✅
 
 **了解项目规范**：
 - `AGENTS.md` - 项目 AI agent 指令（强制执行）
-- `_bmad-output/planning-artifacts/architecture.md` - 架构决策
-- `_bmad-output/planning-artifacts/epics.md` - Epic 和 Story 清单
+- [历史架构工件](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/planning-artifacts/architecture.md) - 架构决策
+- [历史 Epic/Story 工件](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/planning-artifacts/epics.md) - Epic 和 Story 清单
 
 ## 🔄 迭代改进
 

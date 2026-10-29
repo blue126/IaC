@@ -16,7 +16,7 @@
 - 它为什么只看一部分、看的是哪一部分；
 - 这个范围怎么划才算合理，以及当前的缺口。
 
-`_bmad-output/specs/spec-oink-doc-accuracy-integration/automation-roadmap.md` 记录了该系统的规划边界（Phase 2A 第 1 条）。那份是当时的规划工件，其中的路径对已经随目录重构改写；**本文档是当前范围的权威说明**。
+[文档自动化路线契约](../reference/doc-accuracy-contract/automation-roadmap.md) 记录了该系统的规划边界（Phase 2A 第 1 条）。那份是当时的规划工件，其中的路径对已经随目录重构改写；**本文档是当前范围的权威说明**。
 
 ---
 
@@ -180,5 +180,5 @@ service.netbox.port
 - `tools/doc-gardening/contract.py` —— 监管范围与各项上限的定义处
 - `tools/doc-gardening/scan-changed-docs.py` —— 改动的分类、筛选与汇总逻辑
 - `.github/workflows/doc-candidate-discovery.yml` —— 工作流编排与凭据边界
-- `_bmad-output/implementation-artifacts/spec-oink-ai-candidate-discovery.md` —— 该系统的设计规格（Phase 2A）
-- `_bmad-output/specs/spec-oink-doc-accuracy-integration/automation-roadmap.md` —— 规划边界（Phase 2A 第 1 条）
+- [历史候选发现规格](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/implementation-artifacts/spec-oink-ai-candidate-discovery.md) —— 该系统的设计规格（Phase 2A）
+- [文档自动化路线契约](../reference/doc-accuracy-contract/automation-roadmap.md) —— 规划边界（Phase 2A 第 1 条）
