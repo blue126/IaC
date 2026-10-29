@@ -6,6 +6,8 @@ import struct
 import importlib.util
 import json
 import os
+import tempfile
+from types import SimpleNamespace
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -34,7 +36,57 @@ def render(name, config=None):
 
 
 DISPATCH = module('dispatch', ROLE / 'files/employee-dispatch.py')
+FIREWALL = module('firewall', ROLE / 'files/employee-firewall.py')
 VALIDATOR = module('validator', ROLE / 'files/validate-inputs.py')
+
+
+INVALID_GUARD = {'rule': {'family': 'inet', 'table': 'employee_access', 'chain': 'input', 'expr': [
+    {'match': {'op': '==', 'left': {'ct': {'key': 'state'}}, 'right': 'invalid'}}, {'drop': None}]}}
+
+
+class FirewallExtensionTests(unittest.TestCase):
+    def test_only_the_exact_oci_rule_is_excluded_from_base_verification(self):
+        base = {'nftables': [{'table': {'family': 'inet', 'name': 'employee_access'}}, copy.deepcopy(INVALID_GUARD)]}
+        actual = [copy.deepcopy(base), {'nftables': []}]
+        actual[0]['nftables'].append(copy.deepcopy(FIREWALL.OCI_EXTENSION_RULE))
+        self.assertEqual(FIREWALL.without_known_extension(actual, True, True)[0], base)
+        for damaged in ([], [dict(FIREWALL.OCI_EXTENSION_RULE, rule=dict(FIREWALL.OCI_EXTENSION_RULE['rule'], comment='other'))],
+                        [dict(FIREWALL.OCI_EXTENSION_RULE, rule=dict(FIREWALL.OCI_EXTENSION_RULE['rule'], expr=[]))],
+                        [FIREWALL.OCI_EXTENSION_RULE, FIREWALL.OCI_EXTENSION_RULE]):
+            with self.subTest(damaged=damaged), self.assertRaises(RuntimeError):
+                FIREWALL.without_known_extension([{'nftables': copy.deepcopy(damaged)}, {'nftables': []}], True, True)
+        self.assertEqual(FIREWALL.without_known_extension([{'nftables': [FIREWALL.OCI_EXTENSION_RULE]}], False, True)[0]['nftables'], [FIREWALL.OCI_EXTENSION_RULE])
+
+
+    def test_browser_extension_must_match_the_exact_expected_rule(self):
+        base = {'nftables': [{'table': {'family': 'inet', 'name': 'employee_access'}}, copy.deepcopy(INVALID_GUARD)]}
+        rules = [copy.deepcopy(FIREWALL.OCI_EXTENSION_RULE), copy.deepcopy(FIREWALL.BROWSER_EXTENSION_RULE)]
+        actual = [{'nftables': base['nftables'] + rules}, {'nftables': []}]
+        self.assertEqual(FIREWALL.without_known_extension(actual, True, True, True)[0], base)
+        rules[1]['rule']['expr'][3]['match']['right'] = 22
+        with self.assertRaises(RuntimeError):
+            FIREWALL.without_known_extension([{'nftables': rules}, {'nftables': []}], True, True, True)
+
+
+    def test_extension_cannot_bypass_the_invalid_state_guard(self):
+        for rules in ([FIREWALL.OCI_EXTENSION_RULE, INVALID_GUARD], [FIREWALL.OCI_EXTENSION_RULE]):
+            with self.subTest(rules=rules), self.assertRaises(RuntimeError):
+                FIREWALL.without_known_extension([{'nftables':copy.deepcopy(rules)}, {'nftables':[]}], True, True)
+
+    def test_known_extensions_do_not_hide_nat_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);policy=base/'policy.nft';policy.write_text('synthetic-policy')
+            expected=[{'nftables':[copy.deepcopy(INVALID_GUARD)]},{'nftables':[{'table':{'family':'ip','name':'employee_nat'}}]}]
+            actual=copy.deepcopy(expected);actual[0]['nftables'].append(copy.deepcopy(FIREWALL.OCI_EXTENSION_RULE))
+            applied=base/'applied.json';applied.write_text(json.dumps({'sha256':FIREWALL.hashlib.sha256(policy.read_bytes()).hexdigest(),'tables':expected}))
+            marker=base/'oci.conf';marker.touch();missing=base/'browser.conf'
+            original=Path.read_text
+            def read_text(path,*args,**kwargs):
+                return '1' if str(path)=='/proc/sys/net/ipv4/ip_forward' else original(path,*args,**kwargs)
+            with patch.object(FIREWALL,'POLICY',policy), patch.object(FIREWALL,'APPLIED',applied), patch.object(FIREWALL,'OCI_EXTENSION_UNIT',marker), patch.object(FIREWALL,'BROWSER_EXTENSION_UNIT',missing), patch.object(FIREWALL,'snapshot',side_effect=lambda gateway:copy.deepcopy(actual)), patch.object(Path,'read_text',read_text):
+                FIREWALL.verify(True)
+                actual[1]['nftables']=[]
+                with self.assertRaisesRegex(RuntimeError,'differs'):FIREWALL.verify(True)
 
 
 class DispatchTests(unittest.TestCase):
@@ -51,6 +103,43 @@ class DispatchTests(unittest.TestCase):
     def test_sftp_is_fixed_subsystem_on_same_vm(self):
         args = DISPATCH.command(self.mapping, 'employee-sftp')
         self.assertEqual(args[-4:], ['-T', '-s', 'employee@10.231.1.2', 'sftp'])
+
+    def test_mosh_starts_only_the_fixed_vm_shell(self):
+        policy = {'address': '10.230.0.1', 'port_start': 60000, 'port_end': 60009}
+        request = "employee-mosh 'new' '-c' '256' '-s' '-p' '60000:60009' '-l' 'LANG=en_US.UTF-8'"
+        args = DISPATCH.mosh_command(self.mapping, request, policy)
+        self.assertEqual(args[:9], ['/usr/bin/mosh-server', 'new', '-i', '10.230.0.1', '-p', '60000:60009', '-c', '256', '--'])
+        self.assertEqual(args[-2:], ['-tt', 'employee@10.231.1.2'])
+        alternate = 'exec employee-mosh -H abc123 -t -u ed-alice-laptop -- 60000 60009'
+        self.assertEqual(DISPATCH.mosh_command(self.mapping, alternate, policy, 'ed-alice-laptop'), args)
+        self.assertEqual(DISPATCH.mosh_command(self.mapping, 'employee-mosh --version', policy), ['/usr/bin/mosh-server', '--version'])
+        for unsafe in ["employee-mosh 'new' '--' 'sh'", "employee-mosh 'new' '-p' '60010:60019'", "employee-mosh 'new'; id", "employee-mosh 'new' '-l' 'LANG=$(id)'"]:
+            with self.subTest(request=unsafe), self.assertRaises(ValueError):
+                DISPATCH.mosh_command(self.mapping, unsafe, policy)
+        for unsafe in ['exec employee-mosh -H abc123 -t -u bob -- 60000 60009',
+                       'exec employee-mosh -H abc123 -t -u ed-alice-laptop -- 60000 60099',
+                       'exec employee-mosh -H abc123 -t -u ed-alice-laptop -- 60000 60009; id']:
+            with self.subTest(request=unsafe), self.assertRaises(ValueError):
+                DISPATCH.mosh_command(self.mapping, unsafe, policy, 'ed-alice-laptop')
+        with self.assertRaises(ValueError):
+            DISPATCH.mosh_command(self.mapping, request, dict(policy, address='0.0.0.0', port_end=61001))
+
+    def test_mosh_timeout_is_bounded_and_passed_only_to_mosh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);(base/'devices').mkdir();(base/'mosh-devices').mkdir()
+            account='ed-alice-laptop';(base/'devices'/f'{account}.json').write_text(json.dumps(self.mapping))
+            policy={'address':'10.230.0.1','port_start':60000,'port_end':60009,'network_timeout':86400}
+            (base/'mosh-devices'/f'{account}.json').write_text(json.dumps(policy))
+            with patch.object(DISPATCH,'ROOT',base), patch.object(DISPATCH.pwd,'getpwuid',return_value=SimpleNamespace(pw_name=account)), patch.object(DISPATCH.os,'execve') as execute:
+                with patch.dict(os.environ,SSH_ORIGINAL_COMMAND='employee-mosh new -p 60000:60009'):
+                    self.assertEqual(DISPATCH.main(),0)
+                    self.assertEqual(execute.call_args.args[2]['MOSH_SERVER_NETWORK_TMOUT'],'86400')
+                with patch.dict(os.environ,SSH_ORIGINAL_COMMAND=''):
+                    self.assertEqual(DISPATCH.main(),0)
+                    self.assertNotIn('MOSH_SERVER_NETWORK_TMOUT',execute.call_args.args[2])
+            for value in (0,True,'86400',2592001):
+                with self.subTest(value=value), self.assertRaises(ValueError):
+                    DISPATCH.mosh_command(self.mapping,'employee-mosh new -p 60000:60009',dict(policy,network_timeout=value))
 
     def test_injections_and_unsupported_commands_are_rejected(self):
         for original in ['sftp', 'internal-sftp', '/usr/lib/openssh/sftp-server', 'employee-sftp;id', 'employee-sftp\n', 'ssh bob', 'sh', 'id', 'scp -t /tmp', '-L 8080:host:22', '$(id)', '`id`', 'env TERM=x bash']:
@@ -81,14 +170,43 @@ class InventoryTests(unittest.TestCase):
         for account,expected in cases:
             self.assertEqual(bool(expression(ansible_facts={'getent_passwd':{'zhang171903992':account}},employee_revoke_account='zhang171903992')),expected)
 
+    def test_mosh_cleanup_never_signals_unmanaged_accounts(self):
+        tasks=yaml.safe_load((ROLE/'tasks/stop-mosh-sessions.yml').read_text())
+        policy=next(t['ansible.builtin.assert']['that'] for t in tasks if t['name']=='Refuse to signal an unmanaged operating-system account')
+        expression=jinja2.Environment().compile_expression(policy)
+        for account,expected in ((None,True),(['*','995','995','','/var/empty/employee-access','/bin/sh'],True),(['x','0','0','','/root','/bin/bash'],False),(['x','1000','1000','','/home/ubuntu','/bin/bash'],False)):
+            self.assertEqual(bool(expression(ansible_facts={'getent_passwd':{'device':account}},employee_mosh_account='device')),expected)
+
     def test_unprefixed_device_account_is_valid(self):
         data=copy.deepcopy(FIXTURE)
         device=data['devices'].pop('ed-alice-laptop')
         data['devices']['zhang171903992']=device
+        data['mosh_devices']['zhang171903992']=data['mosh_devices'].pop('ed-alice-laptop')
         VALIDATOR.validate(data)
 
     def test_valid_fixture(self):
         VALIDATOR.validate(FIXTURE)
+
+    def test_mosh_preflight_rejects_unknown_invalid_and_overlapping_ranges(self):
+        for mutate in (
+                lambda c:c['mosh_devices'].update(unknown={'port_start':60020,'port_end':60029}),
+                lambda c:c['mosh_devices']['ed-alice-laptop'].update(port_start=1,port_end=65535),
+                lambda c:c['mosh_devices']['ed-bob-laptop'].update(port_start=60009)):
+            c=copy.deepcopy(FIXTURE);mutate(c)
+            with self.subTest(config=c['mosh_devices']), self.assertRaises(ValueError):VALIDATOR.validate(c)
+        c=copy.deepcopy(FIXTURE);c['devices']['ed-alice-laptop']['enabled']=False
+        VALIDATOR.validate(c)
+        self.assertNotIn('udp dport 60000-60009 accept',render('nftables.conf.j2',c))
+
+    def test_emergency_policy_ignores_malformed_mosh_entries(self):
+        c=copy.deepcopy(FIXTURE);c['networks']['alice']['disabled']=True
+        c['mosh_devices'].update(unknown={'port_start':60020,'port_end':60029})
+        c['mosh_devices']['ed-alice-laptop']={'port_start':1,'port_end':65535}
+        c['validate_mosh']=False;VALIDATOR.validate(c)
+        rules=render('nftables.conf.j2',c)
+        self.assertIn('iifname "emp0" drop',rules)
+        self.assertNotIn('udp dport 1-65535',rules)
+        self.assertIn('udp dport 60010-60019 accept',rules)
 
     def test_unsafe_network_inputs_fail(self):
         mutations = [
@@ -158,6 +276,16 @@ class PolicyRenderTests(unittest.TestCase):
         self.assertLess(rules.index('iifname "emp0" ip daddr @protected4 drop'), rules.index('iifname "emp0" oifname "employee-uplink" accept'))
         self.assertNotIn('flush ruleset', rules)
 
+    def test_mosh_udp_is_limited_to_one_device_inside_wireguard(self):
+        rules = render('nftables.conf.j2')
+        self.assertIn('iifname "wg-employee" ip saddr 10.230.0.2 ip daddr 10.230.0.1 udp dport 60000-60009 accept', rules)
+        self.assertNotIn('ip saddr 10.230.0.3 ip daddr 10.230.0.1 udp dport', rules)
+        self.assertIn('iifname "wg-employee" ip saddr 10.230.0.4 ip daddr 10.230.0.1 udp dport 60010-60019 accept', rules)
+        disabled = copy.deepcopy(FIXTURE)
+        disabled['devices']['ed-alice-laptop']['enabled'] = False
+        self.assertNotIn('udp dport 60000-60009 accept', render('nftables.conf.j2', disabled))
+        self.assertIn('udp dport 60010-60019 accept', render('nftables.conf.j2', disabled))
+
     def test_l2_boundary_binds_vm_port_address_and_gateway(self):
         rules = render('pve-nftables.conf.j2')
         self.assertIn('iifname "tap501i0" drop', rules)
@@ -218,14 +346,16 @@ class PolicyRenderTests(unittest.TestCase):
     def test_disabled_vm_remains_stopped_after_terraform_reconciliation(self):
         employee = (ROOT / 'terraform/proxmox/employee-workspace.tf').read_text()
         for field in ('started', 'on_boot'):
-            self.assertRegex(employee, rf'(?m)^  {field}\s*= var\.employee_access\.boundary_ready && each\.value\.start_ready && !each\.value\.disabled$')
+            self.assertRegex(employee, rf'(?m)^  {field}\s*= var\.employee_access\.boundary_ready && each\.value\.hook_bound && each\.value\.start_ready && !each\.value\.disabled$')
         self.assertRegex(employee, r'(?m)^    disconnected\s*= each\.value\.disabled$')
 
     def test_boundary_startup_is_scoped_to_employee_vms(self):
         pve_tasks = (ROLE / 'tasks/pve.yml').read_text()
         self.assertNotIn('pve-guests', pve_tasks)
         employee = (ROOT / 'terraform/proxmox/employee-workspace.tf').read_text()
-        self.assertRegex(employee, r'hook_script_file_id\s*= proxmox_virtual_environment_file\.employee_boundary_hook\[each.key\]\.id')
+        self.assertNotRegex(employee, r'(?m)^\s*hook_script_file_id\s*=')
+        self.assertIn('initialization[0].user_account[0].keys, hook_script_file_id', employee)
+        self.assertIn('proxmox_virtual_environment_file.employee_boundary_hook]', employee)
         hook_text = (ROOT / 'terraform/proxmox/employee-boundary-hook.py.tftpl').read_text()
         rendered = hook_text.replace('${vmid}', '501').replace('${gateway_tap}', 'tap500i1').replace('${disabled}', 'false')
         namespace = {'__name__': 'hook_test'}

@@ -39,3 +39,4 @@
   loop:
     - "/etc/employee-access/devices/{{ employee_revoke_account }}.json"
     - "/etc/employee-access/keys/{{ employee_revoke_account }}"
+    - "/etc/employee-access/mosh-devices/{{ employee_revoke_account }}.json"

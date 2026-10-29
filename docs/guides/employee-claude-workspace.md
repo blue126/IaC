@@ -10,6 +10,8 @@
 
 现有默认 provider 与 `proxmox.root` 指向 pve0/pve1 集群；员工资源现在统一使用已有的 `proxmox.pve2`，以独立 pve2 的 API token 认证，并通过已核实的 SSH agent 登录。原 `proxmox.employee` 使用同一端点但改用 `root@pam`；只读 ACL 核对显示 pve2 token 拥有员工节点、snippets 存储和 VM 所需权限。定向 Terraform 计划的资源变更数为零；应用后 state 中六个员工 Proxmox 资源均绑定到 `proxmox.pve2`，原别名已移除。未借此调整 token 权限或 VM 配置。provider 选择与是否复用 VM 模块是两个独立决定。
 
+`proxmox.pve2.ssh.username` 显式指定 `root`，用于 PVE 节点文件等管理操作的既有 SSH agent 身份；API 继续使用原 token，不改成 `root@pam` 密码认证。SSH 用户配置作用于该 provider 的所有消费者，包括现有 container-lab 与 PBS 资源，不能将它描述为仅影响员工 VM。本轮沿用统一 `pve2` provider，不引入新的员工别名。
+
 ## 网络与身份
 
 每位员工拥有一个无物理端口、无 PVE 主机地址的内部 bridge，桥内只有本人 VM 单 NIC 和网关的专属 NIC。每台员工 VM 的 PVE pre-start hook 会启动并核验本人 bridge 的外部边界；边界不存在或员工禁用则拒绝该 VM 启动，不修改全局 `pve-guests.service`，不阻断无关 VM 自启。PVE 的 `bridge employee_boundary` 表按每人桥上的 guest/gateway tap、源 MAC/IP 限制二层帧，只允许 IPv4 和面向本网关的 ARP；阻断访问 PVE 本机、VLAN、IPv6及其他端口。网关 `inet employee_access` 按入接口限制 IPv4，禁止设备转发、VM 互访、私网、Tailscale、明确受保护地址和家庭公网回流。公网开发流量经网关 NAT 和澳洲 WAN 出站。所有 DNS 都使用明确的公网解析器，无内部 DNS 例外。两层都只更新各自专属 nft 表，不清空全局规则。
@@ -60,7 +62,12 @@ employee_workspaces = {
 }
 ```
 
-4. 首次保持 `boundary_ready=false`，经获准 Terraform plan/apply 创建网关及停机的员工 VM，并绑定可执行 pre-start hook。用专属inventory执行`bootstrap-employee-workspace.yml`，先部署PVE边界与受控网关公网出口，保持员工入口未开放，以便员工VM首次启动安装guest-agent；随后设置 `boundary_ready=true` 并再次经获准 apply 启动员工 VM。任何后续启动均由本 VM hook 检查本人 guest/gateway tap 的 input/forward/output 拒绝规则及 base chain 的 family/type/hook/priority；缺失或服务失败只拒绝该 VM。snippet datastore 必须事先支持 snippets，不能自动修改既有 storage 配置。审阅 plan 中磁盘/NIC/bridge 变更，不能允许 replacement/destroy 个人 VM。员工使用专属 VM resource，自身具有 `prevent_destroy`；删除、VMID 改动或显式 replacement 计划会失败，新桥和网关也受保护。不得通过移除整个资源声明或生命周期保护绕过保盘要求。员工停用使用 `disabled=true`，不删除 map 条目；无论 boundary_ready 如何，员工 NIC 断开、started=false 及 on_boot=false 会保留磁盘，并使后续 Terraform apply 继续保持停机。
+4. 初次部署须保持 `boundary_ready=false`；为既有网关增加员工时，候选工作区默认 `start_ready=false, hook_bound=false`，两个字段均为保守默认值。Terraform 先创建停机、`on_boot=false` 的员工 VM，并上传该 VM 的可执行 pre-start hook。PVE API token 不能设置 root-only 的 `hookscript` 字段；私有管理员流程随后通过既有 PVE 管理 SSH 执行 `bind-workspace-hook.yml`，核对 VMID、名称、隔离网桥、停机状态、禁用自启动以及 root 所有的 hook 文件，仅绑定该 VM 的 hook。该步骤失败即中止，不扩大通用 provider 的 API 身份。Terraform 对既有 `hook_script_file_id` 使用 `ignore_changes`，上传文件仍为 VM 的显式依赖。
+
+   独立核对实际绑定完成后，私有管理员流程才可设置 `hook_bound=true`；该字段是管理员确认，不能由客户端自报。随后用专属 inventory 执行 `bootstrap-employee-workspace.yml`，部署 PVE 边界与受控公网出口，并登记本人网段路由；边界验证成功后，才通过单独校验的首次启动计划设置 `start_ready=true`。只有全局边界就绪、hook 已确认、工作区就绪且未禁用时，`started/on_boot` 才能为真。任何后续启动均由该 VM hook 检查本人 guest/gateway tap 的 input/forward/output 拒绝规则及 base chain 的 family/type/hook/priority；缺失或服务失败只拒绝该 VM。snippet datastore 必须事先支持 snippets，不能自动修改既有 storage 配置。审阅计划中的磁盘、NIC 和 bridge 变更，日常开户不得替换或删除个人 VM。
+
+   员工 VM、永久槽位和隔离桥保留 `prevent_destroy`。日常停用使用 `disabled=true`，不删除 map 条目；NIC 断开、`started=false` 和 `on_boot=false` 会保留磁盘。只有获明确永久删除授权时，才使用 `retired=true, disabled=true, start_ready=false, hook_bound=false`，从 VM、hook 和动态主机清单中退役该记录，并单独验证仅涉及指定目标的删除计划；永久网络槽位与桥继续保留。正式配置不移除默认删除保护。仍在 state 中的 VM 会阻止普通退役 plan，这是保护生效；管理员必须先备份 state 与配置，再按已批准的专属退役流程处理指定 VM，不能仅靠 `state rm` 把仍存在的 VM 留成无人管理的资源。退役后保留带 `prevent_destroy` 的 `employee_retirement` 标记；清除 `retired` 会试图删除此标记并被阻止，避免重建同 VMID 的空白 VM。
+
 5. 通过PVE控制面guest-agent读取公钥（例如qm guest exec读取/etc/ssh/ssh_host_ed25519_key.pub），独立核实每台VM的Ed25519 host key，填入网关 `employee_access_host_keys`，不能使用未经比对的 `ssh-keyscan` 自动信任。改变 host key 后旧连接会失败，先调查原因再按管理流程更新。填写 Ansible `host_vars/employee-access.yml`，设备和节点信息来自专属 Terraform inventory；PVE 节点须已有可用管理 inventory：
 
 ```yaml
@@ -174,3 +181,27 @@ VM 以 employee 身份运行，X11 不监听 TCP，VNC 仅 loopback 5901；后�
 默认不启用开机自启动、不由部署任务主动启动或重启个人会话。VM 重启后员工自行 start；标签恢复由 Firefox 设置决定。原授权期间启动的旧临时浏览器仍须先完成或取消旧流程，再迁移到独立服务；部署不强杀个人浏览器。安装服务加载 unit，但不重启仍在使用的个人会话。
 
 公司不额外安装 IDE 或用户项目工具；本次复用已有 WireGuard 端口、固定映射及撤销策略，无网关配置或路由器变化。员工可在 VM 浏览器内访问 VM 自身开发网页，下载保存在 VM，沿用 SFTP 取回。个人 OAuth 和真实任务的验收继续由本人完成。
+
+## Mosh 终端试点
+
+Mosh 复用既有员工网关及设备到本人 VM 的固定 SSH 绑定。`employee_access_mosh_devices` 为设备保留不重叠的 UDP 范围；在任何部署变更之前统一检查账号引用、整数端口、边界和范围冲突。停用设备可以保留其配置和范围，实际规则与策略只发布到启用的设备及工作区。防火墙只允许该设备 WireGuard 地址访问自己的范围，dispatcher 只接受受限启动格式，不执行任意远端命令。默认空映射不安装或验证 Mosh 二进制，SSH/SFTP 继续可用。
+
+紧急停用不应被悬空或坏 Mosh 条目阻断：该入口继续严格核对基础网络，渲染时跳过不存在的设备和非法 Mosh 范围，先封禁目标员工流量。普通 deploy 与 Mosh 专项 deploy 遇到这些错误则必须在改动网关之前失败。
+
+`deploy-employee-mosh-pilot.yml` 的 Deploy 先安装与源码匹配的完整防火墙控制器，再配置策略；Verify 先检查远端控制器 SHA256 与本工作区一致，无论是否存在旧中继配置，都执行 `employee-firewall.py verify --routing`。该检查覆盖策略哈希、内核 filter/NAT 表和路由状态，不能降级成几条规则的文本匹配。仅传 `--tags verify` 会验证已部署状态，不替代控制器升级。
+
+变更端口范围或回收 Mosh 权限时，仅终止该受管设备账号的 `mosh-server`，不为 Mosh-only 变更执行全账号 `pkill`。工作区/设备的完整撤销仍沿用原有 SSH/WG 撤销路径。默认网络断联回收时间为 604800 秒（7 天），可用 `employee_access_mosh_network_timeout` 调整为 60 秒至 30 天；它不是用户未敲键盘的空闲超时。旧三字段策略兼容此默认值；新增超时字段的首次迁移可能终止该设备的旧 Mosh 会话，须安排部署窗口。首次从未连接的会话仍遵循 Mosh 自身的 60 秒等待规则。参考 [Mosh 服务端手册](https://github.com/mobile-shell/mosh/blob/master/man/mosh-server.1)。
+
+### 中继保留与后续 GA 复用
+
+当前 Mosh 试用路径是员工设备经既有 WireGuard 接入家中网关，再进入本人 VM。现有中继相关 roles、Terraform、测试和测量记录应保留在原任务中，后续 GA 可以复用其隧道、路由与边界逻辑；Mosh 的源码整理不导入 Hub-and-Spoke、香港入口或 HAPI 的专属实现。
+
+共用网关有中继规则时仍须完整核验。控制器只识别已批准的 `employee-oci-home-ssh`、`employee-oci-home-browser` 精确规则，并要求它们位于基础 `ct state invalid drop` 之后；不允许靠“发现配置文件”跳过检查。中继任务负责其写入规则的内容、位置与 reload 契约；本轮不重排或删除其实现。旧部署若把放行规则插在 invalid 拒绝之前，新核验会报错，须由中继任务对齐后再上线。
+
+未来接 GA 时，须按入口承载方式确认 WireGuard/Mosh 的 UDP 路径和 SSH 握手，而不能把现有 TCP SSH 中继视为已经支持完整 Mosh。用相同设备、VM 和方法对照直连与 GA/中继的 SSH 命令往返、传输和真人终端体验，覆盖不同运营商与高峰时段；历史线路收益不替代新路径验收。
+
+### 部署前接口确认
+
+本分支为已登记、已绑定 hook 的 VM 补录 `hook_bound=true`，历史退役记录则保持 false；上线前仍须通过 PVE 实际配置逐台核对。私有开户流程位置调整另行处理，本轮未复制或修改该源码；部署本分支前，必须由该任务确认新建候选默认 false、绑定与边界验证后再分别写入 hook 确认和启动就绪。历史退役标记的首次登记也须在专属计划中核对。
+
+员工客户端安装和体验步骤以公开 `workspace-onboarding` 的 README、AGENTS 和 `docs/mosh.md` 为准；管理员交付材料留在私有工程。中国侧实际体验仍待验收，不把服务端握手或本地体验写成中国网络验收通过。

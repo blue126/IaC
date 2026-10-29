@@ -17,3 +17,12 @@
     name: employee-sshd
     daemon_reload: true
     state: reloaded
+
+- name: Stop changed Mosh policy sessions
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/stop-mosh-sessions.yml"
+  vars:
+    employee_mosh_account: "{{ employee_mosh_policy_update.item.key }}"
+  loop: "{{ employee_access_mosh_policy_updates.results | selectattr('changed') | list }}"
+  loop_control:
+    loop_var: employee_mosh_policy_update
+    label: "{{ employee_mosh_policy_update.item.key }}"

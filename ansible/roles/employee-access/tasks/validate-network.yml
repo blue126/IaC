@@ -2,7 +2,7 @@
 - name: Validate complete network inventory before rendering or installing
   ansible.builtin.command:
     argv: [python3, "{{ role_path }}/files/validate-inputs.py"]
-    stdin: "{{ {'networks': employee_access_networks, 'devices': employee_access_devices, 'wireguard_address': employee_access_wireguard_address, 'uplink_address': employee_access_uplink_address, 'uplink_mac': employee_access_uplink_mac, 'uplink_gateway': employee_access_uplink_gateway, 'dns_server': employee_access_dns_server, 'gateway_vmid': employee_access_vmid, 'maintenance_sources': employee_access_maintenance_sources, 'protected_ipv4': employee_access_protected_ipv4, 'home_public_ipv4': employee_access_home_public_ipv4, 'host_keys': employee_access_host_keys, 'require_host_keys': employee_access_action | default('deploy') == 'deploy'} | to_json }}"
+    stdin: "{{ {'networks': employee_access_networks, 'devices': employee_access_devices, 'mosh_devices': employee_access_mosh_devices, 'mosh_network_timeout': employee_access_mosh_network_timeout, 'validate_mosh': employee_access_action | default('deploy') != 'disable', 'wireguard_address': employee_access_wireguard_address, 'uplink_address': employee_access_uplink_address, 'uplink_mac': employee_access_uplink_mac, 'uplink_gateway': employee_access_uplink_gateway, 'dns_server': employee_access_dns_server, 'gateway_vmid': employee_access_vmid, 'maintenance_sources': employee_access_maintenance_sources, 'protected_ipv4': employee_access_protected_ipv4, 'home_public_ipv4': employee_access_home_public_ipv4, 'host_keys': employee_access_host_keys, 'require_host_keys': employee_access_action | default('deploy') == 'deploy'} | to_json }}"
   delegate_to: localhost
   become: false
   changed_when: false

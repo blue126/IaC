@@ -1,0 +1,46 @@
+---
+- name: Deploy the restricted employee Mosh pilot
+  hosts: employee_access
+  gather_facts: false
+  become: true
+  roles:
+    - role: employee-access
+      employee_access_action: mosh-pilot
+  tasks:
+    - name: Apply the Mosh gateway firewall allowance
+      ansible.builtin.meta: flush_handlers
+- name: Verify the restricted employee Mosh pilot
+  hosts: employee_access
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Validate the verification input without changing the gateway
+      ansible.builtin.include_role:
+        name: employee-access
+        tasks_from: validate-mosh
+        apply:
+          tags: [verify]
+    - name: Inspect the installed full firewall controller
+      ansible.builtin.stat:
+        path: /usr/local/lib/employee-firewall.py
+        checksum_algorithm: sha256
+      register: employee_mosh_firewall_controller
+      when: not ansible_check_mode
+    - name: Require the controller matching this checkout
+      ansible.builtin.assert:
+        that:
+          - employee_mosh_firewall_controller.stat.exists
+          - employee_mosh_firewall_controller.stat.checksum | default('') == (lookup('file', playbook_dir + '/../roles/employee-access/files/employee-firewall.py', rstrip=false) | hash('sha256'))
+        fail_msg: Deploy the matching firewall controller before verifying this Mosh release.
+      when: not ansible_check_mode
+    - name: Verify the complete gateway policy and routing including known extensions
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify --routing
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Verify Mosh server is available for active devices
+      ansible.builtin.command: /usr/bin/mosh-server --version
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - employee_access_active_mosh_devices | length > 0
