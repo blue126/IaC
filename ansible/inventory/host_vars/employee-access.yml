@@ -26,7 +26,7 @@ employee_access_devices:
     wireguard_public_key: ko/rruopaa3i2d5jBc3XxnieixeLs4l33osEMvoxaB8=
   ed-willweifan-test:
     employee: willweifan
-    enabled: true
+    enabled: false
     address: 10.230.0.5
     ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8vnUrEbiftDjEpPZBRLZIfTne9aqGdHtYWEZdaJzyo
     wireguard_public_key: 3NMr0mRvxN76EJekotFa9I66Reip5VnXpJqKm9zFzQQ=
@@ -48,6 +48,24 @@ employee_access_devices:
     address: 10.230.0.8
     ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHDXfqt+VGC/DGpUpuh4y9UJehoSCiq7dxpDWWRaveOt
     wireguard_public_key: IefGf8zNL948HMBtp6aj32sUFXplkoUSlO/+ujXgCWE=
+  ritsuka2020:
+    employee: ritsuka2020
+    enabled: true
+    address: 10.230.0.9
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxNUDagmLrToQKxaqBfeHKQgL1oibHRi7OKJS7hMnCe
+    wireguard_public_key: nEznwkMy4B7L+euv5iuq4s3h/YRBaZknETO1ajau7Rk=
+  suixiaoyou:
+    employee: suixiaoyou
+    enabled: true
+    address: 10.230.0.10
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJWYWjkSKi7N6DV2QpeomxKLklUnu0OB2fC2jzBjV2nZ
+    wireguard_public_key: xhiDsJw03c5y9xa+4RyTWw6LdNJLGW3arB39ZIqwLj0=
+  fanweiblue:
+    employee: control
+    enabled: true
+    address: 10.230.0.11
+    ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO3Cv/k4H+AaCZn48h04OFbiU1hQ1B23HCe9olLVkhjJ
+    wireguard_public_key: NofWhTtSSFVZqJRGLP1POCd0pVOE1jpKAEbdkWFzDH8=
 employee_access_host_keys:
   control: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAzQvHmZ59qNx8zXU6c2EYdy91dwhH4aTzDlRMh0ldL
     root@employee-control
@@ -57,3 +75,21 @@ employee_access_host_keys:
   zhang171903992: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM5OuzenEytldiSWwDkn0G/xSEV109TPKwZjIM+bl1l+
   user156561205: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII8HVdfYtd1uS2dFTai6vL6TDGhmb3bqxHdArB1WwLy5
   user181825738: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGsaJqLV8ZCovFxl7uvsUSS0rkXGaKnqxEGJCH9bN91B
+  ritsuka2020: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINvKzSeoPir8/MPkvX8h8b55UPC2nuNrkxuAt2LT2S+4
+  suixiaoyou: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMkvvB0rnuoBPdIMGVLhTLPQKtKqITvcw7lDpu4oGnqS
+employee_access_mosh_devices:
+  ed-pilot-client:
+    port_start: 60000
+    port_end: 60009
+  zhang171903992:
+    port_start: 60010
+    port_end: 60019
+  ritsuka2020:
+    port_start: 60020
+    port_end: 60029
+  suixiaoyou:
+    port_start: 60040
+    port_end: 60049
+  fanweiblue:
+    port_start: 60030
+    port_end: 60039

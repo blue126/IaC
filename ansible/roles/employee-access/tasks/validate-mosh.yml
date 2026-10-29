@@ -1,0 +1,19 @@
+---
+- name: Validate Mosh inventory before any gateway change
+  ansible.builtin.include_tasks: validate-network.yml
+  vars:
+    employee_access_action: mosh-pilot
+
+- name: Reset the effective Mosh device list
+  ansible.builtin.set_fact:
+    employee_access_active_mosh_devices: {}
+
+- name: Select enabled devices with active workspaces
+  ansible.builtin.set_fact:
+    employee_access_active_mosh_devices: "{{ employee_access_active_mosh_devices | combine({item.key: item.value}) }}"
+  loop: "{{ employee_access_mosh_devices | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when:
+    - employee_access_devices[item.key].enabled | bool
+    - not employee_access_networks[employee_access_devices[item.key].employee].disabled | bool

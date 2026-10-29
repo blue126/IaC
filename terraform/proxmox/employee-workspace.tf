@@ -12,12 +12,18 @@ variable "employee_workspaces" {
     memory         = optional(number, 4096)
     disk_size      = optional(string, "50G")
     disabled       = optional(bool, false)
-    start_ready    = optional(bool, true)
+    retired        = optional(bool, false)
+    start_ready    = optional(bool, false)
+    hook_bound     = optional(bool, false)
     template_id    = optional(number)
     baseline_id    = optional(string)
     bootstrap_file = optional(string)
   }))
   default = {}
+  validation {
+    condition     = alltrue([for vm in values(var.employee_workspaces) : !vm.retired || (vm.disabled && !vm.start_ready && !vm.hook_bound)])
+    error_message = "A retired workspace must be disabled with start_ready=false and hook_bound=false; its permanent network allocation remains reserved."
+  }
   validation {
     condition = alltrue([for vm in values(var.employee_workspaces) :
       (vm.template_id == null && vm.baseline_id == null && vm.bootstrap_file == null) || try(
@@ -89,6 +95,20 @@ resource "terraform_data" "employee_slot" {
   }
 }
 
+# Keep a durable tombstone so clearing retired cannot silently recreate an empty VM.
+resource "terraform_data" "employee_retirement" {
+  for_each = { for id, vm in var.employee_workspaces : id => vm if vm.retired }
+  input = {
+    employee_id = each.key
+    vmid        = each.value.vmid
+  }
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [input]
+  }
+  depends_on = [terraform_data.employee_slot]
+}
+
 resource "proxmox_virtual_environment_network_linux_bridge" "employee" {
   provider   = proxmox.pve2
   depends_on = [terraform_data.employee_slot]
@@ -108,7 +128,7 @@ resource "proxmox_virtual_environment_network_linux_bridge" "employee" {
 
 resource "proxmox_virtual_environment_file" "employee_boundary_hook" {
   provider     = proxmox.pve2
-  for_each     = var.employee_workspaces
+  for_each     = { for id, vm in var.employee_workspaces : id => vm if !vm.retired }
   node_name    = var.employee_access.node
   datastore_id = var.employee_access.snippet_datastore
   content_type = "snippets"
@@ -127,7 +147,7 @@ resource "proxmox_virtual_environment_file" "employee_boundary_hook" {
 # Dedicated persistent resource: its disks cannot be destroyed or replaced by a plan.
 resource "proxmox_virtual_environment_vm" "employee_workspace" {
   provider  = proxmox.pve2
-  for_each  = var.employee_workspaces
+  for_each  = { for id, vm in var.employee_workspaces : id => vm if !vm.retired }
   name      = "employee-${each.key}"
   node_name = var.employee_access.node
   vm_id     = each.value.vmid
@@ -172,19 +192,19 @@ resource "proxmox_virtual_environment_vm" "employee_workspace" {
       keys     = var.employee_access.admin_public_keys
     }
   }
-  on_boot             = var.employee_access.boundary_ready && each.value.start_ready && !each.value.disabled
-  started             = var.employee_access.boundary_ready && each.value.start_ready && !each.value.disabled
-  hook_script_file_id = proxmox_virtual_environment_file.employee_boundary_hook[each.key].id
-  tags                = ["employee-workspace", each.key]
+  on_boot = var.employee_access.boundary_ready && each.value.hook_bound && each.value.start_ready && !each.value.disabled
+  started = var.employee_access.boundary_ready && each.value.hook_bound && each.value.start_ready && !each.value.disabled
+  # Ansible binds the hook while stopped, before the guarded first-start plan.
+  tags = ["employee-workspace", each.key]
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [clone, initialization[0].user_account[0].keys]
+    ignore_changes  = [clone, initialization[0].user_account[0].keys, hook_script_file_id]
   }
-  depends_on = [terraform_data.employee_slot, proxmox_virtual_environment_vm.employee_template]
+  depends_on = [terraform_data.employee_slot, proxmox_virtual_environment_vm.employee_template, proxmox_virtual_environment_file.employee_boundary_hook]
 }
 
 resource "ansible_host" "employee_workspace" {
-  for_each = var.employee_workspaces
+  for_each = { for id, vm in var.employee_workspaces : id => vm if !vm.retired }
   name     = "employee-${each.key}"
   groups   = ["employee_workspaces"]
   variables = {

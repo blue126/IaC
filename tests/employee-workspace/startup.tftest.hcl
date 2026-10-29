@@ -1,6 +1,6 @@
 mock_provider "proxmox" {}
 mock_provider "proxmox" {
-  alias = "employee"
+  alias = "pve2"
   mock_resource "proxmox_virtual_environment_file" {
     defaults = {
       id = "local:snippets/employee-fixture.yaml"
@@ -24,6 +24,8 @@ variables {
   }
   employee_workspaces = {
     alice = {
+      start_ready = true
+      hook_bound  = true
       nic_slot    = 1
       vmid        = 501
       bridge      = "vmbr501"
@@ -125,7 +127,7 @@ run "allocated" {
   variables {
     employee_workspaces = {
       alice = var.employee_workspaces.alice
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
 }
@@ -134,7 +136,7 @@ run "earlier_name_keeps_slots" {
   variables {
     employee_workspaces = {
       alice = var.employee_workspaces.alice
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
       aaron = { nic_slot = 3, vmid = 503, bridge = "vmbr503", address = "10.231.3.2/30", gateway = "10.231.3.1", mac_address = "02:00:00:00:03:02", gateway_mac = "02:00:00:00:03:01" }
     }
   }
@@ -159,7 +161,7 @@ run "reject_disk_units" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { disk_size = "1T" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [var.employee_workspaces]
@@ -170,7 +172,7 @@ run "reject_gateway_outside_subnet" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { gateway = "10.232.1.1" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [var.employee_workspaces]
@@ -181,7 +183,7 @@ run "reject_changed_address" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { address = "10.231.1.3/29" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [terraform_data.employee_slot]
@@ -192,7 +194,7 @@ run "reject_changed_gateway" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { address = "10.231.1.2/29", gateway = "10.231.1.3" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [terraform_data.employee_slot]
@@ -203,7 +205,7 @@ run "reject_changed_mac" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { mac_address = "02:00:00:00:01:99" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [terraform_data.employee_slot]
@@ -214,7 +216,7 @@ run "reject_changed_gateway_mac" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { gateway_mac = "02:00:00:00:01:98" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [terraform_data.employee_slot]
@@ -225,7 +227,7 @@ run "reject_changed_bridge" {
   variables {
     employee_workspaces = {
       alice = merge(var.employee_workspaces.alice, { bridge = "vmbr601" })
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [terraform_data.employee_slot]
@@ -236,7 +238,7 @@ run "reject_overlapping_employee_subnets" {
   variables {
     employee_workspaces = {
       alice = var.employee_workspaces.alice
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.1.3/29", gateway = "10.231.1.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.1.3/29", gateway = "10.231.1.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [var.employee_workspaces]
@@ -247,7 +249,7 @@ run "reject_employee_uplink_overlap" {
     employee_access = merge(var.employee_access, { uplink_address = "10.231.1.5/24", uplink_gateway = "10.231.1.6" })
     employee_workspaces = {
       alice = var.employee_workspaces.alice
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   expect_failures = [proxmox_virtual_environment_vm.employee_access]
@@ -259,11 +261,42 @@ run "administrator_keys_reach_both_inventories" {
     employee_access = merge(var.employee_access, { admin_public_keys = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB47MgYesEVqT9kYtWug/AO1N+lpdZq8V3Bd2JNGK9fO"] })
     employee_workspaces = {
       alice = var.employee_workspaces.alice
-      bob   = { nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      bob   = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
     }
   }
   assert {
     condition     = tolist(jsondecode(ansible_host.employee_access[0].variables.employee_access_admin_public_keys_json)) == var.employee_access.admin_public_keys && tolist(jsondecode(ansible_host.employee_workspace["alice"].variables.employee_workspace_admin_public_keys_json)) == var.employee_access.admin_public_keys
     error_message = "Administrator key updates must be carried to both Ansible consumers."
+  }
+}
+
+run "new_workspace_defaults_stopped_without_hook_acknowledgement" {
+  command = plan
+  variables {
+    employee_access = merge(var.employee_access, { boundary_ready = true })
+    employee_workspaces = {
+      alice   = var.employee_workspaces.alice
+      bob     = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      charlie = { nic_slot = 3, vmid = 503, bridge = "vmbr503", address = "10.231.3.2/30", gateway = "10.231.3.1", mac_address = "02:00:00:00:03:02", gateway_mac = "02:00:00:00:03:01" }
+    }
+  }
+  assert {
+    condition     = !proxmox_virtual_environment_vm.employee_workspace["charlie"].started && !proxmox_virtual_environment_vm.employee_workspace["charlie"].on_boot
+    error_message = "An omitted readiness flag must never start a new workspace."
+  }
+}
+run "start_ready_without_hook_acknowledgement_stays_stopped" {
+  command = plan
+  variables {
+    employee_access = merge(var.employee_access, { boundary_ready = true })
+    employee_workspaces = {
+      alice   = var.employee_workspaces.alice
+      bob     = { start_ready = true, hook_bound = true, nic_slot = 2, vmid = 502, bridge = "vmbr502", address = "10.231.2.2/30", gateway = "10.231.2.1", mac_address = "02:00:00:00:02:02", gateway_mac = "02:00:00:00:02:01" }
+      charlie = { start_ready = true, nic_slot = 3, vmid = 503, bridge = "vmbr503", address = "10.231.3.2/30", gateway = "10.231.3.1", mac_address = "02:00:00:00:03:02", gateway_mac = "02:00:00:00:03:01" }
+    }
+  }
+  assert {
+    condition     = !proxmox_virtual_environment_vm.employee_workspace["charlie"].started && !proxmox_virtual_environment_vm.employee_workspace["charlie"].on_boot
+    error_message = "start_ready alone must not bypass the hook binding acknowledgement."
   }
 }

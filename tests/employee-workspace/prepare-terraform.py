@@ -14,7 +14,9 @@ access_file = fixture / 'proxmox/employee-access.tf'
 access_text = access_file.read_text()
 access_text = re.sub(r'provider \"proxmox\" \{.*?\n\}\n', 'provider \"proxmox\" {\n  alias = \"employee\"\n}\n', access_text, count=1, flags=re.S)
 access_file.write_text(access_text)
-shutil.copy2(Path(__file__).with_name('startup.tftest.hcl'), fixture / 'proxmox/tests/startup.tftest.hcl')
+(fixture / 'proxmox/provider.tf').write_text('provider "proxmox" {\n  alias = "pve2"\n}\n')
+for test in Path(__file__).parent.glob('*.tftest.hcl'):
+    shutil.copy2(test, fixture / 'proxmox/tests' / test.name)
 (fixture / 'proxmox/versions.tf').write_text('''terraform {
   required_providers {
     proxmox = {

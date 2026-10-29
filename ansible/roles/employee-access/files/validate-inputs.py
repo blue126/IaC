@@ -33,7 +33,25 @@ def public_key(text):
         raise ValueError('Invalid SSH key encoding') from exc
 
 
+def validate_mosh(config):
+    policies = config.get('mosh_devices', {})
+    require(isinstance(policies, dict), 'Mosh devices must be a mapping')
+    ranges = []
+    for name, ports in policies.items():
+        require(name in config['devices'] and isinstance(ports, dict), 'Unknown Mosh device or malformed ports')
+        require(set(ports) == {'port_start', 'port_end'}, 'Unexpected Mosh policy fields')
+        start, end = ports['port_start'], ports['port_end']
+        require(type(start) is int and type(end) is int and 60000 <= start <= end <= 61000, 'Invalid Mosh port range')
+        require(all(end < old_start or start > old_end for old_start, old_end in ranges), 'Overlapping Mosh device ports')
+        ranges.append((start, end))
+    if policies:
+        timeout = config.get('mosh_network_timeout', 604800)
+        require(type(timeout) is int and 60 <= timeout <= 2592000, 'Invalid Mosh network timeout')
+
+
 def validate(config):
+    if config.get('validate_mosh', True):
+        validate_mosh(config)
     networks = config['networks']
     devices = config['devices']
     require(0 < len(networks) <= 10, 'Expected one to ten single-node workspaces')

@@ -242,3 +242,6 @@
 
 - name: Deploy the private authorization viewer
   ansible.builtin.include_tasks: auth-viewer.yml
+
+- name: Reconcile optional Mosh pilot access
+  ansible.builtin.include_tasks: mosh-pilot.yml
