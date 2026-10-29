@@ -122,6 +122,13 @@ When working on specific areas, read the relevant design doc for detailed patter
 - **Docker Sandbox agent architecture**: `docs/architecture/docker-sandbox-agent-architecture.md`
 - **Deferred-work ↔ GitHub issue 同步**: `docs/architecture/deferred-work-sync.md`
 
+## Project-local Employee Provisioning
+
+- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for employee workspace onboarding/provisioning, device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
+- Reuse the existing administrator `onboard.sh` entry and read its README before changing the workflow. Extend the existing workflow instead of creating another provisioning engine.
+- Do not match generic infrastructure VM work or employee-side bootstrap. For discussion and review, use the skill as read-only operational context; preserve the explicitly selected BMad workflow.
+- Skill activation does not authorize apply, credential changes, uploads, email, commits, pushes, or other external writes.
+
 ## Workflow Ownership
 
 - BMad skills own planning, task decomposition, checkpoints, implementation sequencing, validation strategy, Git/PR lifecycle, and completion criteria.
