@@ -1,0 +1,7 @@
+---
+- name: Syntax-check peer roles with a synthetic inventory
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - jenkins-plan-gateway
+    - jenkins-watchdog

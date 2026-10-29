@@ -1,0 +1,11 @@
+---
+jenkins_watchdog_install_authorized: false
+jenkins_watchdog_activate: false
+jenkins_watchdog_policy: {}
+jenkins_recovery_controller: jenkins
+jenkins_recovery_authorized_key: ""
+jenkins_recovery_private_key: "{{ vault_jenkins_recovery_ssh_private_key }}"
+jenkins_recovery_known_hosts: ""
+jenkins_recovery_controller_policy: {}
+jenkins_watchdog_peer_bindings: []
+jenkins_watchdog_controller_bindings: []

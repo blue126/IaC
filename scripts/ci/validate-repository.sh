@@ -134,6 +134,18 @@ if [[ "${python_applicable}" == true ]]; then
     echo "Unable to enumerate changed Python files" >&2
     exit 1
   fi
+  peer_suites=(
+    jenkins-peer-test.py
+    jenkins-controller-state-test.py
+    jenkins-runner-boundary-test.py
+    jenkins-source-preflight-test.py
+    jenkins-toolchain-unpack-test.py
+    jenkins-peer-repair-test.py
+  )
+  for peer_suite in "${peer_suites[@]}"; do
+    (cd "${REPOSITORY_ROOT}" && "${PYTHON_BIN}" "tests/ci/${peer_suite}")
+  done
+  echo "jenkins_peer_regressions=passed suites=${#peer_suites[@]}"
   checked_python_files=0
   while IFS= read -r -d '' changed_file; do
     if [[ "${changed_file}" == *.py && -f "${REPOSITORY_ROOT}/${changed_file}" ]]; then

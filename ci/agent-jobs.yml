@@ -1,0 +1,64 @@
+---
+schema: 1
+cutover_authorized: false
+controller_mode: bootstrap
+# Keep existing online entries pinned until the corresponding new entry has
+# scheduling, credential-scope and cleanup evidence. Local source is staged.
+jobs:
+  IaC-ReadOnly-Plan:
+    node: iac-plan
+    unix_user: iac-plan
+    profile: plan
+    pipeline: Jenkinsfile-plan
+    branch: main
+    manual_only: true
+    scope: ['root:proxmox']
+    secrets: []
+    enabled: false
+    evidence: null
+  IaC-Homelab-Pipeline:
+    node: iac-deploy
+    unix_user: iac-deploy
+    profile: deploy
+    pipeline: Jenkinsfile-peer
+    branch: main
+    scope: ['root:proxmox', 'service:n8n-rental']
+    credentials_by_stage:
+      terraform: [hcp-proxmox-deploy, proxmox-deploy]
+      ansible: [ansible-approved-scope]
+    enabled: false
+    evidence: null
+  Webhook-Router:
+    node: null
+    unix_user: null
+    pipeline: Jenkinsfile-webhook-router-peer
+    branch: main
+    routes:
+      proxmox: Proxmox-Provisioning
+      physical: Physical-Device-Sync
+    missing_downstream: fail-before-mutation
+    enabled: false
+    evidence: null
+  n8n-rental:
+    node: iac-apps
+    unix_user: iac-apps
+    profile: apps-publish
+    repository: private-owner-managed
+    source_baseline: a1fd564534a7ec991b5b7fb0c0a13e71bad3fe8a
+    scope: ['service:n8n-rental']
+    patch_contract: docs/guides/jenkins-private-app-ci-contract.md
+    credentials_by_stage:
+      publish: [ct106-publish-ssh]
+      google: [google-clasp]
+    enabled: false
+    evidence: null
+  n8n-rental-clasp-validation:
+    node: iac-apps
+    unix_user: iac-apps
+    profile: apps-validation
+    source: retain-inline-repair-bundle-and-test-sha
+    scope: ['service:n8n-rental']
+    patch_contract: docs/guides/jenkins-private-app-ci-contract.md
+    secrets: []
+    enabled: false
+    evidence: null

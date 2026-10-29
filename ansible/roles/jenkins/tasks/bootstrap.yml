@@ -1,0 +1,143 @@
+---
+# Jenkins CI/CD Server Installation
+# Installs Jenkins LTS + Terraform + Ansible
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install required system packages
+  ansible.builtin.apt:
+    name: "{{ jenkins_packages }}"
+    state: present
+
+# === Java Installation ===
+- name: Install Java (Jenkins requirement)
+  ansible.builtin.apt:
+    name: "{{ jenkins_java_package }}"
+    state: present
+
+- name: Verify Java installation
+  check_mode: false
+  ansible.builtin.command: java -version
+  register: java_version
+  changed_when: false
+
+- name: Display Java version
+  ansible.builtin.debug:
+    msg: "{{ java_version.stderr_lines[0] }}"
+
+# === Jenkins Installation ===
+- name: Import Jenkins GPG key from keyserver
+  ansible.builtin.shell: |
+    gpg --batch --keyserver keyserver.ubuntu.com --recv-keys 7198F4B714ABFC68
+    gpg --batch --export 7198F4B714ABFC68 > /usr/share/keyrings/jenkins-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/jenkins-keyring.gpg
+
+- name: Add Jenkins apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/jenkins.list
+    content: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian-stable binary/\n"
+    mode: '0644'
+
+- name: Update apt cache for Jenkins
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Jenkins
+  ansible.builtin.apt:
+    name: jenkins
+    state: present
+    update_cache: yes
+
+- name: Ensure Jenkins service is enabled and started
+  ansible.builtin.systemd:
+    name: jenkins
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Wait for Jenkins to start
+  ansible.builtin.wait_for:
+    port: "{{ jenkins_http_port }}"
+    delay: 10
+    timeout: 120
+
+# === Terraform Installation ===
+- name: Add HashiCorp GPG key
+  ansible.builtin.get_url:
+    url: https://apt.releases.hashicorp.com/gpg
+    dest: /usr/share/keyrings/hashicorp-archive-keyring.asc
+    mode: '0644'
+
+- name: Add HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    state: present
+    filename: hashicorp
+
+- name: Install Terraform
+  ansible.builtin.apt:
+    name: terraform
+    state: present
+    update_cache: yes
+
+- name: Verify Terraform installation
+  check_mode: false
+  ansible.builtin.command: terraform version
+  register: terraform_version
+  changed_when: false
+
+- name: Display Terraform version
+  ansible.builtin.debug:
+    msg: "{{ terraform_version.stdout_lines[0] }}"
+
+# === Ansible Installation (via pipx for latest version) ===
+- name: Remove old apt-installed Ansible if present
+  ansible.builtin.apt:
+    name:
+      - ansible
+      - ansible-core
+    state: absent
+
+- name: Install pipx
+  ansible.builtin.apt:
+    name: pipx
+    state: present
+
+- name: Ensure pipx path for root user
+  ansible.builtin.command: pipx ensurepath
+  changed_when: false
+
+- name: Install Ansible via pipx
+  ansible.builtin.command: pipx install --include-deps ansible
+  args:
+    creates: /root/.local/bin/ansible
+  environment:
+    PIPX_HOME: /opt/pipx
+    PIPX_BIN_DIR: /usr/local/bin
+
+- name: Install ansible-lint via pipx
+  ansible.builtin.command: pipx install ansible-lint
+  args:
+    creates: /usr/local/bin/ansible-lint
+  environment:
+    PIPX_HOME: /opt/pipx
+    PIPX_BIN_DIR: /usr/local/bin
+
+- name: Install Ansible Galaxy collections
+  ansible.builtin.command: ansible-galaxy collection install {{ item }} --force
+  loop: "{{ jenkins_ansible_collections }}"
+  changed_when: false
+
+- name: Verify Ansible installation
+  check_mode: false
+  ansible.builtin.command: ansible --version
+  register: ansible_version_output
+  changed_when: false
+
+- name: Display Ansible version
+  ansible.builtin.debug:
+    msg: "{{ ansible_version_output.stdout_lines[0] }}"

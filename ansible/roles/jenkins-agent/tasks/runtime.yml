@@ -1,0 +1,282 @@
+---
+- name: Install Debian runtime prerequisites after authorization
+  ansible.builtin.apt:
+    name: [ca-certificates, openssl, git, openssh-client, rsync, iproute2, nftables, util-linux, python3, python3-venv]
+    state: present
+    update_cache: false
+
+- name: Validate all peer TLS materials before writing secrets
+  ansible.builtin.command:
+    argv: [/usr/bin/python3, '-c', "{{ lookup('file', role_path + '/../../../scripts/jenkins/validate-materials.py') | replace('from control import Refused', 'class Refused(ValueError): pass') }}"]
+    stdin: "{{ {'kind': 'agent', 'clients': jenkins_agent_client_certificates, 'roots': jenkins_agent_root_certificates} | to_json }}"
+  changed_when: false
+  no_log: true
+
+- name: Create root-owned toolchain staging directory
+  ansible.builtin.file:
+    path: /opt/jenkins-agent/control
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy root-owned control scripts
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../scripts/jenkins/{{ item }}"
+    dest: "/opt/jenkins-agent/control/{{ item }}"
+    owner: root
+    group: root
+    mode: "0555"
+  loop: [control.py, toolchain.py, job-runner.py, job-network.py, runner-client.py, transaction.py, plan-task.py, isolation-probe.py, job-entry.py, collect-handoff-evidence.py]
+  notify: Queue Jenkins agent maintenance
+
+- name: Copy complete toolchain lock
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../ci/agent-toolchain.lock.json"
+    dest: /opt/jenkins-agent/control/agent-toolchain.lock.json
+    owner: root
+    group: root
+    mode: "0444"
+  notify: Queue Jenkins agent maintenance
+
+- name: Copy authoritative toolchain BOM
+  ansible.builtin.copy:
+    content: "{{ ci_toolchain_bom | to_nice_json }}"
+    dest: /opt/jenkins-agent/control/bom.json
+    owner: root
+    group: root
+    mode: "0444"
+  notify: Queue Jenkins agent maintenance
+
+- name: Validate and install the complete offline toolchain
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - /opt/jenkins-agent/control/toolchain.py
+      - install
+      - --kit
+      - "{{ jenkins_agent_offline_kit }}"
+      - --lock
+      - /opt/jenkins-agent/control/agent-toolchain.lock.json
+      - --bom
+      - /opt/jenkins-agent/control/bom.json
+  register: jenkins_agent_toolchain_install
+  delegate_to: "{{ inventory_hostname }}"
+  changed_when: "jenkins_agent_toolchain_install.stdout_lines | last == 'installed'"
+  notify: Queue Jenkins agent maintenance
+
+- name: Create Jenkins agent groups
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    system: true
+    state: present
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Create Jenkins agent base directory
+  ansible.builtin.file:
+    path: "{{ jenkins_agent_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Jenkins agent accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    group: "{{ item.name }}"
+    groups: ""
+    append: false
+    home: "{{ jenkins_agent_base_dir }}/{{ item.name }}"
+    shell: /bin/bash
+    system: true
+    create_home: true
+    state: present
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Read provisioned peer Unix IDs
+  ansible.builtin.command: "id -u {{ item.name }}"
+  loop: "{{ jenkins_agent_instances }}"
+  register: jenkins_agent_provisioned_ids
+  changed_when: false
+  no_log: true
+
+- name: Assert three distinct non-root execution identities
+  ansible.builtin.assert:
+    that:
+      - jenkins_agent_provisioned_ids.results | map(attribute='stdout') | map('int') | min > 0
+      - jenkins_agent_provisioned_ids.results | map(attribute='stdout') | unique | length == 3
+
+- name: Create Jenkins agent installation directory
+  ansible.builtin.file:
+    path: "{{ jenkins_agent_jar_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download pinned Jenkins agent runtime
+  ansible.builtin.get_url:
+    url: "{{ jenkins_agent_jar_url }}"
+    dest: "{{ jenkins_agent_jar_path }}"
+    checksum: "sha256:{{ ci_toolchain_bom.jenkins.agent_jar.sha256 }}"
+    owner: root
+    group: root
+    mode: "0555"
+  notify: Queue Jenkins agent maintenance
+
+- name: Create private Jenkins agent directories
+  ansible.builtin.file:
+    path: >-
+      {{ jenkins_agent_base_dir }}/{{ item.0.name }}{{ '/' + item.1 if item.1 else '' }}
+    state: directory
+    owner: "{{ item.0.name }}"
+    group: "{{ item.0.name }}"
+    mode: "0700"
+  loop: "{{ jenkins_agent_instances | product(jenkins_agent_private_directory_suffixes) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}:{{ item.1 | default('home', true) }}"
+  vars:
+    jenkins_agent_private_directory_suffixes:
+      - ""
+      - workspace
+      - tmp
+  no_log: true
+
+- name: Create Jenkins agent configuration directory
+  ansible.builtin.file:
+    path: "{{ jenkins_agent_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Jenkins agent secret directories
+  ansible.builtin.file:
+    path: "{{ jenkins_agent_config_dir }}/{{ item.name }}"
+    state: directory
+    owner: root
+    group: "{{ item.name }}"
+    mode: "0750"
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Deploy Jenkins agent connection secrets
+  ansible.builtin.copy:
+    content: "{{ item.secret }}\n"
+    dest: "{{ jenkins_agent_config_dir }}/{{ item.name }}/secret"
+    owner: root
+    group: "{{ item.name }}"
+    mode: "0440"
+  loop: "{{ jenkins_agent_instances }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  notify: Queue Jenkins agent maintenance
+
+- name: Deploy Jenkins agent systemd service template
+  ansible.builtin.template:
+    src: jenkins-agent.service.j2
+    dest: /etc/systemd/system/jenkins-agent@.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Queue Jenkins agent maintenance
+
+- name: Deploy per-identity admission TLS material
+  ansible.builtin.copy:
+    content: "{{ item.0[item.1.field] }}"
+    dest: "{{ jenkins_agent_config_dir }}/{{ item.0.name }}/{{ item.1.filename }}"
+    owner: root
+    group: "{{ item.0.name }}"
+    mode: "0440"
+  loop: "{{ jenkins_agent_client_certificates | product(jenkins_agent_certificate_files) | list }}"
+  vars:
+    jenkins_agent_certificate_files:
+      - field: ca
+        filename: controller-ca.pem
+      - field: certificate
+        filename: admission.crt
+      - field: key
+        filename: admission.key
+  no_log: true
+  notify: Queue Jenkins agent maintenance
+
+- name: Create root admission transport identity directory
+  ansible.builtin.file:
+    path: /etc/jenkins-agent/control
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy root-only admission transport identity
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "/etc/jenkins-agent/control/{{ item.filename }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ jenkins_agent_root_certificates }}"
+  no_log: true
+  notify: Queue Jenkins agent maintenance
+
+- name: Validate versioned public key identifiers
+  ansible.builtin.assert:
+    that:
+      - item.id is match('^[a-zA-Z0-9-]{1,64}$')
+  loop: "{{ jenkins_agent_public_keys }}"
+
+- name: Deploy versioned root-owned public verification keys
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "/opt/jenkins-agent/control/{{ item.id }}.pub"
+    owner: root
+    group: root
+    mode: "0444"
+  loop: "{{ jenkins_agent_public_keys }}"
+  notify: Queue Jenkins agent maintenance
+
+- name: Deploy root-owned runner and public wrapper trust policies
+  ansible.builtin.copy:
+    content: "{{ item.value | to_nice_json }}"
+    dest: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: /etc/jenkins-agent/runner.json
+      value: "{{ jenkins_agent_runner_config }}"
+      mode: "0600"
+    - path: /opt/jenkins-agent/control/trust.json
+      value: "{{ jenkins_agent_wrapper_trust }}"
+      mode: "0444"
+  no_log: true
+  notify: Queue Jenkins agent maintenance
+
+- name: Require populated runtime policies before activation
+  ansible.builtin.assert:
+    that:
+      - jenkins_agent_runner_config | length > 0
+      - jenkins_agent_wrapper_trust | length > 0
+      - jenkins_agent_client_certificates | map(attribute='name') | list | sort == ['iac-apps', 'iac-deploy', 'iac-plan']
+      - jenkins_agent_root_certificates | length > 0
+      - jenkins_agent_public_keys | length > 0
+  when: jenkins_agent_activate | bool
+
+- name: Deploy root runner units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [jenkins-job-runner.service, jenkins-job-runner.socket, jenkins-control.slice]
+  notify: Queue Jenkins agent maintenance

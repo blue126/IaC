@@ -1,7 +1,12 @@
 [Unit]
 Description=Jenkins inbound agent (%i)
 Wants=network-online.target
-After=network-online.target
+After=network-online.target jenkins-job-runner.service
+Requires=jenkins-job-runner.socket jenkins-job-runner.service
+BindsTo=jenkins-job-runner.service
+ConditionPathExists=!/var/lib/jenkins-agent-control/quarantine.json
+ConditionPathExists=!/var/lib/jenkins-agent-control/agent-update-incomplete
+ConditionPathExists=/run/jenkins-agent-remoting-ready
 
 [Service]
 Type=simple
@@ -11,11 +16,19 @@ WorkingDirectory={{ jenkins_agent_base_dir }}/%i
 Environment=HOME={{ jenkins_agent_base_dir }}/%i
 Environment=TMPDIR={{ jenkins_agent_base_dir }}/%i/tmp
 UMask=0077
-ExecStart=/usr/bin/java -jar {{ jenkins_agent_jar_path }} -url {{ jenkins_agent_controller_url }} -secret @{{ jenkins_agent_config_dir }}/%i/secret -name %i -webSocket -workDir {{ jenkins_agent_base_dir }}/%i
+ExecStart={{ jenkins_agent_java_command }} -Xmx96m -XX:+DisableAttachMechanism -XX:+ExitOnOutOfMemoryError -jar {{ jenkins_agent_jar_path }} -url {{ jenkins_agent_controller_url }} -secret @{{ jenkins_agent_config_dir }}/%i/secret -name %i -webSocket -workDir {{ jenkins_agent_base_dir }}/%i
 Restart=always
 RestartSec=10
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateIPC=true
+ProtectProc=invisible
+MemoryMax=256M
+MemorySwapMax=0
+Delegate=no
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=192.168.1.107/32
 PrivateDevices=true
 ProtectHome=true
 ProtectSystem=strict

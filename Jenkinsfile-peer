@@ -1,0 +1,70 @@
+// Activate this protected-main entry only after its staged peer run is verified.
+pipeline {
+    agent none
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timestamps()
+        ansiColor('xterm')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 60, unit: 'MINUTES')
+    }
+    stages {
+        stage('IaC peer transaction') {
+            agent { label 'iac-deploy' }
+            steps {
+                script {
+                    def wrapper = '/usr/bin/python3 /opt/jenkins-agent/control/runner-client.py'
+                    def parse = { text -> new groovy.json.JsonSlurperClassic().parseText(text) }
+                    def run = parse(sh(script: "${wrapper} start", returnStdout: true).trim())
+                    if (!(run.nonce instanceof String) || !(run.nonce ==~ /[A-Za-z0-9_-]{16,128}/)) { error 'Invalid peer nonce' }
+                    env.PEER_NONCE = run.nonce
+                    try {
+                        def previousPhase = null
+                        while (true) {
+                            def status = parse(sh(script: '/usr/bin/python3 /opt/jenkins-agent/control/runner-client.py status --nonce "$PEER_NONCE"', returnStdout: true).trim())
+                            if (status.phase && status.phase != previousPhase) {
+                                echo "Peer stage: ${status.phase}"
+                                if (status.summary) { echo groovy.json.JsonOutput.toJson(status.summary) }
+                                previousPhase = status.phase
+                            }
+                            if (status.status == 'failed' || status.status == 'refused') { error 'Peer transaction failed or quarantined' }
+                            if (status.status == 'completed') {
+                                if (status.exit_code != 0) { error 'Peer verification failed' }
+                                echo groovy.json.JsonOutput.toJson(status.summary)
+                                break
+                            }
+                            if (status.phase in ['terraform-approval', 'ansible-approval']) {
+                                if (!(status.manifest_digest instanceof String) || !(status.manifest_digest ==~ /[0-9a-f]{64}/)) { error 'Invalid peer manifest digest' }
+                            }
+                            if (status.phase == 'terraform-approval') {
+                                stage('Approval - Terraform Apply') {
+                                    echo groovy.json.JsonOutput.toJson(status.summary)
+                                    input message: "Review the Terraform plan above. Proceed with apply? Manifest: ${status.manifest_digest}",
+                                          id: "TF-${status.manifest_digest}", submitter: 'iac-approvers', ok: 'Apply'
+                                    withEnv(["PEER_MANIFEST_DIGEST=${status.manifest_digest}"]) {
+                                        sh '/usr/bin/python3 /opt/jenkins-agent/control/runner-client.py approval --nonce "$PEER_NONCE" --stage terraform --digest "$PEER_MANIFEST_DIGEST"'
+                                    }
+                                }
+                            }
+                            if (status.phase == 'ansible-approval') {
+                                stage('Approval - Ansible Deploy') {
+                                    echo groovy.json.JsonOutput.toJson(status.summary)
+                                    input message: "Proceed with Ansible deployment? Exact refreshed scope: ${status.manifest_digest}",
+                                          id: "ANSIBLE-${status.manifest_digest}", submitter: 'iac-approvers', ok: 'Deploy'
+                                    withEnv(["PEER_MANIFEST_DIGEST=${status.manifest_digest}"]) {
+                                        sh '/usr/bin/python3 /opt/jenkins-agent/control/runner-client.py approval --nonce "$PEER_NONCE" --stage ansible --digest "$PEER_MANIFEST_DIGEST"'
+                                    }
+                                }
+                            }
+                            sleep time: 3, unit: 'SECONDS'
+                        }
+                    } catch (failure) {
+                        sh(script: '/usr/bin/python3 /opt/jenkins-agent/control/runner-client.py abort --nonce "$PEER_NONCE"', returnStatus: true)
+                        throw failure
+                    }
+                }
+            }
+        }
+    }
+}
