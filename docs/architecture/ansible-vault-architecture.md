@@ -8,7 +8,7 @@
 
 本文档定义了 Homelab IaC 项目中 Ansible Vault 的架构设计原则、变量组织方式、间接引用模式选择规则，以及与 Terraform 的集成机制。
 
-员工工作区接入密钥是单独的凭据域：四组员工 SSH/WireGuard 私钥已迁至 Bitwarden Secrets Manager 的 `EmployeeWorkspace` 项目。机器账号 `employee-workspace-admin` 仅有该项目读写权限。私有管理员入口 `~/Projects/employee-workspace-admin/onboard.sh` 在每次员工 Ansible 运行前从 BWS 读取密钥，与 IaC Vault 临时合成一个加密运行时 Vault，退出后清理临时文件。Terraform 继续管理员工 VM；公开 IaC 仓库的全局 Vault 不保存员工接入私钥。不得直接用全局 Vault 单独运行员工部署 playbook。
+员工工作区接入密钥是单独的凭据域：四组员工 SSH/WireGuard 私钥已迁至 Bitwarden Secrets Manager 的 `EmployeeWorkspace` 项目。机器账号 `employee-workspace-admin` 仅有该项目读写权限。私有管理员入口 `~/Projects/IaC/remotecc/employee-admin/onboard.sh`（旧路径保留兼容链接）在每次员工 Ansible 运行前从 BWS 读取密钥，与 IaC Vault 临时合成一个加密运行时 Vault，退出后清理临时文件。Terraform 继续管理员工 VM；公开 IaC 仓库的全局 Vault 不保存员工接入私钥。不得直接用全局 Vault 单独运行员工部署 playbook。
 
 ## 设计目标
 

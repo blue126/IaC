@@ -30,6 +30,9 @@ _bmad/**/config.user.yaml
 .playwright*.json
 .playwright-mcp/
 
+# Local-only RemoteCC administrator code and private runtime data
+/remotecc
+
 #########
 node_modules/
 tmp/
