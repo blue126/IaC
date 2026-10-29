@@ -14,6 +14,10 @@
 - **[employee-workspace-agent-onboarding.md](./employee-workspace-agent-onboarding.md)** — 员工本机 Agent 执行 bootstrap 的独立仓库设计草案。
 - **[inventory-and-document-sync-via-cicd.md](./inventory-and-document-sync-via-cicd.md)** — 变更驱动的文档自动同步提案。
 
+## 待部署验收
+
+- **[jenkins-peer-agent-recovery.md](./jenkins-peer-agent-recovery.md)** — 首个 Jenkins peer 的批准规格；本地实现完成，生产移交待验收。
+
 ## 已实现
 
 - **[implemented/cloudflare-tunnel-webhook.md](./implemented/cloudflare-tunnel-webhook.md)** — Cloudflare Tunnel Webhook 触发实现。

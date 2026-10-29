@@ -232,6 +232,8 @@ grep -Fq "python3 - ${REPOSITORY_ROOT}/ansible" "${MOCK_LOG}" || \
   fail "Ansible YAML files were not parsed with the CI Python runtime"
 grep -Fq "python3 ${REPOSITORY_ROOT}/tests/ci/ansible-shell-tasks-test.py" "${MOCK_LOG}" || \
   fail "Ansible shell probe regression tests were not executed"
+grep -Fq "python3 ${REPOSITORY_ROOT}/tests/ci/jenkins-role-fixture-test.py" "${MOCK_LOG}" || \
+  fail "Ansible role safety fixtures were not executed"
 grep -Fq "ansible-lint -c ${REPOSITORY_ROOT}/.ansible-lint playbooks roles" "${MOCK_LOG}" || \
   fail "Ansible lint was not executed"
 grep -Fq "ansible-playbook -i ${REPOSITORY_ROOT}/tests/ci/fixtures/inventory.yml" "${MOCK_LOG}" || \
@@ -317,6 +319,39 @@ if MOCK_CLASSIFICATION="${missing_roots_classification}" \
   GITHUB_OUTPUT="" \
   "${REPOSITORY_VALIDATOR}" base-sha head-sha >/dev/null 2>&1; then
   fail "Repository validator must reject applicable Terraform without roots"
+fi
+
+# Force the Python branch with real immutable refs while recording child calls.
+python_classification="${mock_classification/terraform_applicable=true/terraform_applicable=false}"
+python_classification="${python_classification/ansible_applicable=true/ansible_applicable=false}"
+python_classification="${python_classification/docs_applicable=true/docs_applicable=false}"
+python_classification="${python_classification/python_applicable=false/python_applicable=true}"
+real_git="$(command -v git)"
+cat >"${MOCK_BIN}/git" <<EOF
+#!/bin/bash
+if [[ "\${CI_FIXTURE_GIT_DIFF_EMPTY:-}" == 1 && "\${1:-}" == diff ]]; then exit 0; fi
+exec "${real_git}" "\$@"
+EOF
+chmod +x "${MOCK_BIN}/git"
+validation_head=fixture-head
+export CI_FIXTURE_GIT_DIFF_EMPTY=1
+export PATH="${MOCK_BIN}:${PATH}"
+: >"${MOCK_LOG}"
+MOCK_CLASSIFICATION="${python_classification}" \
+CLASSIFIER_BIN="${MOCK_BIN}/classifier" \
+PYTHON_BIN="${MOCK_BIN}/python3" \
+GITHUB_OUTPUT="" \
+  "${REPOSITORY_VALIDATOR}" "${validation_head}" "${validation_head}" >/dev/null
+for peer_suite in jenkins-peer-test.py jenkins-controller-state-test.py jenkins-runner-boundary-test.py jenkins-source-preflight-test.py jenkins-toolchain-unpack-test.py jenkins-peer-repair-test.py; do
+  grep -Fxq "python3 tests/ci/${peer_suite}" "${MOCK_LOG}" || fail "validator did not execute ${peer_suite}"
+done
+if MOCK_CLASSIFICATION="${python_classification}" \
+  CLASSIFIER_BIN="${MOCK_BIN}/classifier" \
+  PYTHON_BIN="${MOCK_BIN}/python3" \
+  MOCK_FAIL_MATCH="jenkins-runner-boundary-test.py" \
+  GITHUB_OUTPUT="" \
+  "${REPOSITORY_VALIDATOR}" "${validation_head}" "${validation_head}" >/dev/null 2>&1; then
+  fail "peer regression failure must propagate through repository validation"
 fi
 
 workflow="${REPOSITORY_ROOT}/.github/workflows/repo-validation.yml"

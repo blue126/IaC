@@ -1,105 +1,120 @@
 ---
-- name: Validate Jenkins controller lifecycle gates
+- name: Validate desired controller mode and exclusive identities before convergence
   ansible.builtin.assert:
     that:
-      - jenkins_controller_change_authorized | bool
-      - jenkins_controller_watchdog_ready | bool
-      - jenkins_controller_restore_tested_backup_ready | bool
-      - jenkins_controller_change_authorization_id | length > 0
-      - jenkins_controller_watchdog_bundle_sha256 is match('^[0-9a-f]{64}$')
-      - jenkins_controller_restore_test_evidence_id | length > 0
-    fail_msg: >-
-      Planned Jenkins controller changes require explicit authorization, a
-      dispatched peer-agent watchdog, an exact-version restore-tested backup,
-      and their non-secret audit evidence identifiers.
+      - jenkins_controller_mode in ['bootstrap', 'normal']
+      - jenkins_casc_nodes | map(attribute='name') | list | sort == ['iac-apps', 'iac-deploy', 'iac-plan']
+      - jenkins_casc_nodes | length == 3
+      - jenkins_home == '/var/lib/jenkins'
+      - jenkins_systemd_override_dir == '/etc/systemd/system/jenkins.service.d'
+      - jenkins_casc_dir == jenkins_home + '/casc'
+      - jenkins_casc_config_path == jenkins_home + '/casc/jenkins.yaml'
 
-- name: Load CI toolchain BOM
+- name: Load CI toolchain BOM for convergence inspection
   ansible.builtin.include_vars:
     file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
     name: ci_toolchain_bom
 
-- name: Read installed Jenkins package version
+- name: Read installed core before deciding no-op convergence
   ansible.builtin.command:
-    argv:
-      - dpkg-query
-      - -W
-      - "-f=${Version}"
-      - jenkins
-  register: jenkins_installed_package_version
+    argv: [dpkg-query, -W, '-f=${Version}', jenkins]
+  register: jenkins_controller_convergence_core
   changed_when: false
-  check_mode: false
 
-- name: Assert Jenkins core matches the BOM
+- name: Reject a core version outside the BOM
   ansible.builtin.assert:
     that:
-      - jenkins_installed_package_version.stdout == ci_toolchain_bom.jenkins.core.package_version
-    fail_msg: >-
-      Installed Jenkins core does not match the BOM; upgrade and restore testing
-      must be handled as a separate controller lifecycle change.
+      - jenkins_controller_convergence_core.stdout == ci_toolchain_bom.jenkins.core.package_version
 
-- name: Install BOM-pinned Jenkins plugins
-  community.general.jenkins_plugin:
-    name: "{{ item.id }}"
-    version: "{{ item.version }}"
-    state: present
-    with_dependencies: true
-    jenkins_home: "{{ jenkins_home }}"
-    owner: jenkins
-    group: jenkins
-  loop: "{{ ci_toolchain_bom.jenkins.managed_plugins }}"
-  loop_control:
-    label: "{{ item.id }}:{{ item.version }}"
-  notify: Restart Jenkins
+- name: Inspect controller directories without writing
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop:
+    - path: "{{ jenkins_casc_dir }}"
+      owner: root
+      group: jenkins
+      mode: '0750'
+    - path: "{{ jenkins_systemd_override_dir }}"
+      owner: root
+      group: root
+      mode: '0755'
+  register: jenkins_controller_convergence_directories
 
-- name: Read managed Jenkins plugin checksums
+- name: Inspect controller configuration files without writing
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    checksum_algorithm: sha256
+  loop:
+    - path: "{{ jenkins_casc_config_path }}"
+      template: jenkins.yaml.j2
+      owner: root
+      group: jenkins
+      mode: '0640'
+    - path: "{{ jenkins_systemd_override_dir }}/10-casc.conf"
+      template: jenkins.service.override.conf.j2
+      owner: root
+      group: root
+      mode: '0644'
+  register: jenkins_controller_convergence_files
+  no_log: true
+
+- name: Inspect pinned controller plugins without writing
   ansible.builtin.stat:
     path: "{{ jenkins_home }}/plugins/{{ item.id }}.jpi"
     checksum_algorithm: sha256
   loop: "{{ ci_toolchain_bom.jenkins.managed_plugins }}"
-  loop_control:
-    label: "{{ item.id }}"
-  register: jenkins_managed_plugin_files
+  register: jenkins_controller_convergence_plugins
 
-- name: Assert managed Jenkins plugins match the BOM
-  ansible.builtin.assert:
-    that:
-      - item.stat.exists
-      - item.stat.checksum == item.item.sha256
-    fail_msg: "Installed Jenkins plugin does not match the BOM checksum."
-  loop: "{{ jenkins_managed_plugin_files.results }}"
-  loop_control:
-    label: "{{ item.item.id }}"
+- name: Inspect deployed recovery helper bytes without writing
+  ansible.builtin.stat:
+    path: "/opt/jenkins-recovery/{{ item }}"
+    checksum_algorithm: sha256
+  loop: [control.py, controller-maintenance.py]
+  register: jenkins_controller_convergence_helpers
 
-- name: Create Jenkins JCasC configuration directory
-  ansible.builtin.file:
-    path: "{{ jenkins_casc_dir }}"
-    state: directory
-    owner: root
-    group: jenkins
-    mode: "0750"
+- name: Initialize controller convergence decision
+  ansible.builtin.set_fact:
+    jenkins_controller_configuration_unchanged: true
 
-- name: Deploy Jenkins JCasC configuration
-  ansible.builtin.template:
-    src: jenkins.yaml.j2
-    dest: "{{ jenkins_casc_config_path }}"
-    owner: root
-    group: jenkins
-    mode: "0640"
-  notify: Restart Jenkins
+- name: Require fresh gate when configuration bytes or metadata differ
+  ansible.builtin.set_fact:
+    jenkins_controller_configuration_unchanged: false
+  when: >-
+    not item.stat.exists or
+    item.stat.checksum | default('') != (lookup('template', item.item.template) | hash('sha256')) or
+    item.stat.pw_name | default('') != item.item.owner or
+    item.stat.gr_name | default('') != item.item.group or
+    item.stat.mode | default('') != item.item.mode
+  loop: "{{ jenkins_controller_convergence_files.results }}"
+  no_log: true
 
-- name: Create Jenkins systemd override directory
-  ansible.builtin.file:
-    path: "{{ jenkins_systemd_override_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
+- name: Require fresh gate when controller directory metadata differs
+  ansible.builtin.set_fact:
+    jenkins_controller_configuration_unchanged: false
+  when: >-
+    not item.stat.exists or not item.stat.isdir | default(false) or
+    item.stat.pw_name | default('') != item.item.owner or
+    item.stat.gr_name | default('') != item.item.group or
+    item.stat.mode | default('') != item.item.mode
+  loop: "{{ jenkins_controller_convergence_directories.results }}"
 
-- name: Configure Jenkins JCasC environment
-  ansible.builtin.template:
-    src: jenkins.service.override.conf.j2
-    dest: "{{ jenkins_systemd_override_dir }}/10-casc.conf"
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Restart Jenkins
+- name: Require fresh gate when pinned plugin bytes differ
+  ansible.builtin.set_fact:
+    jenkins_controller_configuration_unchanged: false
+  when: not item.stat.exists or item.stat.checksum | default('') != item.item.sha256
+  loop: "{{ jenkins_controller_convergence_plugins.results }}"
+
+- name: Require fresh gate when deployed recovery helper bytes differ
+  ansible.builtin.set_fact:
+    jenkins_controller_configuration_unchanged: false
+  when: >-
+    not item.stat.exists or
+    item.stat.checksum | default('') != (lookup('file', role_path + '/../../../scripts/jenkins/' + item.item, rstrip=false) | hash('sha256')) or
+    item.stat.pw_name | default('') != 'root' or
+    item.stat.gr_name | default('') != 'root' or
+    item.stat.mode | default('') != '0500'
+  loop: "{{ jenkins_controller_convergence_helpers.results }}"
+
+- name: Apply controller configuration only with a fresh one-use gate
+  ansible.builtin.include_tasks: config-write.yml
+  when: not jenkins_controller_configuration_unchanged | bool

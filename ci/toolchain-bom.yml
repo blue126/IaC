@@ -53,7 +53,7 @@ jenkins:
         https://packages.adoptium.net/artifactory/deb bookworm main
   controller_executors_bootstrap: 2
   agent_jar:
-    sha256: "2a814594ae8df13fe6b490f7a802f3befcf14483ff3cdb778b771e0582ecd726"
+    sha256: "4ae5bbd00b0f79f4453d20fbb6b70dcac4d0a9a4d21d85b18b2c72dd9d117aae"
   plugin_upgrade:
     canonical_lock_sha256: "2b5440ede8e3bc5a75ab57e88ececd5a16c5dddba743600fb31d1565569011b6"
     reconcile_ids:
