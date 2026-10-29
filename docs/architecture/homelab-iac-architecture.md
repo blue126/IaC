@@ -198,7 +198,7 @@ Proxmox VE Cluster
 > `terraform/proxmox/container-lab.tf`、`ansible/playbooks/deploy-container-lab.yml`；
 > inventory 地址为 `ansible_host.container_lab`，output 为 `container_lab_ip`（仍为 `192.168.1.108/24`）。
 > 原 inventory 资源通过显式 `moved` 保留身份；实际 PVE 名称 `containerlab`、guest hostname、Cloud-Init、硬件及停止状态不因本次整理改变。
-> 后续旧名 `ubuntu-2604` 的日期记录保留历史含义，迁移进度以[执行计划](../../_bmad-output/plan-proxmox-consolidation-execution.md)为准。
+> 后续旧名 `ubuntu-2604` 的日期记录保留历史含义，迁移进度以[执行计划](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/plan-proxmox-consolidation-execution.md)为准。
 
 > **退役状态（2026-08-12）**：pve0 的 LXC 109 `claude-agent` 已通过
 > Terraform 定向 saved plan 销毁，手工 VM 110 `claude-desktop` 已在优雅关机后
@@ -751,7 +751,7 @@ CT111 根盘为 pve0 `vmdata:subvol-111-disk-0`（8GiB），数据盘为 `local-
 
 2026-10-27 读取 `/etc/pve/jobs.cfg`：pve0 snapshot 作业成员为 `100,101,102,103,104,105,106,107,109,112,113,114,115,117,118`，00:00，**enabled=0**；pve1 的 all 作业也为 **enabled=0**。108 按用户决定免备份；111 的迁后 T1/verify 已取消，不列入该 snapshot 作业。这里记录当前配置，不代表周期备份正在执行；此次仅恢复 Jenkins，未启用备份作业。
 
-Jenkins `IaC-Homelab-Pipeline` 已恢复启用，跟踪 `main`，未主动触发构建；HCP state serial104，完整 live refresh plan 全部 PVE 资源 NoOp。全部迁移收尾和用户豁免见[执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。pve1 关机前后检查见[关机说明](../guides/proxmox-pve1-shutdown.md)。
+Jenkins `IaC-Homelab-Pipeline` 已恢复启用，跟踪 `main`，未主动触发构建；HCP state serial104，完整 live refresh plan 全部 PVE 资源 NoOp。全部迁移收尾和用户豁免见[执行记录](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/plan-proxmox-consolidation-execution.md)。pve1 关机前后检查见[关机说明](../guides/proxmox-pve1-shutdown.md)。
 
 #### 历史备份拓扑（2026-09-21 配置快照）
 

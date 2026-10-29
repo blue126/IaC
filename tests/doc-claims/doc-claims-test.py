@@ -325,7 +325,7 @@ fenced_sample_webui_port: 3000
 
     def test_notion_accepted_risk_remains_outside_documentation_automation(self) -> None:
         contract_root = (
-            REPOSITORY_ROOT / "_bmad-output/specs/spec-oink-doc-accuracy-integration"
+            REPOSITORY_ROOT / "docs/reference/doc-accuracy-contract"
         )
         boundary = (contract_root / "security-boundary.md").read_text(encoding="utf-8")
         canonical = (contract_root / "SPEC.md").read_text(encoding="utf-8")

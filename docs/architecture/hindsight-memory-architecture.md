@@ -8,7 +8,7 @@
 
 目标已恢复 running/onboot1。本次单台观察实际1810.083秒、31轮原业务检查全部通过，整体24–48小时观察已按用户决定退出本线程职责，不列为本次迁移待办。T0 `ct/118/2026-10-25T19:40:41Z` 与 T1 `ct/118/2026-10-25T20:05:55Z` 在既有 PBS/root namespace，均创建即 protected、精确 verify OK、目标可读。118已加入pve0原PBS snapshot作业 `69f0f583-9878-40b2-bd3a-ee6253ef0842`，enabled仍为0；完整前后对象核对确认其他配置及另一作业不变，未触发备份。源盘已获准清理，未解除备份保护；pve1 关机检查见[关机说明](../guides/proxmox-pve1-shutdown.md)。
 
-下面2026-10-10/19的部署核对、性能与迁移历史保留原日期及原 pve1 事实，不能当成迁后的宿主资源读数。当前 PVE 操作使用 pve0；本次完整过程见[迁移执行记录](../../_bmad-output/plan-proxmox-consolidation-execution.md)。
+下面2026-10-10/19的部署核对、性能与迁移历史保留原日期及原 pve1 事实，不能当成迁后的宿主资源读数。当前 PVE 操作使用 pve0；本次完整过程见[迁移执行记录](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/plan-proxmox-consolidation-execution.md)。
 
 **2026-10-19 原说明（历史保留）**
 

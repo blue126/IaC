@@ -4,7 +4,7 @@
 # Opt-in only. A target absent from this file is never probed, and claims about
 # it can only be `unresolved` -- excluding a target also forgoes automatic
 # documentation repair for everything on it. See
-# _bmad-output/specs/spec-doc-gardening-agent/observation-policy.md section 2.
+# Historical source: https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-doc-gardening-agent/observation-policy.md (section 2).
 #
 # Schema, per entry:
 #   id       required, kebab-case, unique. Matches the inventory hostname.

@@ -195,6 +195,8 @@ When working on specific areas, read the relevant design doc for detailed patter
 执行 BMAD Team 协调任务时，再读取 docs/agent/multica-team.md；不另写 BMAD 流程顺序。
 执行任何 BMAD 评审前，读取 docs/agent/bmad-review-routing.md 确认该 reviewer 是否走 Claude。
 
+`_bmad-output/` 是本地工作输出，整体不进入版本控制。取消 Git 跟踪必须保留已有本地文件字节；新检出需要历史输出时，从固定历史快照恢复，不覆盖已有本地工作。延期清单的“只增不改/不删除”约束适用于清单内容和同步行为，不要求将本地输出纳入 Git；历史记录的恢复入口见 `docs/architecture/deferred-work-sync.md`。
+
 BMAD 会把"本次不做但该做"的工作追加到 `_bmad-output/implementation-artifacts/deferred-work.md`。该文件只增不改、没有退役机制，也不在日常视野里。**BMAD 工作产生新的延期条目后，把它同步成 GitHub issue：**
 
 ```bash

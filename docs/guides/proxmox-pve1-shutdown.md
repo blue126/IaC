@@ -10,7 +10,7 @@
 - 集群为 pve0 1票、pve1 1票、QDevice 1票，quorum2。pve0 的 QDevice Connected/TLS active，N100 上两客户端证书 verified，现有 guard 规则及 ingress hook 在位。
 - Jenkins 已恢复启用，未主动触发构建。两个既有 PVE 备份作业仍为 disabled，本次未启用；不应将配置的00:00计划理解为备份正在执行。
 
-迁移、adoption、完整 live refresh、源盘和任务临时资源清理见[最终执行状态](../../_bmad-output/plan-proxmox-consolidation-execution.md)。取消的全量数据扫描、CT111迁后T1/verify、剩余观察和双Mac/24–48h跟进不列为未完成迁移，也未记录为验证通过。
+迁移、adoption、完整 live refresh、源盘和任务临时资源清理见[最终执行状态](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/plan-proxmox-consolidation-execution.md)。取消的全量数据扫描、CT111迁后T1/verify、剩余观察和双Mac/24–48h跟进不列为未完成迁移，也未记录为验证通过。
 
 ## 正常关机与关机后确认
 
