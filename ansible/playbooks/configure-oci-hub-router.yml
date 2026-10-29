@@ -1,0 +1,38 @@
+---
+- name: Deploy isolated PVE SDN and routing boundary
+  hosts: oci_hub_pve
+  become: true
+  roles:
+    - oci-hub-pve
+
+- name: Configure explicitly approved OpenWrt aggregate return route
+  hosts: oci_hub_router
+  gather_facts: false
+  tasks:
+    - name: Require reviewed WAN forwarding and NAT coverage
+      ansible.builtin.assert:
+        that:
+          - oci_hub_router_nat_verified | default(false) | bool
+          - oci_hub_router_aggregate is match('^[0-9.]+/[0-9]+$')
+          - oci_hub_router_pve_address is match('^[0-9.]+$')
+    - name: Configure only the new aggregate route
+      ansible.builtin.raw: >-
+        if [ "$(uci -q get network.oci_hub.target)" = '{{ oci_hub_router_aggregate }}' ] &&
+        [ "$(uci -q get network.oci_hub.gateway)" = '{{ oci_hub_router_pve_address }}' ]; then
+        printf 'unchanged\n'; exit 0; fi;
+        uci set network.oci_hub=route &&
+        uci set network.oci_hub.interface=lan &&
+        uci set network.oci_hub.target='{{ oci_hub_router_aggregate }}' &&
+        uci set network.oci_hub.gateway='{{ oci_hub_router_pve_address }}' &&
+        uci commit network && /etc/init.d/network reload && printf 'changed\n'
+      register: oci_hub_route_result
+      changed_when: "'changed' in oci_hub_route_result.stdout_lines"
+
+- name: Verify PVE live boundary
+  hosts: oci_hub_pve
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify actual routed and bridge isolation
+      ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+      changed_when: false

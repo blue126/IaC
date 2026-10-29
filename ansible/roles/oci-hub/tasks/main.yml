@@ -1,0 +1,155 @@
+---
+- name: Validate fixed Portal artifact and isolated deployment inputs
+  ansible.builtin.assert:
+    that:
+      - oci_hub_profile == 'oci-hub'
+      - oci_hub_boundary.kind == 'hub'
+      - oci_hub_portal_version == '2.3.1'
+      - oci_hub_portal_sha256 is match('^[a-f0-9]{64}$')
+      - oci_hub_source_artifact | length > 0
+      - oci_hub_ignored_interfaces | length > 0
+      - oci_hub_portal_admin_password | length >= 16
+      - oci_hub_portal_api_token | length >= 32
+    fail_msg: Supply fixed, verified artifacts and explicit protected configuration.
+  no_log: true
+
+- name: Check preinstalled runtime dependencies
+  ansible.builtin.command:
+    argv: [which, python3, nft, wg, ip]
+  changed_when: false
+
+- name: Enumerate existing WireGuard interfaces without reading keys
+  ansible.builtin.command: wg show interfaces
+  register: oci_hub_existing_interfaces
+  changed_when: false
+
+- name: Require every existing foreign interface to be excluded
+  ansible.builtin.assert:
+    that:
+      - oci_hub_existing_interfaces.stdout.split() | difference(['wg-users', 'wg-workspaces']) | difference(oci_hub_ignored_interfaces) | length == 0
+
+- name: Create protected Hub directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop: [/etc/oci-hub, /var/lib/oci-hub, /opt/oci-hub, /var/lib/oci-hub/portal]
+
+- name: Deploy scoped boundary verifier
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../../scripts/oci-hub/boundary.py'
+    dest: /usr/local/lib/oci-hub-boundary.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy explicit Hub ACL policy
+  ansible.builtin.copy:
+    content: '{{ oci_hub_boundary | to_nice_json }}'
+    dest: /etc/oci-hub/boundary.json
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Persist approved IPv4 forwarding for this routed gateway
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-oci-hub-forwarding.conf
+    content: "net.ipv4.ip_forward = 1\n"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Apply live ACL before Portal startup
+  ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py apply
+  changed_when: true
+
+- name: Verify source-only artifact locally before transfer
+  ansible.builtin.command:
+    argv: [python3, '{{ oci_hub_artifact_verifier }}', --verify, '{{ oci_hub_source_artifact }}']
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: Extract verified source-only artifact
+  ansible.builtin.unarchive:
+    src: '{{ oci_hub_source_artifact }}'
+    dest: /opt/oci-hub
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Deploy approved prebuilt Portal executable
+  ansible.builtin.copy:
+    src: '{{ oci_hub_portal_binary }}'
+    dest: /opt/oci-hub/wg-portal
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Read deployed Portal checksum
+  ansible.builtin.stat:
+    path: /opt/oci-hub/wg-portal
+    checksum_algorithm: sha256
+  register: oci_hub_portal_stat
+
+- name: Assert Portal checksum matches approved version
+  ansible.builtin.assert:
+    that: oci_hub_portal_stat.stat.checksum == oci_hub_portal_sha256
+
+- name: Deploy protected Portal configuration
+  ansible.builtin.template:
+    src: portal.yaml.j2
+    dest: /etc/oci-hub/portal.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Deploy executor protected configuration
+  ansible.builtin.copy:
+    content: '{{ oci_hub_executor_config | to_nice_json }}'
+    dest: /etc/oci-hub/executor.json
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+
+- name: Deploy ordered scoped services
+  ansible.builtin.template:
+    src: '{{ item }}.j2'
+    dest: '/etc/systemd/system/{{ item }}'
+    owner: root
+    group: root
+    mode: '0644'
+  loop: [oci-hub-boundary.service, oci-hub-portal.service, oci-hub-quota.service, oci-hub-quota.timer]
+
+- name: Enable scoped services after live ACL validation
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: [oci-hub-boundary, oci-hub-portal]
+
+- name: Inspect OCI-only ledger presence before first initialization
+  ansible.builtin.stat:
+    path: '{{ oci_hub_executor_config.database }}'
+  register: oci_hub_database
+
+- name: Require explicit authorization for first ledger initialization
+  ansible.builtin.assert:
+    that: oci_hub_new_ledger_authorized | default(false) | bool
+  when: not oci_hub_database.stat.exists
+
+- name: Initialize only an explicitly new ledger
+  ansible.builtin.command: python3 /opt/oci-hub/services/oci-hub/executor.py --config /etc/oci-hub/executor.json init
+  when: not oci_hub_database.stat.exists
+  changed_when: true
+
+- name: Enable independent five-second quota sampling
+  ansible.builtin.systemd_service:
+    name: oci-hub-quota.timer
+    enabled: true
+    state: started

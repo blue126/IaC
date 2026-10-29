@@ -1,0 +1,10 @@
+[Interface]
+Address = {{ oci_hub_spoke_address }}
+PrivateKey = {{ oci_hub_spoke_private_key }}
+MTU = 1280
+
+[Peer]
+PublicKey = {{ oci_hub_spoke_hub_public_key }}
+Endpoint = {{ oci_hub_spoke_endpoint }}
+AllowedIPs = {{ oci_hub_spoke_device_addresses | join(', ') }}
+PersistentKeepalive = 15

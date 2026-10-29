@@ -1,0 +1,116 @@
+---
+- name: Validate explicit PVE policy and SDN review
+  ansible.builtin.assert:
+    that:
+      - oci_hub_profile == 'oci-hub'
+      - oci_hub_boundary.kind == 'pve'
+      - oci_hub_boundary.profile == 'oci-hub'
+      - oci_hub_sdn_apply_authorized | default(false) | bool
+      - oci_hub_boundary.workspaces | length > 0
+      - not oci_hub_pve_prepare_only | default(true) | bool or oci_hub_boundary.workspaces | selectattr('vmid', 'equalto', oci_hub_prepare_vmid) | selectattr('disabled', 'equalto', true) | list | length == 1
+    fail_msg: First prepare with every new workspace disabled; inspect SDN diff and authorize Apply explicitly.
+
+- name: Validate target management access before any PVE configuration write
+  ansible.builtin.command:
+    argv:
+      - '{{ ansible_playbook_python }}'
+      - '{{ playbook_dir }}/../../scripts/oci-hub/boundary.py'
+      - render
+      - --config
+      - '-'
+      - --require-management-vmid
+      - '{{ oci_hub_prepare_vmid | string }}'
+    stdin: '{{ oci_hub_boundary | to_json }}'
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: Create protected Hub configuration directory
+  ansible.builtin.file:
+    path: /etc/oci-hub
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Deploy scoped boundary verifier
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../../scripts/oci-hub/boundary.py'
+    dest: /usr/local/lib/oci-hub-boundary.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy explicit PVE boundary policy
+  ansible.builtin.copy:
+    content: '{{ oci_hub_boundary | to_nice_json }}'
+    dest: /etc/oci-hub/boundary.json
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Persist approved IPv4 forwarding for this routed gateway
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-oci-hub-forwarding.conf
+    content: "net.ipv4.ip_forward = 1\n"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Apply boundary before SDN creation
+  ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py apply
+  changed_when: true
+
+- name: Deploy API-owned SDN reconciler
+  ansible.builtin.copy:
+    src: '{{ playbook_dir }}/../../scripts/oci-hub/pve-sdn.py'
+    dest: /usr/local/lib/oci-hub-pve-sdn.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Reconcile exclusively owned new SDN objects
+  ansible.builtin.command: /usr/local/lib/oci-hub-pve-sdn.py /etc/oci-hub/boundary.json
+  register: oci_hub_sdn_result
+  changed_when: "'changed' in oci_hub_sdn_result.stdout"
+
+- name: Deploy persistent boundary service
+  ansible.builtin.template:
+    src: boundary.service.j2
+    dest: /etc/systemd/system/oci-hub-boundary.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable persistent PVE boundary
+  ansible.builtin.systemd_service:
+    name: oci-hub-boundary
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Install pre-start hook in explicitly approved snippets directory
+  ansible.builtin.copy:
+    dest: '{{ oci_hub_hook_directory }}/oci-hub-boundary.sh'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      if [[ "$2" == pre-start ]]; then
+        exec /usr/local/lib/oci-hub-boundary.py hook "$1" "$2"
+      fi
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install aggregate discard route
+  ansible.builtin.command:
+    argv: [ip, route, replace, blackhole, '{{ oci_hub_boundary.aggregate }}', metric, '32760']
+  changed_when: true
+
+- name: Verify actual SDN interface addresses routes and forwarding
+  ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+  register: oci_hub_routing_ready
+  retries: 30
+  delay: 2
+  until: oci_hub_routing_ready.rc == 0
+  changed_when: false

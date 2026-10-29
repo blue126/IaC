@@ -1,0 +1,41 @@
+---
+- name: Start only the explicitly approved new workspace through its boundary hook
+  hosts: oci_hub_pve
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require explicit startup authorization and exact new VMID
+      ansible.builtin.assert:
+        that:
+          - oci_hub_start_authorized | default(false) | bool
+          - oci_hub_start_vmid | int >= 100
+          - oci_hub_start_vmid | int != 500
+    - name: Read new workspace power state
+      ansible.builtin.command:
+        argv: [qm, status, '{{ oci_hub_start_vmid | string }}']
+      register: oci_hub_vm_status
+      changed_when: false
+    - name: Start new workspace through the installed pre-start hook
+      ansible.builtin.command:
+        argv: [qm, start, '{{ oci_hub_start_vmid | string }}']
+      when: "'stopped' in oci_hub_vm_status.stdout"
+      changed_when: true
+
+- name: Deploy isolated OCI Hub workspace
+  hosts: oci_hub_workspaces
+  become: true
+  roles:
+    - oci-hub-spoke
+    - employee-workspace
+
+- name: Verify native workspace SSH and VPN
+  hosts: oci_hub_workspaces
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify VM Spoke service
+      ansible.builtin.command: systemctl is-active wg-quick@wg-workspace  # noqa command-instead-of-module
+      changed_when: false
+    - name: Verify SSH configuration
+      ansible.builtin.command: sshd -t
+      changed_when: false

@@ -1,0 +1,33 @@
+core:
+  admin_user: {{ oci_hub_portal_admin_user | to_json }}
+  admin_password: {{ oci_hub_portal_admin_password | to_json }}
+  admin_api_token: {{ oci_hub_portal_api_token | to_json }}
+  import_existing: false
+  restore_state: true
+  create_default_peer: false
+  create_default_peer_on_creation: false
+  create_default_peer_on_login: false
+  create_default_peer_on_user_creation: false
+  create_default_peer_on_interface_creation: false
+  re_enable_peer_after_user_enable: false
+  self_provisioning_allowed: false
+backend:
+  ignored_local_interfaces: {{ oci_hub_ignored_interfaces | to_json }}
+advanced:
+  use_ip_v6: false
+  config_storage_path: ''
+  api_admin_only: true
+  log_level: error
+web:
+  listening_address: 127.0.0.1:8888
+  external_url: http://127.0.0.1:8888
+  request_logging: false
+  session_secret: {{ oci_hub_portal_session_secret | to_json }}
+  csrf_secret: {{ oci_hub_portal_csrf_secret | to_json }}
+database:
+  type: sqlite
+  dsn: /var/lib/oci-hub/portal/sqlite.db
+  debug: false
+statistics:
+  collect_audit_data: false
+  listening_address: 127.0.0.1:8787

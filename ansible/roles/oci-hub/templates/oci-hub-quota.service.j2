@@ -1,0 +1,11 @@
+[Unit]
+Description=OCI Hub quota sampling through the sole executor
+Requires=oci-hub-portal.service
+After=oci-hub-portal.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStartPre=/usr/local/lib/oci-hub-boundary.py verify
+ExecStart=/usr/bin/python3 /opt/oci-hub/services/oci-hub/executor.py --config /etc/oci-hub/executor.json sample
+StandardOutput=null

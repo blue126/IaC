@@ -233,3 +233,15 @@ variable "balloon_memory" {
   type        = number
   default     = null
 }
+
+variable "initial_started" {
+  description = "Create-time power state; later power operations remain outside Terraform"
+  type        = bool
+  default     = true
+}
+
+variable "hook_script_file_id" {
+  description = "Optional pre-start boundary hook; null preserves existing consumers"
+  type        = string
+  default     = null
+}

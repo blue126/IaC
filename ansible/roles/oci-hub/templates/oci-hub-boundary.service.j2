@@ -1,0 +1,12 @@
+[Unit]
+Description=OCI Hub scoped ACL
+Before=oci-hub-portal.service
+After=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/oci-hub-boundary.py apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

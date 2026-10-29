@@ -1,0 +1,17 @@
+[Unit]
+Description=OCI Hub Portal v2.3.1
+Requires=oci-hub-boundary.service
+After=oci-hub-boundary.service network-online.target
+BindsTo=oci-hub-boundary.service
+
+[Service]
+UMask=0077
+Environment=WG_PORTAL_CONFIG=/etc/oci-hub/portal.yaml
+WorkingDirectory=/var/lib/oci-hub/portal
+ExecStartPre=/usr/local/lib/oci-hub-boundary.py verify
+ExecStart=/opt/oci-hub/wg-portal
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -6,7 +6,8 @@
       - employee_workspace_user == 'employee'
       - employee_workspace_claude_binary_url is match('^https://')
       - employee_workspace_claude_sha256 is match('^[a-f0-9]{64}$')
-      - hostvars[employee_workspace_gateway].employee_access_derived_keys is defined
+      - employee_workspace_profile in ['existing', 'oci-hub']
+      - employee_workspace_profile == 'oci-hub' or hostvars[employee_workspace_gateway].employee_access_derived_keys is defined
     fail_msg: Supply an approved native Claude binary and checksum; deploy the gateway first.
 
 - name: Validate the preinstalled baseline before skipping installation
@@ -80,6 +81,7 @@
     apply:
       tags: [workspace_login]
   tags: [workspace_login]
+  when: employee_workspace_profile == 'existing'
 
 - name: Disable SSH password authentication
   ansible.builtin.copy:
