@@ -1,0 +1,28 @@
+# Only this VM's overlay terminates employee TLS; upstream stays on loopback.
+server {
+    listen {{ oci_hub_spoke_address.split('/')[0] }}:8443 ssl;
+    server_name {{ oci_hub_spoke_address.split('/')[0] }};
+    ssl_certificate /etc/oci-hub/desktop.crt;
+    ssl_certificate_key /etc/oci-hub/desktop.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    if ($host != "{{ oci_hub_spoke_address.split('/')[0] }}") { return 403; }
+    if ($http_origin !~ "^(|https://{{ oci_hub_spoke_address.split('/')[0] | regex_escape }}:8443)$") { return 403; }
+    location = /api { return 403; }
+    location ^~ /api/ { return 403; }
+    location / {
+        limit_except GET { deny all; }
+        proxy_pass https://127.0.0.1:8444;
+        proxy_http_version 1.1;
+        proxy_set_header Host localhost;
+        proxy_set_header Origin https://localhost:8444;
+        proxy_set_header Authorization "Basic {{ oci_hub_desktop_backend_basic }}";
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/oci-hub/backend-ca.crt;
+        proxy_ssl_server_name on;
+        proxy_ssl_name localhost;
+        proxy_read_timeout 3600s;
+        proxy_hide_header WWW-Authenticate;
+    }
+}

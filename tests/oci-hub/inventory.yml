@@ -1,0 +1,19 @@
+---
+all:
+  children:
+    oci:
+      hosts:
+        hub-fixture:
+          ansible_connection: local
+    oci_hub_workspaces:
+      hosts:
+        oci-hub-alice:
+          ansible_connection: local
+    oci_hub_pve:
+      hosts:
+        pve-fixture:
+          ansible_connection: local
+    oci_hub_router:
+      hosts:
+        router-fixture:
+          ansible_connection: local

@@ -84,11 +84,13 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   boot_order = local.from_image ? ["scsi0"] : null
 
-  bios       = var.bios
-  machine    = var.machine
-  on_boot    = var.onboot
-  protection = var.protection
-  tags       = var.tags
+  bios                = var.bios
+  machine             = var.machine
+  on_boot             = var.onboot
+  protection          = var.protection
+  started             = var.initial_started
+  hook_script_file_id = var.hook_script_file_id
+  tags                = var.tags
 
   cpu {
     cores = var.cores

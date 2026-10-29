@@ -5,6 +5,7 @@
 ## 设计文档
 
 - **[homelab-iac-architecture.md](./homelab-iac-architecture.md)** — 系统总体架构（Terraform + Ansible + Proxmox/OCI/Netbox）。
+- **[oci-employee-vpn-hub.md](./oci-employee-vpn-hub.md)** — 与现有接入平行建设的 OCI WireGuard Hub-and-Spoke 方案：独立 BWS 项目、私有管理员工程/WG Portal 集成、OCI 统一执行器与每用户 5 GB 双向月额度、PVE 纯路由及防火墙就绪启动门控；按 profile 分派，现有入口与 VM500 保留，先原型后开户。
 - **[proxmox-qdevice-architecture.md](./proxmox-qdevice-architecture.md)** — 双节点集群与 N100 外部见证：1/1 + 1 投票、权限、启动门控、验证与回滚。
 - **[hindsight-memory-architecture.md](./hindsight-memory-architecture.md)** — pve0 LXC 118 上的 Hindsight 共享记忆服务：拓扑、Codex 登录、端口与认证（含无登录的网页控制台）、资源与重排性能、逻辑导出方法、网络依赖与已知事故、网关旧部署的经验教训与未完成项。
 - **[cicd-architecture.md](./cicd-architecture.md)** — Jenkins CI/CD 流水线架构。

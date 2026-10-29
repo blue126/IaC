@@ -7,3 +7,6 @@ employee_workspace_packages: [git, curl, ca-certificates, sudo, openssh-server, 
 
 employee_workspace_baseline_id: ""
 employee_workspace_baseline_ready: false
+
+employee_workspace_profile: existing
+oci_hub_workspace_devices: []

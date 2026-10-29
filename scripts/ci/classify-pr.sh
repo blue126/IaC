@@ -55,7 +55,7 @@ while IFS= read -r -d '' changed_file; do
       terraform_oci=true
       terraform_netbox=true
       ;;
-    terraform/proxmox/*)
+    terraform/proxmox/* | tests/oci-hub/*)
       terraform_proxmox=true
       ;;
     terraform/oci/*)
@@ -67,7 +67,7 @@ while IFS= read -r -d '' changed_file; do
   esac
 
   case "${changed_file}" in
-    ansible/* | requirements.txt | .ansible-lint)
+    ansible/* | scripts/oci-hub/* | requirements.txt | .ansible-lint)
       ansible_applicable=true
       ;;
   esac

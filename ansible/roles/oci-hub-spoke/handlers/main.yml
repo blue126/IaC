@@ -1,0 +1,5 @@
+---
+- name: Restart OCI Hub Spoke
+  ansible.builtin.systemd_service:
+    name: wg-quick@wg-workspace
+    state: restarted

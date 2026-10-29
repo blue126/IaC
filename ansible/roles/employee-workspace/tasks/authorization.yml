@@ -12,3 +12,17 @@
       from="{{ (hostvars[employee_workspace_gateway].employee_access_networks_json | from_json)[employee_workspace_id].gateway }}" {{ result.stdout }}
       {% endif %}
       {% endfor %}
+  when: employee_workspace_profile == 'existing'
+
+- name: Reconcile native SSH authorization for OCI Hub device sources
+  ansible.builtin.copy:
+    dest: '/home/{{ employee_workspace_user }}/.ssh/authorized_keys'
+    owner: '{{ employee_workspace_user }}'
+    group: '{{ employee_workspace_user }}'
+    mode: '0600'
+    content: |
+      # Managed OCI Hub device access.
+      {% for device in oci_hub_workspace_devices %}
+      from="{{ device.address }}" {{ device.ssh_public_key }}
+      {% endfor %}
+  when: employee_workspace_profile == 'oci-hub'
