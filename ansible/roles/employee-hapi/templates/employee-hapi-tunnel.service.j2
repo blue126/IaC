@@ -1,0 +1,20 @@
+[Unit]
+Description=Employee HAPI pilot dedicated Cloudflare Named Tunnel
+Wants=network-online.target employee-hapi-hub.service
+After=network-online.target employee-hapi-hub.service
+
+[Service]
+Type=simple
+User=root
+Environment=HOME=/home/employee
+ExecStart=/usr/local/bin/employee-hapi-cloudflared tunnel --no-autoupdate --protocol http2 run --token-file /etc/employee-hapi/tunnel-token
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

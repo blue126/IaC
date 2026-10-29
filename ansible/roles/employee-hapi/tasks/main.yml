@@ -1,0 +1,202 @@
+---
+- name: Install the VM502 login helper hotfix
+  ansible.builtin.import_tasks: login-helper.yml
+  tags: [never, hapi_login_helper]
+
+- name: Restrict the pilot to the approved VM and artifact platform
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == 'employee-control'
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.architecture == 'x86_64'
+      - employee_hapi_public_url == 'https://hapi-test.willfan.me'
+
+- name: Validate runtime secrets without exposing them
+  ansible.builtin.assert:
+    that:
+      - employee_hapi_api_token is match('^[A-Za-z0-9_-]{32,}$')
+      - not employee_hapi_tunnel_enabled | bool or employee_hapi_tunnel_token is match('^[A-Za-z0-9+/=_-]{32,}$')
+    fail_msg: Supply the pilot secrets through the private BWS runtime workflow.
+  no_log: true
+
+- name: Check the existing employee account
+  ansible.builtin.getent:
+    database: passwd
+    key: employee
+
+- name: Create the versioned HAPI installation directory
+  ansible.builtin.file:
+    path: /opt/employee-hapi/v0.33.2
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Download the approved HAPI baseline release
+  ansible.builtin.get_url:
+    url: https://github.com/tiann/hapi/releases/download/v0.33.2/hapi-linux-x64-baseline.tar.gz
+    checksum: sha256:45d843d700e656cf3a9db4b0df7c4c1b174fd334fe8194ea73b3bbc78c564290
+    dest: /opt/employee-hapi/v0.33.2/hapi-linux-x64-baseline.tar.gz
+    owner: root
+    group: root
+    mode: '0644'
+  register: employee_hapi_archive
+
+- name: Extract the approved HAPI executable
+  ansible.builtin.unarchive:
+    src: /opt/employee-hapi/v0.33.2/hapi-linux-x64-baseline.tar.gz
+    dest: /opt/employee-hapi/v0.33.2
+    remote_src: true
+    owner: root
+    group: root
+    creates: "{{ omit if employee_hapi_archive.changed else '/opt/employee-hapi/v0.33.2/hapi' }}"
+  notify:
+    - Restart employee HAPI hub
+    - Restart employee HAPI runner
+
+- name: Link the approved HAPI executable
+  ansible.builtin.file:
+    src: /opt/employee-hapi/v0.33.2/hapi
+    dest: /usr/local/bin/hapi
+    state: link
+
+- name: Install the pinned Cloudflare Tunnel executable
+  ansible.builtin.get_url:
+    url: https://github.com/cloudflare/cloudflared/releases/download/2026.10.5/cloudflared-linux-amd64
+    checksum: sha256:e1bc0cf084fd9e590554fe769a86b1db46701c3f847a43d902f7b974a4e16298
+    dest: /usr/local/bin/employee-hapi-cloudflared
+    owner: root
+    group: root
+    mode: '0755'
+  register: employee_hapi_cloudflared
+
+- name: Create the private HAPI runtime configuration directory
+  ansible.builtin.file:
+    path: /etc/employee-hapi
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Create the private employee HAPI data directory
+  ansible.builtin.file:
+    path: /home/employee/.hapi
+    state: directory
+    owner: employee
+    group: employee
+    mode: '0700'
+
+- name: Create the private HAPI service log directory
+  ansible.builtin.file:
+    path: /home/employee/.hapi/logs
+    state: directory
+    owner: employee
+    group: employee
+    mode: '0700'
+
+- name: Create private Hub and Runner output files without replacing logs
+  ansible.builtin.file:
+    path: "/home/employee/.hapi/logs/{{ item }}-service.log"
+    state: touch
+    access_time: preserve
+    modification_time: preserve
+    owner: employee
+    group: employee
+    mode: '0600'
+  loop: [hub, runner]
+
+- name: Deploy the BWS pilot token and local HAPI configuration
+  ansible.builtin.template:
+    src: hapi.env.j2
+    dest: /etc/employee-hapi/hapi.env
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  diff: false
+  notify:
+    - Restart employee HAPI hub
+    - Restart employee HAPI runner
+
+- name: Deploy the dedicated Tunnel token
+  ansible.builtin.copy:
+    content: "{{ employee_hapi_tunnel_token }}\n"
+    dest: /etc/employee-hapi/tunnel-token
+    owner: root
+    group: root
+    mode: '0600'
+  when: employee_hapi_tunnel_enabled | bool
+  no_log: true
+  diff: false
+  register: employee_hapi_tunnel_credentials
+
+- name: Deploy the independent HAPI service units
+  ansible.builtin.template:
+    src: "employee-hapi-{{ item }}.service.j2"
+    dest: "/etc/systemd/system/employee-hapi-{{ item }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: [hub, runner, tunnel]
+  register: employee_hapi_units
+  notify:
+    - Reload employee HAPI service definitions
+    - Restart employee HAPI hub
+    - Restart employee HAPI runner
+
+- name: Install the credential-safe protocol verifier
+  ansible.builtin.copy:
+    src: verify-hapi.py
+    dest: /usr/local/lib/employee-hapi-verify.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Apply HAPI configuration before local verification
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the local Hub and supervised Runner
+  ansible.builtin.systemd_service:
+    name: "employee-hapi-{{ item }}"
+    enabled: true
+    state: started
+  loop: [hub, runner]
+
+- name: Wait for the loopback Hub
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 3006
+    timeout: 30
+
+- name: Gate the Tunnel on local authentication and SSE checks
+  block:
+    - name: Verify local authentication and SSE before enabling the Tunnel
+      ansible.builtin.command: python3 /usr/local/lib/employee-hapi-verify.py
+      changed_when: false
+      register: employee_hapi_local_verify
+      retries: 6
+      delay: 3
+      until: employee_hapi_local_verify.rc == 0
+  rescue:
+    - name: Close the pilot entry after a protocol verification failure
+      ansible.builtin.systemd_service:
+        name: employee-hapi-tunnel
+        state: stopped
+        enabled: false
+    - name: Stop deployment after closing the failed pilot entry
+      ansible.builtin.fail:
+        msg: Local protocol verification failed; the dedicated Tunnel is disabled.
+
+- name: Reconcile the dedicated Tunnel service
+  ansible.builtin.systemd_service:
+    name: employee-hapi-tunnel
+    enabled: "{{ employee_hapi_tunnel_enabled | bool }}"
+    state: "{{ 'started' if employee_hapi_tunnel_enabled | bool else 'stopped' }}"
+
+- name: Restart the Tunnel after configuration changes
+  ansible.builtin.systemd_service:
+    name: employee-hapi-tunnel
+    state: restarted
+  when:
+    - employee_hapi_tunnel_enabled | bool
+    - employee_hapi_units.changed or employee_hapi_cloudflared.changed or employee_hapi_tunnel_credentials.changed

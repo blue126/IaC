@@ -87,8 +87,9 @@ def main():
             open_url(args.url)
         else:
             ensure_started()
-        print("浏览器正在运行。保持 WireGuard 开启，在本机浏览器打开：")
-        print(configuration()["viewer_url"])
+        config = configuration()
+        print(config.get("viewer_access_note", "浏览器正在运行。保持 WireGuard 开启，在本机浏览器打开："))
+        print(config["viewer_url"])
         print("关闭本机网页或 SSH 不会关闭 VM 浏览器；结束使用请运行 workspace-browser stop。")
         return 0
 

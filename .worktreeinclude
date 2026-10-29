@@ -19,6 +19,29 @@ terraform/esxi/terraform.tfvars
 # Notion credentials read by scripts/sync_to_notion.py
 .env
 
+# RemoteCC administrator sources for worktree development.
+# List source files explicitly: do not copy employee-data, local settings,
+# credentials, checkpoints, bundles, caches, or the private repository's .git.
+# Codex skips source symlinks; create from the main checkout for real sources.
+# Copying code does not select its provisioning runtime or shared data binding.
+/remotecc/employee-admin/*.py
+/remotecc/employee-admin/*.sh
+/remotecc/employee-admin/README.md
+/remotecc/employee-admin/.gitignore
+/remotecc/employee-admin/remotecc-layout.json
+/remotecc/employee-admin/email-template.txt
+/remotecc/employee-admin/bake-template.yml
+/remotecc/employee-admin/onedrive-invite-legacy.yml
+/remotecc/employee-admin/release-template.yml
+/remotecc/employee-admin/seal-template.yml
+/remotecc/employee-admin/template-hostkey.yml
+/remotecc/employee-admin/verify-template-clone.yml
+/remotecc/employee-admin/ansible/**/*.yml
+/remotecc/employee-admin/services/**/*.py
+/remotecc/employee-admin/templates/**/*.html
+/remotecc/employee-admin/examples/**/*.yml
+/remotecc/employee-admin/template-build-source/*.tf
+
 # Deliberately not copied:
 #   terraform/*/.terraform/   provider binaries, ~66MB per environment.
 #                             Run `terraform init` in the worktree instead.

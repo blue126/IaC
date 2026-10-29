@@ -111,7 +111,7 @@ def browser_worker(value, url):
         if not lines:
             (runtime / "browser-error").touch(mode=0o600)
             return 1
-        (runtime / "browser-ready").write_text(lines[0])
+        (runtime / "browser-ready").write_text(result.stdout.strip())
         while True:
             time.sleep(.2)
     except KeyboardInterrupt:
@@ -126,16 +126,21 @@ def login_worker(value):
     env = dict(os.environ, BROWSER=str(OPENER), WORKSPACE_LOGIN_RUNTIME=str(runtime))
     state = "failed"
     process = None
+    output = None
     try:
         print("正在启动 VM 内图形 Firefox。请保留本终端；取消可按 Ctrl+B，松开后按 d。", flush=True)
-        process = subprocess.Popen(["claude", "auth", "login"], env=env)
+        fd = os.open(runtime / "auth-output.log", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        output = os.fdopen(fd, "wb")
+        # Keep stdin attached for authorization codes; raw OAuth output stays private.
+        process = subprocess.Popen(["claude", "auth", "login"], env=env,
+                                   stdout=output, stderr=output)
         deadline = time.monotonic() + 45
         expires = time.monotonic() + 1800
         shown = False
         while process.poll() is None:
             if not shown and (runtime / "browser-ready").exists():
-                print("\n请在本机浏览器打开：" + (runtime / "browser-ready").read_text().strip(), flush=True)
-                print("画面中的 Firefox 在你的澳洲 VM；在画面内完成登录。若页面给出授权码，回本终端粘贴。", flush=True)
+                print("\n" + (runtime / "browser-ready").read_text().strip(), flush=True)
+                print("画面中的 Firefox 在你的澳洲 VM；在画面内完成登录。若页面给出授权码，回本终端粘贴后按回车。", flush=True)
                 shown = True
             if time.monotonic() > expires:
                 print("授权超过 30 分钟，本次 Claude 授权已取消，请重新运行 workspace-login；日常浏览器继续保留。", flush=True)
@@ -162,6 +167,8 @@ def login_worker(value):
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
+        if output is not None:
+            output.close()
         (runtime / "result").write_text(state)
         close_browser(runtime)
         tmux(runtime, "kill-session", "-t", SESSION, check=False)

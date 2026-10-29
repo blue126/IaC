@@ -1,0 +1,81 @@
+---
+- name: Restrict verification to the approved pilot VM
+  ansible.builtin.assert:
+    that: inventory_hostname == 'employee-control'
+
+- name: Close the entry if management protocol checks fail
+  block:
+    - name: Verify the local Hub and Runner are active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, "{{ item }}"]
+      loop: [employee-hapi-hub, employee-hapi-runner]
+      changed_when: false
+
+    - name: Inspect the Hub listener
+      ansible.builtin.command:
+        argv: [ss, -H, -ltn, 'sport = :3006']
+      register: employee_hapi_listener
+      changed_when: false
+
+    - name: Assert the Hub is bound exclusively to loopback
+      ansible.builtin.assert:
+        that:
+          - employee_hapi_listener.stdout_lines | length == 1
+          - "'127.0.0.1:3006' in employee_hapi_listener.stdout"
+
+    - name: Verify authenticated API and SSE through the management channel
+      ansible.builtin.command: python3 /usr/local/lib/employee-hapi-verify.py
+      changed_when: false
+  rescue:
+    - name: Disable the dedicated Tunnel after failed management checks
+      ansible.builtin.systemd_service:
+        name: employee-hapi-tunnel
+        enabled: false
+        state: stopped
+    - name: Report the failed management protocol checks
+      ansible.builtin.fail:
+        msg: Management protocol checks failed; the dedicated Tunnel is disabled.
+
+- name: Inspect the dedicated Tunnel service
+  ansible.builtin.command:
+    argv: [systemctl, is-active, employee-hapi-tunnel]
+  register: employee_hapi_tunnel_status
+  changed_when: false
+  failed_when: employee_hapi_tunnel_status.rc not in [0, 3]
+
+- name: Close the entry if public protocol checks fail
+  when: employee_hapi_tunnel_status.rc == 0
+  block:
+    - name: Verify the public endpoint when the dedicated Tunnel is active
+      ansible.builtin.command:
+        argv: [python3, /usr/local/lib/employee-hapi-verify.py, 'https://hapi-test.willfan.me']
+      changed_when: false
+      register: employee_hapi_public_verify
+      retries: 6
+      delay: 5
+      until: employee_hapi_public_verify.rc == 0
+  rescue:
+    - name: Disable the dedicated Tunnel after failed public checks
+      ansible.builtin.systemd_service:
+        name: employee-hapi-tunnel
+        enabled: false
+        state: stopped
+    - name: Report the failed public protocol checks
+      ansible.builtin.fail:
+        msg: Public protocol checks failed; the dedicated Tunnel is disabled.
+
+- name: Inspect HAPI memory use including session descendants
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - employee-hapi-hub
+      - employee-hapi-runner
+      - employee-hapi-tunnel
+      - --property=Id,MemoryCurrent,MemoryPeak
+  register: employee_hapi_memory
+  changed_when: false
+
+- name: Report HAPI service memory samples
+  ansible.builtin.debug:
+    var: employee_hapi_memory.stdout_lines

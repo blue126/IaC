@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise workspace-login with real tmux/PTYS and synthetic OAuth programs."""
 import fcntl
+import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -14,6 +16,7 @@ import tempfile
 import termios
 import time
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "ansible/roles/employee-workspace/files"
@@ -37,9 +40,12 @@ if sys.argv[1:3]==["auth","status"]:
     raise SystemExit(0 if logged else 1)
 if sys.argv[1:3]!=["auth","login"]: raise SystemExit(9)
 (p/"login-started").write_text("yes")
-if scenario=="cli-error": raise SystemExit(7)
 url="https://claude.com/cai/oauth/authorize?state=fixture-private-state"
 if scenario=="bad-url": url="https://example.invalid/oauth/authorize?state=fixture-private-state"
+print("Open OAuth URL: "+url,flush=True)
+print("OAuth stderr: "+url+"&debug=fixture-private-stderr",file=sys.stderr,flush=True)
+(p/"auth-log-mode").write_text(oct(os.stat("/proc/self/fd/1").st_mode & 0o777))
+if scenario=="cli-error": raise SystemExit(7)
 rc=subprocess.call([os.environ["BROWSER"],url])
 if rc: raise SystemExit(8)
 if scenario=="manual":
@@ -54,6 +60,7 @@ import os,subprocess,sys,time
 from pathlib import Path
 p=Path(os.environ["LOGIN_FIXTURE"])
 assert sys.argv[1]=="open", "Authorization must not stop the employee browser"
+(p/"browser-url").write_text(sys.argv[2])
 if not (p/"browser-pid").exists():
     child=subprocess.Popen(["sleep","60"],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL,start_new_session=True)
@@ -144,6 +151,11 @@ class LoginFlow(unittest.TestCase):
                 break
         process.wait(timeout=3)
         self.assertFalse(actions, "Expected terminal interaction was not reached")
+        self.assertNotIn(b"/oauth/authorize", data)
+        self.assertNotIn(b"fixture-private-state", data)
+        self.assertNotIn(b"fixture-private-stderr", data)
+        if (self.base / "auth-log-mode").exists():
+            self.assertEqual((self.base / "auth-log-mode").read_text(), "0o600")
         return process.returncode, bytes(data)
 
     def assert_clean(self):
@@ -161,6 +173,8 @@ class LoginFlow(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue((self.base / "authenticated").exists())
         self.assertTrue((self.base / "browser-started").exists())
+        self.assertEqual((self.base / "browser-url").read_text(),
+                         "https://claude.com/cai/oauth/authorize?state=fixture-private-state")
         self.assert_clean()
 
     def test_saved_subscription_skips_login_and_browser(self):
@@ -171,7 +185,7 @@ class LoginFlow(unittest.TestCase):
 
     def test_manual_code_uses_same_terminal_with_browser_retained(self):
         rc, _ = self.drive("manual", [
-            (b"FIXTURE_CODE_PROMPT", b"fixture-code\n"),
+            ("若页面给出授权码，回本终端粘贴后按回车。".encode(), b"fixture-code\n"),
         ])
         self.assertEqual(rc, 0)
         self.assert_clean()
@@ -221,6 +235,39 @@ class LoginFlow(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertFalse((self.base / "login-started").exists())
         self.assertNotIn(b"fixture-private-error", output)
+
+
+class BrowserInstructions(unittest.TestCase):
+    def output(self, config):
+        spec = importlib.util.spec_from_file_location("workspace_browser", SOURCE / "workspace-browser.py")
+        browser = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(browser)
+        with tempfile.TemporaryDirectory(prefix="workspace-browser-config-") as value:
+            config_path = Path(value) / "browser.json"
+            config_path.write_text(json.dumps(config))
+            output = io.StringIO()
+            with patch.object(browser, "CONFIG", config_path), \
+                    patch.object(browser, "ready", return_value=True), \
+                    patch.object(browser.Path, "home", return_value=Path(value)), \
+                    patch.object(browser.sys, "argv", ["workspace-browser", "status"]), \
+                    patch("sys.stdout", output):
+                self.assertEqual(browser.main(), 0)
+            return output.getvalue()
+
+    def test_legacy_viewer_keeps_wireguard_instructions(self):
+        output = self.output({"viewer_url": "http://10.230.0.1:8443/vnc.html"})
+        self.assertIn("保持 WireGuard 开启", output)
+        self.assertIn("http://10.230.0.1:8443/vnc.html", output)
+
+    def test_vm502_uses_configured_administrator_tunnel_instructions(self):
+        output = self.output({
+            "viewer_url": "http://127.0.0.1:16081/vnc.html",
+            "viewer_access_note": "依赖当前管理员电脑 SSH 通道；不是员工公网登录入口。",
+        })
+        self.assertIn("依赖当前管理员电脑 SSH 通道", output)
+        self.assertIn("不是员工公网登录入口", output)
+        self.assertIn("http://127.0.0.1:16081/vnc.html", output)
+        self.assertNotIn("WireGuard", output)
 
 
 if __name__ == "__main__":

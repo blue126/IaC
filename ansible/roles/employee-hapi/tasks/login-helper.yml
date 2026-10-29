@@ -1,0 +1,35 @@
+---
+- name: Restrict the temporary viewer hotfix to VM502
+  ansible.builtin.assert:
+    that: inventory_hostname == 'employee-control'
+
+- name: Read the existing VM browser configuration
+  ansible.builtin.slurp:
+    src: /etc/employee-workspace-browser.json
+  register: employee_hapi_browser_config
+
+- name: Require the existing browser bind address
+  ansible.builtin.assert:
+    that:
+      - (employee_hapi_browser_config.content | b64decode | from_json).bind_address | length > 0
+
+- name: Update only the VM502 temporary administrator viewer settings
+  ansible.builtin.copy:
+    dest: /etc/employee-workspace-browser.json
+    owner: root
+    group: root
+    mode: '0644'
+    content: >-
+      {{ (employee_hapi_browser_config.content | b64decode | from_json) |
+         combine({'viewer_url': 'http://127.0.0.1:16081/vnc.html#autoconnect=1&resize=scale&reconnect=0',
+                  'viewer_access_note': '浏览器正在运行。此地址仅供管理员临时协助，依赖当前管理员电脑的 SSH 通道；不是员工公网登录入口。请在该电脑浏览器打开：'}) |
+         to_nice_json }}
+
+- name: Install the corrected VM502 login and browser helpers
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../employee-workspace/files/{{ item }}.py"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+  loop: [workspace-login, workspace-browser]
