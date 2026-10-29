@@ -1,0 +1,22 @@
+[Unit]
+Description=Employee HAPI pilot Hub
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=employee
+Group=employee
+WorkingDirectory=/home/employee
+Environment=HOME=/home/employee
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/etc/employee-hapi/hapi.env
+ExecStart=/usr/local/bin/hapi hub --no-relay
+Restart=always
+RestartSec=5
+UMask=0077
+StandardOutput=append:/home/employee/.hapi/logs/hub-service.log
+StandardError=append:/home/employee/.hapi/logs/hub-service.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+---
+- name: Deploy the VM502 employee HAPI pilot
+  hosts: employee-control
+  become: true
+  roles:
+    - employee-hapi
+
+- name: Verify the VM502 employee HAPI pilot
+  hosts: employee-control
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the dedicated HAPI deployment
+      ansible.builtin.include_role:
+        name: employee-hapi
+        tasks_from: verify

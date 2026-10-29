@@ -1,0 +1,14 @@
+---
+- name: Reload employee HAPI service definitions
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart employee HAPI hub
+  ansible.builtin.systemd_service:
+    name: employee-hapi-hub
+    state: restarted
+
+- name: Restart employee HAPI runner
+  ansible.builtin.systemd_service:
+    name: employee-hapi-runner
+    state: restarted

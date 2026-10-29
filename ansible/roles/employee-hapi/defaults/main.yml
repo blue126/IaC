@@ -1,0 +1,6 @@
+---
+employee_hapi_public_url: https://hapi-test.willfan.me
+# Supplied by the private BWS workflow in an encrypted runtime extra-vars file.
+employee_hapi_api_token: "{{ vault_employee_hapi_api_token | default('') }}"
+employee_hapi_tunnel_enabled: false
+employee_hapi_tunnel_token: "{{ vault_employee_hapi_tunnel_token | default('') }}"
