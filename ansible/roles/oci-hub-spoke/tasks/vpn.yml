@@ -2,7 +2,7 @@
 - name: Validate approved VM Spoke identity
   ansible.builtin.assert:
     that:
-      - employee_workspace_profile == 'oci-hub' or (employee_workspace_profile == 'existing' and employee_workspace_hub_parallel_access | default(false) | bool)
+      - employee_workspace_profile == 'oci-hub'
       - oci_hub_spoke_address is match('^[0-9.]+/32$')
       - oci_hub_spoke_device_addresses | length > 0
       - oci_hub_spoke_private_key | length == 44
