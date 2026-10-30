@@ -26,7 +26,7 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 
 锁定源码、补丁、overlay和构建器在[scripts/hapi-workspace-web](../../scripts/hapi-workspace-web/README.md)。当前21项前端测试与完整类型检查、生产构建通过；`workspace-browser.mjs`使用真实编译页面与Chromium，通过loopback模拟网关验证自动进入、账号切换及会话失效恢复。它不调用真实Cloudflare或Claude账号，不代表现网验收。
 
-当前身份套件15项，包括撤销持久化和Unix权限；真实代理套件16项，包括既有SSE／WebSocket撤销、分配指纹不一致拒绝、登记损坏拒绝、2MiB响应完整转发，以及真实websockify到合成RFB端点。执行服务套件6项，使用已有隔离CLI夹具和实际tmux／PTY验证手工码、取消、超时与浏览器保留；并未使用真实Claude账号。
+当前身份套件15项，包括撤销持久化和Unix权限；真实代理套件18项，包括既有SSE／WebSocket撤销、分配指纹不一致拒绝、登记损坏拒绝、2MiB响应完整转发，以及真实websockify到合成RFB端点，以及真实noVNC模块依赖与64路并发认证。执行服务套件6项，使用已有隔离CLI夹具和实际tmux／PTY验证手工码、取消、超时与浏览器保留；并未使用真实Claude账号。
 
 浏览器模拟回归还打开集中登录页面、提交模拟码并返回HAPI，验证身份变化后旧画面清理。浏览器RFB模块是测试替身，不能代替真实Firefox图形操作；协议套件的websockify是真实进程，RFB端点仍为合成服务。
 

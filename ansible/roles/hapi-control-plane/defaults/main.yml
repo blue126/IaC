@@ -6,6 +6,7 @@ hapi_control_plane_vmid: 0
 hapi_control_plane_routes: []
 hapi_control_plane_install_dependencies: false
 hapi_control_plane_public_entry: false
+hapi_control_plane_migration_authorized: false
 hapi_control_plane_ca: "{{ vault_hapi_control_plane_ca | default('') }}"
 hapi_control_plane_crl: "{{ vault_hapi_control_plane_crl | default('') }}"
 hapi_control_plane_client_certificate: "{{ vault_hapi_control_plane_client_certificate | default('') }}"

@@ -409,6 +409,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    # HTTP/2 module graphs arrive in bursts; the Unix server default is only 5.
+    request_queue_size = 128
     daemon_threads = True
     block_on_close = False
 

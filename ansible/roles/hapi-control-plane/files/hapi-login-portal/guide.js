@@ -108,8 +108,10 @@ async function connectViewer() {
             if (rfb === client) rfb = null;
             $('viewer-status').textContent = '画面连接已断开，正在等待重连；授权状态会继续检查。';
         });
-    } catch {
-        $('viewer-status').textContent = '远程画面暂时无法加载，请稍后刷新或取消本次授权。';
+    } catch (error) {
+        const detail = typeof error?.message === 'string' ? error.message.split('?')[0].slice(0, 240) : '初始化失败';
+        console.error('HAPI viewer initialization failed:', detail);
+        $('viewer-status').textContent = `远程画面暂时无法加载：${detail}。请刷新页面重试。`;
     } finally {connecting = false;}
 }
 

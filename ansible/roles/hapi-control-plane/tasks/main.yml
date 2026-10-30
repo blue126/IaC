@@ -1,14 +1,14 @@
 ---
-- name: Restrict the prototype to the VM500 control plane without publication
+- name: Restrict the control plane to VM500 and explicitly authorized publication
   ansible.builtin.assert:
     that:
       - hapi_control_plane_vmid | int == 500
-      - not hapi_control_plane_public_entry | bool
+      - not hapi_control_plane_public_entry | bool or hapi_control_plane_migration_authorized | bool
       - ansible_facts.system == 'Linux'
       - hapi_control_plane_origin is match('^https://[a-z0-9.-]+$')
       - hapi_control_plane_issuer is match('^https://[a-z0-9-]+\.cloudflareaccess\.com$')
       - hapi_control_plane_audience is match('^[a-f0-9]{64}$')
-    fail_msg: Publication remains blocked pending an approved resource plan and real end-to-end verification.
+    fail_msg: Publication requires an explicitly approved migration and validated identity and transport bindings.
 
 - name: Install explicitly approved prototype dependencies
   ansible.builtin.apt:

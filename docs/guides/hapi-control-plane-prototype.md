@@ -1,6 +1,6 @@
 # HAPI控制面原型配置契约
 
-本原型实现VM500的Access身份检查、固定后端路由、Hub票据交换、集中登录引导、可撤销实时连接和独立工作VM的mTLS代理／登录执行服务。对应[设计](../architecture/hapi-workspace-provisioning.md)和[第一阶段计划](../planning/2026-10-30-hapi-control-plane-phase-one.md)。已补齐锁定版本的前端自动登录衔接并完成离线浏览器回归；当前没有部署，仍不具备完整生产开户条件。
+本实现提供VM500的Access身份检查、固定后端路由、Hub票据交换、集中登录引导、可撤销实时连接和独立工作VM的mTLS代理／登录执行服务。对应[设计](../architecture/hapi-workspace-provisioning.md)和[第一阶段计划](../planning/2026-10-30-hapi-control-plane-phase-one.md)。已补齐锁定版本的前端自动登录衔接，并按明确授权将现有VM502所有者试点迁至VM500单一入口；见[实际迁移与验收](hapi-unified-entry.md)。独立新员工开户后端仍未完成，不能把该试点部署记作完整生产开户就绪。
 
 ## 运行边界
 

@@ -531,6 +531,47 @@ class ProxyTest(unittest.TestCase):
             'Origin': helpers.ORIGIN, 'X-Hapi-CSRF': identity['csrf'], 'Content-Type': 'application/json'})
         self.assertEqual(response.status, 403); response.read(); connection.close()
 
+    def test_parallel_novnc_modules_do_not_overflow_the_auth_socket(self):
+        from concurrent.futures import ThreadPoolExecutor
+        count = 64
+        barrier = threading.Barrier(count)
+        token = self.token()
+        def request_module(index):
+            barrier.wait(timeout=10)
+            connection, response = self.request('/_workspace/login/core/rfb.js',
+                extra={'Cf-Access-Jwt-Assertion': token})
+            response.read(); connection.close()
+            return response.status
+        with ThreadPoolExecutor(max_workers=count) as pool:
+            statuses = list(pool.map(request_module, range(count)))
+        self.assertEqual(statuses, [200] * count)
+
+    def test_real_novnc_import_graph_is_served_as_javascript(self):
+        import re
+        root = Path('/usr/share/novnc').resolve()
+        if not (root/'core/rfb.js').is_file():
+            self.skipTest('Requires the already installed noVNC client package')
+        pending, seen = [root/'core/rfb.js'], set()
+        while pending:
+            path = pending.pop()
+            if path in seen:
+                continue
+            seen.add(path)
+            relative = path.relative_to(root).as_posix()
+            connection, response = self.request('/_workspace/login/' + relative)
+            raw = response.read(); connection.close()
+            self.assertEqual(response.status, 200, relative)
+            self.assertIn(response.getheader('Content-Type', '').split(';')[0],
+                          ['application/javascript', 'text/javascript'], relative)
+            self.assertEqual(raw, path.read_bytes(), relative)
+            for name in re.findall(r"(?:from\s+|import\s*\(?\s*)['\"]([^'\"]+)['\"]", raw.decode()):
+                if name.startswith('.'):
+                    target = (path.parent/name).resolve()
+                    if target.is_relative_to(root):
+                        self.assertTrue(target.is_file(), str(target))
+                        pending.append(target)
+        self.assertGreater(len(seen), 20)
+
     def test_login_viewer_returns_real_websocket_rfb_banner_through_owner_route(self):
         connection, response = self.request('/_workspace/login/websockify', extra={
             'Cf-Access-Jwt-Assertion': self.token(exp=time.time()+1.2),
