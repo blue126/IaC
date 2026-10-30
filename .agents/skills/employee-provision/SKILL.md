@@ -26,26 +26,30 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 - 用户默认只提供邮箱。把仅含 `recipient` 的申请保存到 `$DATA_ROOT/requests/`；工具将邮箱 `@` 前的用户名同时作为 employee_id 和默认 device_id；若用户名全部为数字，只在这种情况下加 `user` 前缀（例如 123456@example.com → user123456），其他合法用户名不加 ed- 等前缀，不要求用户重复填写 ID。已有登记保留原 ID，内部旧三字段申请继续兼容。名字不符合系统账号格式或与别的邮箱/系统账号碰撞时，说明具体冲突，不擅自改名或合并身份。
 - 先核对已有申请和登记：同一员工复用本人 VM，同一设备复用原身份；新设备分配独立身份和地址。不要再次泛问“新员工还是新设备”，不要为重跑轮换密钥。
 - 新交付只用 Temp.sh；微软账号只用于 Mail.Send，不使用 OneDrive。首次发信前通过 onboard.sh login 完成管理员邮件授权，不要求员工注册账号。
-- 员工设备和网关接入私钥保存在独立的 Bitwarden Secrets Manager `EmployeeWorkspace` 项目：每台设备一条 Secret，网关 WireGuard 私钥另有一条；旧汇总 Secret 已退役。仅访问该项目的 `employee-workspace-admin` 机器账号负责读取和写入。BWS 令牌位于私有数据目录（代码目录保留兼容链接），只在管理员执行端与批准的部署 Sandbox 使用；不得打印、发送或放入公开仓库。全局 IaC Vault 不再存放员工密钥；员工 Ansible 运行时由 `onboard.sh` 临时合成加密 Vault。
+- 员工设备和网关接入私钥保存在对应 profile 的独立 Bitwarden Secrets Manager 项目（existing 为 `EmployeeWorkspace`，新方案为 `EmployeeWorkspace-OCIHub`）：每台设备一条 Secret，网关 WireGuard 私钥另有一条；旧汇总 Secret 已退役。仅访问该项目的 `employee-workspace-admin` 机器账号负责读取和写入。BWS 令牌位于私有数据目录（代码目录保留兼容链接），只在管理员执行端与批准的部署 Sandbox 使用；不得打印、发送或放入公开仓库。全局 IaC Vault 不再存放员工密钥；员工 Ansible 运行时由 `onboard.sh` 临时合成加密 Vault。
 - 默认沿用已配置的独立 pve2、CPU host、已发布的干净预装模板，以及员工 sudo 权限。隔离由网关和 PVE 侧执行，不通过员工 sudo 黑名单实现。
 - 员工不需要 GitHub 账号；个人 Claude 登录由员工在本人 VM 内完成，不进入模板、计划或设备包。
 
 ## 执行
 
-以下步骤针对既有 `existing` 流程。新 `oci-hub` 使用同一入口的 `--profile oci-hub` 分派，并先读取本项目 `docs/deployment/oci-hub-workspace-prototype.md`；其分配、登记和候选包输入仍需预配置。不得将缺少配置的新方案静默落入 existing，或借用原 BWS 项目与设备身份。
+所有活动工作区的开户和维护均显式使用 `onboard.sh --profile oci-hub`。本部署 existing 旧员工入口已于 2026-10-30 经用户批准退役；不要再用 existing plan/apply、重开旧网关或把旧包当作当前接入。历史登记和凭据仅供查询。先读 [原生 Mosh 开户](../../../docs/deployment/oci-hub-native-provisioning.md)，再按真实请求生成计划。
 
-1. 读取 settings.json，确认它绑定的 IaC 工作树存在且属于本次任务。检查 `python3 "$ADMIN_ROOT/bws-store.py" check` 能读取专用项目；失败就停止，不改用旧 Vault 或生成新身份。所有 Terraform/Ansible 操作均由私有 `onboard.sh` 送入已配置的 Docker Sandbox；不在宿主机安装它们，不自动扩大网络权限。
-2. 对指定申请运行 `bash "$ADMIN_ROOT/onboard.sh" preflight REQUEST.yml`，再运行 `plan REQUEST.yml`。仅展示目标 VM/模板、资源变更、设备归属、接收邮箱和精确计划 SHA；不打印候选私钥或完整 plan。
-3. 没有当前有效授权时，请管理员批准该精确计划，以及上传设备包到 Temp.sh 并向指定邮箱发送微软通知邮件的动作。已有本次精确计划及这些动作的授权时直接继续，不重复询问。源码、配置或计划变化后重新 plan。
-4. 运行 `apply REQUEST.yml APPROVAL_SHA256`。它负责 Terraform 资源创建、Ansible 隔离与环境配置、导出、Temp.sh 上传校验和微软邮件通知。不得跳过审批散列、用全量 apply 代替目标计划，或靠 CLI 临时绕过失败的 playbook。
-5. 检查点更新会自动刷新私有 WORKSPACES.md 和 workspace-registry.json；也可运行 onboard.sh registry。台账由分配、设备和已注册请求生成，邮箱不明不猜测，state/workspace-notes.json 记录管理员用途；VM502/control 是管理员本人保留测试机，不作为清理目标。
-6. 根据真实检查点确认交付：VM 服务验证、包哈希、Temp.sh HTTP POST 下载与外层哈希、通知 API 接受；三天保存期只是 Temp.sh 服务政策，不声称验证了精确到期时间。给出实际链接、外层 SHA256 和员工一句话提示词；收件和本机 bootstrap 属于员工验收，不把 API 成功说成收件或个人 Claude 登录成功。
+新入口 `provision --email EMAIL [--cores N --memory-mib N --disk-gib N]` 只创建私有请求和计划；获准后继续 `apply REQUEST.json SHA256`。工具从既有登记复用员工/设备，从资源池分配新 VM、VNet、overlay 与 Mosh 端口，沿用已有 Terraform/Ansible、BWS 与 Portal。不得重新拼装开户引擎或借用 existing 的身份。
+
+新后端接入启停以 WG Portal 的 Disabled/DisabledReason 为唯一权威，页面可直接人工启停；管理员脚本经同一 Portal API 操作。SQLite 只保存用量、额度、采样基线/对象引用与审计，不恢复旧 reasons 镜像。正常重启/启停或计量疑点不再产生 accounting_review 封锁；保留累计并记录估算。达到5GB仍执行配额阻断，增额/跨月只清理配额原因，保留人工停用。调试不要在结束时擅自停用用户要求保持启用的测试设备。
+
+新后端 SSH/Mosh 直接终止于本人 VM；VM500 不在路径中。VM500 的六个旧接入服务已经按批准范围停用并屏蔽，VM500 实例作为 HAPI 控制面保留，管理 SSH 和自身主机防护随之保留；它不再承担旧 gateway 或员工网络隔离，不得按历史 employee-access 名称整机退役。VM501 已迁为 demo，VM502 已迁为本人测试；详情见 [当前迁移及退役记录](../../../docs/deployment/2026-10-30-demo-test-hub-retirement.md)。历史槽位、凭据和退役标记不删除。
+
+设备包经 `export --device ID` 生成，上传和发信仍独立审批。当前 VM509 试点专项验收由用户明确跳过，配置中按员工/设备及授权引用记录豁免，结果为 `acceptance_waived`，不能说验收通过或把豁免推广到其他员工。正式邮件沿用下文格式；员工端需要已发布的 v2 OCI Hub/Mosh 客户端。
+
+旧 employee-access role 及专用 bootstrap/deploy/disable/router/auth/Mosh 入口已从源码移除。不要恢复这些入口或调用旧私有引擎；历史关联在 employee-data，永久分配仍在 Terraform。共享管理员公钥使用 admin-ssh-keys，PVE 保留的退役 VM guard 使用 retired-workspace-boundary。所有活动操作以原生 Mosh 开户说明为准。
 
 ## 正式邮件格式
 
 沿用私有项目 deliver-temp.py 的实际 HTML 模板和 email-template.txt 说明，保持以下已批准格式：
 
 - 把“复制下面整句话给你的 Agent”及完整提示词放在邮件最上方、最显眼的位置；提示词用中文引号“……”包住，整句加粗并放入醒目的引用框。发送前填入实际 Temp.sh 链接，不留占位词。
+- 迁移/更新邮件的顶部提示词必须自包含新包链接、哈希和替换旧接入的要求；不得只在正文说明迁移。明确不复用旧包/旧地址，也不只修改旧隧道 Endpoint；verify 后展示实际 profile 和连接目标。
 - 其余信息使用 bullet points：接入包链接、三天保存政策、外层 ZIP SHA256、本机系统授权、VM 内 Claude 登录与禁止事项。不要改回连续的大段文字。
 - 明确让员工 Agent 配置本机，由员工本人确认安装、管理员密码及系统弹窗；随后通过 SSH 进入个人 VM，运行 workspace-login，在 VM 的 Firefox 内完成 Claude 登录。
 - 将“不要在本地电脑登录或使用个人 Claude 账号，也不要用本地浏览器直接打开 Claude 授权链接”加粗；同时说明本地浏览器可以显示 VM 远程桌面。

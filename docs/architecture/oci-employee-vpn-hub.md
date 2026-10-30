@@ -1,28 +1,60 @@
 # OCI 员工 VPN Hub-and-Spoke 设计
 
-状态：平行建设的原型源码与隔离测试已完成；统一自动开户仍有集成缺口，真实部署与配额验收未执行。创建：2026-10-28；审核修订：2026-10-30。
+状态：独立 OCI Hub 已部署；VM504–508 已迁移并交付，VM501 demo 与 VM502 本人测试也已迁移；VM500 旧员工入口已退役，实例及管理防火墙保留。创建：2026-10-28；更新：2026-10-30。
+
+2026-10-30 补充：本轮[新建 VM509 的 Mosh 试点](../deployment/mosh-oci-hub-vm509.md)不使用 GA2。新路径从首次验收起使用独立 PVE 网络/路由，该试点当时不改造 VM502；后续 VM502 已另获批准原盘迁移。当前不接受经 VM500 出网的过渡例外。VM503 旧退役槽位/隔离保留，已明确改用 VM509；此前 VM502 过渡申请撤回。
+
+## 0. 当前实施状态与剩余工作
+
+### VM500 保留职责
+
+旧 net1–net8、Netplan/10.231.*路由、旧转发/NAT及 tap500i1–8 引用已清理；仅保留 net0 管理/HAPI 上联和自身主机防护，见 [清理记录](../deployment/2026-10-30-vm500-legacy-nic-cleanup.md)。
+
+用户已明确：VM500 保留为 HAPI 控制面，不再承担旧员工 gateway、员工流量转发/NAT 或员工网络隔离。OCI Hub 负责本方案的 WireGuard 接入与配额，PVE 独立 VNet/路由边界负责网络隔离。VM500 自身的主机防护与 HAPI 服务访问策略另行维护，不能把保留主机防火墙解释为继续承担员工隔离。
+
+不得根据历史名称 employee-access、一次未发现 HAPI 服务的清点或旧入口已退役，推断 VM500 可以停机或删除。修改 VM500 的端口、服务和主机防火墙前，核对 HAPI 控制面当前配置与所属任务。
+
+本文是当前目标架构入口。当前接入为普通公网 WireGuard → OCI Hub → 工作区 VM Spoke；GA2 仅保留为将来可选项，不是本轮部署依赖。Mosh/SSH 会话在目标 VM 终止，OCI 不运行员工跳板 shell。
+
+| 内容 | 当前证据与状态 |
+| --- | --- |
+| OCI Hub | WG Portal v2.3.1、两个 WG 接口、受控执行器及配额定时器已部署；接口/API/登记/启停已有实测 |
+| Portal 管理页面 | https://wgportal.willfan.me/ 经既有 Caddy HTTPS 访问；后台仍仅监听 loopback，采用已有管理员认证，日常写入继续通过受控管理员入口 |
+| 私钥 | 独立 BWS 项目 EmployeeWorkspace-OCIHub 已创建；Hub、VM、设备及 Portal 凭据分记录保管 |
+| VM509 | pve2、2 核 host、4 GiB、pve2-ssd 50 GiB、q35；已创建并绑定启动 hook，目前运行，已配置 WG Spoke 和安装 Mosh |
+| VM508 一次性接管 | 原盘/2核host/4GiB/自启保留，oh508/10.236.8.0/30，Spoke10.234.0.8；原生终端及原noVNC已恢复，新包已私密上传校验，员工本机更新待执行 |
+| 独立底层 | oh501 / 10.236.1.0/30、oh502 / 10.236.2.0/30、oh509 / 10.236.9.0/30，PVE 纯路由；OpenWrt 聚合回程/WAN NAT 已配置；真实路径不经 VM500 |
+| 网络实测 | 中国海南电信 → OCI → VM509；成功 UDP 回显中位约335ms，TCP建连中位约336ms；UDP 4/60超时，TCP最高约1.37秒 |
+| 测试收尾 | 中国临时接口/路由/私钥已移除，测试 peer 停用、回显服务停止；这不代表正式员工接入已交付 |
+| 正式编排 | 新 profile 已使用独立 VM Spoke、原生 SSH/Mosh、BWS/Portal 登记和本地包；邮箱/规格、查询、导出与独立审批交付复用 onboard.sh。公开客户端 PR #1 已合并至 main，三平台 CI 通过 |
+| 旧后端 | 用户确认无人使用后，VM500 六个旧入口服务已停用并屏蔽；主机、管理 SSH 和防火墙保留，旧 role/组合入口已移除，旧写入口直接拒绝 |
+| 专项验收 | 用户明确跳过本次第4项专项验收；VM509 正式设备包标记 acceptance_waived，不能记作通过。无人测试时没有活动 Mosh 会话属于正常状态 |
+
+本轮完成正式编排和常规开户接管；专项验收依用户要求跳过，稳定性/延迟排查留后续。隔离、停用原因和配额继续执行。新入口与验收状态见[原生 Mosh 开户](../deployment/oci-hub-native-provisioning.md)。员工 UDP51824 允许任意 IPv4 动态来源；Spoke UDP51825 仍只限家中出口。
+
+实施记录：[VM509 部署](../deployment/mosh-oci-hub-vm509.md)；网络证据：[端到端 RTT 报告](../learningnotes/2026-10-30-vm509-oci-hub-rtt.md)。旧 [VM502 过渡方案](mosh-oci-hub-transition.md)及其申请已被替代，不作为当前部署入口。本文更新位于任务工作树，尚未完成提交/PR/合并。
 
 ## 1. 已确定的目标
 
 OCI 是 WireGuard 网络 Hub；员工设备和每台工作区 VM 都是独立 Spoke。OCI 根据公钥与固定 VPN 地址识别设备，执行员工→本人 VM 的三层访问控制、接入流量计量和月配额。SSH、SFTP、HTTPS/WSS 会话直接在目标 VM 终止。
 
-**现有员工接入方案与本 OCI Hub 方案平行建设，不执行全员迁移、替换现有入口或退役 VM500。** 现有用户、VM、网关、路由、密钥、设备包和管理员操作继续按原方案管理；新方案独立分配资源并验收。
+**目标是由 oci-hub 后端接管旧管理功能并退役 existing 后端。** 新路径独立于 VM500；本批存量工作区已完成服务端切换，员工本机仍须使用迁移后的新包。代码接管与运行资源退出分别核对，员工 VM、磁盘、历史台账和退役标记不随旧代码删除。
 
 新方案每员工使用独立 PVE 虚拟网络/子网，由 PVE 提供三层网关和统一隔离，不做 PVE SNAT。OpenWrt 只为新方案增加一条无冲突的聚合回程路由并核对 WAN NAT/转发，不改现有员工子网的下一跳。新方案不依赖 VM500，也不把 OCI 变成应用代理。
 
-### 两套方案的边界
+### 历史并行阶段的边界（existing 已退役）
 
 | 维度 | `existing`：现有方案 | `oci-hub`：新方案 |
 | --- | --- | --- |
-| 接入与配置 | 保留既有网关、入口、WireGuard 和 Ansible 配置流程 | GA2→OCI Hub，Portal 只管理新方案指定接口/peer |
+| 接入与配置 | 存量入口待接管后退役 | 普通公网 WireGuard→OCI Hub，Portal 只管理新方案指定接口/peer |
 | 工作区资源 | 现有 VM 和网卡/默认路由保持 | 默认新建独立工作区/测试 VM、VNet、路由和 overlay；不自动改造现有员工 VM |
 | 身份与交付 | 原凭据及已发包有效，原 BWS 项目保持 | 独立 BWS 项目/机器账号、方案身份及 bundle；新方案内重跑复用自己的身份 |
 | 额度 | 保持现行规则 | 本方案内每用户独立 5 GB 双向月额度及 OCI 月账 |
-| 管理入口 | 现有请求/命令继续走原路径 | 同一管理员工程显式选择 `oci-hub` profile；字段/参数为待实现契约 |
+| 管理入口 | 现有请求/命令继续走原路径 | 同一管理员工程显式选择 `oci-hub` profile；邮箱与可选规格已接通；计划、审批、配置和交付分阶段执行 |
 
 共享员工的业务 ID、代码组件和物理基础设施不意味着共享配置写入范围。用户—VM、设备、BWS 引用、事务、交付和运行账本都携带 profile；同一邮箱可有两套独立接入关系。新方案超额/撤销/重跑仅影响其自身，不能改变现有方案资格；5 GB 不宣称约束该用户通过现有方案使用的另一套工作区。
 
-本文件此前涉及全员切换、关闭现有入口或退役 VM500 的描述已撤回。今后是否迁移/合并两套方案是独立决策，不属于本次建设。
+2026-10-30 用户确认旧入口无人使用并批准后已退役；以上表格只保留并行阶段的历史契约，不表示旧设备包仍可访问。VM500 本体、历史槽位与凭据保留。实际记录见 [demo/测试迁移及退役](../deployment/2026-10-30-demo-test-hub-retirement.md)。
 
 以下业务规则仅适用于 `oci-hub`：
 
@@ -32,19 +64,18 @@ OCI 是 WireGuard 网络 Hub；员工设备和每台工作区 VM 都是独立 Sp
 - 员工保留 VM sudo；认证、额度和跨员工隔离的最终防线必须在 VM 外。
 - 次月不能恢复管理员停用、设备撤销、工作区维护关闭或其他独立封禁。
 
-2026-10-29 已确认：十进制 5 GB = 5,000,000,000 字节，按 `Asia/Shanghai` 自然月于每月一日重置，首版采样间隔 5 秒。长停采跨月无法拆分的增量保留原始样本并标待核对，仅暂停受影响账户；不能自动把整段归新月或按零恢复。
+2026-10-29 已确认：十进制 5 GB = 5,000,000,000 字节，按 `Asia/Shanghai` 自然月于每月一日重置，首版采样间隔 5 秒。2026-10-30 用户已更新取舍：普通重启、启停或采样缺口不自动锁用户；保留原月账与样本，按可观测增量继续累计。跨月无法拆分的增量估算记入观察月份，并记录估算区间/原因，不声称获得精确分月数据。
 
 ## 2. 拓扑与职责
 
 ```mermaid
 flowchart LR
-    subgraph Existing[现有方案：继续运行]
+    subgraph Existing[存量旧入口：在用依赖待核对退出]
     E[现有员工设备] --> O[现有入口与 VM500]
     O --> EV[现有工作区 VM]
     end
     subgraph New[新方案：独立建设]
-    U[员工设备 Spoke：独立设备密钥] -->|WireGuard UDP，经 GA2| G[腾讯 GA2 香港入口]
-    G --> H[OCI Hub：WireGuard、ACL、每用户独立月额度]
+    U[员工设备 Spoke：独立设备密钥] -->|普通公网 WireGuard UDP 51824| H[OCI Hub：WireGuard、ACL、每用户独立月额度]
     V[工作区 VM Spoke：独立 VM 密钥] -->|主动建立 WireGuard，直连悉尼 OCI| H
     H -->|路由本人 VM 的 SSH 与 HTTPS/WSS| V
     V -->|普通开发公网出站| S[PVE 独立 VNet、三层网关与统一隔离]
@@ -54,20 +85,20 @@ flowchart LR
     end
 ```
 
-员工侧路径：设备 WireGuard → 香港 GA2 UDP → OCI。VM 侧路径：VM WireGuard → PVE 三层网关（不做 NAT）→ OpenWrt WAN NAT → 悉尼 OCI；这段不再经过 GA2 或 VM500 应用/站点代理。VM 主动连接及 keepalive 使它可以位于家中 NAT 后，不需要为每台 VM 配公网入站映射。
+员工侧路径：设备 WireGuard → 普通公网 OCI UDP 51824。VM 侧路径：VM WireGuard → PVE 三层网关（不做 NAT）→ OpenWrt WAN NAT → 悉尼 OCI；这段不再经过 GA2 或 VM500 应用/站点代理。VM 主动连接及 keepalive 使它可以位于家中 NAT 后，不需要为每台 VM 配公网入站映射。
 
 OCI 终止的是两段 WireGuard 加密，不终止里面的 SSH/TLS。Hub 在解密后验证和转发内层包，再加密到目标 VM peer；浏览器 TLS 与 SSH 内容仍由员工设备和 VM 的端点保护。目标选择是路由与 ACL 的结果，不是跳板 shell、SOCKS 或 HTTP 应用分派。
 
 | 组件 | 正式责任 |
 | --- | --- |
-| GA2 | 员工段 UDP 加速、总带宽上限、云侧用量与预算告警 |
+| GA2（未来可选） | 当前未接入；重新评估和批准后才能部署加速及其预算保护 |
 | OCI | 两类 Spoke 公钥认证、固定地址绑定、Hub 路由与 ACL；运行 WG Portal 和定时配额任务，按用户执行月额度及撤销 |
 | WG Portal | 管理用户、设备 peer 与状态；提供统计/管理界面和停用、恢复 API，是 `oci-hub` 的 OCI 端指定 WireGuard 接口及 peer 配置/恢复的唯一写入者 |
 | 配额任务 | 读取员工接口设备 RX/TX、持久记账，按用户判断超额；向 OCI 执行器提交停用/恢复动作，由它持锁调用 Portal API |
 | 目标 VM | 作为 Spoke 连 OCI；SSH 验证员工设备公钥；提供本人的 HTTPS/WSS 桌面和开发环境 |
 | PVE | 每员工独立 VNet/子网、三层网关和路由；在虚拟交换网络及其转发边界统一隔离，不依赖客户机或逐 VM 网卡防火墙 |
 | OpenWrt | 一条员工聚合网段回程路由经 PVE；现有 WAN NAT/转发覆盖该网段，不承担逐员工隔离 |
-| VM500 | 继续服务现有方案；新方案无依赖、不接管、不退役 |
+| VM500 | 只属于存量旧入口；新路径无依赖。管理后端待接管退役，运行资源退出另按依赖清单执行 |
 | 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、Temp.sh 交付和分方案配额/维护操作 |
 
 OCI 上原有管理 SSH、Docker、Tailscale 和其他应用不属于员工服务。员工接口本机 input 默认拒绝，诊断/管理只走独立受管通道；不把它改成大家可登录的 SSH 跳板机。
@@ -80,19 +111,19 @@ OCI 上原有管理 SSH、Docker、Tailscale 和其他应用不属于员工服�
 
 ## 4. VPN 地址、公钥与路由
 
-以下是拟定值，实施前核查 NetBox、实际路由、接口、端口和旧试验占用：
+以下接口/端口已用于 VM509；池内新地址仍须按台账分配并核对冲突，不可照抄试点值：
 
 | 项目 | 拟定值 | 约束 |
 | --- | --- | --- |
-| OCI 员工接口 | `wg-users`，`10.235.0.1/24`，UDP 51824 | GA2 香港同端口回源；与现有员工 VPN 地址段分开 |
+| OCI 员工接口 | `wg-users`，`10.235.0.1/24`，UDP 51824 | 当前普通公网直接到 OCI；与旧员工 VPN 地址段分开 |
 | 员工设备 | 新分配 `10.235.0.x/32` | 一设备一 peer；不能多人/多设备共用包 |
 | OCI VM 接口 | `wg-workspaces`，`10.234.0.1/24`，UDP 51825 | VM 从家中主动直连 OCI 公网；与员工入口分开 |
-| 新方案测试 VM Spoke | 例如 `10.234.0.2/32` | 新 overlay 地址按台账分配，不由 VMID 推算，不替代物理网卡地址 |
+| VM509 Spoke | `10.234.0.3/32` | 新 overlay 地址按台账分配，不由 VMID 推算，不替代物理网卡地址 |
 | 其他工作区 | 各自独立 `10.234.0.x/32` | 一 VM 一 peer，与员工设备密钥完全不同 |
 
 | 节点与 peer | AllowedIPs 与 Linux 路由 |
 | --- | --- |
-| 员工设备的 Hub peer | 仅本人 VM overlay `/32`；Endpoint 为 GA2 UDP，默认路由和公司 VPN 不改 |
+| 员工设备的 Hub peer | 仅本人 VM overlay `/32`；当前 Endpoint 为 OCI UDP 51824，默认路由和公司 VPN 不改 |
 | OCI 上的设备 peer | 仅该设备 `10.235.0.x/32`；公钥绑定来源地址，路由在 `wg-users` |
 | OCI 上的 VM peer | 仅该 VM `10.234.0.x/32`；路由在 `wg-workspaces`，不接受该 VM 伪装员工或别的 VM 地址 |
 | VM 的 Hub peer | 仅本员工登记设备的各 `/32`，以及显式批准的管理/探测地址；回设备路由走 `wg-workspace` |
@@ -100,9 +131,9 @@ OCI 上原有管理 SSH、Docker、Tailscale 和其他应用不属于员工服�
 
 业务内层包在 Hub 路由时不做 SNAT，VM 能看到设备的 VPN 地址。PVE 对物理网卡出站只路由，保留 VM 私有源地址；OpenWrt 在 WAN 出口执行普通公网 NAT，并将还原后的回包按员工聚合路由送回 PVE。这是外层上网路径，不改变 VPN 内层身份。两端配置必须同时声明 Linux 路由和 WireGuard AllowedIPs。
 
-员工侧 `PersistentKeepalive=15` 秒作为试点值，小于 GA2 当前 UDP idle timeout（API 默认/上限 20 秒）；VM 侧采用经验证的 NAT keepalive。每段测试空闲 60 秒、Endpoint 变更、重连和 MTU。1280 是之前测试的 MTU 种子，不预设最佳。
+员工侧 `PersistentKeepalive=15` 秒作为当前试点值；VM 侧采用经验证的 NAT keepalive。每段测试空闲 60 秒、Endpoint 变更、重连和 MTU。1280 是之前测试的 MTU 种子，不预设最佳。
 
-新方案可选备用可让同一员工 peer 直连 OCI 员工 UDP 端口；启用前单独定义并部署其来源策略，不能在只允许 GA2 回源 IP 的白名单下声称已可直连。备用仍经过同一 ACL 和额度，不自动切换或并行运行相同 peer；未验证前保持未启用。现有方案入口独立保留，不作为新方案的自动备用。外部接入 IP 不是员工身份；GA2 共享回源地址也不是可信员工。
+当前已验证普通公网直连 OCI，云侧与本机仅允许批准的设备/家中出口来源。GA2 若以后引入，须另行规划其来源策略、备用路径及费用；同一 peer 不能在两个设备同时运行。旧入口不作为新方案的自动备用，公网来源地址不替代 WireGuard 设备身份。
 
 ## 5. 访问控制与 sudo 边界
 
@@ -131,6 +162,12 @@ OCI 在 `oci-hub` profile 内维护受管映射：设备公钥 → 固定设备 
 新方案 VM 的受管 `authorized_keys` 登记本方案设备的 client SSH 公钥，并用 `from=各设备 VPN /32` 限定来源；不得全放开。独立管理员维护 key 单独管理。新 bundle 固定验证分配的目标 VM SSH host key，写入本方案 HostName/User/Port/alias；不复制现有 VM 的私有 host key，也不改现有 VM 的第二跳 SSH 授权。
 
 现有 gateway 第二跳身份继续属于现有方案，不因新方案开户/停用而变更。新方案设备身份仅授权新方案工作区，不自动授权到现有工作区；员工 root 修改自己的 SSH 授权仍受新方案 Hub 和外部网络隔离约束。
+
+### Mosh（本轮终端模式）
+
+mosh-server及workspace-mosh运行在员工VM；设备先经同一VPN路径SSH到本人VM启动会话，再使用分配的UDP端口范围。OCI只转发并按设备地址/VM地址/端口范围限制，不承担Mosh终点或第二跳SSH。终端v2包声明access_mode=mosh与mosh_ports，不要求桌面TLS字段。
+
+VM509 已配置原生员工授权及 workspace-mosh，正式试点本地包已生成；公开 bootstrap v2 已由 PR #1 合并至 main。没有活动会话在无人测试时是正常状态；已完成的UDP回显与TCP建连不代替真实Mosh验收。
 
 ### KasmVNC
 
@@ -207,7 +244,7 @@ OCI 使用相同原则：新方案 ACL 就绪校验成功，Portal 才能恢复�
 
 当前现有员工 VM 在 `terraform/proxmox/employee-workspace.tf` 直接声明专用资源，使用绑定 VM500 的 `employee_workspaces` schema，并有 `prevent_destroy`、hook 和 start_ready。它并非现成的通用 module 调用；新方案不能把自己的记录加入这份变量或接管这些资源地址。
 
-新方案在独立服务文件中定义 `oci_hub_workspaces` 变量和 `oci_hub_workspace` module 调用键（拟定名），使用 `terraform/modules/proxmox-vm`、`proxmox.pve2` 及独立 inventory 分组。VMID、接口/VNet、IP/MAC、磁盘和模板来源明确分配；不继承 VM500 的 nic_slot/gateway_mac 约束。同一 employee_id 在两套变量中可以存在，不相互覆盖。
+新方案在独立服务文件中定义 `oci_hub_workspaces` 变量和 `oci_hub_workspace` module 调用键（已实现），使用 `terraform/modules/proxmox-vm`、`proxmox.pve2` 及独立 inventory 分组。VMID、接口/VNet、IP/MAC、磁盘和模板来源明确分配；不继承 VM500 的 nic_slot/gateway_mac 约束。同一 employee_id 在两套变量中可以存在，不相互覆盖。
 
 通用模块现有接口不足，实施前须最小扩展并核对以下契约：
 
@@ -228,7 +265,7 @@ PVE 原生 `protection=true` 与 Terraform `prevent_destroy` 是不同机制，�
 
 共享 pve2、OpenWrt 和 OCI 主机上的改动必须是有明确新方案匹配范围的增量。先备份、预检并比较变更范围，不全局重建 bridge、flush 防火墙或覆盖现有 WireGuard；验证现有方案仍可连接。Portal 只接管新方案指定接口，不自动导入 OCI 上既有站点/管理隧道。
 
-撤回只停用新方案入口、服务及登记资源，保存其台账/月账；新增 OpenWrt 聚合路由和 PVE 规则按精确目标撤回。不关闭 VM500、现有入口或站点隧道，也不因本方案验收通过而新增退役清单。本次仅修改设计，未执行网络变更。
+撤回只停用新方案入口、服务及登记资源，保存其台账/月账；新增 OpenWrt 聚合路由和 PVE 规则按精确目标撤回。不关闭 VM500、现有入口或站点隧道，也不因本方案验收通过而新增退役清单。VM509 新网络已按独立批准范围部署；这不授权退出或删除其他运行资源。
 
 ## 8. WG Portal 与每用户月度配额
 
@@ -240,8 +277,8 @@ PVE 原生 `protection=true` 与 Terraform `prevent_destroy` 是不同机制，�
 
 | 员工视角 | 路径 | OCI 员工接口 `wg-users` 上该设备 peer 的计数 |
 | --- | --- | --- |
-| 上传 | 员工电脑 → GA2 → OCI → 本人 VM | RX / received |
-| 下载 | 本人 VM → OCI → GA2 → 员工电脑 | TX / sent |
+| 上传 | 员工电脑 → OCI → 本人 VM | RX / received |
+| 下载 | 本人 VM → OCI → 员工电脑 | TX / sent |
 
 只采集员工接口的登记设备 peer；工作区接口 `wg-workspaces` 的同一份数据不再次累加。VM 自身开发公网出站不经员工接口，不计入该用户额度。产品口径采用员工 VPN peer 报告的双向字节，包含该接入段计数可见的协议数据，不是文件净大小或严格过滤后的应用有效载荷，也不能继续写成“只统计解密后的内层 IP”。WireGuard 空载、握手和 keepalive 的具体计数行为需在固定版本验收记录，不预设与 GA2 账单逐字节一致。
 
@@ -258,7 +295,7 @@ PVE 原生 `protection=true` 与 Terraform `prevent_destroy` 是不同机制，�
 
 ### 持久化与次月恢复
 
-新方案专属 SQLite 保存 profile、用户周期、额度、上传、下载、设备采样基线、已知接口/peer 重建代次、动作状态及用户/设备/工作区各自的阻断原因集合；权限受限，备份时不包含设备私钥。systemd 运行单一记账任务，防止并发采样重复累加；周期切换与记账在同一事务/锁下串行处理。
+新方案专属 SQLite 保存 profile、用户周期、额度、上传、下载、设备采样基线、已知接口/peer 重建代次、动作状态及审计；不保存第二份用户/设备/工作区启停状态；权限受限，备份时不包含设备私钥。systemd 运行单一记账任务，防止并发采样重复累加；周期切换与记账在同一事务/锁下串行处理。
 
 | 场景 | 处理 |
 | --- | --- |
@@ -268,11 +305,11 @@ PVE 原生 `protection=true` 与 Terraform `prevent_destroy` 是不同机制，�
 | 意外重启/短暂停机 | 保留最后已提交月账；可观测的新累计正常补记，重置前未采到的数据可能丢失并记录缺口。用户已接受小额误差，不因普通非干净重启自动封禁全部用户 |
 | 数据库损坏/身份映射不明 | 不新建空白月账冒充恢复；告警并暂停受影响用户接入，等待修复 |
 | 月初/离线跨月 | 每月一日归档旧周期、新建当前周期；不补发历史月份额度。同一周期重复执行只重置一次 |
-| 长停采跨月 | 跨界区间无法按时间拆分的增量标为待核对缺口，不能整个自动计入新月。保留已提交历史用量及原始样本，由管理员核定归属；未核定不假装获得精确月账 |
+| 长停采跨月 | 保留历史用量和原始样本，将可观测增量估算计入观察月份并明确记录估算，不因该区间自动封禁；该月账具有已注明的估算误差 |
 | 月界附近采样 | 切月只归档月账，不重置 WireGuard 实时计数；基线跨月保留。以边界样本归集，记录可能存在一个采样间隔的归属误差，不把历史累计全部算入新月 |
-| 恢复设备 | 只清除旧周期的 quota 原因；在 OCI 动作锁内重新读取映射代次、所有层级原因集合和到期状态，集合全空才调用 Portal 恢复；撤销、管理员停用和到期不因月重置复活 |
+| 恢复设备 | 只清除旧周期的 quota 原因；在 OCI 动作锁内重新读取映射代次、Portal 中的人工状态和当前用量，只清理已失效的配额原因；人工停用、撤销和到期保持 |
 
-`effective_access = identity_valid AND block_reasons_empty AND accounting_ready AND ingress_active`。`identity_valid` 要求方案、归属及有效期匹配；`block_reasons_empty` 指用户、设备及工作区原因集合均为空。`accounting_ready` 由 OCI 执行器依据账本/运行映射可读且已核对基线设置，不等于某次采样是否按时完成；普通任务短暂停机告警并重试，不自动关停全体。`ingress_active` 由执行器依据本方案管理员启用状态及 ACL 启动门控结果确定。WireGuard 实时计数和月累计分别保存；同用户多设备归集不能通过面板分组标签自动假定完成。GB 单位、`Asia/Shanghai` 自然月及 5 秒采样已由用户确认，不重复询问。
+`effective_access = identity_valid AND block_reasons_empty AND accounting_ready AND ingress_active`。`identity_valid` 要求方案、归属及有效期匹配；`block_reasons_empty` 从 Portal 实时读取用户、设备及工作区状态；本地 SQLite 不保存它的可写镜像。`accounting_ready` 由 OCI 执行器依据账本/运行映射可读设置，计数连续性不确定仅产生审计估算，不等于某次采样是否按时完成；普通任务短暂停机告警并重试，不自动关停全体。`ingress_active` 由执行器依据本方案管理员启用状态及 ACL 启动门控结果确定。WireGuard 实时计数和月累计分别保存；同用户多设备归集不能通过面板分组标签自动假定完成。GB 单位、`Asia/Shanghai` 自然月及 5 秒采样已由用户确认，不重复询问。
 
 ### 面板、API 与配置所有权
 
@@ -289,53 +326,40 @@ WG Portal 稳定版 v2.3.1 的模型已有用户归属、`Disabled`、`DisabledR
 | `core.self_provisioning_allowed` | `false`；设备经管理员工程登记后分发 |
 | Portal 状态与导出 | 使用新方案独立数据库和配置目录；恢复/导出只涵盖新方案指定接口，禁止扫描写入现有 `/etc/wireguard` 配置 |
 
-这些是部署要求，尚未在 OCI 验证。`ignored_local_interfaces` 是排除清单而非万能安全边界；还需核对首次启动、重启和状态恢复均不触碰现有接口。不能将 master 文档的新字段不加检查套到固定 release。
+接口、API 与独立数据路径已有 OCI 实测；本段的启动失败、重启及完整隔离/额度验收尚未全部完成。`ignored_local_interfaces` 是排除清单而非万能安全边界；还需核对首次启动、重启和状态恢复均不触碰现有接口。不能将 master 文档的新字段不加检查套到固定 release。
 
 私有管理员工程保存人员归属和 BWS 私钥；开户/撤销任务与配额任务都经 OCI 执行器调用 Portal API。Portal 拥有新方案 OCI 端 WireGuard 接口和 peer 的创建、持久化及恢复；Ansible 部署 Portal、网络前置条件、外部路由/隔离规则及任务，通过受管 API 初始化新接口。不得为同一 OCI 接口再部署独立 `wg-quick` 配置/启动服务，也不得同时用模板或 `wg set` 改写 Portal 管理的 peer。VM 内的 Spoke 接口仍由 Ansible 管理；现有方案执行路径独立保留。
 
-### 唯一写入口与多原因状态
+### Portal 是接入状态的唯一权威（2026-10-30）
 
-新方案的开户、撤销、人工停用、增额和月恢复统一提交给 **OCI 上的命令执行器**；管理员工程通过现有受限管理通道调用它，配额采样任务也向它提交动作。只有执行器持有 Portal 写 API 凭据，管理员本机不持可绕过执行器直接写 Portal 的常驻凭据。部署初始化同样走该执行器；它是小型配额组件的命令入口，不另建公网控制面。
+管理员可直接在 Portal 页面启用、停用受管用户或设备；管理员脚本也通过 Portal API 修改相同字段。后台不再使用另一份 admin_disabled/revoked 等本地标记覆盖页面操作。SQLite identities 表的旧 reasons 列已删除，旧内容只作为迁移审计保存在 meta；运行查询实时读取 Portal 的 Disabled/DisabledReason。
 
-执行器在方案级锁内核对 profile、对象归属和预期代次，写入带唯一 action_id 的待执行记录及原因集合，再调用 Portal 并核对实际状态。中断重试复用同一 action_id，不重复赠额或重新创建对象。API 成功与 SQLite 提交不是原子事务，待执行记录和状态回读用于恢复；不假设 Portal 提供 CAS。
+计量账本只保存月用量、额度、采样基线、对象引用及审计。配额任务读取 Portal 当前状态：达到5GB时添加 `quota_exhausted:YYYY-MM`，增额或进入新月后只移除已失效的配额原因，保留原有人工原因。超额用户在页面直接启用仍会被配额规则拦截，需先增额；普通人工停用/启用不会被历史账本改回。
 
-| 原因 | 作用范围 | 清除方式 |
-| --- | --- | --- |
-| quota_exhausted | 用户及当前周期 | 月切换/明确增额后由执行器处理 |
-| admin_disabled | 用户或设备 | 明确的管理员恢复命令 |
-| revoked | 设备永久撤销标记 | 月恢复不清除；重新登记按新身份处理 |
-| expired / workspace_disabled | 身份到期或工作区状态 | 核对有效期/明确维护操作后重新计算 |
+普通启停、Portal 重启、计数器归零或超过10秒的采样缺口保留累计用量，按可观测差值或新计数基线继续累计；不能确认的区间留下原始证据与估算说明，不产生 accounting_review 接入封锁。跨月缺口的可观测增量估算记入观察月份；历史月账不清空，不将估算说成精确数据。
 
-SQLite 是多原因状态权威，Portal `DisabledReason` 仅用于展示当前阻断摘要。管理员停用一个已经因 quota 而 disabled 的设备，也必须增加 admin_disabled 原因，不能因为 Portal 状态已经为 true 就跳过记录。月恢复只移除对应旧周期 quota 原因，在同一锁内重读原因集合和当前映射代次，仍有任何原因就保持停用。
+开户、撤销与增额继续复用 onboard.sh 和 OCI 执行器的 profile/对象归属/action_id/锁及回读。Portal 页面负责日常人工状态，执行器负责自动化与配额；两者调用同一个 Portal API。Portal API 不提供跨页面/脚本的事务或 CAS，因此不声称并发编辑是原子操作。
 
-Portal 面板用于日常查询；必须人工写入时，先由 OCI 执行器进入维护模式并暂停自动写动作，核对/登记人工停用原因及最终状态后再退出。常规恢复不能依赖 Portal 的“启用用户并恢复全部 peer”，也不假设当前版本提供只读管理员角色。现有方案管理员 API 和凭据不进入这个执行器的写入范围。
+管理员 HTTPS 入口为 https://wgportal.willfan.me/，后台仍监听 loopback，并要求现有管理员认证。API 凭据不交给员工或公开客户端。新员工、VM/地址分配、BWS 凭据和设备包仍由既有开户工作流生成；不通过页面添加未分配 VM/ACL 的未知 peer。旧入口与旧 BWS 项目不受影响。
 
-面板和 API 仅供管理员通道访问，不向员工 VPN 或公网开放。API 凭据按现有私有凭据流程交付；不授予面板任意 BWS 读写，不以面板配置替代 BWS 凭据台账。新方案公钥登记及配置导出需验证；不导入、旋转或覆盖现有方案身份，不用面板私钥副本替代 BWS。
+## 9. 费用与来源保护
 
-## 9. 费用防护
+当前普通公网 OCI Hub 试点未使用 GA2，不应套用 GA2 的按流量费率。本用户每月 5 GB 是员工接入额度，不是整台 OCI 主机的账单硬封顶。未来若重新引入 GA2，沿用[历史计费与方向核对](../learningnotes/2026-10-28-ga2-billing-directions.md)作为背景，部署前重新核实价格、预算和紧急停用方案。
 
-实际香港普通 BGP 入口、香港终端节点组回源 OCI 的账单已核对：接入公网 0.700、回源公网 0.700、传输流量 0.525 元/GB，另加双向处理 CU 费用；同地域传输项实际收费，不能按零估算。员工视角上传/下载、OCI peer RX/TX 对应关系及小时公式见 [GA2 计费与方向核对](../learningnotes/2026-10-28-ga2-billing-directions.md)。
-
-员工 5GB 不是 GA2 金额硬封顶。未知设备发往 GA2 的 UDP、握手、keepalive、外层开销、重传、到 OCI 前已传输的数据，以及超额员工继续发包均可能计费；在 Hub 丢弃不能取消已发生的云侧费用。
-
-GA2 上线前必须配置整体带宽上限、月预算/用量告警、通知渠道和紧急停用 runbook。告警不等于自动断路。若需要自动总量关闭，应单独验证停用/删除监听器影响已有/新流量的范围、生效延迟、用量不可得时的关闭策略及人工重开权限；不得承诺账单延迟下精确金额硬停。
-
-若要求任何来源下费用绝不超过固定金额，必须取得腾讯提供的账户硬封顶能力或改选固定套餐；不能用本方案的员工配额代替。新方案入口与其受管备用统一受本方案月账和停用状态控制，允许轮询/API 执行窗口的小额超用。现有方案入口独立运行，不在本月账管辖范围，也不为实现配额而关闭。新方案工作区默认不授权现有方案身份，避免出现通向同一新工作区的未计量路径。
-
-OCI 云侧和本机分别放行员工 GA2 回源 UDP 与来自家中已批准公网的 VM Spoke UDP；来源清单变化差量维护且审计，不把同一公网来源当作同一员工。现有方案及 OCI 原有管理/站点隧道的 WireGuard peer 一律不在新方案清单同步删除范围。
+OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口到 UDP51825。来源变更差量维护，不把同公网 IP 当成同一员工。现有管理/站点接口不纳入新方案 peer 同步删除范围。员工 UDP51824 已显式采用 dynamic 模式和 0.0.0.0/0；只有该 WG 端口允许动态来源。Spoke UDP51825 仍仅限家中公网，旧 RTT 测试 peer 仍停用。
 
 ## 10. 数据、凭据和两个仓库
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和 Temp.sh 邮件交付。增加显式 profile 分派：`existing` 继续调用原“生成网关配置并由 Ansible 写入 peer”的流程；`oci-hub` 才调用新增 Portal API 适配层。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口的 profile 分派和 Portal/账本后端已有原型；新方案仍依赖预设分配和登记/包请求，尚未完整复用原流程的自动分配及输入生成。以下约束继续适用于后续集成。
+IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和 Temp.sh 邮件交付。增加显式 profile 分派：当前代码中的 `existing` 仍调用原“生成网关配置并由 Ansible 写入 peer”流程，属于待退役实现；目标是由 `oci-hub` 接管相应业务，通过 OCI 执行器/Portal 管理新 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，Temp.sh/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |
 | 私有管理员工程 | 唯一员工/设备/VM 归属、overlay 分配、Portal API 适配、启用/撤销和额度操作编排、分方案开户事务、Temp.sh 包与邮件交付；配额任务源码也归此工程 |
-| WG Portal（OCI） | 私有台账的用户/设备映射、新方案 OCI 端指定 WireGuard 接口与 peer 的配置、启停和恢复；只接受 OCI 执行器发起的日常写 API 操作，唯一写入其范围内的 WireGuard 配置 |
-| BWS 项目 | 现有 `EmployeeWorkspace` 原记录及令牌保持；新方案采用独立项目 `EmployeeWorkspaceOCIHub`（拟定名）及只授权该项目的机器账号。新项目分别保存设备、VM Spoke、Hub key 和 Portal API 凭据 |
-| 配额组件（OCI） | 采样任务和持锁命令执行器常驻；SQLite 保存唯一月账、基线、多原因集合和待执行动作，管理员电脑离线仍工作 |
+| WG Portal（OCI） | 私有台账的用户/设备映射、新方案 OCI 端指定 WireGuard 接口与 peer 的配置、启停和恢复；页面和管理员脚本共用同一 API 与启停状态，唯一写入其范围内的 WireGuard 配置 |
+| BWS 项目 | 现有 `EmployeeWorkspace` 原记录及令牌保持；新方案采用独立项目 `EmployeeWorkspace-OCIHub`（已创建）及只授权该项目的机器账号。新项目分别保存设备、VM Spoke、Hub key 和 Portal API 凭据 |
+| 配额组件（OCI） | 采样任务和持锁命令执行器常驻；SQLite 保存唯一月账、基线、审计和待执行动作；接入状态从 Portal 读取，管理员电脑离线仍工作 |
 | IaC 仓库 | Terraform OCI 资源、PVE/VM/SDN VNet/子网定义、Ansible 部署 Portal 与配额任务及路由/隔离规则；包含部署契约/schema/验收/设计。新工作区使用独立变量/module 调用键、经门控扩展的通用 VM module 与 `proxmox.pve2` |
 | 公开 bootstrap | 通用 CLI 接入/下载/验证指引；不含管理员工具、真实配置、私密链接或密钥 |
 
@@ -359,7 +383,7 @@ IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard
 
 ### BWS 项目与运行端凭据隔离
 
-现有 `bws-store.py` 在原项目中遇到未知记录类型会拒绝加载；因此新方案采用独立 BWS 项目，**不向现有 EmployeeWorkspace 项目加入新方案记录、不放宽原加载器白名单来容纳新项目**。先配置显式 profile→项目 ID/机器账号绑定并做拒绝交叉访问的预检，再写入新方案记录；默认 existing 的项目 ID、令牌和读取路径保持。项目可用额度、项目 ID 和机器账号授权是实施预检项，本文件不声称已创建。
+现有 `bws-store.py` 在原项目中遇到未知记录类型会拒绝加载；因此新方案采用独立 BWS 项目，**不向现有 EmployeeWorkspace 项目加入新方案记录、不放宽原加载器白名单来容纳新项目**。先配置显式 profile→项目 ID/机器账号绑定并做拒绝交叉访问的预检，再写入新方案记录；默认 existing 的项目 ID、令牌和读取路径保持。独立项目及仅对此项目读写的机器账号已创建并验证；具体 ID 和令牌留在私有数据目录。
 
 管理员部署端从新 BWS 项目读取所需值：VM 只收到自己的 Spoke key。用户已确认使用 Portal v2.3.1 标准 v1 API：OCI Portal 保存本方案 Hub key，以及本方案设备/VM Spoke 的 WireGuard 私钥副本；BWS 保持这些凭据的恢复权威，现有方案和员工 SSH 私钥不交付 OCI。OCI 命令执行器只收到单一 Portal API 凭据文件（限制所有者访问）。**OCI 不保存现有或新 BWS 项目的机器账号令牌，也不运行持令牌读取整个项目的定时任务。** Portal/采样任务不访问员工 SSH 私钥；采样只读 WireGuard 统计，实际 API 写入由执行器完成。
 
@@ -386,7 +410,7 @@ VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对
 
 员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。既有请求/命令缺省继续走 `existing`，不能静默切到 `oci-hub`；新字段/参数须在实现时验证，不把未实现示例当作可执行命令。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
 
-bundle 生成器增加独立 `oci-hub` 后端，输出新方案 GA2/OCI peer、VM overlay、SSH/TLS pin；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用 Temp.sh/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
+bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；Mosh 终端包不要求桌面 TLS 字段；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用 Temp.sh/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
 
 ### 在线查询与维护
 
@@ -394,52 +418,51 @@ bundle 生成器增加独立 `oci-hub` 后端，输出新方案 GA2/OCI peer、V
 
 增额、封禁和撤销仍从管理员工程进入，经受限管理通道提交给 OCI 执行器，在锁内更新原因/账本并调用 Portal API；新方案月用量从 OCI 读取，管理员本机不维护可覆盖 OCI 的第二份可写月账；命令的 profile、目标对象与回执须一致，撤销一套不影响另一套。开户停止、邮件发完或管理员电脑关机都不影响 OCI 配额服务。
 
-## 11. 平行建设、原型顺序与撤回
+## 11. 当前收口顺序与退役边界
 
-1. **兼容与资源预检**：核对 existing/oci-hub 分派、现有配置指纹、未占用 VMID/CIDR/端口及 provider SDN 能力；确定独立 BWS 项目/机器账号绑定。核对旧读取路径不被新项目记录影响，模块扩展的默认参数不改变现有资源计划。
-2. **先完成原型实现契约**：补齐通用 VM module 的 hook/首次停止创建配置；实现 OCI 持锁命令入口、原因集合、action_id 恢复及采样/月界处理。用合成记录验证 quota→admin_disabled→次月仍停用、撤销并发、重复请求和默认 existing 路径；此阶段不向真实用户发包。
-3. **独立网络与测试 VM 原型**：按已核对目标准备新 PVE/OCI 边界及启动门控，再创建独立 VNet 和保持停止的测试 VM。hook 与路由核验后启动，接入 Portal/OCI，验证规则加载失败拒绝启动、正常重启可恢复和 SDN Apply 对现有连接的影响。首次只用无个人数据的测试环境；不改 VM502。
-4. **端到端配额与桌面验证**：合成两用户、用户 A 两设备、每用户独立 VM，使用小测试额度验证 API 停用、原因叠加、跨月和管理员离线；再验证新工作区的 SSH/SFTP/KasmVNC、证书/host pin、本人登录及真实中国网络。既有桌面 Story 不代替本原型证据。
-5. **新方案用户开户与并行验收**：原型通过后才能按实际批准的申请创建新方案工作区和独立凭据，经 OCI 执行器登记并验证，再生成 Temp.sh/邮件交付。回归现有方案连接、配置指纹和 online，证明重跑/撤销不影响原运行；不批量迁移现有用户。
-6. **撤回新方案**：仅停止/撤回登记的新方案入口、服务和增量网络配置，保留其台账/月账；不触碰现有 VM500、隧道、身份和已发包。新计费资源清理按明确目标授权执行。
+1. **功能接管与入口**：已实现新后端邮箱/规格计划、既有冷创建复用、BWS/Portal、原生 SSH/Mosh、本地包、查询及独立审批交付。VM509 配置与本地包已完成；新建完整员工和真实邮件不在本次执行范围。
+2. **客户端发布**：公开 v2 bootstrap 已由 PR #1 合并至 main，三平台 CI 通过。员工实际安装与真人体验未执行。
+3. **稳定性排查**：留后续定位 UDP 超时和 TCP 长尾。
+4. **专项验收**：用户明确跳过，按设备记录 acceptance_waived；不记作已通过安全、恢复或真实 Mosh 验收。
+5. **旧管理代码退役**：等待用户确认旧入口无人使用并批准后，再退役旧后端功能/代码/配置。VM500 因其他业务继续保留；本轮不执行 Git 提交/PR/发布。
 
-本次范围没有全员切换、现有入口关闭、VM500 退役或两方案合并步骤。模块、执行器原型及合成验证已完成；新方案 BWS 项目、真实网络部署和端到端验收仍待按批准范围落实。源码或文档完成不代表生产验收通过。
+当前查询已读回 VM509 running、正式设备登记启用及月账；没有员工连接时无握手/会话属于正常状态。详见[原生开户运行说明](../deployment/oci-hub-native-provisioning.md)。
 
 ## 12. 上线门槛
 
 | 编号 | 验收 |
 | --- | --- |
-| H-01 | 设备与目标 VM 都是独立 Spoke，经 OCI 直达应用；新方案连接不经 VM500/现有站点隧道或 OCI 应用代理；现有方案原路径继续运行 |
-| H-02 | 本人 SSH/SFTP/WSS成功；跨员工、peer互访、伪装地址、OCI管理/VCN/LAN、VM主动访问设备和公网出口均被 Hub 拒绝 |
+| H-01 | 设备与目标 VM 都是独立 Spoke，经 OCI 直达应用；新方案不经 VM500/旧站点隧道/OCI应用代理；存量旧入口在明确退出前保留 |
+| H-02 | 本人 SSH/Mosh/SFTP成功（桌面模式另验WSS）；跨员工、peer互访、伪装地址、OCI管理/VCN/LAN、VM主动访问设备和公网出口均被 Hub 拒绝 |
 | H-03 | 每用户独立 5 GB；同用户两设备的 RX＋TX 合计记账，1 GB 上传＋4 GB 下载触额；用户间独立，VM 开发出网不计入，工作区 peer 不重复计数 |
-| H-04 | 持续 SSH/SFTP/WSS 超额后经 Portal API 停用该用户全部新方案设备；记录轮询超用及停用生效时间，验证停止转发和重连拒绝；其他用户、现有方案及 VM 不停止 |
+| H-04 | 持续 SSH/Mosh/SFTP（桌面模式含WSS）超额后经 Portal API 停用该用户全部新方案设备；记录轮询超用及停用生效时间，验证停止转发和重连拒绝；其他用户、现有方案及 VM 不停止 |
 | H-05 | peer/接口重建不清空月账；新方案备用直连、Portal 普通部署及新增设备不能恢复该方案超额身份；现有入口不授权新方案 VM，不要求停用现有方案；采样/API 故障可告警重试，明确轮询可用性边界 |
 | H-06 | 重启/月界/计数重建不清零或重复赠额，统计缺口可追踪；quota 后再叠加 admin_disabled，次月仍停用；撤销与恢复并发经同一锁及原因集合判断，API 中断重试不复活身份 |
 | H-07 | VM root修改物理/VPN接口、路由、ARP、VLAN与IPv6也不能越过 PVE/OCI外部边界 |
-| H-08 | VM本机桌面URL、CA/叶证书、SSH公钥及host pin、Host/Origin、后端路径/API和本机前端认证验收通过 |
+| H-08（桌面模式） | VM本机桌面URL、CA/叶证书、SSH公钥及host pin、Host/Origin、后端路径/API和本机前端认证验收通过 |
 | H-09 | PVE 独立网络/纯路由及 OpenWrt 回程/WAN NAT 验收；PVE 新 VM pre-start 与 OCI Portal 恢复均等待实际 ACL 就绪，规则缺失拒绝启动/转发，无重启暴露窗口；SDN Apply 回归现有业务，无新 SNAT 或现有网关/VM500 变更 |
-| H-10 | 真实中国桌面延迟、尖峰、MTU、空闲/断线恢复、传输完整性和时段流量有记录，未用旧213ms成绩冒充 |
-| H-11 | GA2总带宽/预算告警与紧急停用演练，明确无法精确金额硬封顶的部分；回源清单失配有关闭策略 |
+| H-10 | 本轮真实中国SSH/Mosh功能、空闲/断线恢复和稳定性有记录，网络回显与业务验收分开；桌面另验，不用旧213ms成绩冒充 |
+| H-11（当前不适用） | GA2当前未部署；如未来引入，再验证总带宽/预算告警、紧急停用及回源来源保护 |
 | H-12 | Portal 是新 OCI 接口/peer 唯一配置写入者；仅 OCI 执行器持写 API 凭据，管理/配额动作经同一锁，人工面板进入维护模式；无并行 wg-quick、自动导入/批量恢复/建 peer，重启不复活身份 |
 | H-13 | 同一 profile 请求经历中断/重跑后，方案内 VM、Portal 用户/设备、公钥及 BWS 关联保持唯一；台账、SSH/TLS pin、bundle 参数一致；验证通过才允许 Temp.sh/邮件交付 |
 | H-14 | 发布到 OCI 的映射/策略代次可核对，管理员电脑/Sandbox 离线时配额仍运行；本机旧快照不覆盖月账或新撤销；online 区分 profile、VPN 活动与 SSH 会话，API/连接失败不报告无人在线 |
-| H-15 | 新 BWS 项目写入后现有加载/导出仍正常，OCI 无任一 BWS 项目令牌；新方案部署/重跑/撤回不改现有 Secret/入口/VM500/路由，默认 existing 后端保持，交付/查询/计量均匹配 profile |
+| H-15 | 新 BWS 项目写入后现有加载/导出仍正常，OCI 无任一 BWS 项目令牌；新方案部署/重跑/撤回不改现有 Secret/入口/VM500/路由，功能接管前保留存量运行所需维护，接管后退役旧existing管理入口；交付/查询/计量均匹配profile |
 | H-16 | 新 Terraform schema/module 键独立，模块默认参数不改变现有消费者计划；新 VM 首次停止创建、hook 门控和 protection=true 生效，原型通过后才开放新用户交付 |
 
-这些新门槛当前均未标为通过；现有方案不因本提案通过而被关闭或退役。本文件仅完成设计，不授权安装、部署、重启、基础网络修改、删除、提交或推送。
+以上是完整能力门槛，状态以第0节和实际验收记录为准；已有网络/接口/创建证据不等于整行门槛全部通过。文档本身不新增安装、部署、重启、删除或Git写入授权。
 
 ## 13. 设计核对与实施前验证
 
-2026-10-28 完成一致性核对；2026-10-29 完成 Claude 独立审核并经用户同意落实四项设计修正：独立 BWS 项目、PVE/OCI 防火墙就绪启动门控、OCI 单一命令入口与多原因集合，以及独立 Terraform schema/模块保护契约。这里是方案修订完成，相关实现和原型未完成。历史测试报告保留原路径与原数据，不被新设计覆盖。
+2026-10-28 完成一致性核对；2026-10-29 完成 Claude 独立审核并经用户同意落实四项设计修正：独立 BWS 项目、PVE/OCI 防火墙就绪启动门控、OCI 单一命令入口与多原因集合，以及独立 Terraform schema/模块保护契约。这是当时的方案审核记录；当前已有实现和部署，以第0节状态为准。历史测试报告保留原路径与原数据，不被新设计覆盖。
 
-以下仍是实现验证项，不是已通过的能力：
+以下保留完整验证目标；API/接口与独立网络已有证据，重启、安全、配额和业务验收不能据此推定通过：
 
 - 使用合成 WG 密钥验证固定 Portal 标准 v1 API 的登记、停用、完整对象更新与恢复、接口排除和服务重启；验证已获准的 WG 私钥副本只进入新方案受保护存储，不进入日志/公开交付。
 - 核对拟定 CIDR/端口、provider SDN 能力、模块保护及实际防火墙后端；验证 PVE/OCI 启动门控、OpenWrt 回程/WAN NAT 和 Apply 影响，新项目写入不影响现有 BWS 读取。
 - 实测 OCI 执行器的原因叠加、并发和待执行动作恢复，以及采样/停用延迟、计数重建、长停机跨月；不把允许轮询超用解释为故障期间仍有硬上限。
 - 用新建工作区验证 KasmVNC 本机前端、TLS/SSH pin、真实登录及中国侧体验；已有 VM502 桌面 Story 不替代新方案验收。
 
-2026-10-29 Build 决策门已确认 WG 私钥副本范围、十进制 GB、结算时区、5 秒采样和跨月缺口处理；完整跨层计划获准保留。技术实现仍须按 Build 最终计划检查点获准后开始。
+2026-10-29 Build 决策门已确认 WG 私钥副本范围、十进制 GB、结算时区、5 秒采样和跨月缺口处理；完整跨层计划获准保留。本轮后续部署已有分别批准的执行记录；未获授权的新范围仍需先准备精确计划。
 
 ## 14. 参考
 
@@ -460,8 +483,12 @@ bundle 生成器增加独立 `oci-hub` 后端，输出新方案 GA2/OCI peer、V
 
 ## 15. 原型实现契约（2026-10-29）
 
-本轮已增加 Terraform 独立 schema、默认兼容模块输入、PVE/OCI/Spoke 角色、OCI SQLite/执行器原型和 v2 bootstrap。部署与恢复的实际字段、文件及命令见 [原型 runbook](../deployment/oci-hub-workspace-prototype.md)，合成环境入口见 [验证说明](../../tests/oci-hub/README.md)。原型源码完成、统一自动开户尚未完全接入、真实部署未验收是三个不同状态；新增代码不等同于 H-01～H-16 真实部署验收。管理员源码以独立私有仓库为准，不复制到公开 IaC；当前维护基线为 `ce10d14`。
+本轮已增加 Terraform 独立 schema、默认兼容模块输入、PVE/OCI/Spoke 角色、OCI SQLite/执行器原型和 v2 bootstrap。部署与恢复的实际字段、文件及命令见 [原型 runbook](../deployment/oci-hub-workspace-prototype.md)，合成环境入口见 [验证说明](../../tests/oci-hub/README.md)。当前终端自动开户入口已接通，VM509 已配置并导出；真实员工完整交付和 H-01～H-16 专项验收不能从源码完成推定。管理员源码以独立私有仓库为准，不复制到公开 IaC；当前维护基线为 `ce10d14`。
 
-执行器 action 固定携带 `profile=oci-hub`、action_id、generation；支持 register/reason/bonus/sample/reconcile/resolve_gap。register 的公开请求引用独立 BWS portal_refs，仅在受保护执行通道物化 WG 私钥。来源/归属/URL-body ID 校验在 Portal 写入前完成，整对象更新保留固定 API 的 ConfigOption 与私钥字段；SQLite 只存公开映射、摘要和多原因状态。长跨月缺口需用精确分配核定；普通开户重跑仅释放本次新建身份的初始原因。
+执行器 action 固定携带 `profile=oci-hub`、action_id、generation；支持 register/reason/bonus/sample/reconcile/resolve_gap。register 的公开请求引用独立 BWS portal_refs，仅在受保护执行通道物化 WG 私钥。来源/归属/URL-body ID 校验在 Portal 写入前完成，整对象更新保留固定 API 的 ConfigOption 与私钥字段；SQLite 只存公开映射引用、用量、基线、摘要和审计，不保存重复启停状态。跨月不确定区间按明确估算规则累计并记录；普通开户重跑仅释放本次新建身份的初始原因。
 
 PVE SDN 采用 API 全局锁拒绝无关 pending changes；内核规则 JSON 和当前策略摘要共同作为启动门槛，不以 systemd active 冒充隔离。Portal 单独持久化；OCI 部署不包含 BWS 令牌、员工 SSH 私钥或整目录私有工程。公开客户端 v1/v2 严格分派，v2 使用独立目录、alias、UDP 51824/15 秒及目标 VM 的 SSH/TLS pin。
+
+## 旧角色源码收口
+
+旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 仍需的永久退役端口 guard 由 retired-workspace-boundary 独立维护，兼容安装文件名保留，不含 VM500 转发/NAT或gateway功能。历史设备关联移至管理员私有记录，Terraform 原分配、状态迁移和退役防重用测试保留。HAPI 及其他业务角色不在本次清理范围。

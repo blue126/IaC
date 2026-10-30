@@ -1,5 +1,8 @@
 # 员工工作环境：申请、批准与 CD 自动开户
 
+> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。
+
+
 > **2026-10-27 当前状态：** 下文自助申请门户与完整项目 ZIP 是保留的未来方案，尚未实施。现行开户由私有 `employee-workspace-admin` 项目编排 Terraform/Ansible；设备私钥保存在专用 BWS 项目，通用 bootstrap 源码来自公开 `workspace-onboarding` 仓库，员工无需 GitHub 账号。
 >
 > 已固化凭据、SSH agent、管理网络和十个永久员工槽位的只读预检。新员工使用从干净镜像构建并完成身份清理的预装基线；真实新克隆已验证 machine-id/SSH 主机密钥重新生成且无个人认证/MCP/浏览器数据。

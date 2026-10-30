@@ -1,0 +1,63 @@
+---
+- name: Apply an approved Mosh addition to an existing Hub boundary
+  hosts: oci_hub_mosh_gateway
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Validate the approved complete candidate policy before remote changes
+      ansible.builtin.command:
+        argv: [python3, '{{ playbook_dir }}/../../scripts/oci-hub/boundary.py', render, --config, '-']
+        stdin: '{{ oci_hub_boundary_candidate_content }}'
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Require matching candidate content and a Hub policy
+      ansible.builtin.assert:
+        that:
+          - oci_hub_boundary.kind == 'hub'
+          - oci_hub_boundary_candidate_content | from_json == oci_hub_boundary
+          - oci_hub_boundary_candidate_content | hash('sha256') == oci_hub_boundary_candidate_sha256
+
+    - name: Read the current boundary file identity
+      ansible.builtin.stat:
+        path: /etc/oci-hub/boundary.json
+        checksum_algorithm: sha256
+      register: oci_hub_mosh_boundary_stat
+
+    - name: Refuse to overwrite a changed or missing Hub policy
+      ansible.builtin.assert:
+        that:
+          - oci_hub_mosh_boundary_stat.stat.exists
+          - not oci_hub_mosh_boundary_stat.stat.islnk
+          - oci_hub_mosh_boundary_stat.stat.checksum in [oci_hub_boundary_before_sha256, oci_hub_boundary_candidate_sha256]
+
+    - name: Install the approved boundary implementation
+      ansible.builtin.copy:
+        src: '{{ playbook_dir }}/../../scripts/oci-hub/boundary.py'
+        dest: /usr/local/lib/oci-hub-boundary.py
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Save exactly the approved complete policy
+      ansible.builtin.copy:
+        content: '{{ oci_hub_boundary_candidate_content }}'
+        dest: /etc/oci-hub/boundary.json
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Apply the scoped policy in one kernel transaction
+      ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py apply
+      changed_when: true
+
+- name: Verify the scoped Hub policy and overlay routes
+  hosts: oci_hub_mosh_gateway
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify exact live rules and routing
+      ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+      changed_when: false

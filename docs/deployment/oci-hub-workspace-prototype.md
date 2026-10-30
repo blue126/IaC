@@ -1,6 +1,8 @@
 # OCI Hub 原型部署与恢复契约
 
-这是可审阅的原型代码与部署步骤；源码和合成验证已完成，真实项目创建、部署、员工验收及发信另按批准范围执行。现有入口、VM500、员工身份与原请求解析继续属于 `existing`。设计依据为 [OCI Hub 架构](../architecture/oci-employee-vpn-hub.md)；合成验证入口见 [tests/oci-hub](../../tests/oci-hub/README.md)。
+当前架构入口为[OCI Hub-and-Spoke](../architecture/oci-employee-vpn-hub.md)，当前原生终端操作入口见[原生 Mosh 开户](oci-hub-native-provisioning.md)。VM509 的原生 Mosh/BWS/Portal/本地包与新后端查询已完成；专项验收依用户要求跳过，公开客户端待独立发布。
+
+**以下内容保留的是通用桌面原型契约，预设分配、桌面 TLS/验收等要求不作为当前原生终端开户命令。** 当前终端分配由资源池/台账生成；VM500 及 existing 配置继续保留，等待用户确认旧入口无人使用后才讨论退役。
 
 ## 配置及所有权
 
