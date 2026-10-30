@@ -21,7 +21,7 @@ SSH 用于启动会话，后续 Mosh 使用隧道内 UDP。SSH/SFTP 与 VM 内 `
 
 先在管理员保留的 VM502 和一台独立测试设备验证。之后员工保持原 VM、磁盘和个人环境，逐设备交付新路径。既有方案与新方案并行；不统一替换所有旧设备包，不退役 VM500。
 
-## 当前实现与缺口
+## 历史基线与当时的缺口
 
 | 项目 | main 中的实现 | 本次需要补齐 |
 | --- | --- | --- |
@@ -111,13 +111,13 @@ online 区分“近期 VPN 握手”“SSH TCP 连接”“Mosh UDP 活跃/会�
 
 服务端只撤销本次新设备的 Hub 权限和授权，停止能确认归属的新增会话。按批准计划撤回新增 endpoint 路由与第二网卡；不回滚其他 SDN pending changes、不 flush 全局防火墙、不停止 VM500、不删除原工作区。保留 BWS、新方案月账、审批和测试记录供恢复。
 
-## 已有基础代码与待修正入口
+## 历史基础代码与过渡入口（已替代）
 
-本任务分支已实现以下服务端基础能力。OCI 端已初始化，VM 侧尚未部署：
+本节记录独立网络部署前的过渡实现，不是当前能力或操作指引。当前仅接受 `employee_workspace_profile=oci-hub`，使用 native 授权；不再支持 existing/parallel 授权合集。实际操作见[原生开户说明](../deployment/oci-hub-native-provisioning.md)。当时的实现包括：
 
 - Hub/PVE boundary 保持独立表；Hub 的 `pairs` 可选 `mosh_ports: [60030, 60039]`，按设备→本人 VM 放行，已有 UDP conntrack 也不能绕过撤销。未提供该字段的映射保持原 TCP 权限。
 - Hub boundary 使用互斥的 `device_sources` 或旧 `ga2_sources`；OCI Terraform 对应提供同名互斥来源，保留旧规则资源地址。试点继续限制 /24 或更窄；没有放开动态公网来源。
-- `employee-workspace` 的显式 `employee_workspace_hub_parallel_access=true` 生成新旧授权合集；普通重跑遗漏该配置或误用 native-only profile 时，在覆盖旧授权前拒绝。移除某台设备不清除旧网关和其他设备授权。
+- 历史版本曾生成新旧 SSH 授权合集。该过渡分支及其配置变量现已删除；当前 `employee-workspace` 和 `oci-hub-spoke` 仅接受 OCI Hub profile，按完整设备清单协调原生授权。不要恢复旧变量或依赖新旧授权合并行为。
 - `oci-hub-spoke` 拆出 `tasks/vpn.yml`；历史一次性 `deploy-oci-hub-mosh-pilot.yml`（现已移至私有执行记录）当时只处理一个明确的现有工作区，不执行 Terraform、不启动其他 VM、不配置桌面。校验目标主机、员工归属和 VM 主机名；需要已批准的新方案密钥与完整设备清单。
 - VM 的 `workspace-mosh` 启动器调用原生 mosh-server，绑定 VM overlay，保留 7 天网络断连超时。Mosh 和 WireGuard 包安装默认关闭，只有另行批准 `oci_hub_mosh_install_authorized=true` 才执行。
 
@@ -127,7 +127,7 @@ online 区分“近期 VPN 握手”“SSH TCP 连接”“Mosh UDP 活跃/会�
 mosh --ssh='ssh -F <本设备SSH配置>' --server=workspace-mosh --port=<本设备端口范围> <新方案SSH别名>
 ```
 
-私有 `onboard.sh --profile oci-hub` 仍是唯一管理员入口，终端候选包沿用 `access_mode=mosh` 和 `mosh_ports`。现有 `attach-mosh` 实现依赖 VM500 例外，仅只读核对 Terraform state，**不能用于当前独立目标**。需在同一入口补齐独立 PVE 网络、原 VM 第二网卡的受限 Terraform 计划、来宾路由和联合 hook 的审批/恢复，不另造 provisioning 引擎。原计划及其失败检查点只留作审计，不能恢复 apply。独立接入命令尚未就绪。
+历史阶段使用私有 `onboard.sh --profile oci-hub` 作为管理员入口，终端候选包沿用 `access_mode=mosh` 和 `mosh_ports`。当时的 `attach-mosh` 实现依赖 VM500 例外，仅只读核对 Terraform state，**不能用于当前独立目标**。需在同一入口补齐独立 PVE 网络、原 VM 第二网卡的受限 Terraform 计划、来宾路由和联合 hook 的审批/恢复，不另造 provisioning 引擎。原计划及其失败检查点只留作审计，不能恢复 apply。这些是当时尚未完成的工作；现行入口已接通独立网络，不使用该历史计划。
 
 逐设备/配额访问撤销由 Hub grant/peer 阻断，这不代表终止了 VM 内残留 shell。断连超时负责最终回收，不为试点新增进程管理服务。源码已接通不代表真实网络、Mosh 体验或员工交付已通过；客户端更新也尚未发布。
 合成校验入口与结果边界见 [OCI Hub 验证说明](../../tests/oci-hub/README.md)。实际试点前准备独立 PVE 网络、VM 和 OCI 运行条件，再生成具体计划；真实部署与交付继续按精确范围审批。
