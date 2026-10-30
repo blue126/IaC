@@ -11,13 +11,19 @@ variable "oci_hub_workspaces" {
     baseline_id         = string
     bootstrap_file      = string
     hook_script_file_id = string
+    defer_hook_binding  = optional(bool, false)
     storage_pool        = string
     admin_public_keys   = list(string)
     dns_server          = string
     overlay             = string
     cores               = optional(number, 2)
     memory              = optional(number, 4096)
+    balloon_memory      = optional(number)
+    onboot              = optional(bool, false)
     disk_size           = optional(string, "50G")
+    bios                = optional(string, "ovmf")
+    machine             = optional(string)
+    bootstrap_mode      = optional(string, "user")
   }))
   default = {}
   validation {
@@ -34,8 +40,9 @@ variable "oci_hub_workspaces" {
     error_message = "Supply unique new VMIDs/VNets, explicit approved baseline/template, hook, IPv4 addresses and MACs."
   }
   validation {
-    condition = alltrue(flatten([for vm in values(var.oci_hub_workspaces) : [for existing in values(var.employee_workspaces) : try(
-      vm.vmid != existing.vmid && lower(vm.mac_address) != lower(existing.mac_address) &&
+    condition = alltrue(flatten([for id, vm in var.oci_hub_workspaces : [for old_id, existing in var.employee_workspaces : try(
+      ((vm.vmid != existing.vmid && lower(vm.mac_address) != lower(existing.mac_address)) ||
+      (id == old_id && existing.oci_hub_managed && vm.vmid == existing.vmid && lower(vm.mac_address) == lower(existing.mac_address))) &&
       cidrhost("${split("/", vm.address)[0]}/${min(tonumber(split("/", vm.address)[1]), tonumber(split("/", existing.address)[1]))}", 0) !=
       cidrhost("${split("/", existing.address)[0]}/${min(tonumber(split("/", vm.address)[1]), tonumber(split("/", existing.address)[1]))}", 0), false)
     ]]))
@@ -60,7 +67,8 @@ module "oci_hub_workspace" {
   target_node         = "pve2"
   vmid                = each.value.vmid
   template_name       = each.value.template_name
-  cicustom            = each.value.bootstrap_file
+  cicustom            = each.value.bootstrap_mode == "vendor" ? null : each.value.bootstrap_file
+  vendor_data_file_id = each.value.bootstrap_mode == "vendor" ? each.value.bootstrap_file : null
   network_bridge      = each.value.vnet
   network_mac_address = each.value.mac_address
   ip_address          = each.value.address
@@ -70,10 +78,13 @@ module "oci_hub_workspace" {
   sshkeys             = each.value.admin_public_keys
   cores               = each.value.cores
   memory              = each.value.memory
+  balloon_memory      = each.value.balloon_memory
+  bios                = each.value.bios
+  machine             = each.value.machine
   disk_size           = each.value.disk_size
-  hook_script_file_id = each.value.hook_script_file_id
+  hook_script_file_id = each.value.defer_hook_binding ? null : each.value.hook_script_file_id
   initial_started     = false
-  onboot              = false
+  onboot              = each.value.onboot
   protection          = true
   tags                = ["oci-hub", each.key]
 }

@@ -1,0 +1,13 @@
+#!/bin/bash
+# Native VM endpoint; the OCI boundary enforces per-device port grants.
+set -euo pipefail
+export MOSH_SERVER_NETWORK_TMOUT={{ oci_hub_mosh_network_timeout }}
+if [[ "${1:-}" == '--version' && "$#" == 1 ]]; then
+    exec /usr/bin/mosh-server --version
+fi
+if [[ "${1:-}" != 'new' ]]; then
+    echo 'Expected native Mosh startup' >&2
+    exit 2
+fi
+shift
+exec /usr/bin/mosh-server new -i '{{ oci_hub_spoke_address.split('/')[0] }}' "$@"

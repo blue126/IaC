@@ -1,0 +1,47 @@
+---
+- name: Require an explicitly approved native workspace attachment
+  ansible.builtin.assert:
+    that:
+      - oci_hub_mosh_attach_authorized | bool
+      - employee_workspace_profile == 'oci-hub'
+      - oci_hub_workspace_devices | length > 0
+      - oci_hub_mosh_network_timeout | type_debug == 'int'
+      - oci_hub_mosh_network_timeout >= 60
+      - oci_hub_mosh_network_timeout <= 2592000
+      - >-
+        oci_hub_spoke_device_addresses | sort ==
+        oci_hub_workspace_devices | map(attribute='address') | map('regex_replace', '$', '/32') | sort
+
+- name: Validate existing SSH authorization ownership and the new roster
+  ansible.builtin.include_role:
+    name: employee-workspace
+    tasks_from: authorization-preflight
+
+- name: Install Mosh and WireGuard only with explicit package authorization
+  ansible.builtin.apt:
+    name: [mosh, wireguard-tools]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: oci_hub_mosh_install_authorized | bool
+
+- name: Check preinstalled native Mosh and WireGuard runtimes
+  ansible.builtin.command:
+    argv: [which, /usr/bin/mosh-server, wg, wg-quick, python3, sshd]
+  changed_when: false
+
+- name: Configure only the independent VM WireGuard Spoke
+  ansible.builtin.include_role:
+    name: oci-hub-spoke
+    tasks_from: vpn
+
+- name: Configure the independent employee account and its native device keys
+  ansible.builtin.include_tasks: native-account.yml
+
+- name: Install the overlay-bound native Mosh launcher
+  ansible.builtin.template:
+    src: workspace-mosh.j2
+    dest: /usr/local/bin/workspace-mosh
+    owner: root
+    group: root
+    mode: '0755'

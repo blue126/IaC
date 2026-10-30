@@ -1,0 +1,132 @@
+---
+- name: Deploy Portal authoritative state without restarting VPN interfaces
+  hosts: oracle-cloud-ubuntu2404
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require the exact source artifact and adoption request
+      ansible.builtin.assert:
+        that:
+          - oci_hub_authority_artifact_sha256 is match('^[a-f0-9]{64}$')
+          - oci_hub_authority_request.profile == 'oci-hub'
+          - oci_hub_authority_request.action == 'adopt_portal_state'
+    - name: Verify the existing source only artifact allowlist
+      ansible.builtin.command:
+        argv: [python3, '{{ oci_hub_artifact_verifier }}', --verify, '{{ oci_hub_source_artifact }}']
+      delegate_to: localhost
+      become: false
+      changed_when: false
+    - name: Check the reviewed artifact fingerprint
+      ansible.builtin.stat:
+        path: '{{ oci_hub_source_artifact }}'
+        checksum_algorithm: sha256
+      delegate_to: localhost
+      become: false
+      register: oci_hub_authority_artifact
+    - name: Require the reviewed artifact bytes
+      ansible.builtin.assert:
+        that: oci_hub_authority_artifact.stat.checksum == oci_hub_authority_artifact_sha256
+    - name: Create a unique protected staging directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: oci-hub-authority-
+      register: oci_hub_authority_stage
+    - name: Stage only the verified service sources
+      ansible.builtin.unarchive:
+        src: '{{ oci_hub_source_artifact }}'
+        dest: '{{ oci_hub_authority_stage.path }}'
+        owner: root
+        group: root
+        mode: '0700'
+    - name: Validate staged Python before pausing the timer
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import pathlib,sys;
+            root=pathlib.Path(sys.argv[1]);
+            [compile((root/name).read_text(),str(root/name),'exec') for name in ('portal.py','ledger.py','executor.py')]
+          - '{{ oci_hub_authority_stage.path }}/services/oci-hub'
+      changed_when: false
+    - name: Pause quota scheduling during the serialized schema transition
+      ansible.builtin.systemd_service:
+        name: oci-hub-quota.timer
+        state: stopped
+    - name: Wait for an already running quota sample to finish
+      ansible.builtin.command: systemctl is-active oci-hub-quota.service  # noqa command-instead-of-module
+      register: oci_hub_authority_sampler
+      failed_when: false
+      changed_when: false
+      retries: 15
+      delay: 1
+      until: oci_hub_authority_sampler.stdout not in ['active', 'activating']
+    - name: Back up the databases and replace only the scoped sources under the executor lock
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - |
+            import datetime,fcntl,json,os,pathlib,shutil,sqlite3,sys
+            os.umask(0o077)
+            stage=pathlib.Path(sys.argv[1])/'services/oci-hub'
+            database=pathlib.Path(json.loads(pathlib.Path('/etc/oci-hub/executor.json').read_text())['database'])
+            with open(str(database)+'.lock','a') as lock:
+                fcntl.flock(lock,fcntl.LOCK_EX)
+                backup=pathlib.Path('/var/lib/oci-hub/backups')/('portal-authority-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+                backup.mkdir(mode=0o700,parents=True,exist_ok=False)
+                for source,name in [(database,'ledger.sqlite'),(pathlib.Path('/var/lib/oci-hub/portal/sqlite.db'),'portal.sqlite')]:
+                    with sqlite3.connect('file:'+str(source)+'?mode=ro',uri=True) as origin,sqlite3.connect(backup/name) as target:
+                        origin.backup(target)
+                    (backup/name).chmod(0o600)
+                for name in ('portal.py','ledger.py','executor.py'):
+                    dest=pathlib.Path('/opt/oci-hub/services/oci-hub')/name
+                    shutil.copy2(dest,backup/name)
+                    pending=dest.with_name(name+'.'+backup.name)
+                    with pending.open('xb') as stream:
+                        os.fchmod(stream.fileno(),0o700)
+                        stream.write((stage/name).read_bytes())
+                    os.replace(pending,dest)
+                print(json.dumps({'backup_directory':str(backup),'portal_restarted':False}))
+          - '{{ oci_hub_authority_stage.path }}'
+      register: oci_hub_authority_backup
+      changed_when: true
+    - name: Adopt Portal state and audit old accounting holds through the existing executor
+      ansible.builtin.command:
+        argv: [python3, /opt/oci-hub/services/oci-hub/executor.py, --config, /etc/oci-hub/executor.json, action]
+        stdin: '{{ oci_hub_authority_request | to_json }}'
+      register: oci_hub_authority_adoption
+      changed_when: not (oci_hub_authority_adoption.stdout | from_json).get('replayed', false)
+    - name: Resume five second quota accounting after successful adoption
+      ansible.builtin.systemd_service:
+        name: oci-hub-quota.timer
+        state: started
+        enabled: true
+    - name: Report the protected recovery location
+      ansible.builtin.debug:
+        var: oci_hub_authority_backup.stdout
+
+- name: Verify the single state authority and existing services
+  hosts: oracle-cloud-ubuntu2404
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Query live Portal state through the existing executor
+      ansible.builtin.command:
+        argv: [python3, /opt/oci-hub/services/oci-hub/executor.py, --config, /etc/oci-hub/executor.json, query]
+      register: oci_hub_authority_query
+      changed_when: false
+      no_log: true
+    - name: Require the new authority and completed reconciliation
+      ansible.builtin.assert:
+        that:
+          - (oci_hub_authority_query.stdout | from_json).state_authority == 'wg-portal'
+          - (oci_hub_authority_query.stdout | from_json).pending_actions | length == 0
+          - (oci_hub_authority_query.stdout | from_json).reconcile_failures | length == 0
+    - name: Verify Portal and timer remain active
+      ansible.builtin.command: systemctl is-active oci-hub-portal oci-hub-quota.timer  # noqa command-instead-of-module
+      changed_when: false
+    - name: Verify current Hub forwarding boundaries
+      ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+      changed_when: false

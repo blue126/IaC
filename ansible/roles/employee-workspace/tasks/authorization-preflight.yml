@@ -1,0 +1,33 @@
+---
+- name: Inspect the current managed authorization file
+  ansible.builtin.stat:
+    path: '/home/{{ employee_workspace_user }}/.ssh/authorized_keys'
+  register: employee_workspace_authorization_stat
+
+- name: Read existing authorization ownership markers
+  ansible.builtin.slurp:
+    src: '/home/{{ employee_workspace_user }}/.ssh/authorized_keys'
+  when: employee_workspace_authorization_stat.stat.exists
+  register: employee_workspace_authorization_saved
+  no_log: true
+
+- name: Reject retired gateway authorization before any reconciliation
+  ansible.builtin.assert:
+    that:
+      - employee_workspace_profile == 'oci-hub'
+      - >-
+        'BEGIN OCI Hub parallel device access' not in
+        (employee_workspace_authorization_saved.content | default('') | b64decode)
+      - >-
+        'Managed company access;' not in
+        (employee_workspace_authorization_saved.content | default('') | b64decode)
+        or ((employee_workspace_authorization_saved.content | default('') | b64decode).splitlines() | reject('match', '^\s*(#|$)') | list | length == 0)
+    fail_msg: Legacy authorization requires an explicitly approved migration; do not overwrite it.
+
+- name: Validate native device sources and keys before writing authorization
+  ansible.builtin.command:
+    argv: [python3, '{{ role_path }}/files/validate-hub-access.py']
+    stdin: '{{ oci_hub_workspace_devices | to_json }}'
+  delegate_to: localhost
+  become: false
+  changed_when: false

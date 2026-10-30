@@ -1,0 +1,13 @@
+# Reserved retired VM IDs remain denied; this is not an employee gateway.
+table bridge employee_boundary {}
+delete table bridge employee_boundary
+table bridge employee_boundary {
+{% for chain, direction in [('input', 'iifname'), ('forward', 'iifname'), ('output', 'oifname')] %}
+  chain {{ chain }} {
+    type filter hook {{ chain }} priority -200; policy accept;
+{% for vmid in retired_workspace_boundary_vmids | sort %}
+    {{ direction }} "tap{{ vmid }}i0" drop
+{% endfor %}
+  }
+{% endfor %}
+}

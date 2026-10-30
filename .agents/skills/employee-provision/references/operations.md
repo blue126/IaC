@@ -1,13 +1,11 @@
 # 运行与恢复
 
-规范入口是主 checkout 的 `remotecc/employee-admin/onboard.sh`；执行前读取该私有仓库 README。相邻 `remotecc/employee-data/` 保存设置、令牌、申请、回执、包和模板 state，不进入源码 Git。旧 `~/Projects/employee-workspace-admin` 仅是兼容链接。
+规范源码为主 checkout 的 remotecc/employee-admin，真实配置/凭据/申请/包/回执留在相邻 employee-data，均不进入 IaC。
 
-- 常用命令：`preflight REQUEST.yml`、`plan REQUEST.yml`、`apply REQUEST.yml SHA256`、`verify REQUEST.yml`、`export REQUEST.yml`。
-- 邮件一次性授权：`auth-status`、`login`。settings.json 的 microsoft_mail_client_id 复用已注册微软应用；仅请求 Mail.Send 与 offline_access，管理员本人登录；独立加密缓存为 state/microsoft-mail-token.vault。旧 OneDrive 缓存保留，不再调用。
-- Temp.sh 交付回执为 runs/<request>/temp-delivery.json；上传前写 uploading，收到链接后写 uploaded，POST 下载核对后写 verified，发信前写 notifying，202 后写 completed。uploading/notifying 结果不明时停止核对，不自动上传或发信。三天失效时间按服务政策估计，不能当成服务器保证。
-- 入口复用 settings.json 中已批准的 Sandbox。RemoteCC 代码单向同步到 Sandbox，运行数据单独双向同步；不把 Sandbox 中的旧源码拉回覆盖私有 main。现有挂载、网络规则和 Kit 不随普通操作修改，宿主锁与内层 flock 保持串行。
-- 正常或失败执行后都会回收持久状态，并核对运行副本指纹。代码目录旁的私有同步日志 pending=true 表示不可再次推送旧状态；先执行 `recover` 拉回运行副本，核对检查点后重新 plan。不要直接清除 pending 或覆盖 state。
-- requests/、runs/、state/、bundles/、deployment/ 和 template-build/ 应纳入私有备份；计划可能含凭据，不能贴出完整内容。模板的 terraform.tfstate/backup 不是缓存，不删除。
-- 旧 tmp 目录保留作迁移前快照，不再作为新的入口。不要交替使用新旧入口；迁移前生成的计划作废，必须重新 plan。
-- IaC 工作树仍由 settings.json.iac_root 绑定；在它的变更正式整理前，不删除或归档该工作树，也不自动切到缺少这些变更的公开 main。
-- 浏览器、个人 Claude OAuth、员工本地 WireGuard CLI 的验收由公开客户端负责，不把它们塞进管理员开户 skill。
+活动工作区使用 `onboard.sh --profile oci-hub` 的 provision、plan、apply、registry、online、export、deliver 等已有入口；具体参数见 [原生开户](../../../../docs/deployment/oci-hub-native-provisioning.md)。代码/配置改变后重新生成计划，已完成状态复用，结果不明的上传或通知停止核对。
+
+旧 employee-access role 和部署入口已移除；旧写操作无条件拒绝，不能用缺少配置/标记绕过。未带 profile 的 login/auth-status 保留用于共享微软 Mail.Send 授权，registry 读取旧分配历史；recover 只用于宿主已有同步日志恢复。历史设备关联保存在私有 state/legacy-device-registry.json，不含私钥。
+
+遇到数据同步失败先通过既有 recover 核对日志，不覆盖未回收状态，不从 Sandbox 回写旧源码。活动 Hub 的接入状态以 Portal 为准，用量/采样是账本数据；不要恢复 reasons 镜像。
+
+PVE 上仍需的退役 VM 端口 guard 有独立 retired-workspace-boundary role，兼容安装路径保留；VM500 自身防护属于其他工作，本轮不部署或修改 HAPI。

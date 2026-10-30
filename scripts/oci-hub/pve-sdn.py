@@ -23,7 +23,15 @@ def api(method, path, **fields):
     for k,v in fields.items():
         args += ['--' + k, str(v)]
     p = subprocess.run(args, check=True, capture_output=True, text=True)
-    return json.loads(p.stdout or 'null')
+    raw = p.stdout.strip()
+    try:
+        return json.loads(raw or 'null')
+    except json.JSONDecodeError:
+        # PVE can emit task/status text after a successful mutation even with
+        # --output-format=json. Reads and the lock token remain strict JSON.
+        if method in ('set', 'delete'):
+            return None
+        raise
 
 
 def ensure(collection, key, identifier, desired):

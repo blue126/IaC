@@ -1,0 +1,47 @@
+---
+- name: Require the explicitly selected hypervisor and permanent retired allocations
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == 'pve2'
+      - retired_workspace_boundary_vmids is sequence
+      - retired_workspace_boundary_vmids is not string
+      - retired_workspace_boundary_vmids | length > 0
+      - retired_workspace_boundary_vmids | unique | length == retired_workspace_boundary_vmids | length
+- name: Validate every reserved retired VMID
+  ansible.builtin.assert:
+    that:
+      - item | type_debug == 'int'
+      - item >= 100
+      - item != 500
+  loop: '{{ retired_workspace_boundary_vmids }}'
+- name: Require the existing hypervisor nft runtime
+  ansible.builtin.command: /usr/sbin/nft --version
+  changed_when: false
+- name: Install the PVE-only retirement guard controller at its compatibility path
+  ansible.builtin.copy:
+    src: boundary.py
+    dest: /usr/local/lib/employee-firewall.py
+    owner: root
+    group: root
+    mode: '0755'
+- name: Declare only reserved retired VM port denial
+  ansible.builtin.template:
+    src: boundary.nft.j2
+    dest: /etc/employee-access.nft
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/sbin/nft --check --file %s
+- name: Declare the PVE-only compatibility boot unit
+  ansible.builtin.template:
+    src: boundary.service.j2
+    dest: /etc/systemd/system/employee-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+- name: Reconcile only the retired workspace table without changing host routing
+  ansible.builtin.systemd_service:
+    name: employee-firewall
+    state: reloaded
+    enabled: true
+    daemon_reload: true
