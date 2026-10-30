@@ -1,7 +1,7 @@
 [Unit]
 Description=OCI Hub scoped ACL
 Before=oci-hub-portal.service
-After=network-pre.target
+After=network-pre.target netfilter-persistent.service
 
 [Service]
 Type=oneshot

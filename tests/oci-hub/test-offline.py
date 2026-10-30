@@ -17,6 +17,65 @@ HUB={'profile':'oci-hub','kind':'hub','generation':1,'interfaces':{'wg-users':'1
 
 
 class Boundary(unittest.TestCase):
+    def test_host_ingress_is_optional_and_exactly_scoped_to_the_external_interface(self):
+        self.assertEqual(b.host_ingress_rules(HUB), [])
+        config=copy.deepcopy(HUB);config['uplink']='enp0s6'
+        rules=b.host_ingress_rules(config)
+        self.assertEqual(len(rules),2)
+        self.assertTrue(all('-i' in rule and rule[rule.index('-i')+1]=='enp0s6' for rule in rules))
+        self.assertEqual({rule[rule.index('--dport')+1] for rule in rules},{'51824','51825'})
+        for interface in ('lo','wg-users','wg-workspaces','eth0;id'):
+            bad=copy.deepcopy(config);bad['uplink']=interface
+            with self.assertRaises(ValueError):b.validate(bad)
+
+    def test_host_ingress_preserves_foreign_rules_and_repairs_rule_placement(self):
+        config=copy.deepcopy(HUB);config['uplink']='eth0'
+        expected=b.host_ingress_rules(config)
+        foreign=[['-i','lo','-j','ACCEPT'],['-j','REJECT']]
+        actual=copy.deepcopy(foreign+expected)
+        changes=[]
+        def system(*args):
+            if args[:3]==('iptables','-w','5'):args=('iptables',)+args[3:]
+            if args[:4]==('ip','-j','link','show'):return '[]'
+            if args[:3]==('iptables','-S','INPUT'):
+                return '\n'.join(' '.join(['-A','INPUT',*rule]) for rule in actual)
+            if args[:3]==('iptables','-D','INPUT'):
+                changes.append(args);actual.remove(list(args[3:]));return ''
+            if args[:4]==('iptables','-I','INPUT','1'):
+                changes.append(args);actual.insert(0,list(args[4:]));return ''
+            raise AssertionError(args)
+        with patch.object(b,'run',side_effect=system):
+            with self.assertRaisesRegex(ValueError,'behind'):b.verify_host_ingress(config)
+            b.sync_host_ingress(config)
+            self.assertEqual(actual,expected+foreign)
+            count=len(changes);b.sync_host_ingress(config);self.assertEqual(len(changes),count)
+            self.assertTrue(b.owned_ingress(expected[0]));self.assertFalse(b.owned_ingress(foreign[0]))
+
+    def test_direct_ingress_is_explicit_and_keeps_the_approved_source_scope(self):
+        direct = copy.deepcopy(HUB)
+        direct['device_sources'] = direct.pop('ga2_sources')
+        self.assertEqual(b.render(direct), b.render(HUB))
+        for sources in ([], ['0.0.0.0/0'], ['192.0.2.0/23']):
+            bad = copy.deepcopy(direct); bad['device_sources'] = sources
+            with self.assertRaises(ValueError): b.render(bad)
+        direct['ga2_sources'] = ['192.0.2.3/32']
+        with self.assertRaises(ValueError): b.render(direct)
+
+    def test_mosh_grants_validate_ranges_and_same_workspace_device_conflicts(self):
+        config = copy.deepcopy(HUB)
+        self.assertNotIn('udp dport 60000', b.render(config))
+        config['pairs'][0]['mosh_ports'] = [60000, 60009]
+        self.assertIn('udp dport 60000-60009', b.render(config))
+        self.assertIn('udp sport 60000-60009 ct state established ct direction reply', b.render(config))
+        for ports in ([59999, 60000], [60000, 61001], [60002, 60001], [True, 60001], '60000:60009', [60000]):
+            bad = copy.deepcopy(config); bad['pairs'][0]['mosh_ports'] = ports
+            with self.assertRaises(ValueError): b.render(bad)
+        config['pairs'][1]['workspace'] = config['pairs'][0]['workspace']
+        config['pairs'][1]['mosh_ports'] = [60009, 60020]
+        with self.assertRaisesRegex(ValueError, 'overlapping'): b.render(config)
+        config['pairs'][1]['mosh_ports'] = [60010, 60019]
+        b.render(config)
+
     def test_invalid_scope_and_overlap_rejected(self):
         c=copy.deepcopy(PVE);c['profile']='existing'
         with self.assertRaises(ValueError):b.render(c)

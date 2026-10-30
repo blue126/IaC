@@ -1,0 +1,42 @@
+---
+- name: Validate approved VM Spoke identity
+  ansible.builtin.assert:
+    that:
+      - employee_workspace_profile == 'oci-hub' or (employee_workspace_profile == 'existing' and employee_workspace_hub_parallel_access | default(false) | bool)
+      - oci_hub_spoke_address is match('^[0-9.]+/32$')
+      - oci_hub_spoke_device_addresses | length > 0
+      - oci_hub_spoke_private_key | length == 44
+      - oci_hub_spoke_hub_public_key | length == 44
+      - oci_hub_spoke_endpoint is match('^[0-9.]+:51825$')
+  no_log: true
+
+- name: Check preinstalled WireGuard runtime
+  ansible.builtin.command: which wg-quick
+  changed_when: false
+
+- name: Create protected WireGuard directory
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Deploy only this VM WireGuard identity
+  ansible.builtin.template:
+    src: wg-workspace.conf.j2
+    dest: /etc/wireguard/wg-workspace.conf
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart OCI Hub Spoke
+
+- name: Enable VM-owned Spoke interface
+  ansible.builtin.systemd_service:
+    name: wg-quick@wg-workspace
+    state: started
+    enabled: true
+
+- name: Apply changed Spoke peers and routes before verification
+  ansible.builtin.meta: flush_handlers

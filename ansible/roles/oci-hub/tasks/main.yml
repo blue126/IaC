@@ -15,7 +15,7 @@
 
 - name: Check preinstalled runtime dependencies
   ansible.builtin.command:
-    argv: [which, python3, nft, wg, ip]
+    argv: [which, python3, nft, wg, ip, iptables]
   changed_when: false
 
 - name: Enumerate existing WireGuard interfaces without reading keys
@@ -138,6 +138,20 @@
     path: '{{ oci_hub_executor_config.database }}'
   register: oci_hub_database
 
+- name: Wait for the loopback-only Portal API before initializing interfaces
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8888/api/v1/interface/all
+    user: '{{ oci_hub_portal_admin_user }}'
+    password: '{{ oci_hub_portal_api_token }}'
+    force_basic_auth: true
+    status_code: 200
+    return_content: false
+  register: oci_hub_portal_ready
+  until: oci_hub_portal_ready.status | default(0) == 200
+  retries: 20
+  delay: 1
+  no_log: true
+
 - name: Require explicit authorization for first ledger initialization
   ansible.builtin.assert:
     that: oci_hub_new_ledger_authorized | default(false) | bool
@@ -147,6 +161,18 @@
   ansible.builtin.command: python3 /opt/oci-hub/services/oci-hub/executor.py --config /etc/oci-hub/executor.json init
   when: not oci_hub_database.stat.exists
   changed_when: true
+
+- name: Bootstrap only the two explicitly approved Hub interfaces through the executor
+  ansible.builtin.command:
+    argv: [python3, /opt/oci-hub/services/oci-hub/executor.py, --config, /etc/oci-hub/executor.json, action]
+    stdin: '{{ oci_hub_bootstrap_request | to_json }}'
+  when: oci_hub_bootstrap_interfaces_authorized | bool
+  changed_when: true
+  no_log: true
+
+- name: Require actual Hub interfaces and routes before enabling accounting
+  ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+  changed_when: false
 
 - name: Enable independent five-second quota sampling
   ansible.builtin.systemd_service:

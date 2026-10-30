@@ -138,8 +138,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   initialization {
-    datastore_id      = var.storage_pool
-    user_data_file_id = local.cicustom_file_id
+    datastore_id        = var.storage_pool
+    user_data_file_id   = local.cicustom_file_id
+    vendor_data_file_id = var.vendor_data_file_id
 
     ip_config {
       ipv4 {
@@ -194,6 +195,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
       # kept off on purpose); Terraform must never start or stop a VM. A new
       # VM still boots once on creation, the provider default.
       started,
+
+      # Root-owned boundary hooks are reconciled by the approved PVE SSH play.
+      hook_script_file_id,
     ]
   }
 }

@@ -6,6 +6,7 @@ import ipaddress
 import json
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 
@@ -26,6 +27,14 @@ def ip(value):
 
 def net(value):
     return str(ipaddress.IPv4Network(value, strict=True))
+
+
+def user_sources(c):
+    """Keep GA policies compatible while making direct ingress explicit."""
+    fields = [name for name in ('ga2_sources', 'device_sources') if name in c]
+    if len(fields) != 1:
+        raise ValueError('choose exactly one device or GA ingress source list')
+    return c[fields[0]]
 
 
 def validate(c):
@@ -71,19 +80,42 @@ def validate(c):
             if pair in seen:raise ValueError('duplicate management grant')
             seen.add(pair)
     else:
+        if 'uplink' in c:
+            token(c['uplink'])
+            if c['uplink'] in ('lo', 'wg-users', 'wg-workspaces'):
+                raise ValueError('explicit external uplink required for host ingress')
         if set(c['interfaces']) != {'wg-users', 'wg-workspaces'}:
             raise ValueError('explicit managed interface addresses required')
         for address in c['interfaces'].values():
             ipaddress.IPv4Interface(address)
         if len({p['device'] for p in c['pairs']}) != len(c['pairs']):
             raise ValueError('device has multiple workspace targets')
+        mosh_ranges = {}
         for p in c['pairs']:
             ip(p['device']); ip(p['workspace'])
-        for source in c['ga2_sources'] + c['workspace_sources']:
+            if 'mosh_ports' in p:
+                ports = p['mosh_ports']
+                if (not isinstance(ports, list) or len(ports) != 2 or
+                        any(type(port) is not int for port in ports) or
+                        not 60000 <= ports[0] <= ports[1] <= 61000):
+                    raise ValueError('invalid Mosh port range')
+                allocated = mosh_ranges.setdefault(p['workspace'], [])
+                if any(ports[0] <= end and start <= ports[1] for start, end in allocated):
+                    raise ValueError('overlapping Mosh ports on the same workspace')
+                allocated.append(ports)
+        sources = user_sources(c)
+        if not isinstance(sources, list) or not isinstance(c['workspace_sources'], list):
+            raise ValueError('ingress sources must be lists')
+        mode = c.get('device_ingress_mode', 'restricted')
+        if mode not in ('restricted', 'dynamic'):
+            raise ValueError('invalid device ingress mode')
+        if mode == 'dynamic' and ('ga2_sources' in c or sources != ['0.0.0.0/0']):
+            raise ValueError('dynamic ingress requires explicit direct IPv4 WireGuard sources')
+        for source in (sources if mode == 'restricted' else []) + c['workspace_sources']:
             n = ipaddress.IPv4Network(source, strict=True)
             if n.prefixlen < 24:
                 raise ValueError('source too broad')
-        if not c['ga2_sources'] or not c['workspace_sources']:
+        if not sources or not c['workspace_sources']:
             raise ValueError('empty ingress source list')
     return c
 
@@ -93,8 +125,8 @@ def render(c):
     lines = ['table inet oci_hub {', ' chain input { type filter hook input priority -200; policy accept;']
     if c['kind'] == 'hub':
         lines += ['  iifname { "wg-users", "wg-workspaces" } drop']
-        for field, port in [('ga2_sources', 51824), ('workspace_sources', 51825)]:
-            lines += [f'  ip saddr {{ {", ".join(c[field])} }} udp dport {port} accept', f'  udp dport {port} drop']
+        for sources, port in [(user_sources(c), 51824), (c['workspace_sources'], 51825)]:
+            lines += [f'  ip saddr {{ {", ".join(sources)} }} udp dport {port} accept', f'  udp dport {port} drop']
     else:
         for v in c['workspaces']:
             lines += [f'  iifname "{v["vnet"]}" drop']
@@ -103,6 +135,10 @@ def render(c):
         for p in c['pairs']:
             lines += [f'  iifname "wg-users" oifname "wg-workspaces" ip saddr {p["device"]} ip daddr {p["workspace"]} tcp dport {{ 22, 8443 }} ct state {{ new, established }} accept',
                       f'  iifname "wg-workspaces" oifname "wg-users" ip saddr {p["workspace"]} ip daddr {p["device"]} tcp sport {{ 22, 8443 }} ct state established accept']
+            if 'mosh_ports' in p:
+                start, end = p['mosh_ports']
+                lines += [f'  iifname "wg-users" oifname "wg-workspaces" ip saddr {p["device"]} ip daddr {p["workspace"]} udp dport {start}-{end} ct state {{ new, established }} ct direction original accept',
+                          f'  iifname "wg-workspaces" oifname "wg-users" ip saddr {p["workspace"]} ip daddr {p["device"]} udp sport {start}-{end} ct state established ct direction reply accept']
         lines += ['  iifname { "wg-users", "wg-workspaces" } drop', '  oifname { "wg-users", "wg-workspaces" } drop']
     else:
         for v in c['workspaces']:
@@ -148,6 +184,134 @@ def canonical(value):
     if isinstance(value, list):
         return [canonical(v) for v in value if not (isinstance(v, dict) and 'metainfo' in v)]
     return value
+
+
+def host_ingress_rules(c):
+    if c['kind'] != 'hub' or 'uplink' not in c:
+        return []
+    rules = []
+    for sources, port in ((user_sources(c), 51824), (c['workspace_sources'], 51825)):
+        for source in sources:
+            rules.append(([] if source == '0.0.0.0/0' else ['-s', source]) + ['-i', c['uplink'], '-p', 'udp', '-m', 'udp', '--dport', str(port),
+                          '-m', 'comment', '--comment', 'oci-hub-ingress-' + str(port), '-j', 'ACCEPT'])
+    return rules
+
+
+def host_input_rules():
+    return [shlex.split(line)[2:] for line in run('iptables', '-w', '5', '-S', 'INPUT').splitlines()
+            if line.startswith('-A INPUT ')]
+
+
+def owned_ingress(rule):
+    return ('--comment' in rule and rule[rule.index('--comment') + 1] in
+            ('oci-hub-ingress-51824', 'oci-hub-ingress-51825'))
+
+
+def verify_host_ingress(c):
+    expected = host_ingress_rules(c)
+    if not expected:
+        return
+    run('ip', '-j', 'link', 'show', 'dev', c['uplink'])
+    actual = host_input_rules()
+    owned = [rule for rule in actual if owned_ingress(rule)]
+    if sorted(owned) != sorted(expected):
+        raise ValueError('host WireGuard ingress differs from approved sources')
+    first_deny = next((i for i, rule in enumerate(actual)
+                       if '-j' in rule and rule[rule.index('-j') + 1] in ('DROP', 'REJECT')), len(actual))
+    if any(i >= first_deny for i, rule in enumerate(actual) if owned_ingress(rule)):
+        raise ValueError('host WireGuard ingress is behind an existing rejection')
+
+
+def sync_host_ingress(c):
+    expected = host_ingress_rules(c)
+    if not expected:
+        return
+    run('ip', '-j', 'link', 'show', 'dev', c['uplink'])
+    try:
+        verify_host_ingress(c)
+        return
+    except ValueError:
+        pass
+    # Keep every foreign rule and its relative order. The scoped nft policy is
+    # already live, so source changes remain restricted during reconciliation.
+    for rule in host_input_rules():
+        if owned_ingress(rule):
+            run('iptables', '-w', '5', '-D', 'INPUT', *rule)
+    for rule in reversed(expected):
+        run('iptables', '-w', '5', '-I', 'INPUT', '1', *rule)
+    verify_host_ingress(c)
+
+
+def host_forward_rules(c):
+    if c['kind'] != 'hub' or 'uplink' not in c:
+        return []
+    rules = []
+    for pair in c['pairs']:
+        for reverse in (False, True):
+            source, target = (pair['workspace'], pair['device']) if reverse else (pair['device'], pair['workspace'])
+            incoming, outgoing = ('wg-workspaces', 'wg-users') if reverse else ('wg-users', 'wg-workspaces')
+            base = ['-s', source + '/32', '-d', target + '/32', '-i', incoming, '-o', outgoing]
+            state = 'ESTABLISHED' if reverse else 'NEW,ESTABLISHED'
+            direction = 'REPLY' if reverse else 'ORIGINAL'
+            for protocol in ('tcp', 'udp'):
+                if protocol == 'udp' and 'mosh_ports' not in pair:
+                    continue
+                if protocol == 'tcp':
+                    ports = ['-m', 'multiport', '--sports' if reverse else '--dports', '22,8443']
+                else:
+                    ports = ['-m', 'udp', '--sport' if reverse else '--dport', ':'.join(str(p) for p in pair['mosh_ports'])]
+                rules.append(base + ['-p', protocol] + ports +
+                             ['-m', 'conntrack', '--ctstate', state, '--ctdir', direction,
+                              '-m', 'comment', '--comment', 'oci-hub-forward-' + pair['device'] + '-' + protocol + ('-reply' if reverse else '-original'), '-j', 'ACCEPT'])
+    return rules
+
+
+def host_forward_chain():
+    return [shlex.split(line)[2:] for line in run('iptables', '-w', '5', '-S', 'FORWARD').splitlines()
+            if line.startswith('-A FORWARD ')]
+
+
+def owned_forward(rule):
+    return '--comment' in rule and rule[rule.index('--comment') + 1].startswith('oci-hub-forward-')
+
+
+def canonical_host_rule(rule):
+    result = list(rule)
+    if '--ctstate' in result:
+        index = result.index('--ctstate') + 1
+        result[index] = ','.join(sorted(result[index].split(',')))
+    return result
+
+
+def verify_host_forward(c):
+    if c['kind'] != 'hub' or 'uplink' not in c:
+        return
+    actual = host_forward_chain()
+    expected = host_forward_rules(c)
+    owned = [r for r in actual if owned_forward(r)]
+    if sorted(map(canonical_host_rule, owned)) != sorted(map(canonical_host_rule, expected)):
+        raise ValueError('host WireGuard forwarding differs from the exact Hub mappings')
+    deny = next((i for i, r in enumerate(actual) if '-j' in r and r[r.index('-j') + 1] in ('DROP', 'REJECT')), len(actual))
+    if any(i >= deny for i, r in enumerate(actual) if owned_forward(r)):
+        raise ValueError('host WireGuard forwarding is behind an existing rejection')
+
+
+def sync_host_forward(c):
+    if c['kind'] != 'hub' or 'uplink' not in c:
+        return
+    try:
+        verify_host_forward(c)
+        return
+    except ValueError:
+        pass
+    for rule in host_forward_chain():
+        if owned_forward(rule):
+            run('iptables', '-w', '5', '-D', 'FORWARD', *rule)
+    actual = host_forward_chain()
+    index = next((i for i, r in enumerate(actual) if '-j' in r and r[r.index('-j') + 1] in ('DROP', 'REJECT')), len(actual)) + 1
+    for rule in reversed(host_forward_rules(c)):
+        run('iptables', '-w', '5', '-I', 'FORWARD', str(index), *rule)
+    verify_host_forward(c)
 
 
 def digest(value):
@@ -209,6 +373,8 @@ def main():
                 prefix += f'delete table {f} oci_hub\n'
         # nft -f submits one atomic netlink transaction; old rules survive failure.
         subprocess.run(['nft', '-f', '-'], input=prefix + render(c), text=True, check=True)
+        sync_host_ingress(c)
+        sync_host_forward(c)
         Path(a.receipt).write_text(json.dumps({'policy': digest(c), 'rules': digest(live(c))}))
         # Never enable routing until the scoped ACL transaction has succeeded.
         run('sysctl', '-w', 'net.ipv4.ip_forward=1')
@@ -217,6 +383,8 @@ def main():
         receipt = json.loads(Path(a.receipt).read_text())
         if receipt != {'policy': digest(c), 'rules': digest(live(c))}:
             raise ValueError('live boundary mismatch')
+        verify_host_ingress(c)
+        verify_host_forward(c)
         verify_forwarding()
         if a.routing or (a.action == 'hook' and a.phase == 'pre-start'):
             verify_routing(c)
