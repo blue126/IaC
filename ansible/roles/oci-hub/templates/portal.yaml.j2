@@ -20,7 +20,7 @@ advanced:
   log_level: error
 web:
   listening_address: 127.0.0.1:8888
-  external_url: http://127.0.0.1:8888
+  external_url: {{ oci_hub_portal_external_url | to_json }}
   request_logging: false
   session_secret: {{ oci_hub_portal_session_secret | to_json }}
   csrf_secret: {{ oci_hub_portal_csrf_secret | to_json }}
