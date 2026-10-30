@@ -1,0 +1,6 @@
+interface:
+  display_name: "HAPI 员工网页工作区开户"
+  short_description: "设计独立的 HAPI/Cloudflare 员工开户、统一身份入口与首次网页登录流程"
+  default_prompt: "使用 $hapi-provision 设计或核对独立的 HAPI/Cloudflare 员工开户流程，先验证后端就绪与授权，再准备指定员工的计划。"
+policy:
+  allow_implicit_invocation: false

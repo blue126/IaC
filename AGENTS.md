@@ -124,8 +124,10 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## Project-local Employee Provisioning
 
-- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for employee workspace onboarding/provisioning, device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
-- Reuse the existing administrator `onboard.sh` entry and read its README before changing the workflow. Extend the existing workflow instead of creating another provisioning engine.
+- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for WireGuard-based employee workspace onboarding/provisioning (`existing` and `oci-hub`), device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
+- HAPI/Cloudflare browser workspace provisioning is a separate workflow. Do not add it as an `onboard.sh` profile or reuse WireGuard requests, device identities, runtime state, or delivery bundles. Shared VM/template/Ansible components do not imply shared orchestration, credential ownership, or business registries.
+- The explicit-only project skill `.agents/skills/hapi-provision/SKILL.md` covers the separate HAPI workflow. Its design and readiness contract are in `docs/architecture/hapi-workspace-provisioning.md`; the executable backend is not yet implemented. Skill availability does not mean production onboarding is ready.
+- For the WireGuard workflow, reuse the existing administrator `onboard.sh` entry and read its README before changing it. Extend that workflow instead of creating another engine for the same purpose.
 - Do not match generic infrastructure VM work or employee-side bootstrap. For discussion and review, use the skill as read-only operational context; preserve the explicitly selected BMad workflow.
 - Skill activation does not authorize apply, credential changes, uploads, email, commits, pushes, or other external writes.
 

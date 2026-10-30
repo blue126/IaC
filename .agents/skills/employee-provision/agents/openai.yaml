@@ -1,6 +1,6 @@
 interface:
-  display_name: "员工工作区 Provisioning"
-  short_description: "使用私有管理员项目规划员工虚拟机、配置接入身份并交付设备包"
-  default_prompt: "使用 $employee-provision 为指定员工开通工作区，生成计划并在批准后交付设备包。"
+  display_name: "WireGuard 员工工作区 Provisioning"
+  short_description: "规划 WireGuard 员工虚拟机并交付设备包；HAPI/Cloudflare 使用独立流程"
+  default_prompt: "使用 $employee-provision 为指定员工开通 WireGuard 工作区，生成计划并在批准后交付设备包；HAPI/Cloudflare 网页工作区不使用本流程。"
 policy:
   allow_implicit_invocation: true

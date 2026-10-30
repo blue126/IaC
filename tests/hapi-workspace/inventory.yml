@@ -1,0 +1,11 @@
+---
+all:
+  children:
+    hapi_control_plane:
+      hosts:
+        hapi-control-test:
+          ansible_host: 192.0.2.20
+    hapi_workspaces:
+      hosts:
+        hapi-workspace-test:
+          ansible_host: 192.0.2.21

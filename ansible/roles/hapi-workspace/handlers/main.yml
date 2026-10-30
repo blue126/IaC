@@ -1,0 +1,18 @@
+---
+- name: Restart HAPI workspace hub
+  ansible.builtin.systemd_service:
+    name: hapi-workspace-hub
+    state: restarted
+    daemon_reload: true
+
+- name: Restart HAPI workspace runner
+  ansible.builtin.systemd_service:
+    name: hapi-workspace-runner
+    state: restarted
+    daemon_reload: true
+
+- name: Restart HAPI workspace proxy
+  ansible.builtin.systemd_service:
+    name: hapi-workspace-proxy
+    state: restarted
+    daemon_reload: true

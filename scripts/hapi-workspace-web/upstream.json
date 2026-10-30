@@ -1,0 +1,14 @@
+{
+  "ref": "v0.33.2",
+  "commit": "730dfcb22e31ec5572446d066cbb5e92d6a6254d",
+  "archive_sha256": "62bea2b29fb086808617faf0138e4f92f30888b116388263d6e81e778d8f2f62",
+  "bun": "1.4.4",
+  "files": {
+    "web/src/hooks/useAuth.ts": "8d2259faeafe798953ee9d4e2b62d3d215e3c12359844aa9be773fba2f61da5f",
+    "web/src/hooks/useAuthSource.ts": "2140ef4f85b34e6f8769d8a7373f9792169a6527ab0f2586478b343c368b45c8",
+    "web/src/hooks/useServerUrl.ts": "9b1809274c4aa85e492fa36499474ec569df3c229991bce20f4206507d076b3a",
+    "web/src/App.tsx": "f4dfe37dbbe463f233d6a9d9344daea4ffd6f29dafab8d6073d985f39804ac65",
+    "web/src/main.tsx": "4a5e4f10bcb3c453b6dec321c185b6bb4c45d4e9a60776fe63c73df256d38766",
+    "web/vite.config.ts": "2ca31094d978e1b48c8052605659bc3910502d51cb4f3e22ea68dfcef056b3d7"
+  }
+}

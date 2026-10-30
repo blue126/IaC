@@ -1,11 +1,17 @@
 ---
 name: employee-provision
-description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM 创建、设备接入包生成与交付、恢复及开户流程维护。自动复用私有管理员入口；不用于一般基础设施 VM 或员工电脑 bootstrap。"
+description: "本 IaC 项目的 WireGuard 员工工作区（existing/oci-hub）开户/provisioning、员工 VM 创建、设备包交付与恢复。自动复用私有管理员入口；不用于 HAPI/Cloudflare 网页工作区、一般基础设施 VM 或员工电脑 bootstrap。"
 ---
 
-# 员工工作区 Provisioning
+# WireGuard 员工工作区 Provisioning
 
 本 skill 仅在所属 IaC 项目内按上下文自动加载，不作为用户级全局 skill 安装。
+
+## 范围边界
+
+- 本 skill 覆盖 WireGuard 接入体系的 `existing` 和 `oci-hub` 员工工作区。HAPI/Cloudflare 网页工作区开户为独立流程，不因同样创建员工 VM 而套用本入口。
+- HAPI 使用独立的管理员入口、申请与计划审批、执行状态、业务台账、凭据授权和网页交付路径；不在 `onboard.sh` 增加 HAPI profile，不复用 WireGuard 设备身份、运行数据或设备包。同一邮箱不代表自动共用两套流程中的 VM 或凭据。
+- 可复用底层 VM 模块、干净模板、隔离基础组件及登录助手；仍须明确资源所有权并检查 VMID/IP 冲突，不能由两套流程共同管理同一资源。本边界不自动迁移现有员工、VM502 试点服务或历史 BWS 记录。
 
 规范入口是 IaC 主 checkout 的 `remotecc/employee-admin/onboard.sh`。管理员源码属于该目录的独立私有 Git；相邻 `remotecc/employee-data/` 保存实际配置、申请、状态、设备包和回执，不进入任一源码仓库。公开 IaC 只存项目 skill 与基础设施定义；公开 workspace-onboarding 只承载员工客户端。不要复制管理员源码或私有数据到这两个公开仓库。
 
@@ -15,8 +21,8 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 ## 自动识别与既有入口
 
-- 员工工作区开户/provisioning、设备包生成与交付、恢复，以及相关流程的修改或审阅，都应自动加载本 skill；一般基础设施 VM 操作、员工电脑 bootstrap 不属于此范围。
-- 先读取私有管理员项目 README 与现有入口。沿用 `onboard.sh` 的输入、审批、身份复用和交付契约；新增 profile 应扩展已有流程，不另造独立开户引擎。
+- WireGuard 员工工作区开户/provisioning、设备包生成与交付、恢复，以及相关流程的修改或审阅，都应自动加载本 skill；HAPI/Cloudflare 网页工作区、一般基础设施 VM 操作及员工电脑 bootstrap 不属于此范围。
+- 先读取私有管理员项目 README 与现有入口。沿用 `onboard.sh` 的输入、审批、身份复用和交付契约；WireGuard 体系新增 profile 应扩展已有流程，不另造同用途开户引擎。HAPI/Cloudflare 按上述独立流程边界处理。
 - 区分工程讨论与实际操作：讨论、设计、代码修改或审阅时只加载既有运行约定，不自动执行 preflight、读取真实凭据或为员工开户。用户要求实际操作时，再按下文执行。
 - 已显式选择 BMad 等工作流时，保留其顺序与检查点，本 skill 提供员工 provisioning 的现有入口和技术约束。
 - 自动加载不代表授权 apply、轮换凭据、上传、发信或 Git 操作；继续遵守本次会话的具体授权。后端尚未接通既有输入契约时，报告具体缺口，不能用临时旁路替代。
