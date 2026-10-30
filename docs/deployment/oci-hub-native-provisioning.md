@@ -14,7 +14,7 @@
 ./onboard.sh --profile oci-hub export --device alice
 ```
 
-`provision` 输出请求文件和精确审批 SHA，不执行创建。默认规格来自已配置资源池（当前2核 host、4GiB、50GiB、pve2-ssd、模板9001）；已有员工复用自己的 VM，不隐式调整规格。同一设备复用原密钥/地址；新设备使用 `--device` 指定独立 ID。纯数字邮箱用户名加 `user` 前缀，其余不加 `ed-`。碰撞时停止并说明冲突。
+`provision` 输出请求文件和精确审批 SHA，不执行创建。默认规格来自已配置资源池（当前2核 host、8GiB、50GiB、pve2-ssd、模板9001）；已有员工复用自己的 VM，不隐式调整规格。同一设备复用原密钥/地址；新设备使用 `--device` 指定独立 ID。纯数字邮箱用户名加 `user` 前缀，其余不加 `ed-`。碰撞时停止并说明冲突。
 
 工具复用既有冷创建流程：PVE 独立子网及 hook → 受保护停机 VM → 受信任 QGA 核对/启动和 SSH 主机公钥 → 独立 BWS 记录 → VM 原生授权与 Spoke/Mosh → Portal 登记及配额 → 本地包。新模板克隆的 vendor-data 与 provider 生成的用户/主机名配置并存，不覆盖管理员 cloud-init 公钥。没有管理端点网络授权时停止，不扩大 Sandbox 网络范围。
 

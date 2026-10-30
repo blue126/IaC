@@ -17,7 +17,7 @@ variable "oci_hub_workspaces" {
     dns_server          = string
     overlay             = string
     cores               = optional(number, 2)
-    memory              = optional(number, 4096)
+    memory              = optional(number, 8192)
     balloon_memory      = optional(number)
     onboot              = optional(bool, false)
     disk_size           = optional(string, "50G")
