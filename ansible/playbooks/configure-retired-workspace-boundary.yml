@@ -1,0 +1,22 @@
+---
+- name: Maintain only the permanent retired workspace guards
+  hosts: pve2
+  become: true
+  gather_facts: false
+  vars:
+    retired_workspace_boundary_vmids: >-
+      {{ (lookup('file', playbook_dir + '/../../terraform/proxmox/employee-workspaces.auto.tfvars.json') | from_json).employee_workspaces
+         | dict2items | selectattr('value.retired', 'defined') | selectattr('value.retired', 'equalto', true)
+         | map(attribute='value.vmid') | list }}
+  roles:
+    - retired-workspace-boundary
+
+- name: Verify the permanent retired workspace guards
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the exact retained bridge table
+      ansible.builtin.command: python3 /usr/local/lib/employee-firewall.py verify
+      changed_when: false
