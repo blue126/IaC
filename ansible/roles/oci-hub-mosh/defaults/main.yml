@@ -1,0 +1,4 @@
+---
+oci_hub_mosh_attach_authorized: false
+oci_hub_mosh_install_authorized: false
+oci_hub_mosh_network_timeout: 604800
