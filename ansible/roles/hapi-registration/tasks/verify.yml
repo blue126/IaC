@@ -1,0 +1,26 @@
+---
+- name: Inspect the registration ownership marker
+  ansible.builtin.stat:
+    path: '/var/lib/hapi-application/registrations/{{ hapi_registration_command.owner.workspace_id }}.json'
+  register: hapi_registration_owner_stat
+
+- name: Require an owned registration except for an unused failure cleanup
+  ansible.builtin.assert:
+    that: hapi_registration_owner_stat.stat.exists or hapi_registration_command.action == 'block'
+
+- name: Read the request-owned registration marker
+  ansible.builtin.slurp:
+    src: '/var/lib/hapi-application/registrations/{{ hapi_registration_command.owner.workspace_id }}.json'
+  register: hapi_registration_owner
+  when: hapi_registration_owner_stat.stat.exists
+
+- name: Verify the exact request and physical worker ownership
+  ansible.builtin.assert:
+    that: (hapi_registration_owner.content | b64decode | from_json) == hapi_registration_command.owner
+  when: hapi_registration_owner_stat.stat.exists
+
+- name: Verify the shared HAPI application remained healthy
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3006/health
+    use_proxy: false
+    status_code: 200

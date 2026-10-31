@@ -9,7 +9,7 @@ description: "管理、开发和审阅本 IaC 项目独立的 HAPI/Cloudflare �
 
 ## 当前能力与真实入口
 
-VM500已运行统一入口、身份网关、单共享Hub和会话数据库；VM502保留原Runner、Claude及localhost3006兼容代理。既有用户已确认统一入口可用。这不等于新员工完整开户或全新VM首次Claude授权已验收。
+VM500已运行统一入口、身份网关、单个HAPI Hub应用服务（VM500）和会话数据库；VM502保留原Runner、Claude及localhost3006兼容代理。既有用户已确认统一入口可用。这不等于新员工完整开户或全新VM首次Claude授权已验收。
 
 正式私有源码位于主检出的`~/Projects/IaC/remotecc/hapi-admin/`，运行数据在同级`hapi-data/`。先读私有README，再使用真实入口核对帮助和执行绑定：
 
@@ -24,6 +24,14 @@ python3 ~/Projects/IaC/remotecc/hapi-admin/hapi-entry.py doctor
 
 应用安装、服务秘密／PKI、租户发布、Cloudflare首次subject绑定、入口启用、员工交付及完整生命周期尚未串成已验收后端。不得把`execution_context_ready`或`infrastructure_ready`报告成`services_ready`／`public_entry_ready`。收到完整开户请求时，说明实际缺少的阶段，继续准备已授权材料，不虚构不存在的命令。
 
+## 应用开户候选代码
+
+应用阶段候选实现见[应用开户说明](../../../docs/guides/hapi-application-onboarding.md)。`plan-app`、`apply-app`、`complete-app`目前只存在任务工作树的私有开发副本，未同步到正式入口、未部署，不能从正式命令帮助中假定它们可用。
+
+用户选择暂不安装新Sandbox的BWS SDK。缺少固定版本SDK时，执行器必须在外部写入前停止；不得绕用旧Sandbox、复制旧虚拟环境或自行安装。重新计划保留同一申请已验证的身份与原票据；无证明的过期票据只能经新计划审批替换，不交付失效链接。审批校验在申请锁和VM500发布锁内完成，状态更新绑定当前plan ID。`awaiting_identity`表示应用服务已验证，但本人身份尚未完成确认、路由仍关闭。`identity_verified`表示已取得真实身份证明、等待启用；此时交付材料不再附带首次身份链接。首次启用失败后的禁用路由，仅在申请标记、VM绑定和原证明全部匹配时允许重新计划；其他归属及已ready后的恢复不接管。`route_enabled`只表示VM500登记和私有服务回读通过；公网路径验收完成前，`public_entry_ready`保持false。
+
+应用登记由独立管理员执行器管理。存在应用登记后，普通共享Hub／控制面角色必须在任何写入前拒绝用静态Vault覆盖；当前运行Vault仅是既有VM502基线快照，不能充当后续员工的完整登记来源。HAPI防火墙例外存入独立文件，由明确支持该扩展的防火墙控制器加载和校验，不改写WireGuard基础规则文件。开户仅校验已部署共享防火墙控制器的批准摘要，不替换该控制器；版本不符须先由其原角色或独立迁移计划发布。HAPI扩展失败不得关闭已经通过校验的WireGuard基础转发。
+
 ## 申请、计划与资源归属
 
 - 默认输入是邮箱；只在HAPI登记中派生或核定稳定ID。规格、干净模板、VMID／IP／MAC、网络边界、state和秘密引用进入精确计划；不猜空闲资源。
@@ -32,13 +40,13 @@ python3 ~/Projects/IaC/remotecc/hapi-admin/hapi-entry.py doctor
 - Terraform管理的VM使用原state生成精确变更／destroy plan；核对lineage、资源地址及VM身份。不用`qm destroy`或`state rm`绕过其管理关系。个人认证异常不触发销毁／重建。
 - QA VM9101／9102已在2026-10-31按原Terraform state回收，见[回收记录](../../../docs/planning/2026-10-31-hapi-qa-retirement.md)。旧提案、Vault和计划只作证据，不作为新员工槽位或可重放输入。需要完整验收时通过新流程从干净模板按需创建。
 
-## 单Hub、身份与凭据边界
+## HAPI Hub（VM500）、身份与凭据边界
 
 VM500承担Cloudflare Tunnel终结、统一网页／登录引导、身份网关、共享Hub和数据库。员工VM运行Runner、Claude、个人浏览器及受限登录执行／画面服务，使用原批准默认路由；不在每台员工VM部署Hub，不把VM500作为开发流量的通用出口。
 
 统一`hapi.willfan.me`以受验证Access身份绑定固定namespace和本人VM。浏览器完成一次Cloudflare登录后自动建立HAPI短期会话，不再要求HAPI基础token登录；个人Claude授权在缺失或过期时由本人完成。客户端邮箱头、VMID、机器ID及namespace后缀不能扩大权限；HTTP、SSE、Socket.IO、RPC与RFB均遵循同一归属和撤销要求。
 
-当前服务配置索引在私有`hapi-data/credentials/service-runtime.json`；以索引和批准的当前运行Vault为准。BWS独立`HapiWorkspace`管理服务凭据，员工／Runner凭据固定绑定namespace并可撤销。共享Hub签名密钥只物化到VM500；CA签发权限及BWS管理员token留在管理员环境。浏览器不接收长期基础token，员工VM不接收Tunnel token、共享签名密钥或其他员工凭据。
+当前服务配置索引在私有`hapi-data/credentials/service-runtime.json`；它描述既有VM502基线，新增应用登记按上文的独立执行器管理，不重放旧Vault覆盖。BWS独立`HapiWorkspace`管理服务凭据，员工／Runner凭据固定绑定namespace并可撤销。共享Hub签名密钥只物化到VM500；CA签发权限及BWS管理员token留在管理员环境。浏览器不接收长期基础token，员工VM不接收Tunnel token、共享签名密钥或其他员工凭据。
 
 现有统一入口和VM502的任务、项目、个人认证保持原归属，不因新开户重启或迁移。VM500的WireGuard历史配置属于独立迁移范围，不在HAPI开户中接管、复用业务登记或擅自移除。
 

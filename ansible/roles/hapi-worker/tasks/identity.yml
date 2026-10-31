@@ -1,0 +1,68 @@
+---
+- name: Require the exact independently provisioned worker identity before installation
+  ansible.builtin.assert:
+    that:
+      - hapi_worker_activate | bool
+      - hapi_worker_vmid | int > 502
+      - hapi_worker_id not in ['control-plane', 'hub']
+      - hapi_worker_id is match('^[a-z][a-z0-9-]{0,31}$')
+      - hapi_worker_request_id is match('^[a-f0-9]{32}$')
+      - hapi_worker_product_uuid is match('^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+      - hapi_worker_control_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - ansible_facts.product_uuid | lower == hapi_worker_product_uuid
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.architecture == 'x86_64'
+      - ansible_facts.virtualization_role == 'guest'
+      - ansible_facts.default_ipv4.address == hapi_worker_address
+      - ansible_facts.default_ipv4.macaddress | lower == hapi_worker_mac
+      - hapi_worker_project_root is match('^/home/employee(?:/[A-Za-z0-9_.-]+)*$')
+      - "'..' not in hapi_worker_project_root.split('/')"
+      - hapi_worker_origin is match('^https://[a-z0-9.-]+$')
+
+- name: Inspect the existing worker ownership marker
+  ansible.builtin.stat:
+    path: /etc/hapi-worker-owner.json
+    follow: false
+  register: hapi_worker_owner_stat
+
+- name: Require a regular existing ownership marker
+  ansible.builtin.assert:
+    that: not hapi_worker_owner_stat.stat.exists or hapi_worker_owner_stat.stat.isreg
+
+- name: Read existing independent worker ownership
+  ansible.builtin.slurp:
+    src: /etc/hapi-worker-owner.json
+  register: hapi_worker_previous_owner
+  when: hapi_worker_owner_stat.stat.exists
+
+- name: Reject another request or VM identity before changing the worker
+  ansible.builtin.assert:
+    that:
+      - >-
+        (hapi_worker_previous_owner.content | b64decode | from_json) ==
+        {'version': 1, 'request_id': hapi_worker_request_id, 'workspace_id': hapi_worker_id,
+         'vmid': hapi_worker_vmid | int, 'product_uuid': hapi_worker_product_uuid}
+  when: hapi_worker_owner_stat.stat.exists
+
+- name: Inspect existing service ownership before installing a Runner
+  ansible.builtin.service_facts:
+  register: hapi_worker_existing_services
+
+- name: Reject a baseline containing an existing employee Hub
+  ansible.builtin.assert:
+    that:
+      - "'employee-hapi-hub.service' not in hapi_worker_existing_services.ansible_facts.services"
+      - "'hapi-workspace-hub.service' not in hapi_worker_existing_services.ansible_facts.services"
+
+- name: Validate the exact control-plane IPv4 address
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - -c
+      - >-
+        import ipaddress,sys;
+        address=ipaddress.IPv4Address(sys.argv[1]);
+        assert any(address in ipaddress.ip_network(cidr) for cidr in
+        ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16'])
+      - '{{ hapi_worker_control_address }}'
+  changed_when: false

@@ -1,0 +1,85 @@
+---
+- name: Require a bounded HAPI application command for VM500
+  ansible.builtin.assert:
+    that:
+      - hapi_registration_command.kind == 'hapi-application-on-vm500'
+      - hapi_registration_command.vmid | int == 500
+      - hapi_registration_command.action in ['register', 'enroll', 'proof', 'enable', 'block']
+      - hapi_registration_command.owner.request_id is match('^[a-f0-9]{32}$')
+
+- name: Inspect the separately deployed shared firewall controller for registration
+  ansible.builtin.stat:
+    path: /usr/local/lib/employee-firewall.py
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: hapi_registration_firewall_controller
+  when: hapi_registration_command.action == 'register'
+
+- name: Require the approved extension-aware firewall controller without replacing it
+  ansible.builtin.assert:
+    that:
+      - hapi_registration_firewall_controller.stat.exists
+      - hapi_registration_firewall_controller.stat.checksum == lookup('ansible.builtin.file', role_path + '/../employee-access/files/employee-firewall.py', rstrip=false) | hash('sha256')
+    fail_msg: Deploy the approved shared firewall controller through its owner or a separate migration plan before HAPI registration.
+  when: hapi_registration_command.action == 'register'
+
+- name: Create the private HAPI application command directory
+  ansible.builtin.file:
+    path: /var/lib/hapi-application/commands
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Install the scoped HAPI registration helper
+  ansible.builtin.copy:
+    src: hapi-registration.py
+    dest: /usr/local/lib/hapi-registration.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create the independent HAPI firewall policy directory
+  ansible.builtin.file:
+    path: /etc/hapi-application
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Install the bounded HAPI firewall extension
+  ansible.builtin.copy:
+    src: hapi-firewall.py
+    dest: /usr/local/lib/hapi-firewall.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage only this request command without logging credentials
+  ansible.builtin.copy:
+    content: '{{ hapi_registration_command | to_nice_json }}'
+    dest: '/var/lib/hapi-application/commands/{{ hapi_registration_command.owner.request_id }}.json'
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  diff: false
+
+- name: Apply or read back the request-owned HAPI application registration
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - /usr/local/lib/hapi-registration.py
+      - '/var/lib/hapi-application/commands/{{ hapi_registration_command.owner.request_id }}.json'
+  register: hapi_registration_result
+  changed_when: (hapi_registration_result.stdout | from_json).get('changed', false)
+  no_log: true
+
+- name: Save only this command readback in the private administrator directory
+  ansible.builtin.copy:
+    content: '{{ hapi_registration_result.stdout }}'
+    dest: '{{ hapi_registration_receipt }}'
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  no_log: true

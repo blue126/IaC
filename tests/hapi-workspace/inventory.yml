@@ -1,6 +1,13 @@
 ---
 all:
   children:
+    hapi_vm500:
+      hosts:
+        hapi-control-test:
+    hapi_workers:
+      hosts:
+        hapi-new-worker-test:
+          ansible_host: 192.0.2.24
     hapi_health:
       hosts:
         hapi-health-test:

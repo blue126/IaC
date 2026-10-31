@@ -1,0 +1,19 @@
+---
+hapi_worker_vmid: 0
+hapi_worker_id: ''
+hapi_worker_request_id: ''
+hapi_worker_product_uuid: ''
+hapi_worker_address: ''
+hapi_worker_mac: ''
+hapi_worker_control_address: ''
+hapi_worker_origin: https://hapi.willfan.me
+hapi_worker_project_root: /home/employee
+hapi_worker_install_dependencies: false
+hapi_worker_activate: false
+hapi_worker_api_token: "{{ vault_hapi_worker_api_token | default('') }}"
+hapi_worker_ca: "{{ vault_hapi_worker_ca | default('') }}"
+hapi_worker_crl: "{{ vault_hapi_worker_crl | default('') }}"
+hapi_worker_server_certificate: "{{ vault_hapi_worker_server_certificate | default('') }}"
+hapi_worker_server_key: "{{ vault_hapi_worker_server_key | default('') }}"
+hapi_worker_client_certificate: "{{ vault_hapi_worker_client_certificate | default('') }}"
+hapi_worker_client_key: "{{ vault_hapi_worker_client_key | default('') }}"

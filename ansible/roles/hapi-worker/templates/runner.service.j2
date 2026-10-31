@@ -1,0 +1,23 @@
+[Unit]
+Description=HAPI employee Runner connected to the VM500 HAPI application
+Wants=network-online.target hapi-hub-client.service
+After=network-online.target hapi-hub-client.service
+
+[Service]
+Type=simple
+User=employee
+Group=employee
+WorkingDirectory={{ hapi_worker_project_root }}
+Environment=HOME=/home/employee
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=HAPI_RUNNER_SUPERVISED=1
+EnvironmentFile=/etc/hapi-worker/runner.env
+ExecStart=/opt/hapi-worker/v0.33.2/hapi runner start-sync --workspace-root {{ hapi_worker_project_root }}
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target
