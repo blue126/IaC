@@ -35,16 +35,39 @@
           - ansible_facts.distribution == 'Ubuntu'
           - ansible_facts.distribution_version == '24.04'
           - ansible_facts.virtualization_role == 'guest'
+
+    # The shared cloud-init user-data snippet overrides the hostname Proxmox
+    # generates, so the guest keeps the template's name unless set here.
+    - name: Set hostname to the inventory name
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
   roles:
     - common
     - ubuntu-vm
     - tailscale
     - host-firewall
+  post_tasks:
+    - name: Read Tailscale node name
+      ansible.builtin.command:
+        argv: [tailscale, status, --self, --json]
+      register: ws_executor_tailscale_self
+      changed_when: false
+      check_mode: false
+      when: not ansible_check_mode
+
+    # tailscaled keeps the name it joined with; align it once the OS hostname is set.
+    - name: Rename Tailscale node to the inventory name
+      ansible.builtin.command:
+        argv: [tailscale, set, "--hostname={{ inventory_hostname }}"]
+      changed_when: true
+      when:
+        - not ansible_check_mode
+        - (ws_executor_tailscale_self.stdout | from_json).Self.HostName != inventory_hostname
 
 - name: Verify ws-executor host
   hosts: ws-executor
   become: true
-  gather_facts: false
+  gather_facts: true
   tags: [verify]
   tasks:
     - name: Check tailscaled service status
@@ -70,6 +93,12 @@
         that:
           - (ws_executor_tailscale_status.stdout | from_json).BackendState == 'Running'
         fail_msg: Tailscale is not logged in
+
+    - name: Assert hostname matches the inventory name
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == inventory_hostname
+        fail_msg: "Hostname is {{ ansible_facts.hostname }}, expected {{ inventory_hostname }}"
 
     - name: Verify host firewall
       ansible.builtin.include_role:

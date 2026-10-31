@@ -42,6 +42,10 @@ ansible-playbook playbooks/deploy-ws-executor.yml --tags verify
 
 Deploy play 依次：等待 SSH 与 cloud-init 完成、确认 Ubuntu 24.04 虚拟机，然后运行 `common`、`ubuntu-vm`（guest agent、经独立密钥校验后关闭 SSH 密码登录）、`tailscale`（`tailscale_accept_dns: false`，DNS 不依赖 tailscaled）、`host-firewall`。
 
+## 主机名
+
+共享的 cloud-init 片段 `cloud-init-ubuntu.yml` 会覆盖 Proxmox 生成的 hostname，克隆出的 VM 默认沿用模板名 `ubuntu-24`。Deploy play 因此把主机名设为 inventory 名 `ws-executor`，并在 Tailscale 节点名不一致时执行 `tailscale set --hostname`。
+
 ## 防火墙策略
 
 使用 ufw，由 `host-firewall` 角色管理：
