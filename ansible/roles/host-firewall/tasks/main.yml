@@ -1,0 +1,51 @@
+---
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Allow rules are written before the default-deny policy is enabled, so the
+# Ansible session that arrives over the LAN is never locked out.
+- name: Allow inbound traffic from trusted networks
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+  loop: "{{ host_firewall_allowed_cidrs }}"
+
+- name: Allow inbound traffic on trusted interfaces
+  community.general.ufw:
+    rule: allow
+    direction: in
+    interface: "{{ item }}"
+  loop: "{{ host_firewall_allowed_interfaces }}"
+
+- name: Read configured ufw rules before enabling default deny
+  ansible.builtin.command:
+    argv: [ufw, show, added]
+  register: host_firewall_added
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Assert trusted allow rules exist before enabling default deny
+  ansible.builtin.assert:
+    that:
+      - host_firewall_expected_rules | difference(host_firewall_added.stdout_lines) | length == 0
+    fail_msg: "Missing ufw allow rules: {{ host_firewall_expected_rules | difference(host_firewall_added.stdout_lines) }}"
+  when: not ansible_check_mode
+
+- name: Set default deny incoming policy
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Set default allow outgoing policy
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled
