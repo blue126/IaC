@@ -1,6 +1,8 @@
 # HAPI／Cloudflare 员工工作区开户设计
 
-状态：身份代理、自动登录、集中引导与本地实时撤销已完成离线验证；独立开户后端与真实验收尚未完成。2026-10-30。
+状态：统一入口、单Hub与会话数据库现已在VM500运行；VM502保留原Runner、Claude及localhost3006兼容代理。独立BWS、固定namespace、最终数据库导入及20项现场验收已完成；用户已完成Cloudflare登录并确认HAPI可用，完整新员工开户仍未就绪。参见[迁移记录](../planning/2026-10-30-hapi-single-hub-migration.md)。
+
+网络阶段已补充独立计划、VM外边界角色、停止创建的VM模块与pre-start门禁，见[网络开户自动化](../guides/hapi-network-automation.md)。按用户要求直接在pve2新建两台测试VM，现有vmbr0端口ACL的35项真实通信与11项生命周期验收通过，详见[两VM验收记录](../planning/2026-10-30-hapi-two-vm-pve2.md)。VLAN后端仍未实测；私有开户执行器、正式分配／state绑定、新员工HAPI／Cloudflare身份绑定及全新VM个人首次授权验收仍待补齐，此进展不表示已能自动交付员工VM。
 
 本文件落实用户已确认的方向：HAPI 开户独立于 WireGuard 的 `employee-provision`／`onboard.sh`；员工统一访问 `https://hapi.willfan.me`，身份验证后进入本人独立 VM。VM500 明确承担 HAPI 控制面与统一公网接入，Cloudflare Tunnel 连接器终结在 VM500。本文不是部署记录，不授权创建基础设施、申请新凭据、发送邮件或迁移既有工作区。
 
@@ -9,24 +11,24 @@
 | 内容 | HAPI 新流程 | 原 WireGuard 流程 |
 |---|---|---|
 | 员工接入 | 浏览器、Cloudflare Access／Tunnel | WireGuard，含 existing／oci-hub |
-| 管理入口 | 独立 HAPI 管理工具，待实现 | 原 `remotecc/employee-admin/onboard.sh` |
-| 私有源码／运行数据 | 拟用 `remotecc/hapi-admin/`／`remotecc/hapi-data/` | 原 employee-admin／employee-data |
+| 管理入口 | 本任务工作树已有独立基础设施候选入口；完整开户未实现 | 原 `remotecc/employee-admin/onboard.sh` |
+| 私有源码／运行数据 | 候选 `remotecc/hapi-admin/`／`remotecc/hapi-data/`，主checkout正式绑定待完成 | 原 employee-admin／employee-data |
 | 台账与恢复 | HAPI 独立登记、计划、检查点、回执 | 原工作区／设备登记与检查点 |
 | 员工交付 | 统一网址及网页登录说明 | 原设备接入包和 bootstrap 说明 |
-| 凭据边界 | 独立 HAPI BWS 项目和机器账号，待批准创建 | 保留原 EmployeeWorkspace 绑定 |
+| 凭据边界 | HapiWorkspace项目与专用机器授权已建立，服务凭据固定映射namespace | 原EmployeeWorkspace已按用户指定退役；OCI-Hub项目保持独立 |
 
-上述 HAPI 路径和工具均为拟定接口，本轮不创建私有仓库或可执行占位脚本。公开 IaC 仅保存技能、通用基础设施代码和说明；邮箱、分配、计划、状态、凭据及交付回执保存在私有运行区。
+本任务工作树的`remotecc/hapi-admin/hapi-admin.py`已实现request／plan-infra／apply-infra／status及私有README；16项合成后端故障测试和真实生成Terraform的init-backend-false／validate通过，未用它新增真实员工或执行实际apply。它只标记基础设施就绪，不发布服务／身份／邮件；未创建私有Git远端或主checkout绑定。公开IaC仅保存技能、通用基础设施代码和说明；真实邮箱、分配、计划、状态与凭据保存在私有运行区。
 
 可以复用 VM 模块、干净基线模板、基础配置和登录助手代码；不能调用旧开户入口以完成 HAPI 开户，不能读写 WireGuard 的申请、设备身份、状态库或接入包。同一邮箱可在两套系统存在，不能因此自动认领、复用或迁移旧 VM。VMID、IP、域名及 Terraform 所有权须做共享基础设施层面的冲突检查。
 
 当前已知基线：
 
-- 已实现独立`hapi-control-plane`／`hapi-workspace`原型及两个部署playbook，详见[原型输入与限制](../guides/hapi-control-plane-prototype.md)。具备身份检查、按登记代理、票据接口和锁定前端自动登录；未部署，已拆分登录组件并实现本地票据／登记撤销，尚缺独立开户后端和真实验收。
+- VM500现已部署身份检查、按登记代理、票据交换、集中登录页面及单共享Hub；固定版本鉴权补丁绑定独立凭据／namespace及JWT凭据版本。`hapi-workspace`中的每VM Hub布局属于旧原型，后续使用`hapi-shared-hub`与worker组件。完整新员工开户后端及新VM个人首次授权仍待验收。
 
 - `employee-hapi` 角色仍硬限制 VM502／`employee-control` 及试点域名；多员工部署不能靠命令行绕过断言。
 - HAPI v0.33.2 已有 REST、SSE、终端 Socket.IO 和 `/api/auth`；不原生把 Cloudflare 邮箱身份变为 HAPI 会话。
 - `codex/vm502-login-guide` 的网页登录引导已部署到VM502，作为本设计可复用的登录组件。部署记录包含6082服务、Tunnel version3、协议检查及幂等验证；当前个人账号已登录，尚不能用该状态代替全新VM的首次OAuth验收。源版本已核对为本地提交`bf4e5bd`，取用的9个源文件摘要与该提交tree一致；拆分后的派生文件另有摘要记录，后续以获批代码／artifact交付，不以可变工作树作为部署来源。
-- VM502 是管理员保留试点，不作为新员工槽位，也不随本设计自动修改。既有试点凭据暂按原绑定维护，迁移须另有精确计划。
+- VM502是管理员保留试点，不作为新员工槽位；本次按单独授权完成Hub／数据迁移，原Runner PID、项目和Claude登录状态保留，旧Hub启动已禁用并设门禁。HAPI凭据已转入独立BWS项目。
 - UCloud／优选 CF 上游／Argo 属于独立网络优化，不是本流程创建 PVE 工作 VM 的前置依赖。
 
 ## 2. 目标体验与服务结构
@@ -35,20 +37,24 @@
 flowchart LR
     U[员工浏览器] --> C[Cloudflare Access 与 Named Tunnel]
     C --> T[VM500 上的 cloudflared 连接器]
-    T --> G[VM500 统一 HAPI 网关与网页前端]
+    T --> G[VM500 统一 HAPI 身份网关]
+    G --> H[VM500 单 HAPI Hub 与网页]
+    H --> D[按租户授权的会话数据库]
     G --> L[集中登录引导页面与编排]
     G --> R[HAPI 独立身份与工作区登记]
     L --> A
     L --> B
-    G --> A[Alice VM 的受限服务入口]
-    G --> B[Bob VM 的受限服务入口]
-    A --> AH[独立 Hub／Runner／Claude／数据]
-    B --> BH[独立 Hub／Runner／Claude／数据]
+    A[Alice VM 的受限登录执行入口] --> AH[Runner／Claude／工程文件／个人凭据]
+    B[Bob VM 的受限登录执行入口] --> BH[Runner／Claude／工程文件／个人凭据]
+    AH --> H
+    BH --> H
 ```
 
-所有员工使用同一域名，不通过暴露 VMID 的 URL 选择目标。集中提供登录引导静态资源；MVP中HAPI应用静态资源与API按同一身份进入本人VM：页面由锁定的自动登录构建包提供，API由本人Hub处理，避免控制面静态版本与Hub不匹配。HAPI仍需同源认证初始化适配，应用请求和实时连接按服务器已验证的身份分流。每名员工一个独立 Hub、Runner、数据目录及个人 Claude 授权；不用共享 Hub 的 namespace 后缀作为权限边界。
+用户已明确选择单Hub。目标是VM500集中Hub、同版本网页和会话／消息数据库；员工VM保留Runner、Claude、工程文件、个人浏览器与授权。原“每员工VM独立Hub”是历史原型布局，不再作为新部署目标；VM502旧Hub已按批准的迁移计划停止并禁用，原Runner与localhost3006兼容代理继续运行。
 
-VM500 是已确定的 HAPI 控制面宿主，运行专用 Cloudflare Tunnel 连接器、统一网关、登录引导页面和编排。员工 VM 不部署面向 HAPI 公网入口的 Tunnel 连接器，也不持有其 token；只向 VM500 提供受限的私有应用与登录执行接口。HAPI 使用独立服务账号、配置、凭据、业务登记和网络规则。
+所有员工使用同一域名；VM500将受验证Access身份绑定到服务器端固定namespace，再访问共享Hub。每位员工／Runner持独立且可撤销的凭据，不能把共同base＋可修改namespace后缀当权限边界；原生不足已通过7项真实上游HTTP／Socket认证探针复现，见[单Hub评估](../planning/2026-10-30-hapi-shared-hub-assessment.md)。CF身份、应用JWT与允许的namespace必须一致，不能仅依赖共享Hub签名有效。个人工程目录和Claude凭据保持在本人VM，会话数据由Hub按租户授权保护。
+
+VM500运行专用Tunnel连接器、身份网关、单Hub、集中网页／登录引导和编排。统一入口连接器、身份／代理服务及共享Hub已在VM500运行；应用请求进入本机Hub，个人登录执行仍通过mTLS访问本人VM。员工VM不持公网Tunnel token，主动连接VM500 Hub；登录执行／画面仍保留受限私有通道，不能因移Hub直接删TLS适配器。HAPI继续使用独立账号、配置、登记与网络所有权。
 
 用户于2026-10-30进一步明确：VM500上的WireGuard网关当前仍运行、尚未退役，准备迁向OCI并退役原实现；VM500的目标职责不包含WireGuard网关。不能把目标状态当作旧服务已停止，也不据当前运行状态设计长期共存。实施前核对服务、接口、路由／NAT、防火墙、凭据引用和Terraform所有权，以及OCI接入与回退依赖，按独立迁移计划退役。HAPI改动不得提前移除仍在承载流量的旧规则或中断现有用户；VM500作为HAPI共享控制面的故障影响仍须列入计划。
 
@@ -61,7 +67,7 @@ VM500的网关职责限定为员工接入；员工VM自身出网沿用其默认�
 
 Cloudflare Tunnel负责应用接入，VM500不作为本方案的员工VM通用互联网出口。使用默认路由不等于给VM分配公网IP，也不取消VM外横向和管理网络隔离。若现有VM默认路由实际仍依赖VM500旧WireGuard网关，须在旧网关退役计划中明确替代路径并验收连通性；这是迁移依赖，不是HAPI新增集中出网要求。
 
-VM502当前直连专用Tunnel是历史单人试点，迁移前继续按原配置维护，不作为新员工的部署模板。仓库提交`10e551a`将Hub／Runner／专用Tunnel一起定义在VM502；这能解释当前部署来源，但提交说明没有给出否定VM500控制面方案的决策依据。将其理解为单VM试点范围是基于实现的推断，不能当作已批准的长期架构。
+VM502直连专用Tunnel是历史单人试点，现已由side chat迁至VM500并停止旧连接器；原角色增加统一入口marker保护，不能重新部署旧独立入口。仓库提交`10e551a`仍解释旧布局的来源，不作为新员工模板。Hub及数据库已迁入VM500，Runner保留在VM502，详见单Hub迁移记录。
 
 ## 3. 独立登记与输入契约
 
@@ -89,9 +95,9 @@ HAPI 台账为本流程唯一业务登记源，至少保存：
 
 1. Access 保护整个统一主机名。延续用户偏好的应用级 7 天会话作为初始设计；实施时批准具体应用，不改账户全局时长。
 2. 网关验证 Access JWT 的签名、issuer、audience、有效期和身份，再查当前台账。未知、停用或未批准身份拒绝访问；后端故障返回本人工作区不可用，不切到其他 VM。
-3. 拟新增同源 `POST /_workspace/session`。前端进入受保护界面前调用它；网关依据当前身份取本人 VM 的服务凭据，在服务端调用该 Hub 已有 `/api/auth`，返回该 VM 的短期 HAPI JWT 和最小身份／路由代次元数据。接口采用同源及 CSRF 保护，响应不缓存。
+3. 同源`POST /_workspace/session`在网关依据受验证身份取得绑定本人namespace的服务凭据，调用VM500共享Hub的`/api/auth`，返回该namespace的短期JWT和最小身份／代次。接口保持同源、CSRF与不缓存；不得接收客户端自选namespace作为授权依据。当前线上实现已切换至VM500共享Hub。
 4. HAPI 前端增加独立的入口身份认证来源，接入现有认证初始化和刷新逻辑；不要求员工输入基础 token。当前版本 JWT 为 4 小时，是否能刷新以 Access 和工作区状态为准。刷新失败清除应用会话，不延长已失效的入口授权。
-5. REST、SSE、Socket.IO polling、WebSocket upgrade 及登录浏览器控制连接都由同一身份映射选 VM。浏览器提交的邮箱、VMID、机器 ID、路由 cookie 或 HAPI JWT 不能决定后端目标。既有长连接保持绑定原身份／工作区代次。
+5. REST、SSE、Socket.IO polling／WebSocket进入共享Hub前，核对CF身份与应用JWT namespace一致；登录执行／画面按经授权的本人机器映射选VM。客户端邮箱、VMID、机器ID、cookie或有效但属于另一身份的JWT均不能扩大权限。既有流绑定原身份／namespace／工作区代次。
 6. 同一浏览器换账号前清除前一身份的应用会话和私有数据缓存，关闭旧 SSE／WebSocket，再加载新身份。注销／停用须终止对应活跃路由会话；不能仅依赖 Access cookie 自然过期来宣称已有连接已撤销。
 
 ### 4.1 Access策略与撤销来源
@@ -102,15 +108,15 @@ HAPI独立台账中的获批且启用邮箱生成统一Access应用的allow名�
 
 ### 4.2 应用能力与日志基线
 
-保留试点的`--no-relay`、`HAPI_DISABLE_PEER_TOOLS=1`及非必要推送关闭配置。统一网关在通用Hub路由之前拒绝`/api/push/*`，不因逐VMHub代理重新开放推送。精确配置按锁定版本验证，不将试点能力限制默认为新版仍成立。
+保留试点的`--no-relay`、Runner的`HAPI_DISABLE_PEER_TOOLS=1`及非必要推送关闭配置。统一网关在Hub之前拒绝`/api/push/*`，不因集中Hub重新开放。精确配置按锁定版本验证，不将试点能力限制默认为新版仍成立。
 
 网关、反向代理和Tunnel的日志不得记录认证头、Cookie、授权码、HAPI JWT或含令牌的query；错误正文不回显上游秘密。实施时核对SSE及Socket.IO真实认证载体，配置查询参数脱敏并使用合成票据验证，不用真实秘密做日志测试。
 
-HAPI 的原生 namespace 使用共享基础 token 加客户端后缀。当前认证代码校验基础 token、接受解析出的 namespace，因此仅分发不同后缀不足以作为员工隔离机制。本设计保留逐 VM 独立 Hub 和密钥，不改造为共享 Hub。
+HAPI原生namespace的共享基础token＋客户端后缀不能提供本项目要求的身份隔离。用户已选择单Hub，因此必须实现并验证独立凭据→固定namespace及全通道授权，不能直接启用原生共享token配置；未经该验证不向多个员工开放。
 
 BWS继续作为HAPI基础令牌和Tunnel令牌的管理来源；当前VM502试点已通过BWS生成受控runtime配置，再将服务所需令牌物化到VM。BWS负责秘密管理与分发，运行时调用Hub仍需使用相应令牌，不能把“存储在BWS”理解为服务从不接触秘密值。新流程的独立BWS授权边界不改变这一原则。
 
-本版拟定方案仍是第3步由网关使用所需Hub凭据换取短期JWT。评审提出“员工VM本机交换”作为可选改进，尚未作为批准变更：它可减少长期Hub令牌在VM500的副本，但BWS仍管理令牌，且网关仍有发起会话的权限。实施前明确采用方案、实际令牌权限及运行时暴露范围，不暗示BWS或短期JWT能消除控制面被攻破的影响。
+共享Hub目标下，网关以本人作用域凭据换短期JWT；长期凭据仍由BWS管理，运行时只物化所需值。旧“员工VM本机交换以减少Hub令牌在500副本”的评审建议不再自动适用于新布局；具体权限与持有者须在新迁移计划明确，不暗示短期JWT可消除控制面被攻破的影响。
 
 长期服务凭据不发给浏览器。网关只获得所需的 HAPI 服务凭据和自身传输身份，不获得管理员 BWS 机器令牌、员工 SSH／WireGuard 私钥或个人 Claude 凭据。Claude 的登录、浏览器 profile 和凭据文件始终保留在本人 VM。
 
@@ -197,6 +203,8 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 
 ### 6.5 VM502试点迁移至VM500入口
 
+本小节原入口迁移已由side chat执行，现场核对见[单Hub迁移记录](../planning/2026-10-30-hapi-single-hub-migration.md)：500入口active且connector ready200，502旧Tunnel停止。下述为该迁移的原约束；后续不得重复切入口；Hub数据／进程迁移亦已完成，见同一迁移记录。
+
 先完成VM500端受限服务、身份路由及到VM502私有后端的正反向验证，再切换试点域名／Tunnel配置。迁移计划须绑定原Tunnel、DNS、Access对象及当前配置版本，明确是否新建VM500专用Tunnel、token交付位置、切换与回退步骤。不能仅把原Tunnel token复制到VM500并让两台机器并行连接不同的localhost上游；同一Tunnel的多个连接器必须有等价可用后端，否则请求会落到错误服务。
 
 切换验证须覆盖HAPI认证、SSE、Socket.IO、登录页、授权码提交、真实RFB及错误身份拒绝，保留VM502的Hub／Runner、个人浏览器、任务和凭据。成功后再按批准计划停用VM502的专用连接器并撤销旧入口；失败恢复原入口配置，不删除员工数据。长期目标不保留可绕开VM500身份网关的旧公开路径。VM502迁移与新员工开户是独立操作，设计批准本身不执行切换。
@@ -211,7 +219,7 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 | 预检／计划 | 检查基线、容量、网络、Cloudflare／BWS 权限与域名占用；生成目标资源与验证计划 | 明确资源所有权、独立运行区及真实管理通道 |
 | 审批 | 展示 VM／模板／规格、网络边界、Cloudflare 对象、路由映射、BWS 写入及邮件对象 | 当前完整输入、代码和计划摘要获得批准 |
 | 创建 | 创建独立秘密引用、停机 VM及边界；每次写前持久化意图，写后回读精确 ID | 不接管现有对象；边界验证后才启动 |
-| 配置 | 安装逐 VM Hub／Runner／登录执行服务与受限代理，登记到已就绪的集中引导；绑定接口版本和唯一传输身份 | 控制面与VM版本兼容，本机服务、TLS身份及监听检查通过 |
+| 配置 | 复用VM500单Hub，在员工VM安装Runner／登录执行与必要传输；绑定凭据、namespace和机器身份 | 控制面与worker版本兼容，服务、TLS及权限检查通过 |
 | 登记／发布 | 先登记禁用路由，校验身份／后端绑定，再启用该工作区 | 未批准身份、跨 VM 和旁路访问均拒绝 |
 | 工作区验证 | 执行已批准的实时网络／协议验收并保存摘要 | 达到下述服务就绪条件 |
 | 交付 | 发送统一网址、身份及首次 Claude 登录说明，保存 API 受理回执 | 服务已就绪且精确收件人／正文已获交付授权 |
@@ -238,7 +246,7 @@ remotecc/hapi-data/
   registry/               # 员工—HAPI工作区登记与网关快照
 ```
 
-这些目录不纳入公开 Git。BWS 拟使用独立 `HapiWorkspace` 项目和最小授权机器账号；名称和权限需实施时批准，不能自动创建或借用旧 EmployeeWorkspace 机器账号。原有 VM502 试点秘密不自动迁移。
+这些目录不纳入公开 Git。BWS已按单独批准建立独立`HapiWorkspace`项目及专用机器授权；原VM502试点服务秘密已保持值不变迁入，新租户使用独立凭据。后续员工秘密变更须纳入精确计划，不复用WireGuard机器授权。
 
 审批摘要绑定请求、分配、代码／配置版本、模板、保存的 Terraform 计划、Cloudflare 变更、网关路由代次和待写入秘密引用／密文摘要。摘要不公开秘密值。首次入口部署与单员工开户分别列明共享对象和员工专属对象的变更；增加员工不能重建共享入口或重启其他人的 Runner。发邮件、提交、推送与资源删除仍按实际动作取得授权。
 
@@ -255,7 +263,7 @@ remotecc/hapi-data/
 第一阶段改动、现场盘点、验收及回退见[VM500控制面实施计划](../planning/2026-10-30-hapi-control-plane-phase-one.md)。以下是交付依赖，不替代已选择的BMad工作流；代码开发与实际部署分别执行获批范围。
 
 1. 固定身份／登记／BWS接口契约，核对VM500和测试VM的资源归属、默认路由及现有流量依赖，形成精确网络变更计划。
-2. 固定已部署登录引导的源码快照；实现VM500控制面原型和单台测试VM，验证Access／SSO衔接、本人Hub与固定服务路由；部署另按批准计划进行。
+2. 复用已迁VM500入口，固定源码；实现并验证单Hub租户鉴权，再按批准计划迁移Hub和数据库，保留502 Runner／任务／个人认证。
 3. 拆分登录组件、保留VM502原组合包装，在新测试VM验证真实首次授权；不靠迁移现有VM502才能开始测试。
 4. 两个获准测试身份、两台专用VM的全链路隔离、撤销、故障恢复及首次登录验收。
 5. 完成独立开户执行器／资源与BWS自动化、通知交付，更新skill真实执行入口；在此前测试资源只能通过获批且可回读的受限runbook建立，不交付生产员工。
@@ -282,7 +290,7 @@ remotecc/hapi-data/
 
 ## 10. 真实执行就绪条件
 
-当前未具备生产开户条件：网关身份／代理基础和独立服务角色已有原型，但独立管理工具、HAPI state／台账、独立凭据授权、真实前端自动登录与新VM个人授权验收、真实参数化部署及两用户现网验收尚未完成。新 skill 可以设计、检查实现缺口、准备申请／计划契约和审阅；不能声称邮箱一填就能开通。
+当前未具备完整生产开户条件：独立基础设施候选工具、共享Hub、独立BWS授权及既有用户统一入口已完成；管理源码／数据／state正式绑定、服务与身份发布闭环、全新VM个人首次授权、真实参数化开户及两用户现网验收尚未完成。新 skill 可以设计、检查实现缺口、准备申请／计划契约和审阅；不能声称邮箱一填就能开通。
 
 首次允许实际开户前，须记录真实执行器路径及版本、受管 Sandbox、独立代码／数据／state／BWS 绑定、申请与审批接口、目标资源及作用范围、发布与回滚方式、验证记录与交付授权。执行前读取其 README 和真实帮助／契约；缺任何一项就报告具体缺口，不尝试旧 `onboard.sh`、临时 SSH 拼装或全量 Terraform apply。
 

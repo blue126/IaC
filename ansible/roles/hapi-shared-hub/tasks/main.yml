@@ -1,0 +1,256 @@
+---
+- name: Validate the shared Hub deployment target and immutable release
+  ansible.builtin.assert:
+    that:
+      - hapi_shared_hub_vmid | int == 500
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.architecture == 'x86_64'
+      - hapi_shared_hub_artifact is match('^/')
+      - hapi_shared_hub_artifact_sha256 is match('^[a-f0-9]{64}$')
+      - hapi_shared_hub_origin is match('^https://[a-z0-9.-]+$')
+      - hapi_shared_hub_bind_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_shared_hub_agents | length > 0
+
+- name: Validate supplied BWS service material without exposing values
+  ansible.builtin.assert:
+    that:
+      - hapi_shared_hub_credentials | length > 0
+      - hapi_shared_hub_bootstrap_token is match('^[A-Za-z0-9_-]{32,256}$')
+      - hapi_shared_hub_bootstrap_token not in (hapi_shared_hub_credentials | map(attribute='token') | list)
+      - hapi_shared_hub_ca | length > 0
+      - hapi_shared_hub_crl | length > 0
+      - hapi_shared_hub_certificate | length > 0
+      - hapi_shared_hub_key | length > 0
+  no_log: true
+
+- name: Check the existing proxy runtime without installing dependencies
+  ansible.builtin.command: /usr/sbin/nginx -v
+  changed_when: false
+
+- name: Inspect shared Hub services before preparing candidate configuration
+  ansible.builtin.service_facts:
+
+- name: Require explicit activation when updating a running shared Hub
+  ansible.builtin.assert:
+    that:
+      - >-
+        hapi_shared_hub_activate | bool or
+        (ansible_facts.services.get('hapi-shared-hub.service', {}).get('state', 'stopped') != 'running' and
+         ansible_facts.services.get('hapi-hub-transport.service', {}).get('state', 'stopped') != 'running')
+
+- name: Require a control-plane-only signing key before activation
+  ansible.builtin.assert:
+    that:
+      - hapi_shared_hub_jwt_secret is mapping
+      - hapi_shared_hub_jwt_secret.keys() | list | sort == ['secretBase64']
+      - hapi_shared_hub_jwt_secret.secretBase64 is match('^[A-Za-z0-9+/]{43}=$')
+  no_log: true
+  when: hapi_shared_hub_activate | bool
+
+- name: Verify the controller shared Hub release digest
+  ansible.builtin.stat:
+    path: '{{ hapi_shared_hub_artifact }}'
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: hapi_shared_hub_source
+  failed_when: hapi_shared_hub_source.stat.checksum | default('') != hapi_shared_hub_artifact_sha256
+
+- name: Create the dedicated shared Hub group
+  ansible.builtin.group:
+    name: hapi-hub
+    system: true
+
+- name: Create the dedicated shared Hub account
+  ansible.builtin.user:
+    name: hapi-hub
+    group: hapi-hub
+    system: true
+    home: /var/lib/hapi-shared-hub
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create the private shared Hub data directory
+  ansible.builtin.file:
+    path: /var/lib/hapi-shared-hub
+    state: directory
+    owner: hapi-hub
+    group: hapi-hub
+    mode: '0700'
+
+- name: Create the root-owned shared Hub configuration directory
+  ansible.builtin.file:
+    path: /etc/hapi-shared-hub
+    state: directory
+    owner: root
+    group: hapi-hub
+    mode: '0750'
+
+- name: Create the immutable shared Hub release directory
+  ansible.builtin.file:
+    path: '/opt/hapi-shared-hub/{{ hapi_shared_hub_artifact_sha256 }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Transfer the verified shared Hub executable
+  ansible.builtin.copy:
+    src: '{{ hapi_shared_hub_artifact }}'
+    dest: '/opt/hapi-shared-hub/{{ hapi_shared_hub_artifact_sha256 }}/hapi-hub'
+    owner: root
+    group: root
+    mode: '0755'
+  notify: Restart shared HAPI Hub
+
+- name: Deploy the shared Hub registry validator
+  ansible.builtin.copy:
+    src: hapi-hub-config.py
+    dest: /usr/local/lib/hapi-hub-config.py
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy the namespace credential registry from BWS runtime material
+  ansible.builtin.copy:
+    content: '{{ {"version": 1, "credentials": hapi_shared_hub_credentials} | to_nice_json }}'
+    dest: /etc/hapi-shared-hub/credentials.json
+    owner: root
+    group: hapi-hub
+    mode: '0640'
+    validate: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py credentials %s
+  no_log: true
+  diff: false
+
+- name: Deploy the fixed worker transport registry
+  ansible.builtin.copy:
+    content: '{{ {"version": 1, "agents": hapi_shared_hub_agents} | to_nice_json }}'
+    dest: /etc/hapi-shared-hub/agents.json
+    owner: root
+    group: hapi-hub
+    mode: '0640'
+    validate: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py agents %s
+
+- name: Check worker and credential bindings before enabling transport
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py bindings /etc/hapi-shared-hub
+  changed_when: false
+  no_log: true
+
+- name: Deploy the shared Hub process environment
+  ansible.builtin.template:
+    src: hub.env.j2
+    dest: /etc/hapi-shared-hub/hub.env
+    owner: root
+    group: hapi-hub
+    mode: '0640'
+  no_log: true
+  diff: false
+  notify: Restart shared HAPI Hub
+
+- name: Deploy only leaf transport material to the shared Hub
+  ansible.builtin.copy:
+    content: '{{ item.content }}'
+    dest: '/etc/hapi-shared-hub/{{ item.name }}'
+    owner: root
+    group: hapi-hub
+    mode: '0640'
+  loop:
+    - {name: ca.pem, content: '{{ hapi_shared_hub_ca }}'}
+    - {name: crl.pem, content: '{{ hapi_shared_hub_crl }}'}
+    - {name: certificate.pem, content: '{{ hapi_shared_hub_certificate }}'}
+    - {name: private.key, content: '{{ hapi_shared_hub_key }}'}
+  no_log: true
+  diff: false
+  notify: Restart shared HAPI transport
+
+- name: Prepare the isolated shared Hub proxy runtime
+  ansible.builtin.file:
+    path: '/run/hapi-hub-transport/{{ item }}'
+    state: directory
+    owner: hapi-hub
+    group: hapi-hub
+    mode: '0700'
+  loop: ['', body, proxy, fastcgi, uwsgi, scgi]
+
+- name: Deploy the shared Hub private transport configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/hapi-shared-hub/nginx.conf
+    owner: root
+    group: hapi-hub
+    mode: '0640'
+    validate: /usr/sbin/nginx -t -c %s
+  notify: Restart shared HAPI transport
+
+- name: Deploy the shared Hub and private transport services
+  ansible.builtin.template:
+    src: '{{ item }}.service.j2'
+    dest: '/etc/systemd/system/{{ item }}.service'
+    owner: root
+    group: root
+    mode: '0644'
+  loop: [hapi-shared-hub, hapi-hub-transport]
+  notify:
+    - Restart shared HAPI Hub
+    - Restart shared HAPI transport
+
+- name: Inspect the transport PID file created by candidate validation
+  ansible.builtin.stat:
+    path: /run/hapi-hub-transport/nginx.pid
+    follow: false
+  register: hapi_shared_hub_pid
+
+- name: Require a regular transport PID file
+  ansible.builtin.assert:
+    that: not hapi_shared_hub_pid.stat.exists or hapi_shared_hub_pid.stat.isreg
+
+- name: Keep the candidate PID file writable by the transport account
+  ansible.builtin.file:
+    path: /run/hapi-hub-transport/nginx.pid
+    owner: hapi-hub
+    group: hapi-hub
+    mode: '0600'
+    follow: false
+  when: hapi_shared_hub_pid.stat.exists
+
+- name: Require a verified final database import before activation
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py migration /var/lib/hapi-shared-hub
+  changed_when: false
+  when: hapi_shared_hub_activate | bool
+
+- name: Replace the employee-known Hub signer with the BWS control-plane signer
+  ansible.builtin.copy:
+    content: '{{ hapi_shared_hub_jwt_secret | to_nice_json }}'
+    dest: /var/lib/hapi-shared-hub/jwt-secret.json
+    owner: hapi-hub
+    group: hapi-hub
+    mode: '0600'
+    validate: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py jwt %s
+  no_log: true
+  diff: false
+  notify: Restart shared HAPI Hub
+  when: hapi_shared_hub_activate | bool
+
+- name: Bind future starts to the approved BWS control-plane signer
+  ansible.builtin.copy:
+    content: "{{ hapi_shared_hub_jwt_secret.secretBase64 | hash('sha256') }}\n"
+    dest: /etc/hapi-shared-hub/signer-sha256
+    owner: root
+    group: hapi-hub
+    mode: '0640'
+  no_log: true
+  diff: false
+  notify: Restart shared HAPI Hub
+  when: hapi_shared_hub_activate | bool
+
+- name: Apply only explicitly activated shared Hub services
+  ansible.builtin.meta: flush_handlers
+
+- name: Activate the shared Hub and private transport after migration verification
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop: [hapi-shared-hub, hapi-hub-transport]
+  when: hapi_shared_hub_activate | bool

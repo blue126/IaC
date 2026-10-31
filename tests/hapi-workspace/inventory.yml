@@ -1,6 +1,10 @@
 ---
 all:
   children:
+    hapi_pve:
+      hosts:
+        fixture-pve:
+          ansible_host: 192.0.2.22
     hapi_control_plane:
       hosts:
         hapi-control-test:
@@ -9,3 +13,6 @@ all:
       hosts:
         hapi-workspace-test:
           ansible_host: 192.0.2.21
+    hapi_hub_clients:
+      hosts:
+        hapi-workspace-test:

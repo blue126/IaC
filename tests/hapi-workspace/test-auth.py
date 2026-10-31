@@ -12,6 +12,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch, MagicMock
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -154,7 +155,8 @@ class AuthTest(unittest.TestCase):
     def test_conflicting_or_unsafe_allocations_fail_before_use(self):
         for key, value in [('backend_address', '127.0.0.1'), ('backend_address', '169.254.169.254'),
                            ('backend_name', 'attacker.example.com'), ('workspace_id', '../bob'),
-                           ('generation', True), ('subject', '')]:
+                           ('generation', True), ('subject', ''), ('namespace', '../bob'),
+                           ('namespace', 'bob\r\nX-Injected: yes')]:
             candidate = copy.deepcopy(self.config)
             candidate['routes'][0][key] = value
             self.config_file.write_text(json.dumps(candidate))
@@ -165,6 +167,34 @@ class AuthTest(unittest.TestCase):
         self.save()
         with self.assertRaises(ValueError):
             auth.load_config(self.config_file)
+
+    def test_shared_hub_ticket_exchange_uses_fixed_loopback_and_registered_namespace(self):
+        self.config['shared_hub'] = True
+        self.config['routes'][0]['namespace'] = 'alice'
+        self.save()
+        connection = MagicMock()
+        response = connection.getresponse.return_value
+        response.status = 200
+        response.read.return_value = json.dumps({'token': 'aaa.bbb.ccc', 'user': {'id': 1}}).encode()
+        with patch.object(auth.Path, 'read_text', return_value='a' * 48), \
+                patch.object(auth.http.client, 'HTTPConnection', return_value=connection) as factory, \
+                patch.object(auth, 'HubConnection') as remote:
+            result = self.policy.exchange(self.config['routes'][0])
+        factory.assert_called_once_with('127.0.0.1', port=3006, timeout=8)
+        remote.assert_not_called()
+        headers = connection.request.call_args.kwargs['headers']
+        self.assertEqual(headers['X-Hapi-Expected-Namespace'], 'alice')
+        self.assertEqual(result['token'], 'aaa.bbb.ccc')
+        connection.close.assert_called_once()
+
+    def test_shared_hub_identities_cannot_share_a_namespace_by_omission(self):
+        self.config['shared_hub'] = True
+        self.save()
+        with self.assertRaises(ValueError):
+            auth.load_config(self.config_file)
+        self.config['routes'][1]['namespace'] = 'bob'
+        self.save()
+        auth.load_config(self.config_file)
 
     def test_csrf_binds_identity_route_generation_and_process(self):
         alice, bob = self.token(), self.token('bob')

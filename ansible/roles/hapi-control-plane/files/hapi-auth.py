@@ -147,11 +147,18 @@ def load_config(path):
     config = decode_json(raw)
     if not re.fullmatch(r'https://[a-z0-9.-]+', config['origin']):
         raise ValueError('Expected an HTTPS origin')
+    if type(config.get('shared_hub', False)) is not bool:
+        raise ValueError('Invalid shared Hub mode')
     seen = {k: set() for k in ['workspace_id', 'email', 'subject', 'backend_address', 'backend_name']}
+    if config.get('shared_hub', False):
+        seen['namespace'] = set()
     for route in config['routes']:
         wid = route['workspace_id']
         if not re.fullmatch(r'[a-z][a-z0-9-]{0,31}', wid):
             raise ValueError('Invalid workspace ID')
+        if not isinstance(route.get('namespace', 'default'), str) or not re.fullmatch(
+                r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', route.get('namespace', 'default')):
+            raise ValueError('Invalid Hub namespace')
         if route['email'] != route['email'].lower() or not re.fullmatch(r'[^\s@]+@[^\s@]+', route['email']):
             raise ValueError('Invalid registered email')
         if not isinstance(route['subject'], str) or not route['subject'] or len(route['subject']) > 256:
@@ -164,9 +171,10 @@ def load_config(path):
         if type(route['generation']) is not int or route['generation'] < 1 or type(route['enabled']) is not bool:
             raise ValueError('Invalid route generation or state')
         for key in seen:
-            if route[key] in seen[key]:
+            value = route.get('namespace', 'default') if key == 'namespace' else route[key]
+            if value in seen[key]:
                 raise ValueError('Duplicate workspace allocation')
-            seen[key].add(route[key])
+            seen[key].add(value)
     return config
 
 
@@ -266,18 +274,23 @@ class Policy:
 
     def exchange(self, route):
         config = load_config(self.config_path)
-        context = ssl.create_default_context(cafile=config['ca_file'])
-        context.minimum_version = ssl.TLSVersion.TLSv1_2
-        context.load_cert_chain(config['client_certificate'], config['client_key'])
-        context.load_verify_locations(cafile=config['crl_file'])
-        context.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
         secret = Path('/etc/hapi-control-plane/tokens', route['workspace_id']).read_text().strip()
         if not re.fullmatch(r'[A-Za-z0-9_-]{32,}', secret):
             raise ValueError('Invalid service credential')
-        connection = HubConnection(route['backend_address'], route['backend_name'], context)
+        headers = {'Content-Type': 'application/json', 'Host': route['backend_name']}
+        if config.get('shared_hub', False):
+            connection = http.client.HTTPConnection('127.0.0.1', port=3006, timeout=8)
+            headers['X-Hapi-Expected-Namespace'] = route.get('namespace', 'default')
+        else:
+            context = ssl.create_default_context(cafile=config['ca_file'])
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(config['client_certificate'], config['client_key'])
+            context.load_verify_locations(cafile=config['crl_file'])
+            context.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
+            connection = HubConnection(route['backend_address'], route['backend_name'], context)
         try:
             connection.request('POST', '/api/auth', body=json.dumps({'accessToken': secret}),
-                               headers={'Content-Type': 'application/json', 'Host': route['backend_name']})
+                               headers=headers)
             response = connection.getresponse()
             raw = response.read(16385)
             if response.status != 200 or len(raw) > 16384:

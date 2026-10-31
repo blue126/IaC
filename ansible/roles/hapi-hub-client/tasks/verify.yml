@@ -1,0 +1,16 @@
+---
+- name: Inspect the worker Hub compatibility service
+  ansible.builtin.service_facts:
+  when: hapi_hub_client_activate | bool
+
+- name: Require the worker Hub compatibility service to be running
+  ansible.builtin.assert:
+    that: ansible_facts.services.get('hapi-hub-client.service', {}).get('state') == 'running'
+  when: hapi_hub_client_activate | bool
+
+- name: Check shared Hub health through the authenticated worker transport
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3006/health
+    status_code: 200
+    use_proxy: false
+  when: hapi_hub_client_activate | bool

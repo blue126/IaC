@@ -122,6 +122,8 @@ class Hub(BaseHTTPRequestHandler):
         else:
             payload = json.dumps({'workspace': self.server.workspace, 'path': self.path,
                                   'access_header': self.headers.get('Cf-Access-Jwt-Assertion'),
+                                  'namespace': self.headers.get('X-Hapi-Expected-Namespace'),
+                                  'credential_id': self.headers.get('X-Hapi-Expected-Credential'),
                                   'cookie': self.headers.get('Cookie')}).encode()
             self.send_response(200); self.send_header('Content-Length', str(len(payload)))
             self.end_headers(); self.wfile.write(payload)
@@ -327,6 +329,73 @@ class ProxyTest(unittest.TestCase):
             self.assertIsNone(result['access_header']); self.assertIsNone(result['cookie'])
             self.assertEqual(result['path'], '/api/sessions?machineId=other')
 
+    def test_shared_hub_transport_requires_certificate_and_address_and_overwrites_namespace(self):
+        hub = ThreadingHTTPServer(('127.0.0.1', 0), Hub)
+        hub.workspace, hub.release = 'shared-hub', threading.Event()
+        self.servers.append(hub)
+        threading.Thread(target=hub.serve_forever, daemon=True).start()
+        self.issue('shared-hub', 'hapi-hub.internal')
+        self.issue('worker-alice', 'worker-alice', client=True)
+        self.issue('worker-bob', 'worker-bob', client=True)
+        shared = self.root / 'shared-transport'; shared.mkdir()
+        for target, source in [('ca.pem', 'ca.pem'), ('crl.pem', 'crl.pem'),
+                               ('certificate.pem', 'shared-hub.pem'), ('private.key', 'shared-hub.key')]:
+            (shared / target).write_bytes((self.root / source).read_bytes())
+        port = available_port()
+        config = render(ROOT/'ansible/roles/hapi-shared-hub/templates/nginx.conf.j2', {
+            'hapi_shared_hub_bind_address': '127.0.0.1', 'hapi_shared_hub_origin': helpers.ORIGIN,
+            'hapi_shared_hub_agents': [
+                {'id': 'worker-alice', 'address': '127.0.0.1', 'namespace': 'default', 'credential_id': 'alice'},
+                {'id': 'worker-bob', 'address': '127.0.0.2', 'namespace': 'bob', 'credential_id': 'bob'}]})
+        config = config.replace('127.0.0.1:9443', f'127.0.0.1:{port}').replace('127.0.0.1:3006', f'127.0.0.1:{hub.server_port}')
+        config = config.replace('/run/hapi-hub-transport', str(shared)).replace('/etc/hapi-shared-hub', str(shared))
+        self.start_nginx(shared, config, port)
+
+        def direct(stem, source='127.0.0.1'):
+            context = ssl.create_default_context(cafile=str(self.root/'ca.pem'))
+            context.load_cert_chain(str(self.root/(stem+'.pem')), str(self.root/(stem+'.key')))
+            raw = socket.create_connection(('127.0.0.1', port), timeout=3, source_address=(source, 0))
+            tls = context.wrap_socket(raw, server_hostname='hapi-hub.internal')
+            connection = http.client.HTTPConnection('hapi-hub.internal', timeout=3)
+            connection.sock = tls
+            try:
+                connection.request('GET', '/api/sessions', headers={'Host': 'hapi-hub.internal',
+                    'X-Hapi-Expected-Namespace': 'forged', 'X-Hapi-Expected-Credential': 'forged'})
+                response = connection.getresponse()
+                return response.status, response.read()
+            finally:
+                connection.close()
+
+        status, raw = direct('worker-alice')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw)['namespace'], 'default')
+        self.assertEqual(json.loads(raw)['credential_id'], 'alice')
+        self.assertEqual(direct('worker-bob')[0], 403)
+        status, raw = direct('worker-bob', '127.0.0.2')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw)['namespace'], 'bob')
+        self.assertEqual(direct('other')[0], 403)
+        self.assertIn(direct('revoked')[0], [400, 403])
+
+        worker = self.root / 'worker-client'; worker.mkdir()
+        for target, source in [('ca.pem', 'ca.pem'), ('crl.pem', 'crl.pem'),
+                               ('certificate.pem', 'worker-alice.pem'), ('private.key', 'worker-alice.key')]:
+            (worker / target).write_bytes((self.root / source).read_bytes())
+        client_port = available_port()
+        config = render(ROOT/'ansible/roles/hapi-hub-client/templates/nginx.conf.j2', {'hapi_hub_client_address': '127.0.0.1'})
+        config = config.replace('127.0.0.1:3006', f'127.0.0.1:{client_port}').replace('127.0.0.1:9443', f'127.0.0.1:{port}')
+        config = config.replace('/run/hapi-hub-client', str(worker)).replace('/etc/hapi-hub-client', str(worker))
+        self.start_nginx(worker, config, client_port)
+        connection = http.client.HTTPConnection('127.0.0.1', client_port, timeout=3)
+        try:
+            connection.request('GET', '/api/sessions', headers={'X-Hapi-Expected-Namespace': 'bob', 'X-Hapi-Expected-Credential': 'bob'})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            result = json.loads(response.read())
+            self.assertEqual((result['namespace'], result['credential_id']), ('default', 'alice'))
+        finally:
+            connection.close()
+
     def test_custom_frontend_and_spa_routes_are_served_without_hub_token_page(self):
         for path in ['/', '/sessions/new']:
             connection, response = self.request(path)
@@ -340,7 +409,7 @@ class ProxyTest(unittest.TestCase):
         response.read(); connection.close()
 
     def test_real_proxy_blocks_missing_origin_and_reserved_routes(self):
-        for path in ['/api/push/vapid-public-key', '/api/auth']:
+        for path in ['/api/push/vapid-public-key', '/api/auth', '/api/login', '/api/login/start', '/websockify']:
             connection, response = self.request(path)
             self.assertEqual(response.status, 403); response.read(); connection.close()
         connection, response = self.request('/api/sessions', method='POST')

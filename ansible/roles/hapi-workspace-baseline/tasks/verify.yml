@@ -1,0 +1,28 @@
+---
+- name: Verify the employee account exists
+  ansible.builtin.getent:
+    database: passwd
+    key: employee
+
+- name: Verify the exact Claude executable checksum
+  ansible.builtin.stat:
+    path: /usr/local/bin/claude
+    checksum_algorithm: sha256
+  register: hapi_workspace_baseline_claude_file
+  failed_when: hapi_workspace_baseline_claude_file.stat.checksum | default('') != hapi_workspace_baseline_claude_sha256
+
+- name: Verify the browser and CLI without authenticating
+  ansible.builtin.command:
+    argv: ['{{ item }}', --version]
+  loop: [/usr/bin/firefox, /usr/local/bin/claude]
+  become: true
+  become_user: employee
+  environment:
+    HOME: /home/employee
+  changed_when: false
+
+- name: Verify passwordless dependency administration
+  ansible.builtin.command: sudo -n true
+  become: true
+  become_user: employee
+  changed_when: false
