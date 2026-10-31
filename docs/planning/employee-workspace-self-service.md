@@ -9,7 +9,7 @@
 >
 > 现行交付将每设备文件装成 ZIP，上传至 Temp.sh，使用 HTTP POST 下载并核对整个 ZIP 的 SHA256，再通过 Microsoft Graph Mail.Send 向批准的邮箱发送实际链接、摘要和 Agent 提示词。上传或通知结果不明时停止并核对回执，不盲目重试；员工本机接入和个人 Claude 登录仍需单独验收。管理员工具、令牌和交付回执保存在私有管理员项目。
 >
-> 未来门户要求员工通过邮箱验证后领取文件，私密存储与下载须由认证服务控制；该存储尚未选定，不能把现行 Temp.sh 邮件链接交付直接视为门户的存储方案。OneDrive 是已替换的历史交付方式。
+> 未来门户要求员工通过邮箱验证后领取文件，私密存储与下载须由认证服务控制；该存储尚未选定，不能把现行 Temp.sh 邮件链接交付直接视为门户的存储方案。
 >
 > IaC 仓库跟踪 `terraform/proxmox/employee-workspaces.auto.tfvars.json` 中的 VM 分配，以及 `ansible/inventory/host_vars/employee-access.yml` 中的设备公钥和网关接入配置。私有管理员项目负责开户编排、候选配置、设备包和交付回执；设备私钥留在 BWS。后续开户更新这两份 IaC 配置后，需要审查并提交对应 Git 变更，避免已部署配置只留在本地工作树。
 

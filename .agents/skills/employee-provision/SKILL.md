@@ -11,7 +11,7 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 复用主 checkout 的 `remotecc/employee-admin/onboard.sh`，先读其 README。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；相邻 `employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。
 
-活动操作固定使用 `onboard.sh --profile oci-hub`。一般从管理员宿主调用，由既有桥接在配置的 Sandbox 中运行；实际工作树、凭据和管理网络按仓库 AGENTS.md 核对。TUI 占用可令 sbx exec 挂起；网络未放行或依赖缺失时停止并取得相应授权，不换路绕过。API/同步失败不是员工离线。
+活动操作固定使用 `onboard.sh --profile oci-hub`。在管理员宿主的主检出直接运行，使用主检出 `.venv` 的 uv 工具链（缺失时报 `HUB_TOOLCHAIN_MISSING`，先运行 `scripts/setup-dev-env.sh`）；凭据和管理网络按仓库 AGENTS.md 核对。网络未放行或依赖缺失时停止并取得相应授权，不换路绕过。API/同步失败不是员工离线。
 
 加载 skill 不代表授权 apply、安装包、改网络、写凭据、上传、发信或 Git 操作。审批按具体计划和阶段执行，已有明确授权不重复询问。后端缺少某步骤时报告缺口，不另建开户引擎或使用临时旁路。
 
@@ -27,10 +27,10 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 1. `onboard.sh --profile oci-hub provision --email EMAIL` 输出请求路径、资源范围及审批 SHA。核对对象、规格、安装及网络范围，批准后执行 `apply REQUEST.json SHA256`。
 2. 已完成设备返回 already_configured（或 configured_blocked），不需要apply，按提示查询/导出；不能将blocked状态当成已恢复。相同输入且依赖未变的未完成计划复用原审批。未执行计划失效时重新 plan 并取得新 SHA；部分执行须复用原资源及检查点；其他已开始的请求存在时，先按错误返回的run_dir恢复其原请求，不交错推进登记generation。归属不明、外部策略变更或凭据缺失时停止，不能换 ID、轮换密钥或删除记录来恢复。见 [运行与恢复](references/operations.md)。
 3. apply 的 `configured` 表示服务配置阶段完成；继续看嵌套 bundle/verification 状态。用 `registry` / `verify` 查询服务端状态，用 `online` 额外观察连接；握手或监听不等于真人操作或员工 bootstrap 已完成。
-4. `onboard.sh --profile oci-hub export --device DEVICE_ID` 复用原身份导出。输出的 `delivery_request` 是交付草稿，含绑定收件人、Sandbox 包目录与回执目录；不包含上传/发送授权。
+4. `onboard.sh --profile oci-hub export --device DEVICE_ID` 复用原身份导出。输出的 `delivery_request` 是交付草稿，含绑定收件人、包目录与回执目录；不包含上传/发送授权。
 5. 验收未完成时，用 `acceptance ACCEPTANCE.json` 获取绑定包和身份的检查清单、pending 模板及现有记录校验结果。独立验收必须来自另行批准的验证与证据，模板和服务检查不算通过。已有特定设备的受保护豁免保留，结果为 acceptance_waived；新设备须独立验收或单独获准豁免，不能推广历史豁免或虚构检查通过。
 6. 交付按两阶段进行：`notify:false` 的 JSON 经 plan/批准后上传并校验；再改 `notify:true` 重新 plan，展示收件人、主题和实际 `host_mail_preview`，单独批准后发送。`purpose` 明确为 onboarding、trial 或 migration；Mosh 不等于试点。具体 JSON 与命令见[原生开户](../../../docs/deployment/oci-hub-native-provisioning.md)。
-7. Temp.sh 目前是默认上传通道，微软 Mail.Send 是通知通道，不用 OneDrive。HTTP5xx、时间到期和下载次数限制分别报告；三天只是服务政策估计。结果不明时不重传、不重发。渠道故障时保留原包和身份，请用户决定；单次获准附件补发不代表后续默认授权，不自行更换平台。
+7. Temp.sh 目前是默认上传通道，微软 Mail.Send 是通知通道。HTTP5xx、时间到期和下载次数限制分别报告；三天只是服务政策估计。结果不明时不重传、不重发。渠道故障时保留原包和身份，请用户决定；单次获准附件补发不代表后续默认授权，不自行更换平台。
 
 ## 完成条件与员工交接
 
