@@ -155,6 +155,24 @@ def main():
             config['management_access']=[{'source':'198.51.100.4/32','vmid':601}];policy.write_text(json.dumps(config))
             run('ip','netns','exec',pve,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'apply','--config',str(policy),'--receipt',str(receipt))
             management_probe(outside,'198.51.100.4','10.236.1.2',22,True)
+            # Exercise public diagnostic protocols and verify the same ports remain private.
+            diagnostic_server = "import socket,threading,time\ndef echo(ip,port):\n s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((ip,port))\n while True:\n  data,peer=s.recvfrom(1024);s.sendto(data,peer)\nfor ip in ('198.51.100.2','198.51.100.3'):\n for port in (53,33434,33534,33535):threading.Thread(target=echo,args=(ip,port),daemon=True).start()\ntime.sleep(60)"
+            servers.append(subprocess.Popen(['ip','netns','exec',outside,'python3','-c',diagnostic_server]));time.sleep(.3)
+            for address in ('198.51.100.2','198.51.100.3'):
+                code=listener.replace('ADDRESS',repr(address)).replace('(22,8443)', '(53,)')
+                servers.append(subprocess.Popen(['ip','netns','exec',outside,'python3','-c',code]))
+            time.sleep(.3)
+            management_probe(guest,'10.236.1.2','198.51.100.3',53,True)
+            management_probe(guest,'10.236.1.2','198.51.100.2',53,False)
+            for destination,expected in [('198.51.100.3',True),('198.51.100.2',False),('10.236.2.2',False),('10.236.1.1',False)]:
+                echo="import socket,struct,sys\np=struct.pack('!BBHHH',8,0,0,1234,1)+b'probe123';total=sum(struct.unpack('!8H',p));total=(total&65535)+(total>>16);total=(total&65535)+(total>>16);p=p[:2]+struct.pack('!H',(~total)&65535)+p[4:]\ns=socket.socket(socket.AF_INET,socket.SOCK_RAW,socket.IPPROTO_ICMP);s.settimeout(.7);s.sendto(p,(sys.argv[1],0));ok=False\ntry:\n r,_=s.recvfrom(4096);h=(r[0]&15)*4;ok=r[h]==0 and r[h+4:h+6]==struct.pack('!H',1234)\nexcept OSError:pass\nassert ok==(sys.argv[2]=='yes'),sys.argv"
+                run('ip','netns','exec',guest,'python3','-c',echo,destination,'yes' if expected else 'no')
+            for destination in ('198.51.100.3','198.51.100.2'):
+                for port in (53,33434,33534,33535):
+                    expected=destination=='198.51.100.3' and port!=33535
+                    code="import socket,sys\ns=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout(.5)\ntry:s.sendto(b'probe',(sys.argv[1],int(sys.argv[2])));ok=s.recv(32)==b'probe'\nexcept OSError:ok=False\nassert ok==(sys.argv[3]=='yes'),sys.argv"
+                    run('ip','netns','exec',guest,'python3','-c',code,destination,str(port),'yes' if expected else 'no')
+            print('PASS: public ICMP/DNS/traceroute replies; protected endpoints, private destinations and UDP outside range denied')
             print('PASS: exact routed administrator TCP22 and reply; non-admin, wrong port/VM, VM-initiated management, PVE-local and missing-grant paths denied')
             def physical_probe(source,destination,expected,interface='eth0'):
                 code="import socket,sys\ns=socket.socket();s.settimeout(.5);s.setsockopt(socket.SOL_SOCKET,socket.SO_BINDTODEVICE,sys.argv[4].encode()+b'\\0');s.bind((sys.argv[1],0))\ntry:s.connect((sys.argv[2],443));ok=True\nexcept OSError:ok=False\nassert ok==(sys.argv[3]=='yes'),(sys.argv[1:],ok)"

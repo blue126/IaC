@@ -159,7 +159,10 @@ def render(c):
                       f'  iifname "{n}" ip daddr {c["endpoint"]} drop',
                       f'  iifname "{n}" ip daddr {{ {", ".join(protected)} }} drop']
             for destination in c['development_destinations']:
-                lines += [f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {destination} tcp dport {{ 22, 80, 443 }} accept']
+                # Public diagnostics stay behind the protected-destination deny.
+                lines += [f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {destination} tcp dport {{ 22, 53, 80, 443 }} accept',
+                          f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {destination} udp dport {{ 53, 33434-33534 }} accept',
+                          f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {destination} ip protocol icmp icmp type echo-request accept']
             lines += [f'  iifname "{n}" drop', f'  oifname "{n}" ip daddr {addr} ct state established,related ct direction reply accept', f'  oifname "{n}" drop']
     lines += [' }', '}']
     if c['kind'] == 'pve':
