@@ -1,8 +1,8 @@
 # OCI Hub 原型部署与恢复契约
 
-当前架构入口为[OCI Hub-and-Spoke](../architecture/oci-employee-vpn-hub.md)，当前原生终端操作入口见[原生 Mosh 开户](oci-hub-native-provisioning.md)。VM509 的原生 Mosh/BWS/Portal/本地包与新后端查询已完成；专项验收依用户要求跳过，公开客户端待独立发布。
+当前架构入口为[OCI Hub-and-Spoke](../architecture/oci-employee-vpn-hub.md)，当前原生终端操作入口见[原生 Mosh 开户](oci-hub-native-provisioning.md)。VM509 的原生 Mosh/BWS/Portal/本地包与新后端查询已完成；专项验收依用户要求跳过，公开客户端已支持 v2 OCI Hub 接入。
 
-**以下内容保留的是通用桌面原型契约，预设分配、桌面 TLS/验收等要求不作为当前原生终端开户命令。** 当前终端分配由资源池/台账生成；VM500 及 existing 配置继续保留，等待用户确认旧入口无人使用后才讨论退役。
+**以下内容保留的是通用桌面原型契约，预设分配、桌面 TLS/验收等要求不作为当前原生终端开户命令。** 当前终端分配由资源池/台账生成；旧员工后端已经退役，VM500 作为 HAPI 控制面保留。下文描述的是当时的桌面原型，不作为当前操作入口。
 
 ## 配置及所有权
 
@@ -31,7 +31,7 @@
 
 规范入口位于 IaC 主 checkout 的 `remotecc/employee-admin/onboard.sh`，源码属于独立私有 Git。相邻 `remotecc/employee-data/` 保存实际配置、申请、检查点、设备包和回执，不进入任一源码仓库；旧 `~/Projects/employee-workspace-admin` 只保留兼容链接。临时 IaC worktree 不应复制或另建一份管理员运行数据。
 
-`onboard.sh --profile existing ...` 保留原路径；缺省仍为 existing。`onboard.sh --profile oci-hub plan REQUEST.json` 接受含 `profile=oci-hub` 与 `recipient` 的独立请求，沿用邮箱派生 ID 规则。真实分配通过 `settings.oci_hub.onboarding[employee_id]` 显式提供：workspace Terraform 参数、device_id/recipient、runtime BWS record、public_vars、registration_request、bundle_request。不会猜用 VM502 或任意默认模板。
+历史原型曾以 existing 为缺省并通过 `settings.oci_hub.onboarding[employee_id]` 显式提供分配。当前 existing 员工接入及写操作已退役；活动入口固定使用 `onboard.sh --profile oci-hub`，从资源池/台账分配并复用员工身份。当前命令及 JSON 参数以[原生开户说明](oci-hub-native-provisioning.md)为准，不重放本节的旧配置。
 
 该配置另提供 `terraform_roster`、inventory、PVE/router 精确 host、bundle 目录、Vault 密码文件路径与独立 BWS 绑定。host 入口仅传白名单源码，使用 `sandbox_name`、`sandbox_admin_root=/tmp/oci-hub-admin-<task>`、`runtime_settings` 指向已批准的独立运行环境；不复制真实 settings 或完整私有工程，不自动挂载凭据或安装工具。
 

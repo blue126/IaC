@@ -9,7 +9,7 @@
 
 VM509 目前运行，独立 Spoke、原生员工 SSH 授权及 workspace-mosh 已配置；正式试点设备 fanweiblue-hub509 使用 10.235.0.4/32、Mosh 60000–60009，Portal 已登记启用，本地 v2 包已生成。原 RTT 测试 peer 仍停用、临时 CPE 接口/路由/私钥已清理、回显服务停止。中国端到端TCP/UDP网络测试已完成，结果见[RTT报告](../learningnotes/2026-10-30-vm509-oci-hub-rtt.md)。这不等于员工SSH/Mosh/SFTP及bootstrap完整验收。
 
-下文的 stopped/disabled 描述是创建与启动门控阶段的历史步骤，不是当前实时电源状态。当前架构与剩余工作统一见[主架构文档](../architecture/oci-employee-vpn-hub.md)。本轮已接通常规[原生 Mosh 开户](oci-hub-native-provisioning.md)，用户明确跳过第4项专项验收，正式包标记 acceptance_waived；不记作真实 Mosh/安全恢复验收通过。公开客户端尚未推送，设备包未上传或发信。VM500 和旧后端保留，待用户确认旧入口无人使用再讨论功能退役。
+下文的 stopped/disabled 描述是创建与启动门控阶段的历史步骤，不是当前实时电源状态。当前架构与剩余工作统一见[主架构文档](../architecture/oci-employee-vpn-hub.md)。本轮已接通常规[原生 Mosh 开户](oci-hub-native-provisioning.md)，用户明确跳过第4项专项验收，正式包标记 acceptance_waived；不记作真实 Mosh/安全恢复验收通过。公开客户端已发布 v2 支持；VM509 试点包仅本地保留。旧员工后端已经退役，VM500 作为 HAPI 控制面保留；详情见[当前迁移与退役记录](2026-10-30-demo-test-hub-retirement.md)。
 
 ## 创建计划
 

@@ -5,61 +5,47 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 # 员工工作区 Provisioning
 
-本 skill 仅在所属 IaC 项目内按上下文自动加载，不作为用户级全局 skill 安装。
+本 skill 仅在所属 IaC 项目内自动匹配员工开户、新设备、设备包交付和相关流程维护；不用于一般基础设施 VM 或员工电脑 bootstrap。讨论和代码审阅只加载上下文，不自动读取凭据或执行真实操作。显式 BMad 工作流保持原有顺序。
 
-规范入口是 IaC 主 checkout 的 `remotecc/employee-admin/onboard.sh`。管理员源码属于该目录的独立私有 Git；相邻 `remotecc/employee-data/` 保存实际配置、申请、状态、设备包和回执，不进入任一源码仓库。公开 IaC 只存项目 skill 与基础设施定义；公开 workspace-onboarding 只承载员工客户端。不要复制管理员源码或私有数据到这两个公开仓库。
+## 规范入口和边界
 
-先检查当前 checkout 的 `remotecc/employee-admin/`。若临时 worktree 中不存在，用 `git worktree list --porcelain` 定位同一 IaC 仓库已有的主 checkout，查找其规范目录；不要在临时 worktree 创建第二份管理员仓库或运行数据。定位后将代码目录记为 `ADMIN_ROOT`、相邻数据目录记为 `DATA_ROOT`。旧 `~/Projects/employee-workspace-admin` 仅是兼容链接。
+复用主 checkout 的 `remotecc/employee-admin/onboard.sh`，先读其 README。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；相邻 `employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。
 
-先读取 `$ADMIN_ROOT/README.md`。需要恢复、迁移或处理交付故障时，再读 [运行与恢复](references/operations.md)。不要重新实现 Terraform/Ansible 编排。
+活动操作固定使用 `onboard.sh --profile oci-hub`。一般从管理员宿主调用，由既有桥接在配置的 Sandbox 中运行；实际工作树、凭据和管理网络按仓库 AGENTS.md 核对。TUI 占用可令 sbx exec 挂起；网络未放行或依赖缺失时停止并取得相应授权，不换路绕过。API/同步失败不是员工离线。
 
-## 自动识别与既有入口
+加载 skill 不代表授权 apply、安装包、改网络、写凭据、上传、发信或 Git 操作。审批按具体计划和阶段执行，已有明确授权不重复询问。后端缺少某步骤时报告缺口，不另建开户引擎或使用临时旁路。
 
-- 员工工作区开户/provisioning、设备包生成与交付、恢复，以及相关流程的修改或审阅，都应自动加载本 skill；一般基础设施 VM 操作、员工电脑 bootstrap 不属于此范围。
-- 先读取私有管理员项目 README 与现有入口。沿用 `onboard.sh` 的输入、审批、身份复用和交付契约；新增 profile 应扩展已有流程，不另造独立开户引擎。
-- 区分工程讨论与实际操作：讨论、设计、代码修改或审阅时只加载既有运行约定，不自动执行 preflight、读取真实凭据或为员工开户。用户要求实际操作时，再按下文执行。
-- 已显式选择 BMad 等工作流时，保留其顺序与检查点，本 skill 提供员工 provisioning 的现有入口和技术约束。
-- 自动加载不代表授权 apply、轮换凭据、上传、发信或 Git 操作；继续遵守本次会话的具体授权。后端尚未接通既有输入契约时，报告具体缺口，不能用临时旁路替代。
+## 输入和身份
 
-## 输入与已有决定
+- 默认只需要邮箱，用 `provision --email EMAIL` 生成合法 JSON 申请和计划；不要手写缺 profile 的 recipient-only 请求。邮箱 @ 前部分作为默认员工/设备 ID，仅全数字时加 `user`，其余不加 ed-。已有登记保留原 ID；非法名字或碰撞明确报错，不猜新名字。
+- 同员工复用 VM，同设备复用身份和密钥。明确新增电脑时传 `--device NEWID`；同邮箱对应多个工作区时用 `--employee-id ID` 指定已有归属。已知上下文不要重复询问；无法判断是否新增设备时只澄清必要的设备信息。
+- 新 VM 可选 `--cores N --memory-mib N --disk-gib N`；默认规格取现有资源池（当前2核 host、8GiB、50GiB、pve2）。已有 VM 规格不同会拒绝隐式调整，改规格另做精确计划，不重新开户。
+- 新方案凭据使用独立 BWS 项目 EmployeeWorkspace-OCIHub 和专用机器账号，按接口/用户/工作区/设备角色保存；旧 EmployeeWorkspace 仅保留历史。项目绑定以受保护配置为准，不硬编码旧机器账号名。SSH 私钥/BWS 令牌不放 OCI、公开源码或聊天；批准操作物化临时加密 Vault，退出清理。
 
-- 用户默认只提供邮箱。把仅含 `recipient` 的申请保存到 `$DATA_ROOT/requests/`；工具将邮箱 `@` 前的用户名同时作为 employee_id 和默认 device_id；若用户名全部为数字，只在这种情况下加 `user` 前缀（例如 123456@example.com → user123456），其他合法用户名不加 ed- 等前缀，不要求用户重复填写 ID。已有登记保留原 ID，内部旧三字段申请继续兼容。名字不符合系统账号格式或与别的邮箱/系统账号碰撞时，说明具体冲突，不擅自改名或合并身份。
-- 先核对已有申请和登记：同一员工复用本人 VM，同一设备复用原身份；新设备分配独立身份和地址。不要再次泛问“新员工还是新设备”，不要为重跑轮换密钥。
-- 新交付只用 Temp.sh；微软账号只用于 Mail.Send，不使用 OneDrive。首次发信前通过 onboard.sh login 完成管理员邮件授权，不要求员工注册账号。
-- 员工设备和网关接入私钥保存在对应 profile 的独立 Bitwarden Secrets Manager 项目（existing 为 `EmployeeWorkspace`，新方案为 `EmployeeWorkspace-OCIHub`）：每台设备一条 Secret，网关 WireGuard 私钥另有一条；旧汇总 Secret 已退役。仅访问该项目的 `employee-workspace-admin` 机器账号负责读取和写入。BWS 令牌位于私有数据目录（代码目录保留兼容链接），只在管理员执行端与批准的部署 Sandbox 使用；不得打印、发送或放入公开仓库。全局 IaC Vault 不再存放员工密钥；员工 Ansible 运行时由 `onboard.sh` 临时合成加密 Vault。
-- 默认沿用已配置的独立 pve2、CPU host、已发布的干净预装模板，以及员工 sudo 权限。隔离由网关和 PVE 侧执行，不通过员工 sudo 黑名单实现。
-- 员工不需要 GitHub 账号；个人 Claude 登录由员工在本人 VM 内完成，不进入模板、计划或设备包。
+## 从申请到交付
 
-## 执行
+1. `onboard.sh --profile oci-hub provision --email EMAIL` 输出请求路径、资源范围及审批 SHA。核对对象、规格、安装及网络范围，批准后执行 `apply REQUEST.json SHA256`。
+2. 已完成设备返回 already_configured（或 configured_blocked），不需要apply，按提示查询/导出；不能将blocked状态当成已恢复。相同输入且依赖未变的未完成计划复用原审批。未执行计划失效时重新 plan 并取得新 SHA；部分执行须复用原资源及检查点；其他已开始的请求存在时，先按错误返回的run_dir恢复其原请求，不交错推进登记generation。归属不明、外部策略变更或凭据缺失时停止，不能换 ID、轮换密钥或删除记录来恢复。见 [运行与恢复](references/operations.md)。
+3. apply 的 `configured` 表示服务配置阶段完成；继续看嵌套 bundle/verification 状态。用 `registry` / `verify` 查询服务端状态，用 `online` 额外观察连接；握手或监听不等于真人操作或员工 bootstrap 已完成。
+4. `onboard.sh --profile oci-hub export --device DEVICE_ID` 复用原身份导出。输出的 `delivery_request` 是交付草稿，含绑定收件人、Sandbox 包目录与回执目录；不包含上传/发送授权。
+5. 验收未完成时，用 `acceptance ACCEPTANCE.json` 获取绑定包和身份的检查清单、pending 模板及现有记录校验结果。独立验收必须来自另行批准的验证与证据，模板和服务检查不算通过。已有特定设备的受保护豁免保留，结果为 acceptance_waived；新设备须独立验收或单独获准豁免，不能推广历史豁免或虚构检查通过。
+6. 交付按两阶段进行：`notify:false` 的 JSON 经 plan/批准后上传并校验；再改 `notify:true` 重新 plan，展示收件人、主题和实际 `host_mail_preview`，单独批准后发送。`purpose` 明确为 onboarding、trial 或 migration；Mosh 不等于试点。具体 JSON 与命令见[原生开户](../../../docs/deployment/oci-hub-native-provisioning.md)。
+7. Temp.sh 目前是默认上传通道，微软 Mail.Send 是通知通道，不用 OneDrive。HTTP5xx、时间到期和下载次数限制分别报告；三天只是服务政策估计。结果不明时不重传、不重发。渠道故障时保留原包和身份，请用户决定；单次获准附件补发不代表后续默认授权，不自行更换平台。
 
-所有活动工作区的开户和维护均显式使用 `onboard.sh --profile oci-hub`。本部署 existing 旧员工入口已于 2026-10-30 经用户批准退役；不要再用 existing plan/apply、重开旧网关或把旧包当作当前接入。历史登记和凭据仅供查询。先读 [原生 Mosh 开户](../../../docs/deployment/oci-hub-native-provisioning.md)，再按真实请求生成计划。
+## 完成条件与员工交接
 
-新入口 `provision --email EMAIL [--cores N --memory-mib N --disk-gib N]` 只创建私有请求和计划；获准后继续 `apply REQUEST.json SHA256`。工具从既有登记复用员工/设备，从资源池分配新 VM、VNet、overlay 与 Mosh 端口，沿用已有 Terraform/Ansible、BWS 与 Portal。不得重新拼装开户引擎或借用 existing 的身份。
+依次区分：计划已生成、服务已配置、已独立验收/获准豁免可交付、上传已校验、邮件API202接受、员工确认bootstrap、本人在VM内完成Claude认证。管理员 verify、online 或邮件API202均不代表员工已收到或可实际工作。缺某阶段就报告该阶段待办，不统称“全部完成”。
 
-新后端接入启停以 WG Portal 的 Disabled/DisabledReason 为唯一权威，页面可直接人工启停；管理员脚本经同一 Portal API 操作。SQLite 只保存用量、额度、采样基线/对象引用与审计，不恢复旧 reasons 镜像。正常重启/启停或计量疑点不再产生 accounting_review 封锁；保留累计并记录估算。达到5GB仍执行配额阻断，增额/跨月只清理配额原因，保留人工停用。调试不要在结束时擅自停用用户要求保持启用的测试设备。
+正式邮件把“复制下面整句话给你的 Agent”放最上方，完整提示词用中文引号包住并加粗；正文用 bullet points，包含真实链接或本次明确批准的附件、SHA256、包归属及授权交接。迁移邮件明确使用新包替换旧接入，不只修改 Endpoint；正式开户不带测试/跳过登录/旧包回退指令，trial 才使用试点模板。
 
-新后端 SSH/Mosh 直接终止于本人 VM；VM500 不在路径中。VM500 的六个旧接入服务已经按批准范围停用并屏蔽，VM500 实例作为 HAPI 控制面保留，管理 SSH 和自身主机防护随之保留；它不再承担旧 gateway 或员工网络隔离，不得按历史 employee-access 名称整机退役。VM501 已迁为 demo，VM502 已迁为本人测试；详情见 [当前迁移及退役记录](../../../docs/deployment/2026-10-30-demo-test-hub-retirement.md)。历史槽位、凭据和退役标记不删除。
+让员工 Agent 配置电脑、通过 SSH 进入本人 VM；安装确认、管理员密码和系统弹窗由员工本人完成。个人 Claude 登录在本人 VM 内运行 workspace-login、使用 VM 的 Firefox 完成。**不要在本地电脑登录或使用个人 Claude 账号，不要用本机浏览器直接打开 Claude 授权链接。** 本机浏览器可以显示 VM 远程桌面。终端包没有桌面链接时先确认另行配置的 VM 浏览器入口；缺少入口就报告等待管理员提供，不用本机认证替代。
 
-设备包经 `export --device ID` 生成，上传和发信仍独立审批。当前 VM509 试点专项验收由用户明确跳过，配置中按员工/设备及授权引用记录豁免，结果为 `acceptance_waived`，不能说验收通过或把豁免推广到其他员工。正式邮件沿用下文格式；员工端需要已发布的 v2 OCI Hub/Mosh 客户端。
+## 状态、恢复与源码收尾
 
-旧 employee-access role 及专用 bootstrap/deploy/disable/router/auth/Mosh 入口已从源码移除。不要恢复这些入口或调用旧私有引擎；历史关联在 employee-data，永久分配仍在 Terraform。共享管理员公钥使用 admin-ssh-keys，PVE 保留的退役 VM guard 使用 retired-workspace-boundary。所有活动操作以原生 Mosh 开户说明为准。
+Portal 的 Disabled/DisabledReason 是接入启停权威；SQLite 保存每用户5GB双向月用量、额度、采样和审计，不恢复旧 reasons 镜像。触额仍阻断，增额/跨月仅清配额原因；普通计数重置不自动封禁。不要在调试结束时擅自停用用户要求保持启用的设备。
 
-## 正式邮件格式
+`onboard.sh recover` 只用于旧共享授权/历史登记同步日志，不是 Hub 恢复命令。Hub 按原 JSON 重新 plan/apply，使用固定动作和独立检查点；错误码和安全停止规则见 [运行与恢复](references/operations.md)。源码/范围变化使旧审批失效，不能强行重放旧二进制计划。
 
-沿用私有项目 deliver-temp.py 的实际 HTML 模板和 email-template.txt 说明，保持以下已批准格式：
+开户会修改受 Git 跟踪的 VM roster。收尾必须展示这些定义与文档的差异，另行取得提交、PR、合并授权，使源码与共享 state 保持一致；未获授权时明确标记“Git待收尾”，不自动提交、不归档仍被配置引用的工作树。运行数据、私钥、包和真实回执留在 employee-data。
 
-- 把“复制下面整句话给你的 Agent”及完整提示词放在邮件最上方、最显眼的位置；提示词用中文引号“……”包住，整句加粗并放入醒目的引用框。发送前填入实际 Temp.sh 链接，不留占位词。
-- 迁移/更新邮件的顶部提示词必须自包含新包链接、哈希和替换旧接入的要求；不得只在正文说明迁移。明确不复用旧包/旧地址，也不只修改旧隧道 Endpoint；verify 后展示实际 profile 和连接目标。
-- 其余信息使用 bullet points：接入包链接、三天保存政策、外层 ZIP SHA256、本机系统授权、VM 内 Claude 登录与禁止事项。不要改回连续的大段文字。
-- 明确让员工 Agent 配置本机，由员工本人确认安装、管理员密码及系统弹窗；随后通过 SSH 进入个人 VM，运行 workspace-login，在 VM 的 Firefox 内完成 Claude 登录。
-- 将“不要在本地电脑登录或使用个人 Claude 账号，也不要用本地浏览器直接打开 Claude 授权链接”加粗；同时说明本地浏览器可以显示 VM 远程桌面。
-- 仅修改模板不会自动重发历史邮件；测试警示仅用于明确获准的测试邮件，不进入正式开户邮件。
-
-## 重跑与停止
-
-- 同一请求先运行 `verify REQUEST.yml` 读取本地检查点；它不是实时 VM/网络验收。已完成的同设备交付复用原包，必要时 `export REQUEST.yml`，不要重新开户或重复发邮件。
-- 历史 OneDrive 回执和凭据只保留，不再用于新交付；不自动迁移或给旧员工重发。链接过期需另行批准重新交付，复用原包，不重建 VM。
-- 遇到状态同步失败先 `recover`；遇到 uploading/notifying 等结果不明的通知停止核对，不盲目重发，不用网页补救冒充自动化完成。
-- 当前任务未授权的生产变更、邮件、提交和推送仍须取得相应授权。创建或安装本 skill 不代表已批准某个员工开户。
-
-员工提示词保持：请按 https://github.com/blue126/workspace-onboarding 的指引，用 HTTP POST 从“实际下载链接”下载本设备接入包，仅解开外层 ZIP 并完成 bootstrap；需要系统授权或个人 Claude 登录时交给我。发送时把实际链接填好。
+VM500 已退出员工路径，作为 HAPI 控制面保留。VM501为demo、VM502为本人测试；旧 employee-access role及专用入口退役，历史槽位/凭据/VM503保护保留。跨员工隔离由OCI Hub与PVE承担。不要恢复旧网关或改动其他业务。
