@@ -1,0 +1,23 @@
+---
+# Pinned executor toolchain; bump version and checksum together.
+ws_executor_terraform_version: "1.14.9"
+ws_executor_terraform_sha256: 2e5cffc20a0b48a67a76268723bd5a10b8666f69b2aa4f04906e206726bedd63
+ws_executor_uv_version: "0.12.23"
+ws_executor_uv_sha256: 9167d72b3319674b6303c4cbe071854bba13ebdf3d76b1a7cbdc175471fb66d6
+ws_executor_bws_version: "2.1.0"
+ws_executor_bws_sha256: ba8233c3a4aee5d43e3c73bbd04d99e9bc5aba13bbbfd06d89b073abe732b860
+
+# Runtime layout on the executor VM.
+ws_executor_git_root: /srv/git
+ws_executor_remotecc_root: /srv/remotecc
+ws_executor_iac_root: /srv/iac
+
+# Bare repositories pushed from the administrator's machine and the
+# work tree each one checks out on push.
+ws_executor_repositories:
+  - name: employee-admin
+    work_tree: /srv/remotecc/employee-admin
+    branch: main
+  - name: iac
+    work_tree: /srv/iac
+    branch: main

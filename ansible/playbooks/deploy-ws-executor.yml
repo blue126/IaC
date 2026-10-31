@@ -41,11 +41,18 @@
     - name: Set hostname to the inventory name
       ansible.builtin.hostname:
         name: "{{ inventory_hostname }}"
+
+    - name: Resolve the hostname locally
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s'
+        line: "127.0.1.1 {{ inventory_hostname }}"
   roles:
     - common
     - ubuntu-vm
     - tailscale
     - host-firewall
+    - ws-executor-runtime
   post_tasks:
     - name: Read Tailscale node name
       ansible.builtin.command:
@@ -99,6 +106,20 @@
         that:
           - ansible_facts.hostname == inventory_hostname
         fail_msg: "Hostname is {{ ansible_facts.hostname }}, expected {{ inventory_hostname }}"
+
+    - name: Read pinned tool versions
+      ansible.builtin.command:
+        argv: ["{{ item }}", --version]
+      register: ws_executor_tool_versions
+      changed_when: false
+      check_mode: false
+      loop: [terraform, uv, bws]
+
+    - name: Assert pinned tools are installed
+      ansible.builtin.assert:
+        that:
+          - ws_executor_tool_versions.results | map(attribute='rc') | max == 0
+        fail_msg: A pinned executor tool is missing
 
     - name: Verify host firewall
       ansible.builtin.include_role:

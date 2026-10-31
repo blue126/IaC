@@ -77,3 +77,23 @@ Deploy play 依次：等待 SSH 与 cloud-init 完成、确认 Ubuntu 24.04 虚�
 
 **问：为什么不用 VMID 115？**
 答：115 / 192.168.1.115 已被未纳管的 funasr 占用，本 story 不导入它。
+
+## 执行器运行环境（story 1.5）
+
+`ws-executor-runtime` 角色在 VM 上安装钉住版本与校验和的 Terraform、uv、bws，并建立运行目录与两个裸仓库：
+
+| 裸仓库 | 推送后检出到 | 分支 |
+| --- | --- | --- |
+| `/srv/git/employee-admin.git` | `/srv/remotecc/employee-admin` | `main` |
+| `/srv/git/iac.git` | `/srv/iac` | `main` |
+
+部署代码就是 `git push`。Mac 侧远程配置（`ubuntu` 用户经 sudo 写 root 拥有的仓库）：
+
+```bash
+git remote add ws-executor ssh://ubuntu@192.168.1.116/srv/git/employee-admin.git   # 或 iac.git
+git config remote.ws-executor.receivepack "sudo git-receive-pack"
+git config remote.ws-executor.uploadpack "sudo git-upload-pack"
+git push ws-executor HEAD:main
+```
+
+IaC 首次推送后，再跑一次 deploy playbook 会执行 `scripts/setup-dev-env.sh` 建好 `/srv/iac/.venv` 与 Ansible collections。运行数据目录 `/srv/remotecc/employee-data`（0700）由后续迁移 story 填充。
