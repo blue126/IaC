@@ -1,16 +1,4 @@
 ---
-- name: Inspect application-managed HAPI registrations before any deployment writes
-  ansible.builtin.find:
-    paths: /var/lib/hapi-application/registrations
-    patterns: '*.json'
-    file_type: file
-  register: hapi_control_plane_application_registrations
-
-- name: Refuse to overwrite application-managed HAPI state with a static snapshot
-  ansible.builtin.assert:
-    that: hapi_control_plane_application_registrations.matched == 0
-    fail_msg: Application-managed registrations exist; reconcile through the HAPI application administrator instead of replaying a static runtime Vault.
-
 - name: Restrict the control plane to VM500 and explicitly authorized publication
   ansible.builtin.assert:
     that:

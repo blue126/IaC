@@ -119,17 +119,6 @@ http {
             proxy_set_header X-Hapi-Expected-Route "";
         }
         location = /_workspace/login { return 308 /_workspace/login/; }
-        location ~ "^/_workspace/enroll/[a-f0-9]{64}$" {
-            client_max_body_size 256;
-            proxy_request_buffering on;
-            proxy_pass http://unix:/run/hapi-control-plane/auth.sock;
-            proxy_set_header Host $http_host;
-            proxy_set_header Cf-Access-Jwt-Assertion $http_cf_access_jwt_assertion;
-            proxy_set_header Origin $http_origin;
-            proxy_set_header Cookie "";
-            proxy_set_header X-Hapi-Stream-Lease "";
-            proxy_set_header X-Hapi-Expected-Route "";
-        }
         location = /_workspace/login/ {
             proxy_pass http://unix:/run/hapi-control-plane/auth.sock;
             proxy_set_header Host $http_host;

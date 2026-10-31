@@ -23,7 +23,6 @@ import ssl
 import threading
 import time
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs
 from urllib.request import build_opener, HTTPSHandler, HTTPRedirectHandler
 
 from cryptography.exceptions import InvalidSignature
@@ -176,24 +175,6 @@ def load_config(path):
             if value in seen[key]:
                 raise ValueError('Duplicate workspace allocation')
             seen[key].add(value)
-    enrollments = config.get('enrollments', [])
-    if not isinstance(enrollments, list) or len(enrollments) > 256 or (enrollments and not config.get('shared_hub', False)):
-        raise ValueError('Invalid HAPI enrollment configuration')
-    nonces, requests = set(), set()
-    for entry in enrollments:
-        if (not isinstance(entry, dict) or set(entry) != {'workspace_id', 'email', 'request_id', 'generation', 'nonce_sha256', 'expires_at'} or
-                not isinstance(entry['workspace_id'], str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,31}', entry['workspace_id']) or
-                not isinstance(entry['email'], str) or entry['email'] != entry['email'].lower() or len(entry['email']) > 254 or
-                not re.fullmatch(r'[^\s@]+@[^\s@]+', entry['email']) or
-                not isinstance(entry['request_id'], str) or not re.fullmatch(r'[a-f0-9]{32}', entry['request_id']) or
-                not isinstance(entry['nonce_sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', entry['nonce_sha256']) or
-                type(entry['generation']) is not int or entry['generation'] < 1 or
-                type(entry['expires_at']) is not int or entry['expires_at'] <= 0 or
-                entry['workspace_id'] in seen['workspace_id'] or entry['email'] in seen['email'] or
-                entry['nonce_sha256'] in nonces or entry['request_id'] in requests):
-            raise ValueError('Conflicting or invalid enrollment')
-        seen['workspace_id'].add(entry['workspace_id']); seen['email'].add(entry['email'])
-        nonces.add(entry['nonce_sha256']); requests.add(entry['request_id'])
     return config
 
 
@@ -222,11 +203,6 @@ class Policy:
         self.database_lock = threading.Lock()
         self.database = sqlite3.connect(str(revocations) if revocations else ':memory:', check_same_thread=False)
         self.database.execute('CREATE TABLE IF NOT EXISTS revoked (sid TEXT PRIMARY KEY, expires REAL NOT NULL)')
-        self.database.execute('''CREATE TABLE IF NOT EXISTS verified_enrollments (
-            workspace_id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL, subject TEXT UNIQUE NOT NULL,
-            issuer TEXT NOT NULL, audience TEXT NOT NULL, generation INTEGER NOT NULL,
-            nonce_sha256 TEXT UNIQUE NOT NULL, expires_at INTEGER NOT NULL, verified_at REAL NOT NULL)''')
         self.database.commit()
 
     def current_config(self):
@@ -291,52 +267,6 @@ class Policy:
                 identity = hashlib.sha256((self.issuer + '\0' + claims['sub']).encode()).hexdigest()
                 return route, {'workspace_id': route['workspace_id'], 'generation': route['generation'], 'identity': identity}
         raise Denied()
-
-    def enrollment(self, token, nonce, bind=False):
-        """Bind only a verified Access identity to an approved, one-use enrollment."""
-        if not re.fullmatch(r'[a-f0-9]{64}', nonce) or self.revoked(hashlib.sha256(token.encode()).hexdigest()):
-            raise Denied()
-        config = self.current_config()
-        claims = self.verifier.verify(token)
-        if len(claims['sub']) > 256:
-            raise Denied()
-        digest = hashlib.sha256(nonce.encode()).hexdigest()
-        entry = next((e for e in config.get('enrollments', []) if e['nonce_sha256'] == digest), None)
-        columns = ['workspace_id', 'request_id', 'email', 'subject', 'issuer', 'audience',
-                   'generation', 'nonce_sha256', 'expires_at', 'verified_at']
-        with self.database_lock:
-            row = self.database.execute('SELECT ' + ','.join(columns) +
-                                        ' FROM verified_enrollments WHERE nonce_sha256 = ?', (digest,)).fetchone()
-            proof = dict(zip(columns, row)) if row else None
-            if proof:
-                if (proof['email'] != claims['email'].lower() or proof['subject'] != claims['sub'] or
-                        (proof['issuer'], proof['audience']) != (self.issuer, self.audience)):
-                    raise Denied()
-                for route in config['routes']:
-                    if (route['workspace_id'] == proof['workspace_id'] and route['enabled'] and
-                            route['email'] == proof['email'] and route['subject'] == proof['subject'] and
-                            route['generation'] == proof['generation']):
-                        return 'active'
-                if proof['expires_at'] <= time.time():
-                    raise Denied()
-            if (not entry or entry['expires_at'] <= time.time() or entry['email'] != claims['email'].lower() or
-                    any(route['subject'] == claims['sub'] for route in config['routes'])):
-                raise Denied()
-            if proof:
-                if any(proof[key] != entry[key] for key in entry):
-                    raise Denied()
-                return 'pending'
-            if not bind:
-                return 'confirm'
-            try:
-                self.database.execute('INSERT INTO verified_enrollments VALUES (?,?,?,?,?,?,?,?,?,?)',
-                    (entry['workspace_id'], entry['request_id'], entry['email'], claims['sub'], self.issuer,
-                     self.audience, entry['generation'], digest, entry['expires_at'], time.time()))
-                self.database.commit()
-            except sqlite3.IntegrityError:
-                self.database.rollback()
-                raise Denied() from None
-            return 'pending'
 
     def csrf(self, token, workspace):
         message = json.dumps([token, workspace], sort_keys=True, separators=(',', ':')).encode()
@@ -407,17 +337,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.one_header('Host') != policy.origin.removeprefix('https://'):
             raise Denied()
         if self.path == '/health' and self.command == 'GET':
-            config = load_config(policy.config_path)
-            self.send_json(200, {'status': 'prototype', 'public_ready': False,
-                                 'enrollment_version': 1 if config.get('shared_hub', False) else 0})
+            load_config(policy.config_path)
+            self.send_json(200, {'status': 'prototype', 'public_ready': False})
             return
         if len(self.headers.get_all('Origin', [])) > 1:
             raise Denied()
         token = self.one_header('Cf-Access-Jwt-Assertion')
-        enrollment = re.fullmatch(r'/_workspace/enroll/([a-f0-9]{64})', self.path)
-        if enrollment:
-            self.enroll(token, enrollment.group(1))
-            return
         route, workspace = policy.identity(token)
         if self.command == 'GET' and self.path == '/authorize':
             method = self.one_header('X-Hapi-Method')
@@ -481,52 +406,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' " +
                          self.server.policy.origin.replace('https:', 'wss:') +
                          "; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def enroll(self, token, nonce):
-        policy = self.server.policy
-        if self.headers.get('Origin') not in [None, policy.origin]:
-            raise Denied()
-        csrf = policy.csrf(token, {'enrollment': hashlib.sha256(nonce.encode()).hexdigest()})
-        bind = self.command == 'POST'
-        if bind:
-            if (self.one_header('Origin') != policy.origin or self.headers.get('Sec-Fetch-Site') == 'cross-site' or
-                    self.one_header('Content-Type') != 'application/x-www-form-urlencoded' or self.headers.get_all('Transfer-Encoding')):
-                raise Denied()
-            length = self.one_header('Content-Length')
-            if not length.isdecimal() or not 0 < int(length) <= 256:
-                raise Denied()
-            try:
-                fields = parse_qs(self.rfile.read(int(length)).decode('ascii'), strict_parsing=True, max_num_fields=1)
-            except (ValueError, UnicodeError):
-                raise Denied() from None
-            if (set(fields) != {'csrf'} or len(fields['csrf']) != 1 or
-                    not re.fullmatch(r'[a-f0-9]{64}', fields['csrf'][0]) or not hmac.compare_digest(fields['csrf'][0], csrf)):
-                raise Denied()
-        elif self.command != 'GET':
-            raise Denied()
-        state = policy.enrollment(token, nonce, bind=bind)
-        if bind or state == 'active':
-            self.send_response(303)
-            self.send_header('Location', '/' if state == 'active' else self.path)
-            self.send_header('Content-Length', '0')
-            self.send_header('Cache-Control', 'no-store')
-            self.send_header('Referrer-Policy', 'no-referrer')
-            self.end_headers()
-            return
-        if state == 'confirm':
-            page = ('<!doctype html><meta charset="utf-8"><title>工作区确认</title><p>请确认使用当前身份开通你的工作区。</p>'
-                    '<form method="post"><input type="hidden" name="csrf" value="' + csrf +
-                    '"><button type="submit">确认工作区</button></form>')
-        else:
-            page = '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="5"><title>正在开通</title><p>身份已确认，工作区正在准备。完成后会自动进入。</p>'
-        body = page.encode()
-        self.send_response(200 if state == 'confirm' else 202)
-        for key, value in {'Content-Type': 'text/html; charset=utf-8', 'Content-Length': str(len(body)),
-                           'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
-                           'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"}.items():
-            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 

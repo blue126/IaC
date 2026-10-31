@@ -2,7 +2,6 @@
 """Load only employee tables, gate routing, and verify the applied kernel policy."""
 import argparse
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -75,22 +74,9 @@ def without_known_extension(tables, gateway, extension_enabled, browser_enabled=
     return tables
 
 
-def hapi_extension():
-    policy = Path('/etc/hapi-application/firewall.json')
-    if not policy.exists():
-        return None
-    spec = importlib.util.spec_from_file_location('hapi_firewall', '/usr/local/lib/hapi-firewall.py')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def verify(gateway):
     expected = json.loads(APPLIED.read_text())
     actual = without_known_extension(snapshot(gateway), gateway, OCI_EXTENSION_UNIT.is_file(), BROWSER_EXTENSION_UNIT.is_file())
-    extension = hapi_extension() if gateway else None
-    if extension:
-        actual = extension.without_extension(actual)
     if expected['sha256'] != hashlib.sha256(POLICY.read_bytes()).hexdigest() or expected['tables'] != actual:
         raise RuntimeError('Applied employee policy differs from the configured or kernel policy')
     if gateway and Path('/proc/sys/net/ipv4/ip_forward').read_text().strip() != '1':
@@ -100,7 +86,7 @@ def verify(gateway):
 def apply(gateway):
     if gateway:
         routing(False)
-    # A base-policy failure leaves forwarding disabled; HAPI failures are isolated below.
+    # A failure from this point leaves gateway forwarding disabled.
     subprocess.run(['/usr/sbin/nft', '-f', str(POLICY)], check=True)
     record = {'sha256': hashlib.sha256(POLICY.read_bytes()).hexdigest(), 'tables': snapshot(gateway)}
     temporary = APPLIED.with_suffix('.tmp')
@@ -109,15 +95,6 @@ def apply(gateway):
     temporary.replace(APPLIED)
     if gateway:
         routing(True)
-    # The approved base boundary is live; a HAPI extension failure must not disable WG forwarding.
-    try:
-        extension = hapi_extension() if gateway else None
-        if extension:
-            extension.apply()
-    except Exception as exc:
-        # Keep the base oneshot successful: ExecStopPost disables forwarding on startup failure.
-        # Verification still fails when the extension is missing, malformed or not loaded.
-        print('HAPI firewall extension failed (' + type(exc).__name__ + '); base policy remains active; run verify', file=sys.stderr)
 
 
 def main():

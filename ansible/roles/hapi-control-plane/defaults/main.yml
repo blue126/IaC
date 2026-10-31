@@ -4,7 +4,6 @@ hapi_control_plane_issuer: ''
 hapi_control_plane_audience: ''
 hapi_control_plane_vmid: 0
 hapi_control_plane_routes: []
-hapi_control_plane_enrollments: []
 hapi_control_plane_install_dependencies: false
 hapi_control_plane_public_entry: false
 hapi_control_plane_migration_authorized: false

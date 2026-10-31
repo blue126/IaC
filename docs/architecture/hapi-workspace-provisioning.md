@@ -1,5 +1,7 @@
 # HAPI／Cloudflare 员工工作区开户设计
 
+> **独立开户方案已撤回（2026-10-31）。** 用户将重新设计 provisioning。HAPI 与 WireGuard 是同一员工 VM 的两种接入方式；本文关于独立 VM 开户、独立资源台账／state 和独立执行器的内容仅作历史设计，不再作为可执行开户契约。现有 VM500 单 Hub、统一入口、Runner 与 Claude 登录引导继续保留。本次不实现新的统一 provisioning，也不迁移或删除任何 VM、凭据和运行数据。
+
 状态：统一入口、单Hub与会话数据库现已在VM500运行；VM502保留原Runner、Claude及localhost3006兼容代理。独立BWS、固定namespace、最终数据库导入及20项现场验收已完成；用户已完成Cloudflare登录并确认HAPI可用，完整新员工开户仍未就绪。参见[迁移记录](../planning/2026-10-30-hapi-single-hub-migration.md)。
 
 网络阶段已补充独立计划、VM外边界角色、停止创建的VM模块与pre-start门禁，见[网络开户自动化](../guides/hapi-network-automation.md)。按用户要求直接在pve2新建两台测试VM，现有vmbr0端口ACL的35项真实通信与11项生命周期验收通过，详见[两VM验收记录](../planning/2026-10-30-hapi-two-vm-pve2.md)。两台QA VM随后已按原Terraform state回收，关联测试接入和pve2巡检已退役，见[回收记录](../planning/2026-10-31-hapi-qa-retirement.md)；组件和验收证据继续保留。VLAN后端仍未实测；私有开户执行器、正式分配／state绑定、新员工HAPI／Cloudflare身份绑定及全新VM个人首次授权验收仍待补齐，此进展不表示已能自动交付员工VM。
@@ -289,8 +291,6 @@ remotecc/hapi-data/
 合成测试、本地 lint、`workspace-login --check`及服务 active 均不能代替上述真人／真实网络验收。Argo 和终端长轮询优化留作单独对照，不阻塞基本开户。
 
 ## 10. 真实执行就绪条件
-
-应用阶段新增[候选实现与限制](../guides/hapi-application-onboarding.md)：worker、VM500登记、真实身份确认及阶段编排已在开发副本实现并隔离验证；用户暂不安装新SDK，真实集成／发布仍延期，正式入口继续基础设施版本。
 
 当前未具备完整生产开户条件：独立基础设施候选工具、共享Hub、独立BWS授权及既有用户统一入口已完成；真实管理profile／分配池与独立state首次执行、服务与身份发布闭环、全新VM个人首次授权、真实参数化开户及两用户现网验收尚未完成。新 skill 可以设计、检查实现缺口、准备申请／计划契约和审阅；不能声称邮箱一填就能开通。
 

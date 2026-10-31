@@ -2,7 +2,7 @@
 
 主检出 `~/Projects/IaC/remotecc/` 保存管理员代码基线和本机唯一的活动运行数据。公开 IaC 的 Git 忽略整个目录；linked worktree 可引用代码基线，也可携带源文件用于开发，但申请、凭据和检查点保持共享。
 
-下文的`employee-admin`执行流程属于WireGuard。HAPI独立使用同级`hapi-admin`／`hapi-data`及自己的绑定Sandbox，正式入口和验证见[HAPI管理员运行绑定](../guides/hapi-admin-runtime.md)；不调用下文的`onboard.sh`或复用其业务登记。
+下文描述既有`employee-admin`运行方式。独立HAPI开户方案已撤回，`hapi-admin`早期原型及`hapi-data`服务运维材料继续保留，不作为当前开户入口；历史绑定见[HAPI管理员运行绑定](../guides/hapi-admin-runtime.md)。HAPI与WireGuard面向同一员工VM，新的统一provisioning由用户重新设计；本次不迁移、合并或清理现有代码／运行数据。
 
 ```text
 IaC/remotecc/

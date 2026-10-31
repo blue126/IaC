@@ -25,7 +25,6 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 import importlib.util
 import os
 import copy
-import re
 import yaml
 
 TESTS = Path(__file__).parent
@@ -183,8 +182,6 @@ class ProxyTest(unittest.TestCase):
                .sign(cls.ca_key, hashes.SHA256()))
         (cls.root/'crl.pem').write_bytes(crl.public_bytes(serialization.Encoding.PEM))
         cls.routes = [helpers.route('alice', 2), helpers.route('bob', 3)]
-        for route in cls.routes:
-            route['namespace'] = route['workspace_id']
         cls.config_file = cls.root/'registry.json'
         cls.config = {'origin': helpers.ORIGIN, 'issuer': helpers.ISSUER, 'audience': helpers.AUD, 'routes': cls.routes,
                       'ca_file': str(cls.root/'ca.pem'), 'crl_file': str(cls.root/'crl.pem'),
@@ -331,42 +328,6 @@ class ProxyTest(unittest.TestCase):
             self.assertEqual(result['workspace'], wid)
             self.assertIsNone(result['access_header']); self.assertIsNone(result['cookie'])
             self.assertEqual(result['path'], '/api/sessions?machineId=other')
-
-    def test_enrollment_passes_real_nginx_without_granting_application_access(self):
-        original = copy.deepcopy(self.config)
-        saved_routes = copy.deepcopy(self.routes)
-        nonce = '7' * 64
-        path = '/_workspace/enroll/' + nonce
-        token = self.token('charlie')
-        try:
-            self.config['shared_hub'] = True
-            for route in self.routes:
-                route['namespace'] = route['workspace_id']
-            self.config['enrollments'] = [{'workspace_id': 'charlie', 'email': 'charlie@example.com',
-                'request_id': 'c' * 32, 'generation': 1, 'nonce_sha256': hashlib.sha256(nonce.encode()).hexdigest(),
-                'expires_at': int(time.time()) + 600}]
-            self.save()
-            connection, response = self.request(path, 'charlie', extra={'Cf-Access-Jwt-Assertion': token})
-            self.assertEqual(response.status, 200)
-            body = response.read(); connection.close()
-            csrf = re.search(rb'name="csrf" value="([a-f0-9]+)"', body).group(1).decode()
-            connection = http.client.HTTPConnection('127.0.0.1', self.port, timeout=3)
-            connection.request('POST', path, body='csrf=' + csrf, headers={'Host': 'hapi.example.com',
-                'Cf-Access-Jwt-Assertion': token, 'Origin': helpers.ORIGIN,
-                'Content-Type': 'application/x-www-form-urlencoded'})
-            response = connection.getresponse()
-            self.assertEqual(response.status, 303); response.read(); connection.close()
-            connection, response = self.request(path, 'charlie', extra={'Cf-Access-Jwt-Assertion': token})
-            self.assertEqual(response.status, 202); response.read(); connection.close()
-            connection, response = self.request('/api/sessions', 'charlie', extra={'Cf-Access-Jwt-Assertion': token})
-            self.assertEqual(response.status, 403); response.read(); connection.close()
-            connection, response = self.request('/api/sessions', 'bob')
-            self.assertEqual(response.status, 200); response.read(); connection.close()
-        finally:
-            for live, saved in zip(self.routes, saved_routes):
-                live.clear(); live.update(saved)
-            self.config.clear(); self.config.update(original); self.config['routes'] = self.routes
-            self.save()
 
     def test_shared_hub_transport_requires_certificate_and_address_and_overwrites_namespace(self):
         hub = ThreadingHTTPServer(('127.0.0.1', 0), Hub)

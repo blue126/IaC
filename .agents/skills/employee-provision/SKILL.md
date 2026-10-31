@@ -9,9 +9,9 @@ description: "本 IaC 项目的 WireGuard 员工工作区（existing/oci-hub）�
 
 ## 范围边界
 
-- 本 skill 覆盖 WireGuard 接入体系的 `existing` 和 `oci-hub` 员工工作区。HAPI/Cloudflare 网页工作区开户为独立流程，不因同样创建员工 VM 而套用本入口。
-- HAPI 使用独立的管理员入口、申请与计划审批、执行状态、业务台账、凭据授权和网页交付路径；不在 `onboard.sh` 增加 HAPI profile，不复用 WireGuard 设备身份、运行数据或设备包。同一邮箱不代表自动共用两套流程中的 VM 或凭据。
-- 可复用底层 VM 模块、干净模板、隔离基础组件及登录助手；仍须明确资源所有权并检查 VMID/IP 冲突，不能由两套流程共同管理同一资源。本边界不自动迁移现有员工、VM502 试点服务或历史 BWS 记录。
+- 本skill当前服务既有WireGuard员工工作区操作；用户正在重新设计涵盖两种接入的统一provisioning，本次尚未实现该新流程。
+- HAPI与WireGuard是同一员工工作区VM的两种接入方式。独立HAPI开户方案已撤回；不得据旧方案创建第二台员工VM或把同一VM纳入第二份Terraform state。
+- 保留既有已批准入口、设备身份和资源归属；本次不修改WireGuard执行逻辑，不迁移台账／state／凭据，也不把撤回的HAPI执行器接入`onboard.sh`。共享VM不表示共享两种接入的设备密钥或服务凭据。
 
 规范入口是 IaC 主 checkout 的 `remotecc/employee-admin/onboard.sh`。管理员源码属于该目录的独立私有 Git；相邻 `remotecc/employee-data/` 保存实际配置、申请、状态、设备包和回执，不进入任一源码仓库。公开 IaC 只存项目 skill 与基础设施定义；公开 workspace-onboarding 只承载员工客户端。不要复制管理员源码或私有数据到这两个公开仓库。
 
