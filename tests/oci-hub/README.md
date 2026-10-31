@@ -38,3 +38,15 @@ R8 增补 `management_access` 合同：只允许明确远端来源 `/32` + 已�
 
 
 2026-10-30 原生终端收口：私有 test-hub-mosh.py 已改为独立 VM 原生开户测试，覆盖邮箱/规格、旧身份复用、设备地址及端口分配、所有权冲突、动态来源边界、受保护冷创建复用和修订计划路径；不再要求 VM500 两网关过渡。当前云入口 mock 测试7项包含显式 dynamic 仅开放用户 UDP51824、拒绝放宽 Spoke 来源。用户跳过的专项验收另记 acceptance_waived，不与上述测试通过混同。
+
+## 桌面信任说明的离线合成演练
+
+```bash
+python3 tests/oci-hub/test-desktop-trust.py -v
+```
+
+此入口只需现有 Python 标准库与 OpenSSL，无需 Ansible、网络、sudo 或系统信任导入。沿用 Story8 的 `TemporaryDirectory` + OpenSSL 合成证书方式与 `198.18.53.0/24` 合成地址，在临时目录生成两套 CA、正确及错误 IP SAN 的叶证书；私钥仅在该目录存在，测试结束清理，不交付、不进入 Git。入口不读取真实设备包、inventory、profile、Vault、BWS 或生产证书。
+
+正例核对 CA 的 DER SHA256（同时与 OpenSSL X.509 指纹交叉核对）、OpenSSL 服务端证书链验证、签名证书解码出的 IP SAN 与所分配 HTTPS overlay 根 URL。反例分别核对错误 CA、错误参考指纹、错误 SAN、另一目标 URL、缺失 CA、缺失独立来源/指纹、HTTP、旧 VM500 共享 URL，以及旧路径、loopback 和后端端口；这三种情况均以 `assigned-target-url-mismatch` 拒绝。测试内规则仅演练[设备信任说明](../../docs/guides/employee-browser-lifecycle.md)，不作为运行时 API，也不改变客户端协议。
+
+全部通过仅证明合成说明核验，不代表真实 WireGuard、浏览器信任、设备撤销或本人 UAT 通过。真实设备、OS/浏览器及独立指纹渠道未提供时，指南中的记录仍保持“未确认”。
