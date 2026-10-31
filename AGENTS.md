@@ -26,7 +26,7 @@ docs/               # Deployment guides, technical guides, learning notes
 
 ## Key Commands
 
-**Where these run:** run this repository's Ansible inside the Docker Sandbox. The macOS host also has `terraform` and `ansible-core` in `~/.local/bin`, but that Ansible belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Do not use or change the host Ansible for this repository. Detect where you are before assuming:
+**Where these run:** by default on the macOS host, from the checkout or task worktree being worked on, using that checkout's own uv toolchain. Run `./scripts/setup-dev-env.sh` once per checkout (and again after `requirements.txt` or `ansible/requirements.yml` changes); it creates `.venv` from `requirements.txt` and installs the pinned collections into `ansible/collections`. Then `source .venv/bin/activate`. The host's `~/.local/bin/ansible` belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Never use or change it for this repository. Git-ignored per-checkout state is not shared between worktrees: a new worktree needs `terraform init` in each Terraform root it uses, and `ansible/.vault_pass` comes from the main checkout (pass `--vault-password-file` with that path rather than copying it). A Docker Sandbox is optional, for isolated unattended agent runs; detect where you are before assuming:
 
 ```bash
 [ -n "$SANDBOX_ID" ] && echo sandbox || echo host
@@ -152,6 +152,7 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## Docker Sandbox Environment
 
+- A Sandbox is optional. Development and employee onboarding run on the host with the uv toolchain described under Key Commands; onboarding runs from the main checkout's `remotecc/employee-admin/onboard.sh`. The rules below apply only when a Sandbox is chosen.
 - Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
 - Choose the topology before running an entry command. Treat the main checkout as coordination-only; direct-mode commands must run from an assigned host task worktree. Create clone-mode Sandboxes only from the verified main checkout when Git will be managed inside the Sandbox. Never create a clone-mode Sandbox from a host linked worktree.
 - Replace `TASK` with a unique kebab-case task name. Use versioned, task-specific Sandbox names so parallel work and Kit-upgrade testing never reconnect to an unrelated or stale Sandbox.

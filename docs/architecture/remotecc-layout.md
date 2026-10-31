@@ -20,19 +20,19 @@ IaC/remotecc/
 
 从主检出创建新 worktree 时，可以按 `.worktreeinclude` 携带管理员源文件。Codex 跳过源符号链接，因此配置、密钥和运行数据的兼容链接不会作为文件副本复制。当前 HAPI worktree 仍使用迁移时建立的共享 `remotecc` 链接；修改复制清单不会追溯替换它。
 
-源文件可用不代表该 worktree 已配置成独立的 provisioning 环境。共享数据、外层锁、同步 journal、IaC 代码根和 Sandbox 必须显式绑定后才能执行；不要直接运行缺少绑定的源文件副本。当前生产入口仍按 `settings.json.iac_root` 和 `sandbox_name` 使用既有部署工作树，不会因所在目录改变而切换。完整的逐 worktree 执行绑定尚未实现，本次复制清单不改变这一点。
+源文件可用不代表该 worktree 已配置成独立的 provisioning 环境。共享数据、外层锁、同步 journal、IaC 代码根和 Sandbox 必须显式绑定后才能执行；不要直接运行缺少绑定的源文件副本。生产入口按 `settings.json.iac_root` 使用 IaC 主检出，不会因所在目录改变而切换。完整的逐 worktree 执行绑定尚未实现，本次复制清单不改变这一点。
 
 ## 入口与兼容路径
 
-正式入口为 `~/Projects/IaC/remotecc/employee-admin/onboard.sh`。旧的 `~/Projects/employee-workspace-admin` 保留兼容链接，在宿主和现有部署 Sandbox 中均指向新代码目录。
+正式入口为 `~/Projects/IaC/remotecc/employee-admin/onboard.sh`。旧的 `~/Projects/employee-workspace-admin` 保留兼容链接，指向新代码目录。
 
 代码目录中保留受控的数据链接，因此已有的 `settings.json`、`state/`、`runs/`、`requests/` 等路径仍可使用。`runtime-layout.py` 按 `remotecc-layout.json` 补齐缺失链接；遇到已有普通文件或错误链接时停止，不覆盖数据。
 
-`settings.json.iac_root` 继续绑定既有已部署的 IaC 工作树。目录迁移不自动把运行配置改为公开 `main`，也不改变员工、设备、密钥或交付记录。代码变化后，下一次实际 apply 仍须重新生成并批准计划。
+`settings.json.iac_root` 绑定 IaC 主检出 `~/Projects/IaC`；`--profile oci-hub` 在宿主直接执行，使用主检出 `.venv` 的 uv 工具链。员工、设备、密钥或交付记录不随之改变。代码变化后，下一次实际 apply 仍须重新生成并批准计划。
 
-## Sandbox 同步与恢复
+## Sandbox 同步与恢复（仅已退役的 existing 入口）
 
-沿用现有 `onboard.sh` / `onboard-host.py`：
+`onboard.sh` 的 `login`、`auth-status`、`registry`、`recover` 仍经 `onboard-host.py`：
 
 1. 取得原有管理员锁，并核对同步 journal，未回收状态继续阻止新操作。
 2. 代码只从宿主发送到 Sandbox，发送时排除代码仓库的 `.git/`。

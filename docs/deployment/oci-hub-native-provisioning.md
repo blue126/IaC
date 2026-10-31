@@ -26,7 +26,7 @@
 
 `./onboard.sh --profile oci-hub registry` / `verify` 查询服务端状态，`online` 额外观察握手和 SSH/Mosh 连接。查询失败显示未知；这些观察不是员工本人已完成bootstrap的证明。`configured`只表示配置完成，交付还要核对bundle.verification状态。
 
-同员工新增设备用 `provision --email EMAIL --device NEWID`；同邮箱有多个工作区时加 `--employee-id ID`。已有设备导出用 `export --device ID`，不轮换密钥。export返回directory、摘要及delivery_request草稿；其中bundle_dir/run_dir属于Sandbox数据路径，直接使用工具给出的值，不猜测或混用宿主下载目录。
+同员工新增设备用 `provision --email EMAIL --device NEWID`；同邮箱有多个工作区时加 `--employee-id ID`。已有设备导出用 `export --device ID`，不轮换密钥。export返回directory、摘要及delivery_request草稿；其中bundle_dir/run_dir是宿主数据路径，直接使用工具给出的值，不猜测或混用宿主下载目录。
 
 ### 非豁免设备的验收
 
@@ -38,9 +38,9 @@
 
 输出包括subject_sha256、required_checks、pending状态的record_template和现有验收/豁免校验结果。模板不会把检查自动记为通过。独立验证须在另行批准的环境执行，保存对应证据；员工自报结果、服务检查和模板都不等于独立验收。
 
-验收实际在Sandbox执行，并从 `settings.oci_hub.runtime_settings` 指定的运行配置读取 `oci_hub.e2e_verification`；桥接不会把宿主整份settings复制过去。证据和记录须是Sandbox可见的持久私有数据路径，属于Sandbox执行UID、mode0600；不要只修改宿主字段或把秘密打印出来排错。
+验收在宿主执行，从 `settings.json` 的 `oci_hub.e2e_verification` 读取登记。证据和记录须是宿主上的持久私有数据路径，归管理员所有、mode0600；不要把秘密打印出来排错。
 
-管理员审阅真实证据后，将模板补为已完成记录：Unix秒observed_at/valid_until（最多一小时）、每项passed/evidence/sha256，以及绑定的subject；证据文件名与哈希须一致。保护记录及证据归Sandbox执行UID、mode0600，批准后在私有e2e_verification中登记receipt_path、approved_sha256和approval_ref，再运行acceptance校验。缺项或失效应停在awaiting_e2e_verification，报告摘要和缺项，不假填通过。记录最长有效1小时且绑定全局mapping_generation/网络策略；其他员工登记可能使其失效，上传到发信间也须重新校验当前subject，不延长旧证据时间绕过。
+管理员审阅真实证据后，将模板补为已完成记录：Unix秒observed_at/valid_until（最多一小时）、每项passed/evidence/sha256，以及绑定的subject；证据文件名与哈希须一致。保护记录及证据归管理员所有、mode0600，批准后在私有e2e_verification中登记receipt_path、approved_sha256和approval_ref，再运行acceptance校验。缺项或失效应停在awaiting_e2e_verification，报告摘要和缺项，不假填通过。记录最长有效1小时且绑定全局mapping_generation/网络策略；其他员工登记可能使其失效，上传到发信间也须重新校验当前subject，不延长旧证据时间绕过。
 
 已批准的特定设备豁免继续通过acceptance_waivers绑定其员工/设备/授权引用，结果为acceptance_waived，不推广至其他设备或称为验收通过。当前Mosh验收不再要求已退役的旧接入保留项。
 
@@ -56,7 +56,7 @@
 
 随后仅把notify改为true，重新plan。它要求已有verified上传，不会在没有实际链接和预览时直接发信。展示返回的收件人、mail_subject及可在宿主打开的host_mail_preview；再次批准后deliver才发邮件。主题和正文纳入审批摘要，变化后重新plan。
 
-上传只用当前Temp.sh通道，微软Mail.Send用于通知；不使用OneDrive。三天是服务标注政策、回执为估计，不是可用性保证。上传或发信结果不明时不自动重试；上传成功但下载校验失败可恢复原校验，不重新上传。平台5xx、次数限制和时间过期分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
+上传只用当前Temp.sh通道，微软Mail.Send用于通知。三天是服务标注政策、回执为估计，不是可用性保证。上传或发信结果不明时不自动重试；上传成功但下载校验失败可恢复原校验，不重新上传。平台5xx、次数限制和时间过期分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
 
 确需重新交付时，取得该员工/设备的新授权，复用原包并使用新的回执子目录重新plan，不覆盖旧回执、不重新开户。completed只表示API已接受原通知，重跑不会重复发送；员工是否收到与bootstrap成功要另行确认。
 

@@ -38,7 +38,7 @@ sbx run --name iac-codex-TASK-direct-v130 codex . --kit ./.sandbox-kit
 sbx exec --workdir "$PWD" SANDBOX_NAME bash -lc 'terraform -chdir=terraform/proxmox validate'
 ```
 
-把 `SANDBOX_NAME` 和命令替换为本次任务的实际值。Ansible 命令从 `ansible/` 运行；Terraform 命令从相应的 `terraform/<environment>/` root 运行。不要在宿主机安装或运行仓库要求放在 Sandbox 内的 Terraform、Ansible 工具链。
+把 `SANDBOX_NAME` 和命令替换为本次任务的实际值。Ansible 命令从 `ansible/` 运行；Terraform 命令从相应的 `terraform/<environment>/` root 运行。Sandbox 是可选项；默认在宿主机用 `scripts/setup-dev-env.sh` 建立的 uv 工具链运行，见 `AGENTS.md`。
 
 在 Sandbox 内确认身份、目录和工具版本：
 
