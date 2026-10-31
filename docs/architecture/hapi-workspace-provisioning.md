@@ -2,7 +2,7 @@
 
 状态：统一入口、单Hub与会话数据库现已在VM500运行；VM502保留原Runner、Claude及localhost3006兼容代理。独立BWS、固定namespace、最终数据库导入及20项现场验收已完成；用户已完成Cloudflare登录并确认HAPI可用，完整新员工开户仍未就绪。参见[迁移记录](../planning/2026-10-30-hapi-single-hub-migration.md)。
 
-网络阶段已补充独立计划、VM外边界角色、停止创建的VM模块与pre-start门禁，见[网络开户自动化](../guides/hapi-network-automation.md)。按用户要求直接在pve2新建两台测试VM，现有vmbr0端口ACL的35项真实通信与11项生命周期验收通过，详见[两VM验收记录](../planning/2026-10-30-hapi-two-vm-pve2.md)。VLAN后端仍未实测；私有开户执行器、正式分配／state绑定、新员工HAPI／Cloudflare身份绑定及全新VM个人首次授权验收仍待补齐，此进展不表示已能自动交付员工VM。
+网络阶段已补充独立计划、VM外边界角色、停止创建的VM模块与pre-start门禁，见[网络开户自动化](../guides/hapi-network-automation.md)。按用户要求直接在pve2新建两台测试VM，现有vmbr0端口ACL的35项真实通信与11项生命周期验收通过，详见[两VM验收记录](../planning/2026-10-30-hapi-two-vm-pve2.md)。两台QA VM随后已按原Terraform state回收，关联测试接入和pve2巡检已退役，见[回收记录](../planning/2026-10-31-hapi-qa-retirement.md)；组件和验收证据继续保留。VLAN后端仍未实测；私有开户执行器、正式分配／state绑定、新员工HAPI／Cloudflare身份绑定及全新VM个人首次授权验收仍待补齐，此进展不表示已能自动交付员工VM。
 
 本文件落实用户已确认的方向：HAPI 开户独立于 WireGuard 的 `employee-provision`／`onboard.sh`；员工统一访问 `https://hapi.willfan.me`，身份验证后进入本人独立 VM。VM500 明确承担 HAPI 控制面与统一公网接入，Cloudflare Tunnel 连接器终结在 VM500。本文不是部署记录，不授权创建基础设施、申请新凭据、发送邮件或迁移既有工作区。
 
@@ -12,12 +12,12 @@
 |---|---|---|
 | 员工接入 | 浏览器、Cloudflare Access／Tunnel | WireGuard，含 existing／oci-hub |
 | 管理入口 | 本任务工作树已有独立基础设施候选入口；完整开户未实现 | 原 `remotecc/employee-admin/onboard.sh` |
-| 私有源码／运行数据 | 候选 `remotecc/hapi-admin/`／`remotecc/hapi-data/`，主checkout正式绑定待完成 | 原 employee-admin／employee-data |
+| 私有源码／运行数据 | 主checkout的独立`remotecc/hapi-admin/`／`remotecc/hapi-data/`，绑定专用Sandbox | 原 employee-admin／employee-data |
 | 台账与恢复 | HAPI 独立登记、计划、检查点、回执 | 原工作区／设备登记与检查点 |
 | 员工交付 | 统一网址及网页登录说明 | 原设备接入包和 bootstrap 说明 |
 | 凭据边界 | HapiWorkspace项目与专用机器授权已建立，服务凭据固定映射namespace | 原EmployeeWorkspace已按用户指定退役；OCI-Hub项目保持独立 |
 
-本任务工作树的`remotecc/hapi-admin/hapi-admin.py`已实现request／plan-infra／apply-infra／status及私有README；16项合成后端故障测试和真实生成Terraform的init-backend-false／validate通过，未用它新增真实员工或执行实际apply。它只标记基础设施就绪，不发布服务／身份／邮件；未创建私有Git远端或主checkout绑定。公开IaC仅保存技能、通用基础设施代码和说明；真实邮箱、分配、计划、状态与凭据保存在私有运行区。
+主checkout的私有`hapi-admin/hapi-entry.py`已正式绑定独立数据目录、IaC任务工作树及专用Sandbox，支持doctor／request／plan-infra／apply-infra／status，见[管理员运行绑定](../guides/hapi-admin-runtime.md)。17项合成执行器、5项绑定回归及正式doctor／挂载检查通过，生成Terraform的init-backend-false／validate已通过；未用它新增真实员工或执行实际apply。它只标记基础设施就绪，不发布服务／身份／邮件；私有源码有独立本地Git，没有私有Git远端。公开IaC仅保存技能、通用基础设施代码和说明；真实邮箱、分配、计划、状态与凭据保存在私有运行区。
 
 可以复用 VM 模块、干净基线模板、基础配置和登录助手代码；不能调用旧开户入口以完成 HAPI 开户，不能读写 WireGuard 的申请、设备身份、状态库或接入包。同一邮箱可在两套系统存在，不能因此自动认领、复用或迁移旧 VM。VMID、IP、域名及 Terraform 所有权须做共享基础设施层面的冲突检查。
 
@@ -290,7 +290,7 @@ remotecc/hapi-data/
 
 ## 10. 真实执行就绪条件
 
-当前未具备完整生产开户条件：独立基础设施候选工具、共享Hub、独立BWS授权及既有用户统一入口已完成；管理源码／数据／state正式绑定、服务与身份发布闭环、全新VM个人首次授权、真实参数化开户及两用户现网验收尚未完成。新 skill 可以设计、检查实现缺口、准备申请／计划契约和审阅；不能声称邮箱一填就能开通。
+当前未具备完整生产开户条件：独立基础设施候选工具、共享Hub、独立BWS授权及既有用户统一入口已完成；真实管理profile／分配池与独立state首次执行、服务与身份发布闭环、全新VM个人首次授权、真实参数化开户及两用户现网验收尚未完成。新 skill 可以设计、检查实现缺口、准备申请／计划契约和审阅；不能声称邮箱一填就能开通。
 
 首次允许实际开户前，须记录真实执行器路径及版本、受管 Sandbox、独立代码／数据／state／BWS 绑定、申请与审批接口、目标资源及作用范围、发布与回滚方式、验证记录与交付授权。执行前读取其 README 和真实帮助／契约；缺任何一项就报告具体缺口，不尝试旧 `onboard.sh`、临时 SSH 拼装或全量 Terraform apply。
 

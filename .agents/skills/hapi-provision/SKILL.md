@@ -1,71 +1,59 @@
 ---
 name: hapi-provision
-description: "设计、维护和审阅本 IaC 项目独立的 HAPI/Cloudflare 员工 VM 开户流程；核对就绪契约后准备开户、恢复及网页交付。适用于统一 HAPI 身份入口和首次 Claude 网页登录，不用于 WireGuard employee-provision、一般云主机测速或单纯维护现有 VM502。"
+description: "管理、开发和审阅本 IaC 项目独立的 HAPI/Cloudflare 员工 VM 开户流程；核对真实执行绑定、基础设施与应用就绪、统一身份入口和首次 Claude 网页授权。不用于 WireGuard employee-provision、一般云主机测速或单纯维护现有 VM502。"
 ---
 
 # HAPI 员工网页工作区开户
 
-本 skill 是项目本地、显式调用入口。HAPI/Cloudflare 与 WireGuard 的 `employee-provision`／`onboard.sh` 独立；不要把 HAPI 开户作为旧流程新增 profile。
+本 skill 为项目本地、显式调用入口。先读[开户设计及就绪契约](../../../docs/architecture/hapi-workspace-provisioning.md)和[管理员运行绑定](../../../docs/guides/hapi-admin-runtime.md)。HAPI 与 WireGuard 的 `employee-provision`／`onboard.sh` 使用独立执行器、登记、state、BWS授权及交付；不把本流程作为旧入口的 profile。
 
-## 先判断任务与就绪状态
+## 当前能力与真实入口
 
-先读[开户设计与执行就绪条件](../../../docs/architecture/hapi-workspace-provisioning.md)。
+VM500已运行统一入口、身份网关、单共享Hub和会话数据库；VM502保留原Runner、Claude及localhost3006兼容代理。既有用户已确认统一入口可用。这不等于新员工完整开户或全新VM首次Claude授权已验收。
 
-当前实施入口材料为[VM500控制面第一阶段计划](../../../docs/planning/2026-10-30-hapi-control-plane-phase-one.md)，记录已核实现场与待绑定对象；它不是已批准的部署命令或生产开户后端。计划阶段可执行用户明确授权的只读盘点，保持严格主机公钥校验，不借此运行旧开户引擎或读取业务台账／秘密。
+正式私有源码位于主检出的`~/Projects/IaC/remotecc/hapi-admin/`，运行数据在同级`hapi-data/`。先读私有README，再使用真实入口核对帮助和执行绑定：
 
-当前已有设计、skill、身份／代理、前端自动登录、集中登录引导与本地流撤销原型；独立开户运行后端仍未实现。先读[原型配置与限制](../../../docs/guides/hapi-control-plane-prototype.md)，区分真实playbook与尚未实现的自动开户命令。原型仍缺真实网络／个人授权验收和独立开户后端，不能发布生产入口。讨论／设计／审阅默认只读；用户明确授权的代码开发、验证或现场盘点可按对应范围执行，不执行开户preflight或读取真实凭据。
+```bash
+python3 ~/Projects/IaC/remotecc/hapi-admin/hapi-entry.py --help
+python3 ~/Projects/IaC/remotecc/hapi-admin/hapi-entry.py doctor
+```
 
-收到实际开户、重试、暂停或交付请求时，先检查设计的“真实执行就绪条件”：必须有可读的独立执行器 README、已实现输入／审批接口、批准的 Sandbox、独立资源／状态／BWS 绑定及对应验收证据。缺项时说明具体缺口和可继续准备的材料；不能回退旧 `onboard.sh`、共享旧设备身份、临时拼装生产命令或假报已开户。不要运行拟定目录下并不存在的脚本。
+`doctor`不创建员工登记。入口按`admin-binding.json`选择IaC工作树、只读管理员源码、可写独立数据目录及指定Sandbox；所有台账和Terraform／Ansible操作通过该入口分发，不在宿主直接运行受管Ansible，不切换到另一个worktree的数据副本。
 
-## 输入与归属
+当前命令为`doctor`、`request`、`plan-infra`、`apply-infra`、`status`，具体参数以真实`--help`和README为准。基础设施阶段有申请／预留、单VM计划、原state归属校验、启动门禁、执行回读及故障恢复；完成状态仅为`infrastructure_ready`。真实profile、分配池和管理通道仍需精确绑定与授权。
 
-- 用户默认只提供员工邮箱；由 HAPI 独立登记派生或核定稳定工作区 ID，检查命名和归属冲突。规格、模板、VMID、网络、域名及身份策略进入精确计划，不猜占用资源。
-- 只在 HAPI 台账中查询已有登记。同一邮箱在 WireGuard 台账存在，不代表可以共用 VM、密钥或运行状态。
-- 重跑复用获批工作区及秘密引用，不为恢复失败轮换凭据；输入、代码、资源归属或计划变化后重新审阅。
+应用安装、服务秘密／PKI、租户发布、Cloudflare首次subject绑定、入口启用、员工交付及完整生命周期尚未串成已验收后端。不得把`execution_context_ready`或`infrastructure_ready`报告成`services_ready`／`public_entry_ready`。收到完整开户请求时，说明实际缺少的阶段，继续准备已授权材料，不虚构不存在的命令。
 
-## 应保持的接入结构
+## 申请、计划与资源归属
 
-- 统一 `hapi.willfan.me` 按已验证 Access 身份映射到本人独立 VM／Hub／Runner；用户传入的邮箱头、VMID或应用票据不能选择后端。REST、SSE、Socket.IO、网页登录和RFB控制都遵循同一归属。
-- HAPI 前端通过服务端认证衔接取得本人 Hub 的短期票据；不分发长期基础 token，不单靠共享 namespace 后缀做权限隔离。原生 HAPI 尚无该入口的自动SSO，须验证适配实现。
+- 默认输入是邮箱；只在HAPI登记中派生或核定稳定ID。规格、干净模板、VMID／IP／MAC、网络边界、state和秘密引用进入精确计划；不猜空闲资源。
+- 同一邮箱在WireGuard登记存在不代表可共用VM、密钥或state。底层VM模块和公共角色可以复用，资源所有权须独立核对。
+- 沿已实现阶段执行，保存意图、精确资源ID和回读结果；结果不明先查实际对象与state，不重复创建、轮换或发送。代码、输入或归属变化后重新计划。
+- Terraform管理的VM使用原state生成精确变更／destroy plan；核对lineage、资源地址及VM身份。不用`qm destroy`或`state rm`绕过其管理关系。个人认证异常不触发销毁／重建。
+- QA VM9101／9102已在2026-10-31按原Terraform state回收，见[回收记录](../../../docs/planning/2026-10-31-hapi-qa-retirement.md)。旧提案、Vault和计划只作证据，不作为新员工槽位或可重放输入。需要完整验收时通过新流程从干净模板按需创建。
 
-自动登录使用锁定源码的独立网页构建，入口只要求一次Cloudflare身份验证。工作VM必须提供构建包及精确SHA256，不允许缺产物时回退HAPI token表单。刷新只获取短期会话；换账号先清理本origin应用数据并完整导航，保留Access cookie，不清除VM内个人Claude认证。原有VM502二进制和入口不自动替换。
-- 首次 Claude 登录复用已部署到VM502的 `employee-login-guide`／`workspace-login`，按设计第6节接入，不另实现OAuth。源文件已核对本地`bf4e5bd`，以来源／派生摘要和获批版本交付。保持VM Firefox、真实tmux／PTY、授权码隔离和状态检查；已有登录的状态检查不代替新VM首次授权验收。
-- 新 VM 在 VM 外隔离及启动门禁验证前保持停止。执行、数据和个人 Claude 凭据保留在本人 VM；不靠员工 sudo 限制实现网络隔离。
+## 单Hub、身份与凭据边界
 
-## 独立性与凭据
+VM500承担Cloudflare Tunnel终结、统一网页／登录引导、身份网关、共享Hub和数据库。员工VM运行Runner、Claude、个人浏览器及受限登录执行／画面服务，使用原批准默认路由；不在每台员工VM部署Hub，不把VM500作为开发流量的通用出口。
 
-拟定管理员代码／数据目录为主 checkout 下 `remotecc/hapi-admin/`／`remotecc/hapi-data/`，当前不是可执行入口；实施后以已核实的绑定为准。公开仓库不保存真实申请、计划、邮箱台账、状态或秘密。
+统一`hapi.willfan.me`以受验证Access身份绑定固定namespace和本人VM。浏览器完成一次Cloudflare登录后自动建立HAPI短期会话，不再要求HAPI基础token登录；个人Claude授权在缺失或过期时由本人完成。客户端邮箱头、VMID、机器ID及namespace后缀不能扩大权限；HTTP、SSE、Socket.IO、RPC与RFB均遵循同一归属和撤销要求。
 
-HAPI 使用独立 BWS 授权边界，不读旧 EmployeeWorkspace 的设备私钥或借用其机器账号。服务凭据可在批准部署中物化到目标 VM／网关；管理员 BWS 机器令牌不发到这些主机，个人 Claude 凭据不进入模板或交付物。VM502 及其既有秘密绑定不自动迁移。
+当前服务配置索引在私有`hapi-data/credentials/service-runtime.json`；以索引和批准的当前运行Vault为准。BWS独立`HapiWorkspace`管理服务凭据，员工／Runner凭据固定绑定namespace并可撤销。共享Hub签名密钥只物化到VM500；CA签发权限及BWS管理员token留在管理员环境。浏览器不接收长期基础token，员工VM不接收Tunnel token、共享签名密钥或其他员工凭据。
 
-可复用底层 VM 模块、模板和公共角色，但两个执行器不能共同管理同一资源；仍需检查PVE VMID、地址、域名及state归属冲突。
+现有统一入口和VM502的任务、项目、个人认证保持原归属，不因新开户重启或迁移。VM500的WireGuard历史配置属于独立迁移范围，不在HAPI开户中接管、复用业务登记或擅自移除。
 
-## 登录组件接入
+## Claude登录与验收
 
-读取设计第2、5、6节的控制面／VM拆分契约。VM500为已确定的员工接入控制面，部署专用Tunnel连接器、页面、静态资源、身份路由和编排，不承担员工VM自身出网。工作VM使用已批准的默认路由，不因HAPI接入改指VM500或新增集中NAT。员工VM保留Hub／Runner、最小登录执行服务、tmux／PTY、Firefox／RFB和个人凭据，不分发公网Tunnel token。VM500上的HAPI不能共用WireGuard登记、凭据或规则所有权；不能在HAPI state重复认领VM500，公开控制面进程不持有PVE或BWS管理员权限。
+首次登录复用`claude-login-agent`／`workspace-login`及固定API。来源核对包含本地`bf4e5bd`和`claude-login-agent/source-provenance.json`；页面和noVNC在控制面，真实tmux／PTY、Firefox／RFB及个人授权在本人VM。按[设计第6节](../../../docs/architecture/hapi-workspace-provisioning.md)验证同源、CSRF／Origin、mTLS和身份归属，不另实现OAuth或放宽校验。
 
-当前VM502已部署服务仍混合页面与本机执行；当前分支已将共享代码快照提取到独立角色，页面在控制面，执行和Firefox在本人VM。来源与派生摘要在`claude-login-agent/source-provenance.json`。分别验证公共身份／CSRF／Origin、受限TLS、固定API、RFB及统一路径；不能删除VM502限制或放宽校验。原组合服务不自动迁移；真实新VM授权仍待验收。
+不主动开始本人授权；授权码只瞬时转发，不写日志、缓存或重试队列。重试先读取VM的登录状态，保留已有授权和日常浏览器；不登出VM502制造测试条件。登录过期不表示VM需要重建，未开启授权时`viewer_ready=false`可为正常状态。
 
-实时流通过签名租约Unix守卫，绑定票据哈希、分配指纹和到期时间。停用／归属变化先改本地登记并切断已有流，再同步Access。登记与桥接配置不一致时拒绝新请求，不能临时绕过守卫或指纹检查。撤销SQLite属于私有持久状态，不当缓存清理；本地当前断言注销不等于跨应用Cloudflare退出。
+分别记录基础设施、应用服务、身份发布、本人Claude授权和员工验收，邮件受理也单独记录。完整验收覆盖两身份分别进入本人VM、首次授权、日常使用和停用／恢复；现有用户可用、合成测试和网络隔离通过不能替代这些证据。
 
-VM500上的WireGuard当前仍运行、尚未退役，OCI为迁移方向，VM500目标职责不包含WireGuard网关。旧代码、接口、规则及凭据引用是迁移依赖，不能当作已经停用，也不据此设计长期共存。实施前核对OCI接入、工作VM默认路由及回退依赖，退役与state归属变更各按精确计划执行；HAPI与WireGuard开户流程继续独立。
+## 运维与交付
 
-BWS继续管理基础服务令牌；部署后服务运行时使用所需值，不能把BWS存储等同于网关不接触令牌。员工VM本机交换短期票据只是评审建议，须单独明确方案后实施，不替代BWS或自动成为开户前置要求。
+VM外边界在首次启动前核验，员工sudo不能修改宿主隔离规则。运行期30秒网络巡检当前默认不启用；VM500／VM502证书／CRL到期检查继续运行，见[运维说明](../../../docs/guides/hapi-operations.md)。巡检不等于自动续期、备份或恢复演练。
 
-VM502当前直连Tunnel属于单人试点；迁移读取设计第6.5节，单独绑定Tunnel／DNS／Access精确计划与回退。不能把同一Tunnel token复制到不同localhost后端的两台连接器来试切换；验收后关闭旧公开旁路并按计划停用旧连接器，保留任务和个人数据。
+交付统一网址及首次登录说明，不生成WireGuard设备包。申请、计划、状态、凭据和个人资料留在私有运行区；公开IaC仅保存通用代码与契约。沿已有精确授权推进；部署、凭据变更、邮件和删除遵守项目外部写入边界，不因skill调用扩大授权。
 
-共享引导按单独计划部署一次；开户仅安装／检查本人VM的执行服务和登记路由，不自动开始个人授权，也不重启其他人的服务。授权码仅瞬时转发，不写日志、缓存或重试队列；控制面重启后先查VM状态，不能盲目重启流程。账号切换／停用关闭旧控制连接。
-
-分别记录组件服务就绪、即时Claude登录状态及本人真实验收；`viewer_ready=false`在未进行授权时可以正常，登录过期不触发重建VM或清除个人数据。验证用新VM／本人自然过期场景，不主动登出VM502制造未登录态。
-
-## 后端就绪后的执行约定
-
-沿真实执行器的契约生成私有申请和精确计划。计划必须展示目标资源、Cloudflare共享／员工对象、身份映射、网络、秘密写入范围、验证和收件对象，并绑定当前输入／代码／计划摘要。已有精确授权可继续，不重复询问；没有授权的部署、凭据写入、邮件或删除在实际动作前确认。
-
-只执行当前批准阶段，逐资源保存意图、精确ID和回读结果。结果不明先核查，不盲目创建或重发。失败先阻断本次工作区入口并保留数据，不停用共享入口或其他人的会话。恢复、暂停与退役读取设计中的相应契约，不删除VM数据作为恢复方式。
-
-网页交付提供统一网址和首次登录说明，不生成WireGuard接入包或要求本机bootstrap。分别报告工作区服务就绪、邮件API受理、本人Claude授权和员工验收；不能相互替代。至少两个测试身份／VM的隔离及全新VM首次登录验收通过后，才将实现标为可开户。
-
-## 维护本 skill
-
-运行后端交付后，用真实路径、帮助、输入和验证证据更新就绪条件；不要只删去“尚未实现”的说明。保持BMad已选工作流，不由本skill新增一套通用研发门禁或自动触发部署。所有操作继续遵守项目的Git和外部写入边界。
+后续阶段落地后同步本skill的真实帮助、能力范围与验证证据。保持显式调用策略，不把候选代码或基础设施就绪升级为完整开户承诺。

@@ -1,6 +1,11 @@
 ---
 all:
   children:
+    hapi_health:
+      hosts:
+        hapi-health-test:
+          ansible_host: 192.0.2.23
+          hapi_health_check_network: true
     hapi_pve:
       hosts:
         fixture-pve:

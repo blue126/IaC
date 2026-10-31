@@ -1,3 +1,4 @@
 ---
 hapi_network_manifest: {}
 hapi_network_expected_manifest_sha256: ''
+hapi_network_enable_health: false

@@ -119,3 +119,18 @@
 
 - name: Verify the complete applied boundary
   ansible.builtin.include_tasks: verify.yml
+
+- name: Configure the approved runtime boundary monitor after enforcement
+  ansible.builtin.include_role:
+    name: hapi-health
+  vars:
+    hapi_health_check_network: true
+    hapi_health_tls_files: []
+    hapi_health_enable_timer: true
+  when: hapi_network_enable_health | bool
+
+- name: Verify the approved runtime boundary monitor
+  ansible.builtin.include_role:
+    name: hapi-health
+    tasks_from: verify
+  when: hapi_network_enable_health | bool

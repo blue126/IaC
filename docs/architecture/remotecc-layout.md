@@ -2,6 +2,8 @@
 
 主检出 `~/Projects/IaC/remotecc/` 保存管理员代码基线和本机唯一的活动运行数据。公开 IaC 的 Git 忽略整个目录；linked worktree 可引用代码基线，也可携带源文件用于开发，但申请、凭据和检查点保持共享。
 
+下文的`employee-admin`执行流程属于WireGuard。HAPI独立使用同级`hapi-admin`／`hapi-data`及自己的绑定Sandbox，正式入口和验证见[HAPI管理员运行绑定](../guides/hapi-admin-runtime.md)；不调用下文的`onboard.sh`或复用其业务登记。
+
 ```text
 IaC/remotecc/
 ├── employee-admin/   # 独立本地 Git：管理员入口、测试和说明
@@ -18,7 +20,7 @@ IaC/remotecc/
 
 ## Worktree 中的管理员代码
 
-从主检出创建新 worktree 时，可以按 `.worktreeinclude` 携带管理员源文件。Codex 跳过源符号链接，因此配置、密钥和运行数据的兼容链接不会作为文件副本复制。当前 HAPI worktree 仍使用迁移时建立的共享 `remotecc` 链接；修改复制清单不会追溯替换它。
+从主检出创建新 worktree 时，可以按 `.worktreeinclude` 携带管理员源文件。Codex 跳过源符号链接，因此配置、密钥和运行数据的兼容链接不会作为文件副本复制。历史HAPI工作树曾使用迁移时建立的共享`remotecc`链接；该记录不表示新的HAPI独立绑定已复用WireGuard运行区。
 
 源文件可用不代表该 worktree 已配置成独立的 provisioning 环境。共享数据、外层锁、同步 journal、IaC 代码根和 Sandbox 必须显式绑定后才能执行；不要直接运行缺少绑定的源文件副本。当前生产入口仍按 `settings.json.iac_root` 和 `sandbox_name` 使用既有部署工作树，不会因所在目录改变而切换。完整的逐 worktree 执行绑定尚未实现，本次复制清单不改变这一点。
 
