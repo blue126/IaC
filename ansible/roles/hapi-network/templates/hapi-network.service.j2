@@ -1,0 +1,12 @@
+[Unit]
+Description=HAPI external VM network boundaries
+After=network-pre.target
+Before=pve-guests.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hapi-network.py apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

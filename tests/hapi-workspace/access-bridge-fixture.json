@@ -1,0 +1,19 @@
+{
+  "version": 1, "node": "fixture-pve", "bridge": "vmbr77",
+  "attachment": "access-bridge", "hook_file_id": "fixture:snippets/hapi-network-hook.py",
+  "control_address": "192.168.77.10", "admin_addresses": ["192.168.77.20"],
+  "dns_addresses": ["192.168.77.1"], "protected_networks": ["203.0.113.64/26"],
+  "trusted_peers": [
+    {"address": "192.168.77.1", "mac": "02:00:00:77:00:01", "ports": ["uplink0"]},
+    {"address": "192.168.77.10", "mac": "02:00:00:77:00:10", "ports": ["tap500i0"]},
+    {"address": "192.168.77.20", "mac": "02:00:00:77:00:20", "ports": ["uplink0"]}
+  ],
+  "workspaces": [
+    {"id": "alice", "vmid": 7701, "vnet": "vmbr77", "vlan": null,
+     "mac": "02:00:00:77:01:02", "address": "192.168.77.2/24",
+     "gateway": "192.168.77.1", "gateway_mac": "02:00:00:77:00:01", "enabled": true},
+    {"id": "bob", "vmid": 7702, "vnet": "vmbr77", "vlan": null,
+     "mac": "02:00:00:77:02:02", "address": "192.168.77.3/24",
+     "gateway": "192.168.77.1", "gateway_mac": "02:00:00:77:00:01", "enabled": true}
+  ]
+}

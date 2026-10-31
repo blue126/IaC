@@ -1,0 +1,7 @@
+{
+  "guests": [
+    {"node": "other-node", "vmid": 8801, "type": "qemu",
+     "config": {"name": "unrelated-fixture", "net0": "virtio=02:00:00:88:01:01,bridge=vmbr0", "ipconfig0": "ip=10.88.0.2/24,gw=10.88.0.1"}}
+  ],
+  "links": [{"ifindex": 1, "ifname": "vmbr77"}]
+}
