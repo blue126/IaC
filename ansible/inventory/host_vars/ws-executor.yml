@@ -1,0 +1,11 @@
+---
+proxmox_node: pve0
+proxmox_vmid: 116
+
+# Always-on infrastructure: keep the resolver independent of tailscaled.
+tailscale_accept_dns: false
+
+# Inbound sources admitted by the host firewall in addition to tailscale0;
+# everything else is dropped.
+host_firewall_allowed_cidrs:
+  - 192.168.1.0/24

@@ -1,0 +1,13 @@
+[Unit]
+Description=Semaphore UI for the employee workspace executor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Runs as root so templates can call wsctl with the executor credentials.
+EnvironmentFile={{ semaphore_config_dir }}/secrets.env
+ExecStart=/usr/bin/semaphore server --config {{ semaphore_config_dir }}/config.json
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,135 @@
+---
+- name: Deploy ws-executor host
+  hosts: ws-executor
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for initial SSH access
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Wait for Cloud-Init to finish
+      ansible.builtin.command: cloud-init status --wait --format json
+      register: ws_executor_cloud_init
+      async: 900
+      poll: 5
+      changed_when: false
+      failed_when: ws_executor_cloud_init.rc not in [0, 2]
+      when: not ansible_check_mode
+
+    - name: Reject unrecoverable Cloud-Init errors
+      ansible.builtin.assert:
+        that:
+          - ws_executor_cloud_status.status == 'done'
+          - ws_executor_cloud_status.errors | length == 0
+      vars:
+        ws_executor_cloud_status: "{{ ws_executor_cloud_init.stdout | from_json }}"
+      when: not ansible_check_mode
+
+    - name: Gather guest facts
+      ansible.builtin.setup:
+
+    - name: Verify expected Ubuntu release and virtualization
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == 'Ubuntu'
+          - ansible_facts.distribution_version == '24.04'
+          - ansible_facts.virtualization_role == 'guest'
+
+    # The shared cloud-init user-data snippet overrides the hostname Proxmox
+    # generates, so the guest keeps the template's name unless set here.
+    - name: Set hostname to the inventory name
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Resolve the hostname locally
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s'
+        line: "127.0.1.1 {{ inventory_hostname }}"
+  roles:
+    - common
+    - ubuntu-vm
+    - tailscale
+    - host-firewall
+    - ws-executor-runtime
+    - semaphore
+  post_tasks:
+    - name: Read Tailscale node name
+      ansible.builtin.command:
+        argv: [tailscale, status, --self, --json]
+      register: ws_executor_tailscale_self
+      changed_when: false
+      check_mode: false
+      when: not ansible_check_mode
+
+    # tailscaled keeps the name it joined with; align it once the OS hostname is set.
+    - name: Rename Tailscale node to the inventory name
+      ansible.builtin.command:
+        argv: [tailscale, set, "--hostname={{ inventory_hostname }}"]
+      changed_when: true
+      when:
+        - not ansible_check_mode
+        - (ws_executor_tailscale_self.stdout | from_json).Self.HostName != inventory_hostname
+
+- name: Verify ws-executor host
+  hosts: ws-executor
+  become: true
+  gather_facts: true
+  tags: [verify]
+  tasks:
+    - name: Check tailscaled service status
+      ansible.builtin.systemd:
+        name: tailscaled
+      register: ws_executor_tailscaled
+
+    - name: Assert tailscaled service is active
+      ansible.builtin.assert:
+        that:
+          - ws_executor_tailscaled.status.ActiveState == 'active'
+        fail_msg: tailscaled service is not active
+
+    - name: Read Tailscale connection state
+      ansible.builtin.command:
+        argv: [tailscale, status, --json]
+      register: ws_executor_tailscale_status
+      changed_when: false
+      check_mode: false
+
+    - name: Assert Tailscale is logged in
+      ansible.builtin.assert:
+        that:
+          - (ws_executor_tailscale_status.stdout | from_json).BackendState == 'Running'
+        fail_msg: Tailscale is not logged in
+
+    - name: Assert hostname matches the inventory name
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == inventory_hostname
+        fail_msg: "Hostname is {{ ansible_facts.hostname }}, expected {{ inventory_hostname }}"
+
+    - name: Read pinned tool versions
+      ansible.builtin.command:
+        argv: ["{{ item }}", --version]
+      register: ws_executor_tool_versions
+      changed_when: false
+      check_mode: false
+      loop: [terraform, uv, bws]
+
+    - name: Assert pinned tools are installed
+      ansible.builtin.assert:
+        that:
+          - ws_executor_tool_versions.results | map(attribute='rc') | max == 0
+        fail_msg: A pinned executor tool is missing
+
+    - name: Check Semaphore answers on its port
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/ping
+        return_content: true
+      register: ws_executor_semaphore_ping
+      failed_when: ws_executor_semaphore_ping.status != 200
+
+    - name: Verify host firewall
+      ansible.builtin.include_role:
+        name: host-firewall
+        tasks_from: verify
