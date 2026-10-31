@@ -1,0 +1,120 @@
+---
+- name: Download pinned Semaphore package
+  ansible.builtin.get_url:
+    url: "https://github.com/semaphoreui/semaphore/releases/download/v{{ semaphore_version }}/semaphore_community_{{ semaphore_version }}_linux_amd64.deb"
+    dest: "/usr/local/lib/ws-executor/semaphore-{{ semaphore_version }}.deb"
+    checksum: "sha256:{{ semaphore_deb_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Read installed Semaphore version
+  ansible.builtin.command:
+    argv: [dpkg-query, -W, -f, "${Version}", semaphore]
+  register: semaphore_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# apt-get waits for the dpkg lock that unattended upgrades hold on a fresh VM.
+- name: Install Semaphore
+  ansible.builtin.command:
+    argv: [apt-get, install, -y, -o, "DPkg::Lock::Timeout=900", "/usr/local/lib/ws-executor/semaphore-{{ semaphore_version }}.deb"]
+  changed_when: true
+  when: semaphore_installed.stdout != semaphore_version
+  notify: Restart semaphore
+
+- name: Create Semaphore directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ semaphore_config_dir }}"
+    - "{{ semaphore_data_dir }}"
+    - "{{ semaphore_data_dir }}/tmp"
+
+# Encryption keys and the admin password are generated once on the host and
+# never leave it; the admin reads the password from the file over SSH.
+- name: Generate Semaphore secrets once
+  ansible.builtin.shell: |
+    set -euo pipefail
+    umask 077
+    {
+      echo "SEMAPHORE_COOKIE_HASH=$(head -c 32 /dev/urandom | base64)"
+      echo "SEMAPHORE_COOKIE_ENCRYPTION=$(head -c 32 /dev/urandom | base64)"
+      echo "SEMAPHORE_ACCESS_KEY_ENCRYPTION=$(head -c 32 /dev/urandom | base64)"
+    } > {{ semaphore_config_dir }}/secrets.env
+    head -c 24 /dev/urandom | base64 | tr -d '/+=' > {{ semaphore_config_dir }}/admin-password
+  args:
+    executable: /bin/bash
+    creates: "{{ semaphore_config_dir }}/secrets.env"
+  no_log: true
+  notify: Restart semaphore
+
+- name: Deploy Semaphore configuration
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ semaphore_config_dir }}/config.json"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart semaphore
+
+- name: Deploy Semaphore service unit
+  ansible.builtin.template:
+    src: semaphore.service.j2
+    dest: /etc/systemd/system/semaphore.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart semaphore
+
+- name: Enable Semaphore
+  ansible.builtin.systemd:
+    name: semaphore
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Apply pending Semaphore restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Semaphore to listen
+  ansible.builtin.wait_for:
+    port: 3000
+    timeout: 120
+
+- name: List Semaphore users
+  ansible.builtin.command:
+    argv: [semaphore, user, list, --config, "{{ semaphore_config_dir }}/config.json"]
+  register: semaphore_users
+  changed_when: false
+  check_mode: false
+
+- name: Create the Semaphore admin user
+  ansible.builtin.shell: |
+    set -euo pipefail
+    semaphore user add --admin --login {{ semaphore_admin_login }} --name Administrator       --email {{ semaphore_admin_email }} --password "$(cat {{ semaphore_config_dir }}/admin-password)"       --config {{ semaphore_config_dir }}/config.json
+  args:
+    executable: /bin/bash
+  no_log: true
+  changed_when: true
+  when: semaphore_admin_login not in semaphore_users.stdout
+
+- name: Install the Semaphore bootstrap script
+  ansible.builtin.copy:
+    src: semaphore-bootstrap.py
+    dest: /usr/local/lib/ws-executor/semaphore-bootstrap.py
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create the lifecycle project and wsctl templates
+  ansible.builtin.command:
+    argv: [python3, /usr/local/lib/ws-executor/semaphore-bootstrap.py, "{{ semaphore_config_dir }}/admin-password", "{{ semaphore_admin_login }}"]
+  register: semaphore_bootstrap
+  changed_when: (semaphore_bootstrap.stdout | from_json).changed
+  when: not ansible_check_mode

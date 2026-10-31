@@ -53,6 +53,7 @@
     - tailscale
     - host-firewall
     - ws-executor-runtime
+    - semaphore
   post_tasks:
     - name: Read Tailscale node name
       ansible.builtin.command:
@@ -120,6 +121,13 @@
         that:
           - ws_executor_tool_versions.results | map(attribute='rc') | max == 0
         fail_msg: A pinned executor tool is missing
+
+    - name: Check Semaphore answers on its port
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/ping
+        return_content: true
+      register: ws_executor_semaphore_ping
+      failed_when: ws_executor_semaphore_ping.status != 200
 
     - name: Verify host firewall
       ansible.builtin.include_role:
