@@ -14,19 +14,57 @@
 ./onboard.sh --profile oci-hub export --device alice
 ```
 
-`provision` 输出请求文件和精确审批 SHA，不执行创建。默认规格来自已配置资源池（当前2核 host、8GiB、50GiB、pve2-ssd、模板9001）；已有员工复用自己的 VM，不隐式调整规格。同一设备复用原密钥/地址；新设备使用 `--device` 指定独立 ID。纯数字邮箱用户名加 `user` 前缀，其余不加 `ed-`。碰撞时停止并说明冲突。
+`provision` 输出请求文件和精确审批 SHA，不执行创建。已完成设备返回already_configured/configured_blocked和apply_required=false，直接按提示查询/导出；不要重复apply。默认规格来自已配置资源池（当前2核 host、8GiB、50GiB、pve2-ssd、模板9001）；已有员工复用自己的 VM，不隐式调整规格。同一设备复用原密钥/地址；新设备使用 `--device` 指定独立 ID。纯数字邮箱用户名加 `user` 前缀，其余不加 `ed-`。碰撞时停止并说明冲突。
 
 工具复用既有冷创建流程：PVE 独立子网及 hook → 受保护停机 VM → 受信任 QGA 核对/启动和 SSH 主机公钥 → 独立 BWS 记录 → VM 原生授权与 Spoke/Mosh → Portal 登记及配额 → 本地包。新模板克隆的 vendor-data 与 provider 生成的用户/主机名配置并存，不覆盖管理员 cloud-init 公钥。没有管理端点网络授权时停止，不扩大 Sandbox 网络范围。
 
 曾由管理员停用的现有用户/工作区不会因普通重跑自动恢复；明确恢复时生成带 `--restore-existing` 的新计划。它只恢复本人用户和工作区，不恢复其他已撤销设备。用户/设备/工作区、计划及交付都绑定 `oci-hub` profile。
 
-## 查询与交付
+已开始但未完成的请求必须先恢复，之后再执行其他员工的开户。此约束包括意图已本地持久化、尚未送到OCI的窗口；错误返回需恢复的run_dir。部分创建可多次重新plan，持续保留同一VM及原创建证明。尚未执行的错设备草案可由新计划替代，旧审批失效。
 
-`registry` 读取 Terraform、PVE、Portal 和新后端台账；`online` 额外观察 WG 握手与目标 VM 的 SSH TCP/Mosh UDP 监听。近期握手或 UDP 监听不等于真人在线；查询错误显示未知，不能当作无人使用。此查询只覆盖新后端，旧后端仍用 `--profile existing online`。
+## 查询、验收与交付
 
-本地包之后继续既有 `plan DELIVERY.json` / `deliver DELIVERY.json SHA256`，复用 Temp.sh POST 上传/下载校验及 Microsoft Mail.Send。请求需指定 profile、device_id、recipient、bundle_dir、run_dir、notify；只批准上传不代表批准发信。邮件使用当前模板，先展示收件人、真实链接与提示词，获准后发送。加密邮件缓存按原通道管理，不复制明文令牌。
+`./onboard.sh --profile oci-hub registry` / `verify` 查询服务端状态，`online` 额外观察握手和 SSH/Mosh 连接。查询失败显示未知；这些观察不是员工本人已完成bootstrap的证明。`configured`只表示配置完成，交付还要核对bundle.verification状态。
 
-VM509 本次专项验收由用户跳过：仅对其正式试点设备记录受保护的 `acceptance_waived` 与授权引用；身份、归属、主机公钥、包哈希与停用状态仍检查。其他未豁免设备继续要求原有验收记录。不得把跳过说成通过。
+同员工新增设备用 `provision --email EMAIL --device NEWID`；同邮箱有多个工作区时加 `--employee-id ID`。已有设备导出用 `export --device ID`，不轮换密钥。export返回directory、摘要及delivery_request草稿；其中bundle_dir/run_dir属于Sandbox数据路径，直接使用工具给出的值，不猜测或混用宿主下载目录。
+
+### 非豁免设备的验收
+
+保存以下受保护JSON，并运行 `./onboard.sh --profile oci-hub acceptance ACCEPTANCE.json`：
+
+```json
+{"profile":"oci-hub","device_id":"alice","bundle_dir":"EXPORT返回的directory"}
+```
+
+输出包括subject_sha256、required_checks、pending状态的record_template和现有验收/豁免校验结果。模板不会把检查自动记为通过。独立验证须在另行批准的环境执行，保存对应证据；员工自报结果、服务检查和模板都不等于独立验收。
+
+验收实际在Sandbox执行，并从 `settings.oci_hub.runtime_settings` 指定的运行配置读取 `oci_hub.e2e_verification`；桥接不会把宿主整份settings复制过去。证据和记录须是Sandbox可见的持久私有数据路径，属于Sandbox执行UID、mode0600；不要只修改宿主字段或把秘密打印出来排错。
+
+管理员审阅真实证据后，将模板补为已完成记录：Unix秒observed_at/valid_until（最多一小时）、每项passed/evidence/sha256，以及绑定的subject；证据文件名与哈希须一致。保护记录及证据归Sandbox执行UID、mode0600，批准后在私有e2e_verification中登记receipt_path、approved_sha256和approval_ref，再运行acceptance校验。缺项或失效应停在awaiting_e2e_verification，报告摘要和缺项，不假填通过。记录最长有效1小时且绑定全局mapping_generation/网络策略；其他员工登记可能使其失效，上传到发信间也须重新校验当前subject，不延长旧证据时间绕过。
+
+已批准的特定设备豁免继续通过acceptance_waivers绑定其员工/设备/授权引用，结果为acceptance_waived，不推广至其他设备或称为验收通过。当前Mosh验收不再要求已退役的旧接入保留项。
+
+### 上传与邮件分两次批准
+
+将export输出的delivery_request保存到宿主私有申请目录。草稿形态如下；路径须替换为工具实际输出：
+
+```json
+{"profile":"oci-hub","device_id":"alice","recipient":"alice@example.com","bundle_dir":"EXPORT返回的directory","run_dir":"EXPORT草稿提供的run_dir","notify":false,"purpose":"onboarding"}
+```
+
+先执行 `./onboard.sh --profile oci-hub plan DELIVERY.json`，批准其SHA后执行 `deliver DELIVERY.json SHA256`（同样带 --profile oci-hub）。工具建立回执目录、上传并下载校验，返回verified。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。
+
+随后仅把notify改为true，重新plan。它要求已有verified上传，不会在没有实际链接和预览时直接发信。展示返回的收件人、mail_subject及可在宿主打开的host_mail_preview；再次批准后deliver才发邮件。主题和正文纳入审批摘要，变化后重新plan。
+
+上传只用当前Temp.sh通道，微软Mail.Send用于通知；不使用OneDrive。三天是服务标注政策、回执为估计，不是可用性保证。上传或发信结果不明时不自动重试；上传成功但下载校验失败可恢复原校验，不重新上传。平台5xx、次数限制和时间过期分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
+
+确需重新交付时，取得该员工/设备的新授权，复用原包并使用新的回执子目录重新plan，不覆盖旧回执、不重新开户。completed只表示API已接受原通知，重跑不会重复发送；员工是否收到与bootstrap成功要另行确认。
+
+### Git收尾与员工认证
+
+开户写入受Git跟踪的oci-hub-workspaces.auto.tfvars.json。配置/交付后展示定义差异，另行取得提交、PR、合并授权；合并前审阅计划中的相关变化，不执行意外destroy。未获Git授权时明确标记待收尾，保留正在引用的工作树。
+
+员工Agent配置电脑并通过SSH进入本人VM；系统授权、密码及个人Claude授权由员工本人处理。Claude认证必须在本人VM的Firefox中完成；终端包没有桌面链接时先确认另行配置的VM浏览器入口，缺入口报告等待，不用本机认证代替。
 
 ## 网络与旧后端退役
 
