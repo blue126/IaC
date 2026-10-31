@@ -57,7 +57,7 @@
     group: root
     mode: '0644'
 
-- name: Apply boundary before SDN creation
+- name: Apply default egress and isolation policy before SDN creation
   ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py apply
   changed_when: true
 
