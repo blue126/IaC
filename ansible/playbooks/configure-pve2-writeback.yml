@@ -1,0 +1,21 @@
+---
+- name: Deploy pve2 guest disk writeback threshold
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Apply writeback threshold
+      ansible.builtin.include_role:
+        name: proxmox-storage
+        tasks_from: writeback
+
+- name: Verify pve2 guest disk writeback threshold
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify writeback threshold
+      ansible.builtin.include_role:
+        name: proxmox-storage
+        tasks_from: verify-writeback

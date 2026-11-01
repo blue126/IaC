@@ -1,0 +1,12 @@
+---
+# Freshly cloned guest disks land in the page cache. With the default
+# ratio-based thresholds on a large-memory host, gigabytes stay dirty until
+# the post-clone resize's fdatasync has to flush them inside PVE's fixed
+# 10 second qemu-img timeout. A byte threshold starts writeback early.
+- name: Start guest disk writeback at a fixed dirty byte threshold
+  ansible.posix.sysctl:
+    name: vm.dirty_background_bytes
+    value: "{{ proxmox_storage_dirty_background_bytes }}"
+    sysctl_file: /etc/sysctl.d/90-guest-writeback.conf
+    state: present
+    reload: true
