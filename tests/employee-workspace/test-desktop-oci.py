@@ -7,6 +7,7 @@ import importlib.util
 import http.client
 import json
 import os
+import secrets
 from pathlib import Path
 import shutil
 import socket
@@ -60,7 +61,8 @@ class OCITests(unittest.TestCase):
         openssl('x509', '-req', '-in', cls.base / 'server.csr', '-CA', cls.generation / 'ca.pem',
                 '-CAkey', cls.base / 'ca.key', '-CAcreateserial', '-days', '1', '-extfile', ext,
                 '-extensions', 'leaf', '-out', cls.generation / 'server.pem')
-        (cls.generation / 'authentication.json').write_text(json.dumps({'username': 'synthetic', 'password': 'fixture-only'}))
+        cls.authentication = {'username': 'synthetic', 'password': secrets.token_hex(16)}
+        (cls.generation / 'authentication.json').write_text(json.dumps(cls.authentication))
         for path in cls.generation.iterdir():
             path.chmod(0o640 if path.name in ('server.key', 'authentication.json') else 0o644)
         cls.config = json.loads((Path(__file__).parent / 'fixtures/desktop-lifecycle.json').read_text())
@@ -124,7 +126,7 @@ class OCITests(unittest.TestCase):
             self.assertEqual(headers[:3], ['Host: localhost', 'Origin: https://localhost:8444',
                                                   'Sec-WebSocket-Origin: https://localhost:8444'])
             self.assertEqual(headers[3], 'Sec-WebSocket-Protocol: binary')
-            self.assertEqual(headers[4], 'Authorization: Basic ' + base64.b64encode(b'synthetic:fixture-only').decode())
+            self.assertEqual(headers[4], 'Authorization: Basic ' + base64.b64encode(('synthetic:' + self.authentication['password']).encode()).decode())
         finally:
             client.close(); server.close(); thread.join(5)
         self.assertEqual(observed, [b'synthetic-only'])

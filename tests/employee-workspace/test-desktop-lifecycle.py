@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import json
 import os
+import secrets
 from pathlib import Path
 import shutil
 import subprocess
@@ -90,7 +91,8 @@ class DesktopTests(unittest.TestCase):
             config = {'materials': {'trust_ref': Path(folder) / 'ca.pem', 'certificate_ref': Path(folder) / 'server.pem', 'private_key_ref': Path(folder) / 'server.key', 'authentication_ref': authentication}, 'backend': FIXTURE['backend']}
             for mismatch in (True, False):
                 with self.subTest(key_mismatch=mismatch):
-                    authentication.write_text(json.dumps({'username': 'synthetic', 'password': 'valid-synthetic' if mismatch else 'invalid\npassword'}))
+                    credential = secrets.token_hex(16) + ('' if mismatch else '\n')
+                    authentication.write_text(json.dumps({'username': 'synthetic', 'password': credential}))
                     outputs = [subprocess.CompletedProcess([], 0, stdout='CA:TRUE'), subprocess.CompletedProcess([], 0, stdout='DNS:localhost')]
                     outputs += [subprocess.CompletedProcess([], 0, stdout=b'') for _ in range(2)]
                     outputs += [subprocess.CompletedProcess([], 0, stdout=b'CERT_PUBLIC_KEY'), subprocess.CompletedProcess([], 0, stdout=b'OTHER_PUBLIC_KEY' if mismatch else b'CERT_PUBLIC_KEY')]
@@ -133,7 +135,7 @@ class DesktopTests(unittest.TestCase):
             path = directory / 'secret'
             path.write_text('synthetic')
             config = {'materials': {'private_key_ref': path}}
-            with patch.object(service, 'secure_file'), patch.object(service.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=os.getuid() + 1)), patch.object(service.grp, 'getgrnam', return_value=SimpleNamespace(gr_gid=path.stat().st_gid)), patch.object(service, 'run') as run:
+            with patch.object(service, 'secure_file'), patch.object(service.pwd, 'getpwnam', return_value=SimpleNamespace(**{'pw_uid': os.getuid() + 1})), patch.object(service.grp, 'getgrnam', return_value=SimpleNamespace(gr_gid=path.stat().st_gid)), patch.object(service, 'run') as run:
                 path.chmod(0o600)
                 with self.assertRaises(service.Refused):
                     service.validate_materials(config)
@@ -343,7 +345,7 @@ class DesktopTests(unittest.TestCase):
             def paths(p):
                 return proc if p == '/proc' else original(p)
             inactive = subprocess.CompletedProcess([], 3)
-            with patch.object(service, 'PROFILE', str(profile)), patch.object(service, 'Path', side_effect=paths), patch.object(service.subprocess, 'run', return_value=inactive), patch.object(service.pwd, 'getpwnam', return_value=types.SimpleNamespace(pw_uid=os.getuid())):
+            with patch.object(service, 'PROFILE', str(profile)), patch.object(service, 'Path', side_effect=paths), patch.object(service.subprocess, 'run', return_value=inactive), patch.object(service.pwd, 'getpwnam', return_value=types.SimpleNamespace(**{'pw_uid': os.getuid()})):
                 service.profile_guard()
                 # A separate process owns the real POSIX lock, not a mocked flag.
                 child = subprocess.Popen(['python3', '-c', 'import fcntl,sys;f=open(sys.argv[1],"r+");fcntl.lockf(f,fcntl.LOCK_EX);print("ready",flush=True);sys.stdin.read()', str(lock)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -383,7 +385,7 @@ class DesktopTests(unittest.TestCase):
                         def lstat(path, *args, **kwargs):
                             info = original_lstat(path, *args, **kwargs)
                             return owner(info, 2002 if foreign == 'symlink' else 1001) if path == compatibility else info
-                        with patch.object(service, 'PROFILE', str(profile)), patch.object(service, 'Path', side_effect=paths), patch.object(service.os, 'getuid', return_value=caller_uid), patch.object(service.pwd, 'getpwnam', return_value=types.SimpleNamespace(pw_uid=1001)) as employee, patch.object(service.os, 'fstat', side_effect=fstat), patch.object(Path, 'lstat', lstat), patch.object(service.subprocess, 'run', return_value=subprocess.CompletedProcess([], 3)):
+                        with patch.object(service, 'PROFILE', str(profile)), patch.object(service, 'Path', side_effect=paths), patch.object(service.os, 'getuid', return_value=caller_uid), patch.object(service.pwd, 'getpwnam', return_value=types.SimpleNamespace(**{'pw_uid': 1001})) as employee, patch.object(service.os, 'fstat', side_effect=fstat), patch.object(Path, 'lstat', lstat), patch.object(service.subprocess, 'run', return_value=subprocess.CompletedProcess([], 3)):
                             if foreign:
                                 with self.assertRaises(service.Refused):
                                     service.profile_guard()
@@ -407,7 +409,7 @@ class DesktopTests(unittest.TestCase):
             try:
                 self.assertEqual(child.stdout.readline().strip(), 'ready')
                 for caller_uid in (0, 1001):
-                    with self.subTest(caller_uid=caller_uid), patch.object(service, 'PROFILE', str(profile)), patch.object(service, 'Path', side_effect=paths), patch.object(service.os, 'getuid', return_value=caller_uid), patch.object(service.pwd, 'getpwnam', return_value=types.SimpleNamespace(pw_uid=1001)), patch.object(service.os, 'fstat', side_effect=employee_fstat), patch.object(service.subprocess, 'run', return_value=subprocess.CompletedProcess([], 3)):
+                    with self.subTest(caller_uid=caller_uid), patch.object(service, 'PROFILE', str(profile)), patch.object(service, 'Path', side_effect=paths), patch.object(service.os, 'getuid', return_value=caller_uid), patch.object(service.pwd, 'getpwnam', return_value=types.SimpleNamespace(**{'pw_uid': 1001})), patch.object(service.os, 'fstat', side_effect=employee_fstat), patch.object(service.subprocess, 'run', return_value=subprocess.CompletedProcess([], 3)):
                         with self.assertRaisesRegex(service.Refused, 'Unmanaged profile lock'):
                             service.profile_guard()
             finally:
