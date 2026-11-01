@@ -186,6 +186,12 @@ variable "network_mac_address" {
   default     = null
 }
 
+variable "network_firewall" {
+  description = "Whether to enable the Proxmox firewall on the primary network device"
+  type        = bool
+  default     = false
+}
+
 variable "nameserver" {
   description = "DNS Nameserver"
   type        = string
