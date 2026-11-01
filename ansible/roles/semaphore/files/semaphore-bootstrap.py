@@ -20,8 +20,9 @@ TEMPLATES={
     'wsctl deliver':(['deliver'],[APPROVE],True),
     'wsctl provision':(['provision'],[APPROVE],True),
     'wsctl access':(['access'],[APPROVE],False),
+    'wsctl enforce':(['enforce'],[],False),
 }
-SCHEDULES={'wsctl status':'*/30 * * * *'}
+SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *'}
 
 jar=http.cookiejar.CookieJar()
 opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
