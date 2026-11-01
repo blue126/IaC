@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically check the approved HAPI health scope
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec={{ '30s' if hapi_health_check_network | bool else '1h' }}
+AccuracySec=1s
+Unit=hapi-health.service
+
+[Install]
+WantedBy=timers.target

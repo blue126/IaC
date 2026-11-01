@@ -1,0 +1,5 @@
+---
+hapi_health_tls_files: []
+hapi_health_check_network: false
+hapi_health_min_valid_days: 14
+hapi_health_enable_timer: false

@@ -124,7 +124,9 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## Project-local Employee Provisioning
 
-- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for employee workspace onboarding/provisioning, device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
+- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for employee workspace onboarding/provisioning (active `oci-hub`; `existing` is retired), device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
+- HAPI and WireGuard are access methods for the same employee workspace VM. The standalone HAPI onboarding candidate has been withdrawn while the user redesigns provisioning. Do not create a second VM or manage one VM from two Terraform states.
+- `.agents/skills/hapi-provision/SKILL.md` is now a withdrawal notice, not an executable onboarding workflow. Preserve existing HAPI services, infrastructure prototypes, credentials and runtime evidence; do not invoke the historical standalone provisioning executor or integrate it into `wsctl` or the compatibility `onboard.sh` without the new design. See `docs/planning/2026-10-31-hapi-onboarding-withdrawal.md`.
 - Reuse the existing administrator `wsctl` entry and read its README before changing the workflow. Extend the existing workflow instead of creating another provisioning engine.
 - Do not match generic infrastructure VM work or employee-side bootstrap. For discussion and review, use the skill as read-only operational context; preserve the explicitly selected BMad workflow.
 - Skill activation does not authorize apply, credential changes, uploads, email, commits, pushes, or other external writes.

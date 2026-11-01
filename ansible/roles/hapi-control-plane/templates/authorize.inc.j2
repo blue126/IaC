@@ -1,0 +1,6 @@
+set $hapi_original_method $request_method;
+set $hapi_resource app;
+auth_request /_hapi_authorize;
+auth_request_set $hapi_backend $upstream_http_x_hapi_upstream;
+auth_request_set $hapi_tls_name $upstream_http_x_hapi_tls_name;
+auth_request_set $hapi_stream_lease $upstream_http_x_hapi_stream_lease;

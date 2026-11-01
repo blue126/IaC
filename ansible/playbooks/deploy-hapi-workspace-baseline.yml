@@ -1,0 +1,17 @@
+---
+- name: Deploy the explicitly approved independent HAPI application baseline
+  hosts: hapi_workspaces
+  become: true
+  roles:
+    - hapi-workspace-baseline
+
+- name: Verify the independent HAPI application baseline
+  hosts: hapi_workspaces
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the application baseline without starting personal authorization
+      ansible.builtin.include_role:
+        name: hapi-workspace-baseline
+        tasks_from: verify

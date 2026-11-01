@@ -1,5 +1,19 @@
 # VM502 HAPI 单人试点
 
+## 后续多人开户的流程边界
+
+独立新流程设计见[HAPI／Cloudflare员工工作区开户](../architecture/hapi-workspace-provisioning.md)，对应显式调用技能为[hapi-provision](../../.agents/skills/hapi-provision/SKILL.md)。目前已有设计、skill及网关／登录原型，但独立开户执行后端尚未实现，不能据此执行生产开户。
+
+2026-10-30用户明确要求：HAPI/Cloudflare网页工作区的VM provisioning与既有WireGuard员工开户独立。后续HAPI流程采用独立管理员入口、申请与计划审批、执行检查点、业务台账、凭据授权和网页交付；不在`remotecc/employee-admin/onboard.sh`增加HAPI模式，不继承WireGuard设备身份或强制生成设备接入包。同一邮箱出现在两套系统中，不代表自动共用VM或凭据。
+
+底层PVE VM模块、干净系统模板、隔离基础组件和`workspace-login`／网页登录引导可以复用，但资源所有权、VMID／IP冲突检查必须明确，不允许两套流程共同管理同一资源。统一`hapi.willfan.me`的身份到VM映射应由HAPI独立台账生成，不以WireGuard设备登记作为身份来源。
+
+原`employee-provision`继续覆盖WireGuard的`existing`／`oci-hub`流程。新HAPI开户尚未实现；已有VM502部署与历史BWS绑定仍按下文试点记录维护，本次边界决定不自动迁移服务、凭据或员工。`codex/vm502-login-guide`中的新版网页登录引导已部署到VM502；其已有登录状态验证不代表全新VM的首次授权已验收。后续按[登录组件接入契约](../architecture/hapi-workspace-provisioning.md#6-首次-claude-网页登录)固定源版本，将引导页面／编排集中到VM500上的HAPI控制面，员工VM保留登录执行服务、浏览器与个人凭据，再适配统一路径并接入HAPI独立开户，不重复实现OAuth，也不直接借用侧聊工作树作为长期部署来源。
+
+目标统一入口的Tunnel连接器也部署在VM500。下文记录的VM502直连Tunnel属于现有单人试点，待精确迁移计划验证后切换；本次设计更新不变更线上入口。
+
+## 当前单人试点
+
 本试点仅覆盖 `employee-control`（VM502）的 `employee` 用户。浏览器在本地编辑输入；Hub、Runner、Claude Agent SDK、Claude 进程与凭据均位于 VM。先由本人通过 `workspace-login` 登录，再实测订阅能否用于 HAPI 远程请求；`workspace-login --check` 只检查安装，不代表登录成功。登录或订阅失败即停止请求，由本人处理 VM 登录，不能切换计费方式。
 
 入口固定为 `https://hapi-test.willfan.me`，经专用 Cloudflare Named Tunnel、HTTP/2 连接 VM 的 `127.0.0.1:3006`。HAPI 以令牌认证，无邮件验证码。该令牌代表本人的完整 VM 执行权限，不能交给其他人。试点使用默认审批模式；新建 Claude 会话时确认界面为 `default`，不选择自动批准或绕过审批。

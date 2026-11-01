@@ -1,0 +1,17 @@
+---
+- name: Deploy explicitly scoped HAPI operational checks
+  hosts: hapi_health
+  become: true
+  roles:
+    - hapi-health
+
+- name: Verify HAPI operational checks
+  hosts: hapi_health
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify public PKI and network policy
+      ansible.builtin.include_role:
+        name: hapi-health
+        tasks_from: verify

@@ -7,6 +7,10 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 本 skill 仅在所属 IaC 项目内自动匹配员工开户、新设备、设备包交付和相关流程维护；不用于一般基础设施 VM 或员工电脑 bootstrap。讨论和代码审阅只加载上下文，不自动读取凭据或执行真实操作。显式 BMad 工作流保持原有顺序。
 
+## HAPI 历史候选边界
+
+HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。独立HAPI开户候选已撤回，不执行历史`hapi-provision`或将其执行器接入`onboard.sh`；保留当前生产HAPI服务及主分支现有员工流程。
+
 ## 规范入口和边界
 
 管理员入口是私有 `remotecc/employee-admin/wsctl`（`onboard.sh` 只剩旧共享授权与过渡转发），先读其 README。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；`employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git；权威副本在执行器 `/srv/remotecc/employee-data`，Mac 上的副本只读、可能过期。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。

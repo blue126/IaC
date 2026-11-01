@@ -1,0 +1,5 @@
+---
+hapi_pki_agent_config: {}
+hapi_pki_agent_activate: false
+hapi_pki_agent_nginx_sha256: ''
+hapi_pki_agent_control_address: ''
