@@ -26,8 +26,8 @@
 
 私有回执在主检出的`remotecc/hapi-data/operations/20261031-health/`，包括`deploy.log`、`idempotency.log`、`live-before.json`、`live-after.json`、`live-acceptance.json`和`live-timer-observation.json`。初次验收脚本未处理systemctl重复输出的`TimersMonotonic`属性，修正收集器后确认实际配置正确；部署代码与批准摘要始终未变。
 
-未等待完整一小时重复运行，也未执行生产重启；没有新增跨主机外部通知、自动规则恢复或自动证书续期。检查失败留在systemd状态和journal，30秒检测仍存在窗口。最早证书／CRL到期为2027-01-28，续期仍需独立管理员流程完成。
+首次只读巡检验收未等待完整一小时重复运行，也未执行生产重启；该阶段没有新增外部通知、自动规则恢复或自动证书续期，失败留在systemd和journal，当时30秒规则检测仍存在窗口。该阶段最早证书／CRL到期日为2027-01-28；后续已完成[自动续期与分发](2026-10-31-hapi-pki-rollout.md)，该旧日期不再描述续期后的材料。
 
-本次授权为部署及验收，不包含Git提交或推送；本轮源码／文档及私有管理员新改动仍待单独提交。
+该部署阶段的授权仅含部署及验收，当时尚未提交源码。公开角色、测试和文档随后已经[PR #201](https://github.com/blue126/IaC/pull/201)完成CI与独立审核并合入`main`；私有源码和运行材料不进入公开Git。
 
 后续状态：用户确认QA VM已无保留需要，2026-10-31按原Terraform state回收9101／9102并撤下pve2巡检；VM500／VM502的证书巡检继续运行。本文上述三主机数据为首次发布时的历史验收，当前状态见[QA回收记录](2026-10-31-hapi-qa-retirement.md)。

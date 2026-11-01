@@ -9,7 +9,7 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 ## HAPI 历史候选边界
 
-HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。独立HAPI开户候选已撤回，不执行历史`hapi-provision`或将其执行器接入`onboard.sh`；保留当前生产HAPI服务及主分支现有员工流程。
+HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。独立HAPI开户候选及其专用skill已撤回，不恢复历史独立执行器，也不将其接入`wsctl`或兼容`onboard.sh`；保留当前生产HAPI服务及主分支现有员工流程。
 
 ## 规范入口和边界
 

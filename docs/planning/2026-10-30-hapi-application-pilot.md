@@ -4,7 +4,7 @@
 
 用户已确认并已部署VM500单Hub，见[单Hub评估](2026-10-30-hapi-shared-hub-assessment.md)和[迁移记录](2026-10-30-hapi-single-hub-migration.md)。本页原每VM Hub布局仅为历史，不再作为后续执行输入。两台QA VM于2026-10-31已回收，待发布测试身份提案已归档；后续新员工验收应从干净模板重新provision，见[回收记录](2026-10-31-hapi-qa-retirement.md)。
 
-side chat先把统一入口迁到VM500，主流程随后按授权迁移Hub及数据；origin仍为hapi.willfan.me，未重复切Tunnel。两台测试节点9101／9102及独立state保留，未自动转为正式员工。
+side chat先把统一入口迁到VM500，主流程随后按授权迁移Hub及数据；origin仍为hapi.willfan.me，未重复切Tunnel。两台测试节点9101／9102当时用于QA，未转为正式员工，随后已销毁；原state、计划和验收记录仅保留归档。下文能力盘点和应用缺口均为试点准备时的历史快照。
 
 ## 只读能力核对
 
