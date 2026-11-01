@@ -26,7 +26,7 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 1. `wsctl provision --email EMAIL --plan-only` 输出请求路径、资源范围及审批 SHA。核对对象、规格、安装及网络范围，批准后以 `--approve SHA256` 重跑（Semaphore 填 WSCTL_APPROVE）。
 2. 已完成设备返回 already_configured（或 configured_blocked），不需要apply，按提示查询/导出；不能将blocked状态当成已恢复。相同输入且依赖未变的未完成计划复用原审批。未执行计划失效时重新 plan 并取得新 SHA；部分执行须复用原资源及检查点；其他已开始的请求存在时，先按错误返回的run_dir恢复其原请求，不交错推进登记generation。归属不明、外部策略变更或凭据缺失时停止，不能换 ID、轮换密钥或删除记录来恢复。见 [运行与恢复](references/operations.md)。
-3. apply 的 `configured` 表示服务配置阶段完成；继续看嵌套 bundle/verification 状态。用 `registry` / `verify` 查询服务端状态，用 `online` 额外观察连接；握手或监听不等于真人操作或员工 bootstrap 已完成。
+3. apply 的 `configured` 表示服务配置阶段完成；继续看嵌套 bundle/verification 状态。用 `registry` / `verify` 查询服务端状态，用 `status` 额外观察连接；握手或监听不等于真人操作或员工 bootstrap 已完成。
 4. `wsctl export --device DEVICE_ID` 复用原身份导出。输出的 `delivery_request` 是交付草稿，含绑定收件人、包目录与回执目录；不包含上传/发送授权。
 5. 验收未完成时，用 `acceptance ACCEPTANCE.json` 获取绑定包和身份的检查清单、pending 模板及现有记录校验结果。独立验收必须来自另行批准的验证与证据，模板和服务检查不算通过。已有特定设备的受保护豁免保留，结果为 acceptance_waived；新设备须独立验收或单独获准豁免，不能推广历史豁免或虚构检查通过。
 6. 交付按两阶段进行：`notify:false` 的 JSON 经 plan/批准后上传并校验；再改 `notify:true` 重新 plan，展示收件人、主题和实际 `host_mail_preview`，单独批准后发送。`purpose` 明确为 onboarding、trial 或 migration；Mosh 不等于试点。具体 JSON 与命令见[原生开户](../../../docs/deployment/oci-hub-native-provisioning.md)。
@@ -34,7 +34,7 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 ## 完成条件与员工交接
 
-依次区分：计划已生成、服务已配置、已独立验收/获准豁免可交付、上传已校验、邮件API202接受、员工确认bootstrap、本人在VM内完成Claude认证。管理员 verify、online 或邮件API202均不代表员工已收到或可实际工作。缺某阶段就报告该阶段待办，不统称“全部完成”。
+依次区分：计划已生成、服务已配置、已独立验收/获准豁免可交付、上传已校验、邮件API202接受、员工确认bootstrap、本人在VM内完成Claude认证。管理员 verify、status 或邮件API202均不代表员工已收到或可实际工作。缺某阶段就报告该阶段待办，不统称“全部完成”。
 
 正式邮件把“复制下面整句话给你的 Agent”放最上方，完整提示词用中文引号包住并加粗；正文用 bullet points，包含真实链接或本次明确批准的附件、SHA256、包归属及授权交接。迁移邮件明确使用新包替换旧接入，不只修改 Endpoint；正式开户不带测试/跳过登录/旧包回退指令，trial 才使用试点模板。
 
