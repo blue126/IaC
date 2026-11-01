@@ -21,7 +21,7 @@ uploading/notifying 表示可能已有外部副作用，停止核对，不自动
 
 DELIVERY_PURPOSE_REVIEW_REQUIRED 表示历史未发回执没有用途信息：明确purpose后重新plan；已完成的旧回执保持原样。MAIL_PREVIEW_CHANGED_REPLAN_REQUIRED 表示模板/内容改变，重新生成预览和审批。
 
-确需重新交付时先取得该员工/设备的授权，复用原包，使用新的回执子目录生成新计划，不覆盖旧回执。过期、下载次数限制与HTTP5xx分别报告。Temp.sh不可用时等待用户决定渠道；附件补发是一次授权，不扩展成普遍默认。
+确需重新交付时先取得该员工/设备的授权，用 `wsctl reissue --device <id>`（计划→同一 SHA 确认）复用原包重新上传并发信，旧链接随即失效；旧的 Temp.sh 回执在新通道下会以 `DELIVERY_IDENTITY_CHANGED` 拒绝，需新的运行目录。过期、下载次数用尽与站点错误分别报告。网站不可用时等待用户决定渠道；附件补发是一次授权，不扩展成普遍默认。
 
 ## 验收和完成
 

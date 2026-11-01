@@ -99,7 +99,7 @@ OCI 终止的是两段 WireGuard 加密，不终止里面的 SSH/TLS。Hub 在�
 | PVE | 每员工独立 VNet/子网、三层网关和路由；在虚拟交换网络及其转发边界统一隔离，不依赖客户机或逐 VM 网卡防火墙 |
 | OpenWrt | 一条员工聚合网段回程路由经 PVE；现有 WAN NAT/转发覆盖该网段，不承担逐员工隔离 |
 | VM500 | 保留 HAPI 控制面、管理 SSH 和自身主机防护；旧员工接入、转发/NAT 与隔离职责已退役，新路径无依赖 |
-| 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、Temp.sh 交付和分方案配额/维护操作 |
+| 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、cc.willfan.me 一次性链接交付和分方案配额/维护操作 |
 
 OCI 上原有管理 SSH、Docker、Tailscale 和其他应用不属于员工服务。员工接口本机 input 默认拒绝，诊断/管理只走独立受管通道；不把它改成大家可登录的 SSH 跳板机。
 
@@ -352,11 +352,11 @@ OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口�
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和 Temp.sh 邮件交付。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，Temp.sh/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
+IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me 一次性链接）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |
-| 私有管理员工程 | 唯一员工/设备/VM 归属、overlay 分配、Portal API 适配、启用/撤销和额度操作编排、分方案开户事务、Temp.sh 包与邮件交付；配额任务源码也归此工程 |
+| 私有管理员工程 | 唯一员工/设备/VM 归属、overlay 分配、Portal API 适配、启用/撤销和额度操作编排、分方案开户事务、cc.willfan.me 设备包与邮件交付；配额任务源码也归此工程 |
 | WG Portal（OCI） | 私有台账的用户/设备映射、新方案 OCI 端指定 WireGuard 接口与 peer 的配置、启停和恢复；页面和管理员脚本共用同一 API 与启停状态，唯一写入其范围内的 WireGuard 配置 |
 | BWS 项目 | 现有 `EmployeeWorkspace` 原记录及令牌保持；新方案采用独立项目 `EmployeeWorkspace-OCIHub`（已创建）及只授权该项目的机器账号。新项目分别保存设备、VM Spoke、Hub key 和 Portal API 凭据 |
 | 配额组件（OCI） | 采样任务和持锁命令执行器常驻；SQLite 保存唯一月账、基线、审计和待执行动作；接入状态从 Portal 读取，管理员电脑离线仍工作 |
@@ -405,12 +405,12 @@ VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对
 → 发布新方案用户—设备—VM 映射及额度策略到 OCI，核对代次
 → 核对 OCI 路由、用户状态及剩余额度，验证本人访问与隔离
 → 生成匹配新 OCI Hub 的 bundle
-→ Temp.sh 上传、下载回验、按既有审批范围发邮件
+→ 上传到 cc.willfan.me、管理接口核对 SHA-256、按既有审批范围发邮件（员工下载需邮箱验证码）
 ```
 
 员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作显式使用 `onboard.sh --profile oci-hub`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-native-provisioning.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
 
-bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；Mosh 终端包不要求桌面 TLS 字段；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用 Temp.sh/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
+bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；Mosh 终端包不要求桌面 TLS 字段；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用交付/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
 
 ### 在线查询与维护
 
@@ -444,7 +444,7 @@ bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM ov
 | H-10 | 本轮真实中国SSH/Mosh功能、空闲/断线恢复和稳定性有记录，网络回显与业务验收分开；桌面另验，不用旧213ms成绩冒充 |
 | H-11（当前不适用） | GA2当前未部署；如未来引入，再验证总带宽/预算告警、紧急停用及回源来源保护 |
 | H-12 | Portal 是新 OCI 接口/peer 唯一配置写入者；仅 OCI 执行器持写 API 凭据，管理/配额动作经同一锁，人工面板进入维护模式；无并行 wg-quick、自动导入/批量恢复/建 peer，重启不复活身份 |
-| H-13 | 同一 profile 请求经历中断/重跑后，方案内 VM、Portal 用户/设备、公钥及 BWS 关联保持唯一；台账、SSH/TLS pin、bundle 参数一致；验证通过才允许 Temp.sh/邮件交付 |
+| H-13 | 同一 profile 请求经历中断/重跑后，方案内 VM、Portal 用户/设备、公钥及 BWS 关联保持唯一；台账、SSH/TLS pin、bundle 参数一致；验证通过才允许设备包上传/邮件交付 |
 | H-14 | 发布到 OCI 的映射/策略代次可核对，管理员电脑/Sandbox 离线时配额仍运行；本机旧快照不覆盖月账或新撤销；online 区分 profile、VPN 活动与 SSH 会话，API/连接失败不报告无人在线 |
 | H-15 | 新 BWS 项目写入后现有加载/导出仍正常，OCI 无任一 BWS 项目令牌；新方案部署/重跑/撤回不改现有 Secret/入口/VM500/路由，功能接管前保留存量运行所需维护，接管后退役旧existing管理入口；交付/查询/计量均匹配profile |
 | H-16 | 新 Terraform schema/module 键独立，模块默认参数不改变现有消费者计划；新 VM 首次停止创建、hook 门控和 protection=true 生效，原型通过后才开放新用户交付 |
