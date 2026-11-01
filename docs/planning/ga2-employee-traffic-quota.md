@@ -21,7 +21,7 @@ WG Portal 不是原生月配额产品；小型组件补齐月账、判断和自�
 
 SQLite 保存用户/设备/工作区各自的多原因集合，Portal DisabledReason 只是显示摘要。即使已经因超额停用，管理员再次停用也必须增加 admin_disabled；月切换只清除旧周期 quota 原因，锁内核对映射/有效期和所有原因后才恢复。action_id 和待执行记录用于 API/数据库中断恢复。
 
-私有管理员工程保留统一入口，负责用户—VM—Portal 对象关联、BWS、开户、bundle 和 Temp.sh/邮件交付；配额任务源码归该工程，由 Ansible 受控部署到 OCI 常驻运行。唯一运行月账在 OCI，管理员电脑关机仍须正常记账和月恢复。本地台账以 `(profile, employee_id/device_id)` 保存 Portal 用户 ID、peer 公钥、VM overlay 和 BWS 独立记录关联；新方案不另写一份 Hub peer 配置，现有后端和已发包保持。完整流程和重试契约见架构方案第 10 节。
+私有管理员工程保留统一入口，负责用户—VM—Portal 对象关联、BWS、开户、bundle 和 `cc.willfan.me`/邮件交付；配额任务源码归该工程，由 Ansible 受控部署到 OCI 常驻运行。唯一运行月账在 OCI，管理员电脑关机仍须正常记账和月恢复。本地台账以 `(profile, employee_id/device_id)` 保存 Portal 用户 ID、peer 公钥、VM overlay 和 BWS 独立记录关联；新方案不另写一份 Hub peer 配置，现有后端和已发包保持。完整流程和重试契约见架构方案第 10 节。
 
 新方案采用独立 BWS 项目和专用机器账号，现有 EmployeeWorkspace 及其加载器保持；先预检项目绑定再写记录。部署端仅把单一 Portal API 凭据等必需值交付 OCI，OCI 不持有任一 BWS 项目令牌。PVE 新工作区 pre-start 及 OCI Portal 恢复必须等待实际隔离规则就绪；规则检查失败拒绝启动。新 Terraform schema/资源键独立，通用 VM module 先补齐 hook、首次停止创建和新工作区删除保护。
 
