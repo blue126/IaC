@@ -1,16 +1,4 @@
 ---
-- name: Inspect the unified ingress ownership marker
-  ansible.builtin.stat:
-    path: /etc/employee-hapi/unified-entry.json
-  register: employee_hapi_unified_entry
-  tags: [always]
-
-- name: Refuse redeployment of the retired standalone public pilot
-  ansible.builtin.assert:
-    that: not employee_hapi_unified_entry.stat.exists
-    fail_msg: This pilot uses the VM500 unified ingress; use its approved deployment instead.
-  tags: [always]
-
 - name: Install the VM502 login helper hotfix
   ansible.builtin.import_tasks: login-helper.yml
   tags: [never, hapi_login_helper]

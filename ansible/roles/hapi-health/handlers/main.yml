@@ -1,7 +1,0 @@
----
-- name: Restart HAPI health timer
-  ansible.builtin.systemd_service:
-    name: hapi-health.timer
-    daemon_reload: true
-    state: restarted
-  when: hapi_health_enable_timer | bool

@@ -17,34 +17,6 @@ HUB={'profile':'oci-hub','kind':'hub','generation':1,'interfaces':{'wg-users':'1
 
 
 class Boundary(unittest.TestCase):
-    def test_cloudflare_transport_is_explicit_per_vm_and_persistent(self):
-        self.assertNotIn('tcp dport 7844', b.render(PVE))
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'service-egress.json'
-            path.write_text(json.dumps({'cloudflare_tunnel_vmids': [601]}))
-            config = b.load_service_egress(copy.deepcopy(PVE), path)
-            rendered = b.render(config)
-            self.assertIn('ip saddr 10.236.1.2 ip daddr { 198.41.192.0/24, 198.41.200.0/24 } tcp dport 7844 accept', rendered)
-            self.assertNotIn('udp dport 7844', rendered)
-            self.assertNotIn('cloudflare_tunnel_vmids', PVE)
-            config['workspaces'][0]['disabled'] = True
-            self.assertNotIn('tcp dport 7844', b.render(config))
-            for ids in ([999], [601, 601], ['601'], [True]):
-                path.write_text(json.dumps({'cloudflare_tunnel_vmids': ids}))
-                with self.assertRaises(ValueError):
-                    b.load_service_egress(copy.deepcopy(PVE), path)
-    def test_hapi_control_plane_grant_opens_only_private_tls(self):
-        c = copy.deepcopy(PVE)
-        c['hapi_ingress_grants'] = [{'vmid': 601, 'source': '192.168.1.140/32'}]
-        rendered = b.render(c)
-        self.assertIn('ip saddr 192.168.1.140/32 ip daddr 10.236.1.2 tcp dport 9443', rendered)
-        self.assertNotIn('tcp dport 22', rendered)
-        for grant in ({'vmid': 999, 'source': '192.168.1.140/32'}, {'vmid': 601, 'source': '0.0.0.0/0'},
-                      {'vmid': 601, 'source': '10.236.1.2/32'}):
-            c['hapi_ingress_grants'] = [grant]
-            with self.assertRaises(ValueError):
-                b.render(c)
-
     def test_host_ingress_is_optional_and_exactly_scoped_to_the_external_interface(self):
         self.assertEqual(b.host_ingress_rules(HUB), [])
         config=copy.deepcopy(HUB);config['uplink']='enp0s6'

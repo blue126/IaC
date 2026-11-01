@@ -1,6 +1,0 @@
----
-hapi_pki_controller_config: {}
-hapi_pki_controller_activate: false
-hapi_pki_controller_enable_timer: false
-hapi_pki_controller_hub_key: '{{ vault_hapi_pki_controller_hub_key | default("") }}'
-hapi_pki_controller_login_key: '{{ vault_hapi_pki_controller_login_key | default("") }}'
