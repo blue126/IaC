@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Check additive installed-helper migration and restrictive worker Hub grants."""
+"""Check the repository helper's restrictive worker Hub grants."""
 import copy
 import importlib.util
 from pathlib import Path
-import types
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,22 +18,19 @@ def load(name, path):
 prepare = load('prepare_hub_boundary', 'scripts/prepare-hapi-hub-boundary.py')
 fixtures = load('oci_boundary_fixtures', 'tests/oci-hub/test-offline.py')
 source = (ROOT / 'scripts/oci-hub/boundary.py').read_text()
+# Hub egress support now lives in the repository helper, so every deploy keeps it.
+helper = load('repository_boundary', 'scripts/oci-hub/boundary.py')
+SERVICE = {'cloudflare_tunnel_vmids': [], 'hapi_ingress_grants': [],
+           'hapi_hub_grants': [{'vmid': 601, 'destination': '192.168.1.140/32'}]}
 
 
 class HubBoundaryTest(unittest.TestCase):
     def candidate(self):
-        text, service = prepare.prepare(source + '\ndef unrelated_feature(): return "retain"\n',
-                                        {'cloudflare_tunnel_vmids': [], 'hapi_ingress_grants': []},
-                                        '192.168.1.140', [601])
-        module = types.ModuleType('prepared_boundary')
-        exec(compile(text, '<prepared-boundary>', 'exec'), module.__dict__)
-        return module, service
+        return helper, copy.deepcopy(SERVICE)
 
-    def test_existing_modes_and_unrelated_features_are_preserved(self):
-        module, _ = self.candidate()
-        self.assertEqual(module.unrelated_feature(), 'retain')
+    def test_policies_without_hub_grants_render_no_hub_flow(self):
         for config in [fixtures.PVE, fixtures.HUB]:
-            self.assertEqual(module.render(copy.deepcopy(config)), fixtures.b.render(copy.deepcopy(config)))
+            self.assertNotIn('tcp dport 9443', helper.render(copy.deepcopy(config)))
 
     def test_only_registered_enabled_worker_can_initiate_the_hub_tls_flow(self):
         module, service = self.candidate()
@@ -63,9 +59,9 @@ class HubBoundaryTest(unittest.TestCase):
         config['hapi_hub_grants'].append(copy.deepcopy(config['hapi_hub_grants'][0]))
         with self.assertRaises(ValueError):
             module.render(config)
-        for text in [source.replace("c.get('management_access',[])", "c.get('new_management',[])"), source + '\n# hapi_hub_grants\n']:
-            with self.assertRaises(ValueError):
-                prepare.prepare(text, {}, '192.168.1.140', [601])
+        # The in-place migration refuses a helper that already carries the support.
+        with self.assertRaisesRegex(ValueError, 'already contains Hub egress support'):
+            prepare.prepare(source, {}, '192.168.1.140', [601])
 
 
 if __name__ == '__main__':
