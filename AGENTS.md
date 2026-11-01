@@ -152,7 +152,7 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## Docker Sandbox Environment
 
-- A Sandbox is optional. Development and employee onboarding run on the host with the uv toolchain described under Key Commands; onboarding runs from the main checkout's `remotecc/employee-admin/onboard.sh`. The rules below apply only when a Sandbox is chosen.
+- A Sandbox is optional. Development runs on the host with the uv toolchain described under Key Commands; employee lifecycle writes (including onboarding) run only on the `ws-executor` VM, as stated under Ansible Vault. The rules below apply only when a Sandbox is chosen.
 - Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
 - Choose the topology before running an entry command. Treat the main checkout as coordination-only; direct-mode commands must run from an assigned host task worktree. Create clone-mode Sandboxes only from the verified main checkout when Git will be managed inside the Sandbox. Never create a clone-mode Sandbox from a host linked worktree.
 - Replace `TASK` with a unique kebab-case task name. Use versioned, task-specific Sandbox names so parallel work and Kit-upgrade testing never reconnect to an unrelated or stale Sandbox.
