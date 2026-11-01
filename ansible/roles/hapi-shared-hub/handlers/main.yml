@@ -6,9 +6,9 @@
     state: restarted
   when: hapi_shared_hub_activate | bool
 
-- name: Restart shared HAPI transport
+- name: Reload shared HAPI transport
   ansible.builtin.systemd_service:
     name: hapi-hub-transport
     daemon_reload: true
-    state: restarted
+    state: reloaded
   when: hapi_shared_hub_activate | bool

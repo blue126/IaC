@@ -1,0 +1,31 @@
+---
+hapi_http_is_control: '{{ inventory_hostname in groups.get("hapi_control_plane", []) }}'
+hapi_http_configs: >-
+  {{ [{'role': 'hapi-shared-hub', 'directory': 'hapi-shared-hub', 'unit': 'hapi-hub-transport', 'group': 'hapi-hub'},
+      {'role': 'hapi-control-plane', 'directory': 'hapi-control-plane', 'unit': 'hapi-control-proxy', 'group': 'hapi-proxy'}]
+     if hapi_http_is_control else
+     [{'role': 'hapi-hub-client', 'directory': 'hapi-hub-client', 'unit': 'hapi-hub-client', 'group': 'hapi-hub-client'},
+      {'role': 'hapi-ingress', 'directory': 'hapi-ingress', 'unit': 'hapi-ingress-proxy', 'group': 'hapi-ingress'}] }}
+hapi_http_retired_units:
+  - hapi-pki-controller.timer
+  - hapi-pki-controller.service
+  - hapi-pki-agent.service
+  - hapi-health.timer
+  - hapi-health.service
+hapi_http_snapshot_paths:
+  - /etc/hapi-shared-hub/nginx.conf
+  - /etc/hapi-control-plane/nginx.conf
+  - /etc/hapi-control-plane/config.json
+  - /etc/hapi-hub-client/nginx.conf
+  - /etc/hapi-ingress/nginx.conf
+  - /etc/hapi-ingress/pki/agent.conf
+  - /usr/local/lib/hapi-auth.py
+  - /usr/local/lib/hapi-pki.py
+  - /usr/local/lib/hapi-pki-configure-nginx.py
+  - /usr/local/lib/hapi-health.py
+  - /etc/systemd/system/hapi-pki-controller.timer
+  - /etc/systemd/system/hapi-pki-controller.service
+  - /etc/systemd/system/hapi-pki-agent.service
+  - /etc/systemd/system/hapi-health.timer
+  - /etc/systemd/system/hapi-health.service
+hapi_http_business_unit: "{{ 'hapi-shared-hub' if hapi_http_is_control else hapi_hub_client_runner_unit }}"

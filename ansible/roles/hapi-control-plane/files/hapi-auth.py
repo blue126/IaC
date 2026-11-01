@@ -167,7 +167,7 @@ def load_config(path):
         if not any(address in ipaddress.ip_network(cidr) for cidr in ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']):
             raise ValueError('Expected a private backend IPv4 address')
         if route['backend_name'] != wid + '.hapi.internal':
-            raise ValueError('Unexpected backend TLS name')
+            raise ValueError('Unexpected backend service name')
         if type(route['generation']) is not int or route['generation'] < 1 or type(route['enabled']) is not bool:
             raise ValueError('Invalid route generation or state')
         for key in seen:
@@ -178,19 +178,10 @@ def load_config(path):
     return config
 
 
-class HubConnection(http.client.HTTPSConnection):
-    """Connect to the registered IP while verifying the registered TLS DNS identity."""
-    def __init__(self, address, name, context):
-        super().__init__(name, port=9443, context=context, timeout=8)
-        self.address = address
-
-    def connect(self):
-        raw = socket.create_connection((self.address, self.port), self.timeout)
-        try:
-            self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
-        except BaseException:
-            raw.close()
-            raise
+class HubConnection(http.client.HTTPConnection):
+    """Connect only to the registered private address; the caller fixes Host."""
+    def __init__(self, address):
+        super().__init__(address, port=9443, timeout=8)
 
 
 class Policy:
@@ -282,12 +273,7 @@ class Policy:
             connection = http.client.HTTPConnection('127.0.0.1', port=3006, timeout=8)
             headers['X-Hapi-Expected-Namespace'] = route.get('namespace', 'default')
         else:
-            context = ssl.create_default_context(cafile=config['ca_file'])
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
-            context.load_cert_chain(config['client_certificate'], config['client_key'])
-            context.load_verify_locations(cafile=config['crl_file'])
-            context.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
-            connection = HubConnection(route['backend_address'], route['backend_name'], context)
+            connection = HubConnection(route['backend_address'])
         try:
             connection.request('POST', '/api/auth', body=json.dumps({'accessToken': secret}),
                                headers=headers)

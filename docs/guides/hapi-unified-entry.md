@@ -1,5 +1,7 @@
 # HAPI 单一入口迁移与验收
 
+后续变更见[内部HTTP简化方案](hapi-internal-http.md)，目前是已批准的代码候选，尚未切换现网。
+
 状态核对：2026-11-01。现有所有者试点的统一入口、单Hub和会话数据库已迁入VM500；VM502保留Runner、Claude、登录执行服务和Firefox。用户已确认网页登录与远程浏览器可用，个人Claude认证保留在本人VM。源码经[PR #201](https://github.com/blue126/IaC/pull/201)完整CI与独立审核后合入`main`。独立HAPI开户候选已撤回；现有试点验收不等于新员工完整开户验收。
 
 唯一正式网址为 `https://hapi.willfan.me`，Claude登录引导位于 `/_workspace/login/`。Cloudflare Tunnel、身份网关、共享HAPI Hub和会话数据库均位于VM500。网关验证Access身份并换取绑定本人namespace的短期HAPI会话，不要求用户再次输入HAPI令牌。员工VM运行Runner、任务、文件和个人Claude环境，通过私有mTLS通道连接控制面。这里的Hub是HAPI应用服务，与OCI WireGuard Hub不同。

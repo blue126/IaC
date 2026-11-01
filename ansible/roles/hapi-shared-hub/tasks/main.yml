@@ -1,9 +1,8 @@
 ---
-- name: Inspect the dedicated certificate lifecycle ownership marker
-  ansible.builtin.stat:
-    path: /var/lib/hapi-pki-agent/managed.json
-    follow: false
-  register: hapi_shared_hub_pki_managed
+- name: Require explicit authorization for trusted internal HTTP
+  ansible.builtin.assert:
+    that: hapi_internal_http_authorized | bool
+    fail_msg: Internal HTTP requires the approved SDN isolation and trusted-network policy.
 
 - name: Validate the shared Hub deployment target and immutable release
   ansible.builtin.assert:
@@ -23,10 +22,6 @@
       - hapi_shared_hub_credentials | length > 0
       - hapi_shared_hub_bootstrap_token is match('^[A-Za-z0-9_-]{32,256}$')
       - hapi_shared_hub_bootstrap_token not in (hapi_shared_hub_credentials | map(attribute='token') | list)
-      - hapi_shared_hub_ca | length > 0
-      - hapi_shared_hub_crl | length > 0
-      - hapi_shared_hub_certificate | length > 0
-      - hapi_shared_hub_key | length > 0
   no_log: true
 
 - name: Check the existing proxy runtime without installing dependencies
@@ -153,24 +148,6 @@
   diff: false
   notify: Restart shared HAPI Hub
 
-- name: Deploy only leaf transport material to the shared Hub
-  ansible.builtin.copy:
-    content: '{{ item.content }}'
-    dest: '/etc/hapi-shared-hub/{{ item.name }}'
-    owner: root
-    group: hapi-hub
-    mode: '0640'
-  loop:
-    - {name: ca.pem, content: '{{ hapi_shared_hub_ca }}'}
-    - {name: crl.pem, content: '{{ hapi_shared_hub_crl }}'}
-    - {name: certificate.pem, content: '{{ hapi_shared_hub_certificate }}'}
-    - {name: private.key, content: '{{ hapi_shared_hub_key }}'}
-  no_log: true
-  diff: false
-  notify: Restart shared HAPI transport
-
-  when: not hapi_shared_hub_pki_managed.stat.exists
-
 - name: Prepare the isolated shared Hub proxy runtime
   ansible.builtin.file:
     path: '/run/hapi-hub-transport/{{ item }}'
@@ -188,7 +165,7 @@
     group: hapi-hub
     mode: '0640'
     validate: /usr/sbin/nginx -t -c %s
-  notify: Restart shared HAPI transport
+  notify: Reload shared HAPI transport
 
 - name: Deploy the shared Hub and private transport services
   ansible.builtin.template:
@@ -198,9 +175,7 @@
     group: root
     mode: '0644'
   loop: [hapi-shared-hub, hapi-hub-transport]
-  notify:
-    - Restart shared HAPI Hub
-    - Restart shared HAPI transport
+  notify: "{{ 'Restart shared HAPI Hub' if item == 'hapi-shared-hub' else 'Reload shared HAPI transport' }}"
 
 - name: Inspect the transport PID file created by candidate validation
   ansible.builtin.stat:

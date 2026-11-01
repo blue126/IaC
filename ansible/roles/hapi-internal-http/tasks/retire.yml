@@ -1,0 +1,50 @@
+---
+- name: Require completed live transport verification before retiring certificate services
+  ansible.builtin.assert:
+    that:
+      - hapi_internal_http_authorized | bool
+      - hapi_http_verified | default(false) | bool
+
+- name: Inspect retired certificate and health units
+  ansible.builtin.stat:
+    path: '/etc/systemd/system/{{ item }}'
+  loop: '{{ hapi_http_retired_units }}'
+  register: hapi_http_retired_files
+
+- name: Stop retired units and disable only installable units
+  ansible.builtin.systemd_service:
+    name: '{{ item.item }}'
+    state: stopped
+    enabled: "{{ false if item.item.endswith('.timer') or item.item == 'hapi-pki-agent.service' else omit }}"
+  loop: '{{ hapi_http_retired_files.results }}'
+  loop_control:
+    label: '{{ item.item }}'
+  when: item.stat.exists
+
+- name: Remove retired service definitions after checkpoint and verification
+  ansible.builtin.file:
+    path: '/etc/systemd/system/{{ item }}'
+    state: absent
+  loop: '{{ hapi_http_retired_units }}'
+
+- name: Remove the unused certificate agent endpoint and programs
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: absent
+  loop:
+    - /etc/hapi-ingress/pki/agent.conf
+    - /usr/local/lib/hapi-pki.py
+    - /usr/local/lib/hapi-pki-configure-nginx.py
+    - /usr/local/lib/hapi-health.py
+
+- name: Reload systemd after retiring certificate services
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Mark the verified internal HTTP state without deleting rollback keys
+  ansible.builtin.copy:
+    content: "{{ {'version': 1, 'transport': 'trusted-private-http', 'verified': true} | to_nice_json }}"
+    dest: /var/lib/hapi-internal-http/active.json
+    owner: root
+    group: root
+    mode: '0600'

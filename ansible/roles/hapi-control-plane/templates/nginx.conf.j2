@@ -23,15 +23,6 @@ http {
         if ($http_x_hapi_expected_route != "{{ route | to_json(sort_keys=True, separators=[',', ':']) | hash('sha256') }}") { return 409; }
         proxy_pass_request_headers on;
         client_max_body_size 64m;
-        proxy_ssl_server_name on;
-        proxy_ssl_name {{ route.backend_name }};
-        proxy_ssl_verify on;
-        proxy_ssl_session_reuse off;
-        proxy_ssl_verify_depth 2;
-        proxy_ssl_trusted_certificate /etc/hapi-control-plane/ca.pem;
-        proxy_ssl_crl /etc/hapi-control-plane/crl.pem;
-        proxy_ssl_certificate /etc/hapi-control-plane/client.pem;
-        proxy_ssl_certificate_key /etc/hapi-control-plane/client.key;
         proxy_set_header Host {{ route.backend_name }};
         proxy_set_header Cf-Access-Jwt-Assertion "";
         proxy_set_header Cookie "";
@@ -53,14 +44,14 @@ http {
 {% if hapi_control_plane_shared_hub | default(false) %}
             proxy_pass http://127.0.0.1:3006;
 {% else %}
-            proxy_pass https://{{ route.backend_address }}:9443;
+            proxy_pass http://{{ route.backend_address }}:9443;
 {% endif %}
         }
         location ^~ /api/login/ {
-            proxy_pass https://{{ route.backend_address }}:9443;
+            proxy_pass http://{{ route.backend_address }}:9443;
         }
         location = /websockify {
-            proxy_pass https://{{ route.backend_address }}:9443;
+            proxy_pass http://{{ route.backend_address }}:9443;
             proxy_read_timeout 1800s;
         }
     }

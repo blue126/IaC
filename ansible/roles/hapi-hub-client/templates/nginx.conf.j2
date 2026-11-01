@@ -15,15 +15,6 @@ http {
         listen 127.0.0.1:3006;
         server_name localhost;
         client_max_body_size 64m;
-        proxy_ssl_server_name on;
-        proxy_ssl_name hapi-hub.internal;
-        proxy_ssl_verify on;
-        proxy_ssl_verify_depth 2;
-        proxy_ssl_session_reuse off;
-        proxy_ssl_trusted_certificate /etc/hapi-hub-client/ca.pem;
-        proxy_ssl_crl /etc/hapi-hub-client/crl.pem;
-        proxy_ssl_certificate /etc/hapi-hub-client/certificate.pem;
-        proxy_ssl_certificate_key /etc/hapi-hub-client/private.key;
         proxy_set_header Host hapi-hub.internal;
         proxy_set_header X-Hapi-Expected-Namespace "";
         proxy_set_header X-Hapi-Expected-Credential "";
@@ -37,6 +28,6 @@ http {
         proxy_next_upstream off;
         proxy_redirect off;
         proxy_read_timeout 60s;
-        location / { proxy_pass https://{{ hapi_hub_client_address }}:9443; }
+        location / { proxy_pass http://{{ hapi_hub_client_address }}:9443; }
     }
 }

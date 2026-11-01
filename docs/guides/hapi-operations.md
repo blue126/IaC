@@ -1,5 +1,7 @@
 # HAPI 证书与网络规则巡检
 
+> **后续简化候选（2026-11-01）。** 用户已批准[受控内网HTTP方案](hapi-internal-http.md)。本分支已撤回旧PKI／证书巡检部署源码，现网在单独批准切换前仍按本页历史部署运行；不要把代码候选视为已退役现网签发服务，也不要从本分支重新部署旧PKI。
+
 `deploy-hapi-health.yml`部署独立的只读巡检。目标必须显式属于`hapi_health`组并指定检查范围，定时器默认不启用；获批发布时才设置`hapi_health_enable_timer: true`。2026-10-31曾按单独授权发布并验收；随后QA VM9101／9102完成回收，pve2巡检已撤下。目前仅VM500／VM502的证书巡检继续运行，见[发布记录](../planning/2026-10-31-hapi-health-rollout.md)及[QA回收记录](../planning/2026-10-31-hapi-qa-retirement.md)。
 
 ## 检查范围

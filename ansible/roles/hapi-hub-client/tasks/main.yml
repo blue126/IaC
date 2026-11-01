@@ -1,9 +1,8 @@
 ---
-- name: Inspect the dedicated certificate lifecycle ownership marker
-  ansible.builtin.stat:
-    path: /var/lib/hapi-pki-agent/managed.json
-    follow: false
-  register: hapi_hub_client_pki_managed
+- name: Require explicit authorization for trusted internal HTTP
+  ansible.builtin.assert:
+    that: hapi_internal_http_authorized | bool
+    fail_msg: Internal HTTP requires the approved SDN isolation and trusted-network policy.
 
 - name: Validate the fixed shared Hub client identity
   ansible.builtin.assert:
@@ -13,15 +12,6 @@
       - ansible_facts.system == 'Linux'
       - hapi_hub_client_legacy_hub_unit == '' or hapi_hub_client_legacy_hub_unit is match('^[a-z][a-z0-9-]{0,63}$')
       - hapi_hub_client_runner_unit == '' or hapi_hub_client_runner_unit is match('^[a-z][a-z0-9-]{0,63}$')
-
-- name: Validate the BWS client transport material without exposing values
-  ansible.builtin.assert:
-    that:
-      - hapi_hub_client_ca | length > 0
-      - hapi_hub_client_crl | length > 0
-      - hapi_hub_client_certificate | length > 0
-      - hapi_hub_client_key | length > 0
-  no_log: true
 
 - name: Check the existing worker proxy runtime without installing dependencies
   ansible.builtin.command: /usr/sbin/nginx -v
@@ -48,24 +38,6 @@
     group: hapi-hub-client
     mode: '0750'
 
-- name: Deploy only the worker leaf certificate and transport trust
-  ansible.builtin.copy:
-    content: '{{ item.content }}'
-    dest: '/etc/hapi-hub-client/{{ item.name }}'
-    owner: root
-    group: hapi-hub-client
-    mode: '0640'
-  loop:
-    - {name: ca.pem, content: '{{ hapi_hub_client_ca }}'}
-    - {name: crl.pem, content: '{{ hapi_hub_client_crl }}'}
-    - {name: certificate.pem, content: '{{ hapi_hub_client_certificate }}'}
-    - {name: private.key, content: '{{ hapi_hub_client_key }}'}
-  no_log: true
-  diff: false
-  notify: Restart HAPI Hub client
-
-  when: not hapi_hub_client_pki_managed.stat.exists
-
 - name: Prepare the isolated client proxy runtime
   ansible.builtin.file:
     path: '/run/hapi-hub-client/{{ item }}'
@@ -83,7 +55,7 @@
     group: hapi-hub-client
     mode: '0640'
     validate: /usr/sbin/nginx -t -c %s
-  notify: Restart HAPI Hub client
+  notify: Reload HAPI Hub client
 
 - name: Deploy the compatibility proxy service
   ansible.builtin.template:
@@ -92,7 +64,7 @@
     owner: root
     group: root
     mode: '0644'
-  notify: Restart HAPI Hub client
+  notify: Reload HAPI Hub client
 
 - name: Inspect the PID file created by client candidate validation
   ansible.builtin.stat:
