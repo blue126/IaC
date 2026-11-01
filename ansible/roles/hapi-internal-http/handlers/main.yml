@@ -1,0 +1,15 @@
+---
+- name: Reload validated HAPI HTTP proxy masters
+  ansible.builtin.command:
+    argv: [systemctl, kill, --kill-who=main, --signal=HUP, '{{ item.item.unit }}.service']
+  loop: '{{ hapi_http_published.results }}'
+  loop_control:
+    label: '{{ item.item.unit }}'
+  when: item.changed
+  changed_when: true
+
+- name: Restart cutover HAPI identity service
+  ansible.builtin.systemd_service:
+    name: hapi-control-auth
+    state: restarted
+  when: hapi_http_is_control | bool

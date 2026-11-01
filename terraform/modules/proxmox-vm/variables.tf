@@ -186,6 +186,12 @@ variable "network_mac_address" {
   default     = null
 }
 
+variable "network_firewall" {
+  description = "Whether to enable the Proxmox firewall on the primary network device"
+  type        = bool
+  default     = false
+}
+
 variable "nameserver" {
   description = "DNS Nameserver"
   type        = string
@@ -231,5 +237,23 @@ variable "tags" {
 variable "balloon_memory" {
   description = "Balloon device minimum memory in MB. null = same as memory (monitoring only, no shrinking). 0 = disabled."
   type        = number
+  default     = null
+}
+
+variable "initial_started" {
+  description = "Create-time power state; later power operations remain outside Terraform"
+  type        = bool
+  default     = true
+}
+
+variable "hook_script_file_id" {
+  description = "Optional pre-start boundary hook; null preserves existing consumers"
+  type        = string
+  default     = null
+}
+
+variable "vendor_data_file_id" {
+  description = "Optional vendor bootstrap; generated user data continues to supply hostname and administrator keys"
+  type        = string
   default     = null
 }

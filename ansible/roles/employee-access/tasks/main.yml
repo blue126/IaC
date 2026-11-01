@@ -1,7 +1,0 @@
----
-- name: Validate requested access operation
-  ansible.builtin.assert:
-    that: employee_access_action | default('deploy') in ['deploy', 'disable', 'boundary', 'mosh-pilot']
-
-- name: Run requested employee access operation
-  ansible.builtin.include_tasks: "{{ employee_access_action | default('deploy') }}.yml"

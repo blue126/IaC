@@ -11,6 +11,7 @@
   ansible.builtin.stat:
     path: "{{ n8n_legacy_data_dir }}/config"
   register: n8n_legacy_config
+  when: n8n_legacy_migration_enabled
 
 - name: Refuse migration without the legacy n8n state
   ansible.builtin.assert:
@@ -20,16 +21,19 @@
       Expected the existing n8n configuration at {{ n8n_legacy_data_dir }}/config.
       The Docker migration is intentionally stopped before changing anything
       when the legacy state is missing.
+  when: n8n_legacy_migration_enabled
 
 - name: Check the legacy n8n environment file
   ansible.builtin.stat:
     path: "{{ n8n_legacy_env_file }}"
   register: n8n_legacy_env
+  when: n8n_legacy_migration_enabled
 
 - name: Check the legacy scraper cache
   ansible.builtin.stat:
     path: "{{ n8n_legacy_scraper_data_dir }}"
   register: n8n_legacy_cache
+  when: n8n_legacy_migration_enabled
 
 - name: Check available filesystem space before staging Docker
   ansible.builtin.command:
@@ -47,6 +51,7 @@
       Docker image; only {{ n8n_available_space.stdout_lines[-1] | trim }} are
       available. Expand or clean the LXC first. The legacy n8n service has not
       been stopped.
+  when: n8n_legacy_migration_enabled
 
 - name: Checkout the n8n runtime repository
   ansible.builtin.git:
@@ -55,6 +60,7 @@
     dest: "{{ n8n_install_dir }}"
     update: true
     force: false
+  when: n8n_checkout_app
 
 - name: Create n8n production data directories
   ansible.builtin.file:
@@ -74,6 +80,7 @@
   loop:
     - "{{ n8n_staging_data_dir }}"
     - "{{ n8n_staging_scraper_data_dir }}"
+  when: n8n_legacy_migration_enabled
 
 - name: Create empty staging data directories
   ansible.builtin.file:
@@ -85,8 +92,7 @@
   loop:
     - "{{ n8n_staging_data_dir }}"
     - "{{ n8n_staging_scraper_data_dir }}"
-    - "{{ n8n_staging_data_dir }}"
-    - "{{ n8n_staging_scraper_data_dir }}"
+  when: n8n_legacy_migration_enabled
 
 - name: Preserve the legacy environment file for staging and cutover
   ansible.builtin.copy:
@@ -97,7 +103,7 @@
     group: root
     mode: "0600"
     force: true
-  when: n8n_legacy_env.stat.exists
+  when: n8n_legacy_migration_enabled and n8n_legacy_env.stat.exists
   no_log: true
 
 - name: Render the staging Compose environment
@@ -111,6 +117,7 @@
     # staging runs, so the staged container must move its broker out of the way.
     n8n_runtime_broker_port: "{{ n8n_staging_broker_port }}"
     n8n_disable_production_webhooks: true
+  when: n8n_legacy_migration_enabled
 
 - name: Render the LXC Docker network override
   ansible.builtin.template:
@@ -119,9 +126,10 @@
     owner: root
     group: root
     mode: "0644"
+  when: n8n_legacy_migration_enabled
 
 - name: Stage and validate Docker without stopping systemd n8n
-  when: not ansible_check_mode
+  when: n8n_legacy_migration_enabled and not ansible_check_mode
   block:
     - name: Validate the staged Compose configuration
       ansible.builtin.command:
@@ -169,9 +177,10 @@
       loop:
         - "{{ n8n_staging_data_dir }}"
         - "{{ n8n_staging_scraper_data_dir }}"
+      when: n8n_legacy_migration_enabled
 
 - name: Execute the brief n8n cutover after staging succeeds
-  when: not ansible_check_mode
+  when: n8n_legacy_migration_enabled and not ansible_check_mode
   block:
     - name: Check whether the legacy n8n unit is still in place
       ansible.builtin.stat:
@@ -320,3 +329,51 @@
         msg: >-
           Production Docker cutover failed. The legacy n8n service was
           restored; inspect the preceding error before retrying.
+
+- name: Deploy the existing Docker runtime on a VM
+  when: n8n_existing_docker_runtime and not ansible_check_mode
+  block:
+    - name: Render the production Compose environment on the VM
+      ansible.builtin.include_tasks: render-env.yml
+      vars:
+        n8n_runtime_data_dir: "{{ n8n_data_dir }}"
+        n8n_runtime_scraper_data_dir: "{{ n8n_scraper_data_dir }}"
+        n8n_runtime_port: "5678"
+        n8n_runtime_listen_address: "0.0.0.0"
+        n8n_runtime_broker_port: "5679"
+        n8n_disable_production_webhooks: false
+
+    - name: Set ownership for Docker-mounted n8n data on the VM
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "1000"
+        group: "1000"
+        recurse: true
+      loop:
+        - "{{ n8n_data_dir }}"
+        - "{{ n8n_scraper_data_dir }}"
+
+    - name: Validate the VM Compose configuration
+      ansible.builtin.command:
+        cmd: docker compose config --quiet
+        chdir: "{{ n8n_install_dir }}"
+      changed_when: false
+
+    - name: Start the existing Docker runtime on the VM
+      community.docker.docker_compose_v2:
+        project_src: "{{ n8n_install_dir }}"
+        state: present
+        build: never
+        pull: never
+      register: n8n_vm_compose
+
+    - name: Wait for n8n readiness on the VM
+      ansible.builtin.uri:
+        url: http://127.0.0.1:5678/healthz/readiness
+        status_code: 200
+        timeout: 5
+      register: n8n_vm_readiness
+      until: n8n_vm_readiness.status == 200
+      retries: 12
+      delay: 10

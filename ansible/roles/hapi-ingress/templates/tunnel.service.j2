@@ -1,0 +1,19 @@
+[Unit]
+Description=HAPI pilot public connector on VM500
+After=network-online.target hapi-control-proxy.service
+Wants=network-online.target hapi-control-proxy.service
+
+[Service]
+Type=simple
+User=hapi-ingress
+Group=hapi-ingress
+ExecStart=/usr/local/bin/hapi-ingress-cloudflared tunnel --no-autoupdate --protocol http2 --edge-ip-version 4 --metrics 127.0.0.1:20241 run --token-file /etc/hapi-ingress/tunnel-token
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

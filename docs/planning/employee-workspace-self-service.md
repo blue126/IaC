@@ -1,19 +1,22 @@
 # 员工工作环境：申请、批准与 CD 自动开户
 
+> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。
+
+
 > **2026-10-27 当前状态：** 下文自助申请门户与完整项目 ZIP 是保留的未来方案，尚未实施。现行开户由私有 `employee-workspace-admin` 项目编排 Terraform/Ansible；设备私钥保存在专用 BWS 项目，通用 bootstrap 源码来自公开 `workspace-onboarding` 仓库，员工无需 GitHub 账号。
 >
 > 已固化凭据、SSH agent、管理网络和十个永久员工槽位的只读预检。新员工使用从干净镜像构建并完成身份清理的预装基线；真实新克隆已验证 machine-id/SSH 主机密钥重新生成且无个人认证/MCP/浏览器数据。
 >
-> 现行交付将每设备文件装成 ZIP，上传至 Temp.sh，使用 HTTP POST 下载并核对整个 ZIP 的 SHA256，再通过 Microsoft Graph Mail.Send 向批准的邮箱发送实际链接、摘要和 Agent 提示词。上传或通知结果不明时停止并核对回执，不盲目重试；员工本机接入和个人 Claude 登录仍需单独验收。管理员工具、令牌和交付回执保存在私有管理员项目。
+> 现行交付（2026-11-01 起）将每设备文件装成 ZIP，上传到 `cc.willfan.me`（D1 存储），执行器经管理接口核对整个 ZIP 的 SHA256，再通过 Microsoft Graph Mail.Send 向批准的邮箱发送一次性链接、摘要和 Agent 提示词；链接 3 天内最多下载 3 次，每次下载需发到员工邮箱的 6 位验证码，`wsctl reissue` 重发。上传或通知结果不明时停止并核对回执，不盲目重试；员工本机接入和个人 Claude 登录仍需单独验收。管理员工具、令牌和交付回执保存在私有管理员项目。
 >
-> 未来门户要求员工通过邮箱验证后领取文件，私密存储与下载须由认证服务控制；该存储尚未选定，不能把现行 Temp.sh 邮件链接交付直接视为门户的存储方案。OneDrive 是已替换的历史交付方式。
+> 员工邮箱验证后领取文件的要求已由 `cc.willfan.me` 实现：申请需邮箱验证码，设备包下载需再次邮箱验证码，包存于网站 D1 并在下载满或过期后删除。
 >
 > IaC 仓库跟踪 `terraform/proxmox/employee-workspaces.auto.tfvars.json` 中的 VM 分配，以及 `ansible/inventory/host_vars/employee-access.yml` 中的设备公钥和网关接入配置。私有管理员项目负责开户编排、候选配置、设备包和交付回执；设备私钥留在 BWS。后续开户更新这两份 IaC 配置后，需要审查并提交对应 Git 变更，避免已部署配置只留在本地工作树。
 
 
-状态：自助申请与领取门户方案保留，暂缓实施；以下步骤描述未来方案，不代表现行 Temp.sh 开户流程。
+状态：自助申请与领取门户方案保留，暂缓实施；以下步骤描述当时设想的方案；现行申请、开户与交付见 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md)。
 
-当前阶段继续由管理员发起开户，沿用每员工独立 VM、每设备独立身份，并通过 Temp.sh 和邮件交付设备包。本方案不实施申请门户、邮箱验证领取或自动开户 CD；本记录不创建定时任务或自动触发部署。员工无需 GitHub 账号仍是后续自动化方案的明确要求。
+当前阶段继续由管理员发起开户，沿用每员工独立 VM、每设备独立身份，并通过 `cc.willfan.me` 一次性链接和邮件交付设备包。本方案不实施申请门户、邮箱验证领取或自动开户 CD；本记录不创建定时任务或自动触发部署。员工无需 GitHub 账号仍是后续自动化方案的明确要求。
 
 用户要求将已发布的本机 bootstrap 扩展成“员工申请 → 管理员批准 → CD 下发”，并已明确申请不应要求 GitHub 账号。员工侧使用网页申请和受保护的完整项目 ZIP 领取；GitHub 仅供后台维护代码及管理员审批变更。当前客户端项目 1.0.0 已发布；本文所述门户与服务端自动开户尚未实现、启用或验收。
 
@@ -38,7 +41,7 @@
 | 路由 | configure-employee-router.yml 仅含 pilot/control 两条路由 | 以已批准员工分配生成精确路由，保留不相关配置 |
 | CD | 通用 Jenkinsfile 支持 plan/apply/Ansible；有两次 input | 专用开户入口、审批绑定、实际执行节点和凭据就绪核对 |
 | 身份 | 设备 SSH/WireGuard 私钥按设备保存在专用 BWS 项目 | 将现有身份生成和重跑复用流程接入审批与停用状态 |
-| 申请与领取 | 管理员通过 Temp.sh 交付设备包，并用 Microsoft Graph 发邮件；尚无员工自助门户 | 公开申请页、邮箱验证、受控领取、通知及失败恢复；门户私密存储待选 |
+| 申请与领取 | `cc.willfan.me` 公开申请页（邮箱验证码、Turnstile、限频），`wsctl request`/`provision --application` 开户；设备包经一次性链接领取（下载需邮箱验证码），Microsoft Graph 发邮件，`wsctl reissue` 重发 | 失败恢复与员工侧状态查询（小程序） |
 
 文件依据：terraform/proxmox/employee-access.tf、employee-workspace.tf；ansible/inventory/host_vars/employee-access.yml；ansible/playbooks/bootstrap-employee-workspace.yml、configure-employee-router.yml、deploy-employee-workspace.yml；Jenkinsfile。
 

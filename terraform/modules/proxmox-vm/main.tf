@@ -71,8 +71,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
   dynamic "clone" {
     for_each = local.from_image ? [] : [1]
     content {
-      vm_id = local.template_vm_id
-      full  = var.full_clone
+      vm_id        = local.template_vm_id
+      full         = var.full_clone
+      datastore_id = var.storage_pool
     }
   }
 
@@ -84,11 +85,13 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   boot_order = local.from_image ? ["scsi0"] : null
 
-  bios       = var.bios
-  machine    = var.machine
-  on_boot    = var.onboot
-  protection = var.protection
-  tags       = var.tags
+  bios                = var.bios
+  machine             = var.machine
+  on_boot             = var.onboot
+  protection          = var.protection
+  started             = var.initial_started
+  hook_script_file_id = var.hook_script_file_id
+  tags                = var.tags
 
   cpu {
     cores = var.cores
@@ -124,6 +127,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
     model       = "virtio"
     bridge      = var.network_bridge
     mac_address = var.network_mac_address
+    firewall    = var.network_firewall
   }
 
   disk {
@@ -136,8 +140,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
 
   initialization {
-    datastore_id      = var.storage_pool
-    user_data_file_id = local.cicustom_file_id
+    datastore_id        = var.storage_pool
+    user_data_file_id   = local.cicustom_file_id
+    vendor_data_file_id = var.vendor_data_file_id
 
     ip_config {
       ipv4 {
@@ -192,6 +197,9 @@ resource "proxmox_virtual_environment_vm" "vm" {
       # kept off on purpose); Terraform must never start or stop a VM. A new
       # VM still boots once on creation, the provider default.
       started,
+
+      # Root-owned boundary hooks are reconciled by the approved PVE SSH play.
+      hook_script_file_id,
     ]
   }
 }

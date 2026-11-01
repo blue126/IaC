@@ -1,0 +1,91 @@
+---
+- name: Configure approved OCI Hub browser administration
+  hosts: oracle-cloud-ubuntu2404
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require the approved HTTPS management URL
+      ansible.builtin.assert:
+        that:
+          - oci_hub_portal_external_url == 'https://wgportal.willfan.me'
+    - name: Read only the public Portal URL from its protected configuration
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import pathlib,re;
+            text=pathlib.Path('/etc/oci-hub/portal.yaml').read_text();
+            match=re.search(r'^  external_url: (.+)$',text,re.M);
+            assert match;
+            print(match.group(1).strip('"'))
+      register: oci_hub_saved_public_url
+      changed_when: false
+    - name: Reject an unexpected existing Portal management URL
+      ansible.builtin.assert:
+        that:
+          - oci_hub_saved_public_url.stdout in ['http://127.0.0.1:8888', oci_hub_portal_external_url]
+    - name: Set the approved public Portal URL while preserving credentials
+      ansible.builtin.lineinfile:
+        path: /etc/oci-hub/portal.yaml
+        regexp: '^  external_url: '
+        line: '  external_url: {{ oci_hub_portal_external_url | to_json }}'
+        backup: true
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+      notify: Restart scoped Portal after URL change
+    - name: Apply the Portal URL change before proxy verification
+      ansible.builtin.meta: flush_handlers
+    - name: Configure the Portal site using the existing Caddy installation
+      ansible.builtin.include_role:
+        name: caddy
+        tasks_from: reverse-proxy
+      vars:
+        caddy_reverse_proxy_name: wgportal
+        caddy_reverse_proxy_domain: wgportal.willfan.me
+        caddy_reverse_proxy_upstream: 127.0.0.1:8888
+    - name: Apply the validated Caddy site
+      ansible.builtin.meta: flush_handlers
+  handlers:
+    - name: Restart scoped Portal after URL change
+      ansible.builtin.systemd_service:
+        name: oci-hub-portal
+        state: restarted
+
+- name: Verify Portal loopback isolation and public authentication
+  hosts: oracle-cloud-ubuntu2404
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the scoped Portal and accounting timer
+      ansible.builtin.command: systemctl is-active oci-hub-portal oci-hub-quota.timer  # noqa command-instead-of-module
+      changed_when: false
+    - name: Verify the Portal socket remains on loopback
+      ansible.builtin.command:
+        argv: [ss, -H, -ltn, 'sport = :8888']
+      register: oci_hub_public_socket
+      changed_when: false
+    - name: Require loopback only for the backend
+      ansible.builtin.assert:
+        that:
+          - oci_hub_public_socket.stdout_lines | length == 1
+          - "'127.0.0.1:8888' in oci_hub_public_socket.stdout"
+    - name: Verify the unauthenticated Portal API remains protected
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/api/v1/interface/all
+        status_code: [401, 403]
+        follow_redirects: none
+    - name: Verify Caddy serves the HTTPS Portal login
+      ansible.builtin.command:
+        argv: [curl, --noproxy, '*', --fail, --silent, --show-error, --location, --max-time, '20', --resolve, 'wgportal.willfan.me:443:127.0.0.1', --output, /dev/null, --write-out, '%{http_code}', 'https://wgportal.willfan.me/']
+      register: oci_hub_public_http
+      changed_when: false
+      retries: 6
+      delay: 5
+      until: oci_hub_public_http.rc == 0
+    - name: Require the Portal login page
+      ansible.builtin.assert:
+        that: oci_hub_public_http.stdout == '200'

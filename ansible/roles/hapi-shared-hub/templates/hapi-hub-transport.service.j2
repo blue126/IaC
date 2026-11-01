@@ -1,0 +1,25 @@
+[Unit]
+Description=HAPI authenticated worker transport
+After=hapi-shared-hub.service
+Requires=hapi-shared-hub.service
+
+[Service]
+Type=simple
+User=hapi-hub
+Group=hapi-hub
+RuntimeDirectory=hapi-hub-transport
+RuntimeDirectoryMode=0700
+ExecStartPre=/usr/sbin/nginx -t -c /etc/hapi-shared-hub/nginx.conf -p /run/hapi-hub-transport/
+ExecStart=/usr/sbin/nginx -c /etc/hapi-shared-hub/nginx.conf -p /run/hapi-hub-transport/ -g "daemon off;"
+ExecReload=/usr/sbin/nginx -c /etc/hapi-shared-hub/nginx.conf -s reload
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/hapi-hub-transport
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+---
+hapi_shared_hub_vmid: 0
+hapi_shared_hub_artifact: ''
+hapi_shared_hub_artifact_sha256: ''
+hapi_shared_hub_origin: https://hapi.willfan.me
+hapi_shared_hub_bind_address: ''
+hapi_shared_hub_activate: false
+hapi_shared_hub_agents: []
+hapi_shared_hub_credentials: "{{ vault_hapi_shared_hub_credentials | default([]) }}"
+hapi_shared_hub_bootstrap_token: "{{ vault_hapi_shared_hub_bootstrap_token | default('') }}"
+hapi_shared_hub_jwt_secret: "{{ vault_hapi_shared_hub_jwt_secret | default({}) }}"
+hapi_internal_http_authorized: false

@@ -31,7 +31,6 @@ terraform/esxi/terraform.tfvars
 /remotecc/employee-admin/remotecc-layout.json
 /remotecc/employee-admin/email-template.txt
 /remotecc/employee-admin/bake-template.yml
-/remotecc/employee-admin/onedrive-invite-legacy.yml
 /remotecc/employee-admin/release-template.yml
 /remotecc/employee-admin/seal-template.yml
 /remotecc/employee-admin/template-hostkey.yml

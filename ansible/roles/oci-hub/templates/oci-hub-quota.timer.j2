@@ -1,0 +1,11 @@
+[Unit]
+Description=OCI Hub five-second accounting
+
+[Timer]
+OnBootSec=5s
+OnUnitActiveSec=5s
+AccuracySec=1s
+Unit=oci-hub-quota.service
+
+[Install]
+WantedBy=timers.target

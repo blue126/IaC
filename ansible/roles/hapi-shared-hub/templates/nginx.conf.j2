@@ -1,0 +1,48 @@
+pid /run/hapi-hub-transport/nginx.pid;
+error_log /dev/null;
+worker_processes 1;
+events { worker_connections 1024; }
+http {
+    access_log off;
+    client_body_temp_path /run/hapi-hub-transport/body;
+    proxy_temp_path /run/hapi-hub-transport/proxy;
+    fastcgi_temp_path /run/hapi-hub-transport/fastcgi;
+    uwsgi_temp_path /run/hapi-hub-transport/uwsgi;
+    scgi_temp_path /run/hapi-hub-transport/scgi;
+    server_tokens off;
+    map $http_upgrade $hapi_connection { default close; websocket upgrade; }
+    # Bind only the actual peer address; PVE enforces IP/MAC anti-spoofing.
+    map $remote_addr $hapi_namespace {
+        default "";
+{% for agent in hapi_shared_hub_agents %}
+        "{{ agent.address }}" "{{ agent.namespace }}";
+{% endfor %}
+    }
+    map $remote_addr $hapi_credential {
+        default "";
+{% for agent in hapi_shared_hub_agents %}
+        "{{ agent.address }}" "{{ agent.credential_id }}";
+{% endfor %}
+    }
+    server {
+        listen {{ hapi_shared_hub_bind_address }}:9443;
+        server_name hapi-hub.internal;
+        if ($hapi_namespace = "") { return 403; }
+        if ($http_host != "hapi-hub.internal") { return 421; }
+        client_max_body_size 64m;
+        proxy_set_header Host {{ hapi_shared_hub_origin | regex_replace('^https://', '') }};
+        proxy_set_header X-Hapi-Expected-Namespace $hapi_namespace;
+        proxy_set_header X-Hapi-Expected-Credential $hapi_credential;
+        proxy_set_header Cf-Access-Jwt-Assertion "";
+        proxy_set_header Cookie "";
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $hapi_connection;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_next_upstream off;
+        proxy_redirect off;
+        proxy_read_timeout 60s;
+        location / { proxy_pass http://127.0.0.1:3006; }
+    }
+}

@@ -45,3 +45,6 @@ tmp/
 /resources/_gen/
 /.hugo_build.lock
 /.hugo-content/
+
+# WorkBuddy local state
+.workbuddy/

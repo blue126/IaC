@@ -1,8 +1,0 @@
----
-- name: Validate network structure before any boundary mutation
-  ansible.builtin.include_tasks: validate-network.yml
-  vars:
-    employee_access_action: boundary
-
-- name: Install only the employee bridge boundary before first VM startup
-  ansible.builtin.include_tasks: pve.yml

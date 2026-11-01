@@ -1,0 +1,15 @@
+[Unit]
+Description=OCI Hub scoped PVE isolation
+After=network-pre.target
+Before=pve-guests.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/oci-hub-boundary.py apply
+ExecStartPost=/usr/sbin/ip route replace blackhole {{ oci_hub_boundary.aggregate }} metric 32760
+RemainAfterExit=yes
+# Rules are intentionally retained on stop; replacing them is atomic.
+
+[Install]
+WantedBy=multi-user.target

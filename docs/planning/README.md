@@ -8,6 +8,8 @@
 
 ## 提案
 
+- **[2026-10-30-hapi-control-plane-phase-one.md](./2026-10-30-hapi-control-plane-phase-one.md)** — VM500统一HAPI接入与控制面实施计划，含现场只读盘点、代码／凭据清单、验收与回退；保留初始计划，统一入口与单Hub后续已部署，当前维护见[统一入口](../guides/hapi-unified-entry.md)。
+
 - **[employee-workspace-self-service.md](./employee-workspace-self-service.md)** — 无需 GitHub 账号的网页申请、一次批准与 CD 自动开户/私密完整项目领取方案；暂缓至下周，当前手动开户交付。
 
 - **[employee-workspace-browser-auth-change.md](./employee-workspace-browser-auth-change.md)** — Browsh实际交互失败后的个人授权入口调整提案，待批准。

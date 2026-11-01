@@ -1,0 +1,25 @@
+[Unit]
+Description=HAPI loopback compatibility endpoint for the shared Hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hapi-hub-client
+Group=hapi-hub-client
+RuntimeDirectory=hapi-hub-client
+RuntimeDirectoryMode=0700
+ExecStartPre=/usr/sbin/nginx -t -c /etc/hapi-hub-client/nginx.conf -p /run/hapi-hub-client/
+ExecStart=/usr/sbin/nginx -c /etc/hapi-hub-client/nginx.conf -p /run/hapi-hub-client/ -g "daemon off;"
+ExecReload=/usr/sbin/nginx -c /etc/hapi-hub-client/nginx.conf -s reload
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/hapi-hub-client
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

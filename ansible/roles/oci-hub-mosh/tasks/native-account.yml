@@ -1,0 +1,35 @@
+---
+- name: Create the independent employee account
+  ansible.builtin.user:
+    name: employee
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+    password: '*'
+- name: Preserve employee passwordless tool administration
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/employee-workspace
+    content: "employee ALL=(ALL) NOPASSWD: ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+- name: Create the native employee SSH directory
+  ansible.builtin.file:
+    path: /home/employee/.ssh
+    state: directory
+    owner: employee
+    group: employee
+    mode: '0700'
+- name: Reconcile the complete native device roster
+  ansible.builtin.include_role:
+    name: employee-workspace
+    tasks_from: authorization
+- name: Verify the preserved base login commands
+  ansible.builtin.command:
+    argv: [which, claude, workspace-login, workspace-browser]
+  changed_when: false
+- name: Validate SSH configuration after key reconciliation
+  ansible.builtin.command: sshd -t
+  changed_when: false

@@ -10,6 +10,9 @@ n8n_legacy_env_file: "{{ n8n_legacy_data_dir }}/household-bill-assistant.env"
 n8n_legacy_scraper_data_dir: "/root/n8n-rental/data"
 n8n_legacy_backup_path: "/root/n8n-pre-docker-migration.tgz"
 n8n_legacy_cache_marker: "{{ n8n_install_dir }}/.legacy-cache-migrated"
+n8n_legacy_migration_enabled: true
+n8n_existing_docker_runtime: false
+n8n_checkout_app: true
 n8n_staging_data_dir: "{{ n8n_install_dir }}/.staging-n8n-data"
 n8n_staging_scraper_data_dir: "{{ n8n_install_dir }}/.staging-data"
 # 5679 is the n8n task broker port that the legacy systemd n8n already binds on

@@ -1,5 +1,15 @@
 # VM502 HAPI 单人试点
 
+## 后续多人开户的流程边界
+
+独立HAPI开户候选已于2026-10-31撤回。HAPI和WireGuard是同一员工VM的两种接入方式，不另建VM或第二份Terraform state。员工管理入口为执行器上的`wsctl`，见[当前操作约定](../deployment/oci-hub-native-provisioning.md)；原独立HAPI开户skill已移除，撤回依据见[历史记录](../planning/2026-10-31-hapi-onboarding-withdrawal.md)。
+
+现行入口为`https://hapi.willfan.me`：Tunnel、身份网关、单共享Hub与会话数据库在VM500，VM502保留Runner、Claude与个人登录环境。登录引导已接入统一入口，详见[现行入口与维护说明](hapi-unified-entry.md)。
+
+以下保留2026-10-29的单人试点安装、验收和回滚历史。旧试点域名、直接Tunnel、令牌登录及每VM Hub布局均已被后续迁移取代；下文命令不能直接作为当前回滚或新员工开户步骤。
+
+## 2026-10-29单人试点快照（历史）
+
 本试点仅覆盖 `employee-control`（VM502）的 `employee` 用户。浏览器在本地编辑输入；Hub、Runner、Claude Agent SDK、Claude 进程与凭据均位于 VM。先由本人通过 `workspace-login` 登录，再实测订阅能否用于 HAPI 远程请求；`workspace-login --check` 只检查安装，不代表登录成功。登录或订阅失败即停止请求，由本人处理 VM 登录，不能切换计费方式。
 
 入口固定为 `https://hapi-test.willfan.me`，经专用 Cloudflare Named Tunnel、HTTP/2 连接 VM 的 `127.0.0.1:3006`。HAPI 以令牌认证，无邮件验证码。该令牌代表本人的完整 VM 执行权限，不能交给其他人。试点使用默认审批模式；新建 Claude 会话时确认界面为 `default`，不选择自动批准或绕过审批。

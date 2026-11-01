@@ -13,13 +13,13 @@
     group: root
     mode: '0755'
 
-- name: Configure the fixed private authorization viewer
+- name: Configure the VM-owned authorization viewer
   ansible.builtin.copy:
     dest: /etc/employee-workspace-browser.json
     owner: root
     group: root
     mode: '0644'
-    content: "{{ {'bind_address': ansible_host, 'viewer_url': 'http://' + hostvars[employee_workspace_gateway].employee_access_wireguard_address.split('/')[0] + ':8443/vnc.html#autoconnect=1&resize=scale&reconnect=0'} | to_nice_json }}"
+    content: "{{ {'bind_address': '127.0.0.1', 'viewer_url': employee_workspace_viewer_url} | to_nice_json }}"
 
 - name: Install the temporary graphical browser supervisor
   ansible.builtin.copy:

@@ -1,6 +1,6 @@
 interface:
   display_name: "员工工作区 Provisioning"
   short_description: "使用私有管理员项目规划员工虚拟机、配置接入身份并交付设备包"
-  default_prompt: "使用 $employee-provision 为指定员工开通工作区，生成计划并在批准后交付设备包。"
+  default_prompt: "使用 $employee-provision 为指定员工开通工作区，生成计划，分别确认配置、验收与交付授权并报告各阶段结果。"
 policy:
   allow_implicit_invocation: true

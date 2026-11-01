@@ -1,0 +1,7 @@
+---
+hapi_hub_client_id: ''
+hapi_hub_client_address: ''
+hapi_hub_client_activate: false
+hapi_hub_client_legacy_hub_unit: ''
+hapi_hub_client_runner_unit: ''
+hapi_internal_http_authorized: false

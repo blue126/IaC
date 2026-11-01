@@ -1,0 +1,12 @@
+---
+hapi_ingress_mode: ''
+hapi_ingress_vmid: 0
+hapi_ingress_backend_address: ''
+hapi_ingress_origin: https://hapi.willfan.me
+hapi_ingress_id: vm502
+hapi_ingress_web_archive: ''
+hapi_ingress_web_sha256: ''
+hapi_ingress_tunnel_token: ''
+hapi_ingress_start_tunnel: false
+hapi_ingress_control_address: ''
+hapi_internal_http_authorized: false
