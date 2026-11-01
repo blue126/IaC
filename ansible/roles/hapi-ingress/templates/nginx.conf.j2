@@ -13,23 +13,12 @@ http {
     scgi_temp_path /run/hapi-ingress/scgi;
     server_tokens off;
     map $http_upgrade $hapi_connection { default close; websocket upgrade; }
-    map $ssl_client_s_dn $hapi_client_allowed { default 0; "CN=hapi-control-plane" 1; }
+    map $remote_addr $hapi_client_allowed { default 0; "{{ hapi_ingress_control_address }}" 1; }
     server {
-        listen {{ hapi_ingress_backend_address }}:9443 ssl;
+        listen {{ hapi_ingress_backend_address }}:9443;
         server_name {{ hapi_ingress_id }}.hapi.internal;
-        include /etc/hapi-ingress/pki/*.conf;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_certificate /etc/hapi-ingress/certificate.pem;
-        ssl_certificate_key /etc/hapi-ingress/private.key;
-        ssl_client_certificate /etc/hapi-ingress/ca.pem;
-        ssl_crl /etc/hapi-ingress/crl.pem;
-        ssl_verify_client on;
-        ssl_verify_depth 2;
-        ssl_session_cache off;
-        ssl_session_tickets off;
         if ($hapi_client_allowed = 0) { return 403; }
         if ($http_host != "{{ hapi_ingress_id }}.hapi.internal") { return 421; }
-        if ($ssl_server_name != "{{ hapi_ingress_id }}.hapi.internal") { return 421; }
         add_header Cache-Control "no-store" always;
         client_max_body_size 64m;
         root /opt/hapi-ingress/web/{{ hapi_ingress_web_sha256 }};

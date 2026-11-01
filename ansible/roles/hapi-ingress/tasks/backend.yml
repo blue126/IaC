@@ -1,35 +1,11 @@
 ---
-- name: Inspect the dedicated certificate lifecycle ownership marker
-  ansible.builtin.stat:
-    path: /var/lib/hapi-pki-agent/managed.json
-    follow: false
-  register: hapi_ingress_pki_managed
-
-- name: Require supplied transport identities
+- name: Require explicit authorization for trusted internal HTTP
   ansible.builtin.assert:
     that:
-      - hapi_ingress_ca | length > 0
-      - hapi_ingress_crl | length > 0
-      - hapi_ingress_certificate | length > 0
-      - hapi_ingress_key | length > 0
-  no_log: true
-
-- name: Deploy only leaf transport identities to the service hosts
-  ansible.builtin.copy:
-    content: '{{ item.content }}'
-    dest: '/etc/hapi-ingress/{{ item.name }}'
-    owner: root
-    group: hapi-ingress
-    mode: '0440'
-  loop:
-    - {name: ca.pem, content: '{{ hapi_ingress_ca }}'}
-    - {name: crl.pem, content: '{{ hapi_ingress_crl }}'}
-    - {name: certificate.pem, content: '{{ hapi_ingress_certificate }}'}
-    - {name: private.key, content: '{{ hapi_ingress_key }}'}
-  no_log: true
-  diff: false
-  notify: Restart HAPI ingress proxy
-  when: not hapi_ingress_pki_managed.stat.exists
+      - hapi_internal_http_authorized | bool
+      - hapi_ingress_control_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_ingress_control_address != hapi_ingress_backend_address
+    fail_msg: Internal HTTP requires the approved SDN isolation and trusted-network policy.
 
 - name: Prepare the isolated proxy runtime paths for candidate validation
   ansible.builtin.file:
@@ -79,7 +55,7 @@
     group: hapi-ingress
     mode: '0640'
     validate: /usr/sbin/nginx -t -c %s
-  notify: Restart HAPI ingress proxy
+  notify: Reload HAPI ingress proxy
 
 - name: Deploy the dedicated proxy service definition
   ansible.builtin.template:
@@ -88,7 +64,7 @@
     owner: root
     group: root
     mode: '0644'
-  notify: Restart HAPI ingress proxy
+  notify: Reload HAPI ingress proxy
 
 - name: Inspect the PID file created by root candidate validation
   ansible.builtin.stat:

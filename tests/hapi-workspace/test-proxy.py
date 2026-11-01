@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise rendered Nginx routing with real TLS, SSE and WebSocket loopback peers."""
+"""Exercise trusted internal HTTP routing, identity binding, SSE and WebSocket peers."""
 import datetime
 import hashlib
 import http.client
@@ -61,12 +61,15 @@ def available_port():
 
 
 def ansible_template(parameters, values):
-    if not os.environ.get('SANDBOX_ID'):
-        raise RuntimeError('Run repository Ansible only inside the approved Sandbox')
+    executable = ROOT / '.venv/bin/ansible'
+    if not executable.is_file():
+        raise RuntimeError('Use this worktree project toolchain; run scripts/setup-dev-env.sh first')
     with tempfile.TemporaryDirectory(prefix='hapi-ansible-') as folder:
         variables = Path(folder)/'vars.json'; variables.write_text(json.dumps(values))
-        env = {**os.environ, 'ANSIBLE_CONFIG': str(ROOT/'tests/ci/fixtures/ansible.cfg')}
-        return subprocess.run(['ansible', 'localhost', '-i', 'localhost,', '-c', 'local',
+        env = {**os.environ, 'ANSIBLE_CONFIG': str(ROOT/'tests/ci/fixtures/ansible.cfg'),
+               'ANSIBLE_LOCAL_TEMP': str(Path(folder)/'local'), 'ANSIBLE_REMOTE_TEMP': str(Path(folder)/'remote'),
+               'ANSIBLE_COLLECTIONS_PATH': str(ROOT/'ansible/collections')}
+        return subprocess.run([str(executable), 'localhost', '-i', 'localhost,', '-c', 'local',
             '-m', 'ansible.builtin.template', '-a', json.dumps(parameters), '-e', '@'+str(variables)],
             cwd=ROOT, env=env, capture_output=True, text=True)
 
@@ -149,43 +152,18 @@ class RfbPeer(socketserver.BaseRequestHandler):
 class RfbServer(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
-@unittest.skipUnless(shutil.which('nginx') and shutil.which('ansible') and os.environ.get('SANDBOX_ID'),
-                     'requires Nginx and real repository Ansible inside the approved Sandbox')
+@unittest.skipUnless(shutil.which('nginx') and (ROOT / '.venv/bin/ansible').is_file(),
+                     'requires Nginx and this worktree repository toolchain')
 class ProxyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         helpers.AuthTest.setUpClass()
-        cls.temp = tempfile.TemporaryDirectory(prefix='hapi-proxy-')
+        cls.temp = tempfile.TemporaryDirectory(prefix='hapi-proxy-', dir='/tmp')
         cls.root = Path(cls.temp.name)
         cls.processes, cls.servers = [], []
-        cls.ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'HAPI synthetic CA')])
-        now = datetime.datetime.now(datetime.timezone.utc)
-        cls.ca = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
-                  .public_key(cls.ca_key.public_key()).serial_number(x509.random_serial_number())
-                  .not_valid_before(now - datetime.timedelta(minutes=1)).not_valid_after(now + datetime.timedelta(days=1))
-                  .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
-                  .add_extension(x509.KeyUsage(digital_signature=False, content_commitment=False, key_encipherment=False,
-                     data_encipherment=False, key_agreement=False, key_cert_sign=True, crl_sign=True,
-                     encipher_only=False, decipher_only=False), critical=True)
-                  .add_extension(x509.SubjectKeyIdentifier.from_public_key(cls.ca_key.public_key()), critical=False)
-                  .sign(cls.ca_key, hashes.SHA256()))
-        (cls.root/'ca.pem').write_bytes(cls.ca.public_bytes(serialization.Encoding.PEM))
-        cls.issue('client', 'hapi-control-plane', client=True)
-        cls.issue('other', 'other-client', client=True)
-        revoked = cls.issue('revoked', 'hapi-control-plane', client=True)
-        crl = (x509.CertificateRevocationListBuilder().issuer_name(cls.ca.subject)
-               .last_update(now-datetime.timedelta(minutes=1)).next_update(now+datetime.timedelta(hours=1))
-               .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(cls.ca_key.public_key()), critical=False)
-               .add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(revoked.serial_number)
-                                        .revocation_date(now-datetime.timedelta(seconds=1)).build())
-               .sign(cls.ca_key, hashes.SHA256()))
-        (cls.root/'crl.pem').write_bytes(crl.public_bytes(serialization.Encoding.PEM))
         cls.routes = [helpers.route('alice', 2), helpers.route('bob', 3)]
         cls.config_file = cls.root/'registry.json'
-        cls.config = {'origin': helpers.ORIGIN, 'issuer': helpers.ISSUER, 'audience': helpers.AUD, 'routes': cls.routes,
-                      'ca_file': str(cls.root/'ca.pem'), 'crl_file': str(cls.root/'crl.pem'),
-                      'client_certificate': str(cls.root/'client.pem'), 'client_key': str(cls.root/'client.key')}
+        cls.config = {'origin': helpers.ORIGIN, 'issuer': helpers.ISSUER, 'audience': helpers.AUD, 'routes': cls.routes}
         cls.save()
         cls.verifier = auth.AccessVerifier(helpers.ISSUER, helpers.AUD, lambda: helpers.AuthTest.jwks)
         cls.policy = auth.Policy(cls.config_file, cls.verifier)
@@ -193,11 +171,10 @@ class ProxyTest(unittest.TestCase):
         cls.auth_server.policy = cls.policy
         cls.addClassCleanup(cls.cleanup)
         threading.Thread(target=cls.auth_server.serve_forever, daemon=True).start()
-        cls.backends = {}
+        cls.backends = {}; cls.backend_configs = {}
         cls.agents = {}
         for route in cls.routes:
             wid = route['workspace_id']
-            cls.issue(wid, wid+'.hapi.internal')
             hub = ThreadingHTTPServer(('127.0.0.1', 0), Hub)
             hub.workspace, hub.release = wid, threading.Event()
             cls.servers.append(hub)
@@ -210,31 +187,30 @@ class ProxyTest(unittest.TestCase):
             rfb = RfbServer(('127.0.0.1', 0), RfbPeer)
             cls.servers.append(rfb)
             threading.Thread(target=rfb.serve_forever, daemon=True).start()
-            viewer_port = available_port()
-            viewer = subprocess.Popen(['websockify', f'127.0.0.1:{viewer_port}', f'127.0.0.1:{rfb.server_address[1]}'],
-                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            cls.processes.append(viewer)
-            for _ in range(100):
-                try:
-                    with socket.create_connection(('127.0.0.1', viewer_port), timeout=.1): break
-                except OSError: time.sleep(.02)
-            else: raise AssertionError('Synthetic websockify did not start')
+            viewer_port = hub.server_port
+            if shutil.which('websockify'):
+                viewer_port = available_port()
+                viewer = subprocess.Popen(['websockify', f'127.0.0.1:{viewer_port}', f'127.0.0.1:{rfb.server_address[1]}'],
+                                          stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                cls.processes.append(viewer)
+                for _ in range(100):
+                    try:
+                        with socket.create_connection(('127.0.0.1', viewer_port), timeout=.1): break
+                    except OSError: time.sleep(.02)
+                else: raise AssertionError('Synthetic websockify did not start')
             directory = cls.root/wid; directory.mkdir()
-            for name in ['ca.pem', 'crl.pem']:
-                (directory/name).write_bytes((cls.root/name).read_bytes())
-            (directory/'server.pem').write_bytes((cls.root/(wid+'.pem')).read_bytes())
-            (directory/'server.key').write_bytes((cls.root/(wid+'.key')).read_bytes())
             port = available_port(); cls.backends[wid] = port
-            config = render(ROOT/'ansible/roles/hapi-workspace/templates/nginx.conf.j2', {
-                'hapi_workspace_bind_address': '127.0.0.1', 'hapi_workspace_id': wid,
-                'hapi_workspace_origin': helpers.ORIGIN, 'hapi_workspace_web_sha256': 'a'*64})
+            config = render(ROOT/'ansible/roles/hapi-ingress/templates/nginx.conf.j2', {
+                'hapi_ingress_control_address': '127.0.0.1', 'hapi_ingress_backend_address': '127.0.0.1', 'hapi_ingress_id': wid,
+                'hapi_ingress_origin': helpers.ORIGIN, 'hapi_ingress_web_sha256': 'a'*64})
             config = config.replace('127.0.0.1:6082', f'127.0.0.1:{login.server_port}').replace('127.0.0.1:6081', f'127.0.0.1:{viewer_port}')
             config = config.replace('127.0.0.1:9443', f'127.0.0.1:{port}').replace('127.0.0.1:3006', f'127.0.0.1:{hub.server_port}')
-            config = config.replace('/etc/hapi-workspace', str(directory)).replace('/run/hapi-workspace-proxy', str(directory))
+            config = config.replace('/etc/hapi-ingress', str(directory)).replace('/run/hapi-ingress', str(directory))
             web = directory/'web'; web.mkdir()
             (web/'index.html').write_text('<html>synthetic workspace entry</html>')
             (web/'app.js').write_text('window.syntheticWorkspace = true;')
-            config = config.replace('/opt/hapi-workspace/web/' + 'a'*64, str(web))
+            config = config.replace('/opt/hapi-ingress/web/' + 'a'*64, str(web))
+            cls.backend_configs[wid] = config
             cls.start_nginx(directory, config, port)
         directory = cls.root/'control'; directory.mkdir()
         (directory/'bridges').mkdir()
@@ -253,32 +229,16 @@ class ProxyTest(unittest.TestCase):
         cls.start_nginx(directory, config, cls.port)
 
     @classmethod
-    def issue(cls, stem, name, client=False):
-        now = datetime.datetime.now(datetime.timezone.utc)
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        cert = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)]))
-                .issuer_name(cls.ca.subject).public_key(key.public_key()).serial_number(x509.random_serial_number())
-                .not_valid_before(now-datetime.timedelta(minutes=1)).not_valid_after(now+datetime.timedelta(hours=1))
-                .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-                .add_extension(x509.KeyUsage(digital_signature=True, content_commitment=False, key_encipherment=True,
-                     data_encipherment=False, key_agreement=False, key_cert_sign=False, crl_sign=False,
-                     encipher_only=False, decipher_only=False), critical=True)
-                .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(cls.ca_key.public_key()), critical=False)
-                .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
-                .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False)
-                .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.CLIENT_AUTH if client else ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
-                .sign(cls.ca_key, hashes.SHA256()))
-        (cls.root/(stem+'.pem')).write_bytes(cert.public_bytes(serialization.Encoding.PEM))
-        (cls.root/(stem+'.key')).write_bytes(key.private_bytes(serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-        return cert
-
-    @classmethod
     def save(cls):
         cls.config_file.write_text(json.dumps(cls.config))
 
     @classmethod
     def start_nginx(cls, directory, config, port):
+        version = subprocess.run(['nginx', '-V'], capture_output=True, text=True).stderr
+        import re
+        conf = re.search(r'--conf-path=([^ ]+)', version)
+        if conf:
+            config = config.replace('/etc/nginx/mime.types', str(Path(conf.group(1)).parent/'mime.types'))
         file = directory/'nginx.conf'; file.write_text(config)
         check = subprocess.run(['nginx', '-t', '-c', str(file), '-p', str(directory)+'/'], capture_output=True, text=True)
         if check.returncode:
@@ -329,72 +289,34 @@ class ProxyTest(unittest.TestCase):
             self.assertIsNone(result['access_header']); self.assertIsNone(result['cookie'])
             self.assertEqual(result['path'], '/api/sessions?machineId=other')
 
-    def test_shared_hub_transport_requires_certificate_and_address_and_overwrites_namespace(self):
+    def test_shared_hub_transport_binds_actual_peer_and_overwrites_identity_headers(self):
         hub = ThreadingHTTPServer(('127.0.0.1', 0), Hub)
-        hub.workspace, hub.release = 'shared-hub', threading.Event()
-        self.servers.append(hub)
-        threading.Thread(target=hub.serve_forever, daemon=True).start()
-        self.issue('shared-hub', 'hapi-hub.internal')
-        self.issue('worker-alice', 'worker-alice', client=True)
-        self.issue('worker-bob', 'worker-bob', client=True)
-        shared = self.root / 'shared-transport'; shared.mkdir()
-        for target, source in [('ca.pem', 'ca.pem'), ('crl.pem', 'crl.pem'),
-                               ('certificate.pem', 'shared-hub.pem'), ('private.key', 'shared-hub.key')]:
-            (shared / target).write_bytes((self.root / source).read_bytes())
+        hub.workspace, hub.release = 'shared', threading.Event()
+        self.servers.append(hub);threading.Thread(target=hub.serve_forever, daemon=True).start()
+        directory = self.root/'shared-http';directory.mkdir()
         port = available_port()
         config = render(ROOT/'ansible/roles/hapi-shared-hub/templates/nginx.conf.j2', {
             'hapi_shared_hub_bind_address': '127.0.0.1', 'hapi_shared_hub_origin': helpers.ORIGIN,
-            'hapi_shared_hub_agents': [
-                {'id': 'worker-alice', 'address': '127.0.0.1', 'namespace': 'default', 'credential_id': 'alice'},
-                {'id': 'worker-bob', 'address': '127.0.0.2', 'namespace': 'bob', 'credential_id': 'bob'}]})
-        config = config.replace('127.0.0.1:9443', f'127.0.0.1:{port}').replace('127.0.0.1:3006', f'127.0.0.1:{hub.server_port}')
-        config = config.replace('/run/hapi-hub-transport', str(shared)).replace('/etc/hapi-shared-hub', str(shared))
-        self.start_nginx(shared, config, port)
-
-        def direct(stem, source='127.0.0.1'):
-            context = ssl.create_default_context(cafile=str(self.root/'ca.pem'))
-            context.load_cert_chain(str(self.root/(stem+'.pem')), str(self.root/(stem+'.key')))
-            raw = socket.create_connection(('127.0.0.1', port), timeout=3, source_address=(source, 0))
-            tls = context.wrap_socket(raw, server_hostname='hapi-hub.internal')
-            connection = http.client.HTTPConnection('hapi-hub.internal', timeout=3)
-            connection.sock = tls
-            try:
-                connection.request('GET', '/api/sessions', headers={'Host': 'hapi-hub.internal',
-                    'X-Hapi-Expected-Namespace': 'forged', 'X-Hapi-Expected-Credential': 'forged'})
-                response = connection.getresponse()
-                return response.status, response.read()
-            finally:
-                connection.close()
-
-        status, raw = direct('worker-alice')
-        self.assertEqual(status, 200)
-        self.assertEqual(json.loads(raw)['namespace'], 'default')
-        self.assertEqual(json.loads(raw)['credential_id'], 'alice')
-        self.assertEqual(direct('worker-bob')[0], 403)
-        status, raw = direct('worker-bob', '127.0.0.2')
-        self.assertEqual(status, 200)
-        self.assertEqual(json.loads(raw)['namespace'], 'bob')
-        self.assertEqual(direct('other')[0], 403)
-        self.assertIn(direct('revoked')[0], [400, 403])
-
-        worker = self.root / 'worker-client'; worker.mkdir()
-        for target, source in [('ca.pem', 'ca.pem'), ('crl.pem', 'crl.pem'),
-                               ('certificate.pem', 'worker-alice.pem'), ('private.key', 'worker-alice.key')]:
-            (worker / target).write_bytes((self.root / source).read_bytes())
-        client_port = available_port()
-        config = render(ROOT/'ansible/roles/hapi-hub-client/templates/nginx.conf.j2', {'hapi_hub_client_address': '127.0.0.1'})
-        config = config.replace('127.0.0.1:3006', f'127.0.0.1:{client_port}').replace('127.0.0.1:9443', f'127.0.0.1:{port}')
-        config = config.replace('/run/hapi-hub-client', str(worker)).replace('/etc/hapi-hub-client', str(worker))
-        self.start_nginx(worker, config, client_port)
-        connection = http.client.HTTPConnection('127.0.0.1', client_port, timeout=3)
-        try:
-            connection.request('GET', '/api/sessions', headers={'X-Hapi-Expected-Namespace': 'bob', 'X-Hapi-Expected-Credential': 'bob'})
-            response = connection.getresponse()
+            'hapi_shared_hub_agents': [{'id': 'alice', 'address': '127.0.0.1', 'namespace': 'alice', 'credential_id': 'alice'}]})
+        config = config.replace('/run/hapi-hub-transport', str(directory)).replace('127.0.0.1:3006', f'127.0.0.1:{hub.server_port}').replace('127.0.0.1:9443', f'127.0.0.1:{port}')
+        self.start_nginx(directory, config, port)
+        client = self.root/'client-http';client.mkdir();client_port = available_port()
+        candidate = render(ROOT/'ansible/roles/hapi-hub-client/templates/nginx.conf.j2', {'hapi_hub_client_address': '127.0.0.1'})
+        candidate = candidate.replace('/run/hapi-hub-client', str(client)).replace('127.0.0.1:3006', f'127.0.0.1:{client_port}').replace('127.0.0.1:9443', f'127.0.0.1:{port}')
+        self.start_nginx(client, candidate, client_port)
+        for endpoint in [port, client_port]:
+            connection = http.client.HTTPConnection('127.0.0.1', endpoint, timeout=3)
+            connection.request('GET', '/api/sessions', headers={'Host': 'hapi-hub.internal',
+                'X-Hapi-Expected-Namespace': 'bob', 'X-Hapi-Expected-Credential': 'bob', 'X-Forwarded-For': '10.77.0.99'})
+            response = connection.getresponse();value = json.loads(response.read());connection.close()
             self.assertEqual(response.status, 200)
-            result = json.loads(response.read())
-            self.assertEqual((result['namespace'], result['credential_id']), ('default', 'alice'))
-        finally:
-            connection.close()
+            self.assertEqual((value['namespace'], value['credential_id']), ('alice', 'alice'))
+        denied = self.root/'shared-denied';denied.mkdir();denied_port = available_port()
+        candidate = config.replace(str(directory), str(denied)).replace(f'127.0.0.1:{port}', f'127.0.0.1:{denied_port}').replace('"127.0.0.1" "alice"', '"127.0.0.2" "alice"')
+        self.start_nginx(denied, candidate, denied_port)
+        connection = http.client.HTTPConnection('127.0.0.1', denied_port, timeout=3)
+        connection.request('GET', '/health', headers={'Host': 'hapi-hub.internal','X-Forwarded-For':'127.0.0.2'})
+        response = connection.getresponse();response.read();connection.close();self.assertEqual(response.status,403)
 
     def test_custom_frontend_and_spa_routes_are_served_without_hub_token_page(self):
         for path in ['/', '/sessions/new']:
@@ -442,12 +364,13 @@ class ProxyTest(unittest.TestCase):
         finally:
             self.routes[0]['enabled'] = True; self.save()
 
-    def test_real_ticket_exchange_uses_mtls_and_returns_no_service_secret(self):
+    def test_real_ticket_exchange_uses_private_http_and_returns_no_service_secret(self):
         # Loopback stands in for the private addresses in the registered snapshot.
         original = auth.HubConnection
-        def connect(_address, name, context):
-            connection = original('127.0.0.1', name, context)
-            connection.port = self.backends[name.split('.')[0]]
+        def connect(address):
+            name = next(route['workspace_id'] for route in self.routes if route['backend_address'] == address)
+            connection = original('127.0.0.1')
+            connection.port = self.backends[name]
             return connection
         token = self.token()
         with patch.object(auth, 'HubConnection', connect), patch.object(auth.Path, 'read_text', return_value='synthetic-service-token-' + 'x'*32):
@@ -581,7 +504,10 @@ class ProxyTest(unittest.TestCase):
         self.assertIn('wss://hapi.example.com', response.getheader('Content-Security-Policy'))
         self.assertIn('/_workspace/login/guide.js', page)
         self.assertNotIn('VM502', page)
-        for path in ['/guide.js', '/guide.css', '/core/rfb.js']:
+        paths = ['/guide.js', '/guide.css']
+        if Path('/usr/share/novnc/core/rfb.js').is_file():
+            paths.append('/core/rfb.js')
+        for path in paths:
             connection, response = self.request('/_workspace/login'+path)
             self.assertEqual(response.status, 200, path); response.read(); connection.close()
         connection, response = self.request('/_workspace/identity', extra={'Cf-Access-Jwt-Assertion': token})
@@ -601,6 +527,8 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(response.status, 403); response.read(); connection.close()
 
     def test_parallel_novnc_modules_do_not_overflow_the_auth_socket(self):
+        if not Path('/usr/share/novnc/core/rfb.js').is_file():
+            self.skipTest('noVNC assets are not installed in this native test environment')
         from concurrent.futures import ThreadPoolExecutor
         count = 64
         barrier = threading.Barrier(count)
@@ -642,6 +570,8 @@ class ProxyTest(unittest.TestCase):
         self.assertGreater(len(seen), 20)
 
     def test_login_viewer_returns_real_websocket_rfb_banner_through_owner_route(self):
+        if not shutil.which('websockify'):
+            self.skipTest('websockify is not installed in this native test environment')
         connection, response = self.request('/_workspace/login/websockify', extra={
             'Cf-Access-Jwt-Assertion': self.token(exp=time.time()+1.2),
             'Origin': helpers.ORIGIN, 'Upgrade': 'websocket', 'Connection': 'Upgrade',
@@ -657,28 +587,17 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(len(response.read()), 2 * 1024 * 1024)
         connection.close()
 
-    def test_mtls_rejects_wrong_server_name_other_client_and_revocation(self):
-        def connect(stem, name='alice', target='alice'):
-            context = ssl.create_default_context(cafile=str(self.root/'ca.pem'))
-            if stem:
-                context.load_cert_chain(str(self.root/(stem+'.pem')), str(self.root/(stem+'.key')))
-            connection = auth.HubConnection('127.0.0.1', name+'.hapi.internal', context)
-            connection.port = self.backends[target]
-            return connection
-        for stem, expected in [(None, 400), ('other', 403), ('revoked', 400)]:
-            connection = connect(stem)
-            try:
-                connection.request('GET', '/', headers={'Host': 'alice.hapi.internal'})
-                response = connection.getresponse(); response.read()
-                self.assertEqual(response.status, expected)
-            finally:
-                connection.close()
-        connection = connect('client', name='alice', target='bob')
-        try:
-            with self.assertRaises(ssl.SSLCertVerificationError):
-                connection.connect()
-        finally:
-            connection.close()
+    def test_private_login_ingress_requires_actual_control_peer_and_registered_host(self):
+        connection = http.client.HTTPConnection('127.0.0.1', self.backends['alice'], timeout=3)
+        connection.request('GET', '/', headers={'Host': 'bob.hapi.internal'})
+        response = connection.getresponse();response.read();connection.close();self.assertEqual(response.status,421)
+        directory = self.root/'ingress-denied';directory.mkdir();port = available_port()
+        config = self.backend_configs['alice'].replace(str(self.root/'alice'), str(directory)).replace(
+            f'127.0.0.1:{self.backends["alice"]}', f'127.0.0.1:{port}').replace('"127.0.0.1" 1;', '"127.0.0.2" 1;')
+        self.start_nginx(directory,config,port)
+        connection = http.client.HTTPConnection('127.0.0.1',port,timeout=3)
+        connection.request('GET','/api/login/status',headers={'Host':'alice.hapi.internal','X-Forwarded-For':'127.0.0.2','X-Hapi-Login-Service':'verified-proxy'})
+        response=connection.getresponse();response.read();connection.close();self.assertEqual(response.status,403)
 
 
 if __name__ == '__main__':

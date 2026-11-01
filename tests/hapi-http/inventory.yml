@@ -1,0 +1,36 @@
+---
+all:
+  vars:
+    hapi_internal_http_authorized: false
+    hapi_control_plane_shared_hub: true
+    hapi_control_plane_origin: https://hapi.example.invalid
+    hapi_control_plane_issuer: https://example.cloudflareaccess.com
+    hapi_control_plane_audience: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    hapi_shared_hub_bind_address: 10.77.0.1
+    hapi_shared_hub_origin: https://hapi.example.invalid
+    hapi_shared_hub_agents:
+      - {id: alice, address: 10.77.0.2, namespace: alice, credential_id: alice}
+    hapi_control_plane_routes:
+      - {workspace_id: alice, email: alice@example.invalid, subject: alice, enabled: true, generation: 1, namespace: alice, backend_address: 10.77.0.2, backend_name: alice.hapi.internal}
+  children:
+    hapi_http_boundary:
+      hosts:
+        fixture-pve:
+          ansible_host: 192.0.2.22
+    hapi_control_plane:
+      hosts:
+        fixture-control:
+          ansible_host: 192.0.2.20
+          hapi_control_plane_vmid: 500
+    hapi_hub_clients:
+      hosts:
+        fixture-worker:
+          ansible_host: 192.0.2.21
+          hapi_ingress_vmid: 502
+          hapi_ingress_backend_address: 10.77.0.2
+          hapi_ingress_control_address: 10.77.0.1
+          hapi_ingress_id: alice
+          hapi_ingress_origin: https://hapi.example.invalid
+          hapi_ingress_web_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          hapi_hub_client_address: 10.77.0.1
+          hapi_hub_client_runner_unit: employee-hapi-runner

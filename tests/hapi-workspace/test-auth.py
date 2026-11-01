@@ -67,6 +67,20 @@ class AuthTest(unittest.TestCase):
     def save(self):
         self.config_file.write_text(json.dumps(self.config))
 
+    def test_cloudflare_key_fetch_still_requires_verified_https(self):
+        import ssl
+        from unittest.mock import MagicMock
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps(self.jwks).encode()
+        opener = MagicMock();opener.open.return_value = response
+        with patch.object(auth, 'build_opener', return_value=opener) as build:
+            verifier = auth.AccessVerifier(ISSUER, AUD)
+            self.assertEqual(verifier.fetch_keys(), self.jwks)
+        context = build.call_args.args[0]._context
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
+        opener.open.assert_called_once_with(ISSUER + '/cdn-cgi/access/certs', timeout=5)
+
     def token(self, wid='alice', header=None, **overrides):
         claims = {'iss': ISSUER, 'aud': [AUD], 'sub': 'subject-' + wid,
                   'email': wid + '@example.com', 'iat': time.time() - 1, 'exp': time.time() + 300}

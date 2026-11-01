@@ -1,0 +1,49 @@
+---
+- name: Verify the retained PVE boundary before trusting internal HTTP
+  hosts: hapi_http_boundary
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  tags: [verify]
+  tasks:
+    - name: Require the approved internal HTTP trust model
+      ansible.builtin.assert:
+        that: hapi_internal_http_authorized | default(false) | bool
+
+    - name: Verify existing anti-spoofing rules and routing without modifying them
+      ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+      changed_when: false
+
+    - name: Record the verified outside-VM boundary for this run
+      ansible.builtin.set_fact:
+        hapi_http_boundary_verified: true
+
+- name: Deploy the approved existing-host internal HTTP transport
+  hosts: hapi_control_plane:hapi_hub_clients
+  become: true
+  any_errors_fatal: true
+  roles:
+    - hapi-internal-http
+
+- name: Verify both directions before retiring internal PKI
+  hosts: hapi_control_plane:hapi_hub_clients
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  tags: [verify]
+  tasks:
+    - name: Verify private HTTP sources and unchanged public identity checks
+      ansible.builtin.include_role:
+        name: hapi-internal-http
+        tasks_from: verify
+
+- name: Deploy the verified retirement of internal certificate services
+  hosts: hapi_control_plane:hapi_hub_clients
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Retire certificate programs only after the verification play succeeded
+      ansible.builtin.include_role:
+        name: hapi-internal-http
+        tasks_from: retire

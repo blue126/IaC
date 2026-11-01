@@ -1,4 +1,0 @@
----
-- name: Verify HAPI public PKI validity and external network policy
-  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-health.py /etc/hapi-health/config.json
-  changed_when: false
