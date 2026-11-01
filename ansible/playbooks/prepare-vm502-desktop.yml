@@ -1,0 +1,42 @@
+---
+- name: Deploy the explicitly selected VM502 presentation phase
+  hosts: "{{ employee_desktop_target | default('vm502') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Run only the presentation task entry
+      ansible.builtin.include_role:
+        name: employee-workspace
+        tasks_from: presentation
+
+- name: Verify the selected VM502 presentation phase without starting a session
+  hosts: "{{ employee_desktop_target | default('vm502') }}"
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Validate the staged desktop configuration and immutable materials
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -I
+          - /usr/local/lib/employee-workspace/presentation/desktop-service.py
+          - validate-config
+          - /usr/local/lib/employee-workspace/presentation/desktop.json
+      changed_when: false
+      no_log: true
+      when: employee_desktop_phase in ['prepare', 'activate']
+
+    - name: Validate the active nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      no_log: true
+
+    - name: Verify installed on-demand desktop metadata and strict material checks
+      ansible.builtin.command:
+        argv: [python3, -I, /usr/local/lib/employee-workspace/desktop-service.py, check]
+      become_user: employee
+      become: true
+      changed_when: false
+      no_log: true
+      when: employee_desktop_phase == 'activate'

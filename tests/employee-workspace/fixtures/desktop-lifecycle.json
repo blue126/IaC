@@ -1,0 +1,22 @@
+{
+  "vmid": 502,
+  "backend": {
+    "type": "kasmvnc",
+    "address": "127.0.0.1",
+    "port": 8444,
+    "client_path": "/",
+    "route_enabled": true,
+    "generation_id": "g-story3-001",
+    "tls_server_name": "localhost",
+    "trust_ref": "generations/g-story3-001/502/ca.pem"
+  },
+  "generation": {
+    "vmid": 502,
+    "trust_ref": "generations/g-story3-001/502/ca.pem",
+    "certificate_ref": "generations/g-story3-001/502/server.pem",
+    "private_key_ref": "generations/g-story3-001/502/server.key",
+    "authentication_ref": "generations/g-story3-001/502/authentication.json"
+  },
+  "materials_root": "/run/vm502-story3/materials",
+  "viewer_url": "https://198.18.53.10:8443/"
+}

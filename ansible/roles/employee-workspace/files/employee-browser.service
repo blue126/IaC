@@ -1,0 +1,22 @@
+[Unit]
+Description=Employee daily Firefox browser
+BindsTo=employee-desktop.service
+After=employee-desktop.service
+PartOf=employee-desktop.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=employee
+Group=employee
+Environment=HOME=/home/employee
+RuntimeDirectory=employee-browser
+RuntimeDirectoryMode=0700
+WorkingDirectory=/home/employee
+ExecStart=/usr/bin/python3 -I /usr/local/lib/employee-workspace/browser-service.py
+Restart=no
+KillMode=control-group
+TimeoutStartSec=45
+TimeoutStopSec=20
+StandardOutput=null
+StandardError=null

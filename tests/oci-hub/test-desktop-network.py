@@ -12,6 +12,7 @@ import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -25,8 +26,94 @@ SECRET_OBSERVATIONS = {}
 SOURCES = ('tests/oci-hub/test-desktop-network.py', 'tests/oci-hub/test-network.py',
            'tests/oci-hub/test-offline.py', 'tests/oci-hub/test-desktop-trust.py',
            'scripts/oci-hub/boundary.py',
+           'ansible/roles/employee-workspace/files/login-guide.py',
+           'ansible/roles/employee-workspace/files/desktop-service.py',
+           'ansible/roles/employee-workspace/files/desktop-contract.py',
            'ansible/roles/oci-hub-spoke/templates/desktop.conf.j2')
 
+
+
+def websocket_request_shape(data, expected_authorization=None):
+    """Describe a synthetic handshake without exporting keys or authentication."""
+    import base64
+    import re
+    import json
+    head, separator, _ = bytes(data[:16384]).partition(b'\r\n\r\n')
+    lines = head.split(b'\r\n')
+    start = lines[0].decode('ascii', 'replace').split(' ') if lines else []
+    headers = {}
+    malformed = 0
+    for line in lines[1:]:
+        key, colon, value = line.partition(b':')
+        if not colon:
+            malformed += 1
+            continue
+        headers.setdefault(key.decode('ascii', 'replace').lower(), []).append(value.strip().decode('ascii', 'replace'))
+    allowed = ('host', 'origin', 'sec-websocket-origin', 'sec-websocket-version',
+               'sec-websocket-protocol', 'upgrade', 'connection')
+    result = {'method': start[0][:16] if start else '',
+              'path': start[1][:256] if len(start)>1 else '',
+              'http_version': start[2][:16] if len(start)>2 else '',
+              'crlf': {'header_terminated': bool(separator),
+                       'bare_linebreak': b'\r' in head.replace(b'\r\n', b'') or b'\n' in head.replace(b'\r\n', b''),
+                       'malformed_header_count': malformed, 'request_line_fields': len(start)},
+              'headers': {key: [value[:256] for value in headers.get(key, [])[:4]] for key in allowed}}
+    keys = headers.get('sec-websocket-key', [])
+    key = keys[0] if len(keys)==1 else ''
+    try:
+        decoded = len(base64.b64decode(key, validate=True)) if len(key)<=256 else None
+    except ValueError:
+        decoded = None
+    result['websocket_key'] = {'count': len(keys), 'length': len(key), 'decoded_length': decoded}
+    auth = headers.get('authorization', [])
+    result['authorization'] = {'present': bool(auth), 'matches_material': bool(expected_authorization) and auth == [expected_authorization]}
+    # Even allowlisted fields must never reflect the synthetic credential.
+    serialized = json.dumps(result)
+    if expected_authorization:
+        values = [expected_authorization, expected_authorization.partition(' ')[2]]
+        try:
+            credentials = base64.b64decode(values[1], validate=True).decode()
+            values += [credentials, credentials.partition(':')[2]]
+        except (ValueError, UnicodeError):
+            pass
+        for secret in values:
+            if secret:
+                serialized = serialized.replace(secret, '[redacted synthetic secret]')
+    return json.loads(serialized)
+
+
+def websocket_response_shape(data, expected_authorization=None):
+    """Record fixed response fields and at most 512 redacted body characters."""
+    import base64
+    import re
+    header, separator, body = bytes(data[:16384]).partition(b'\r\n\r\n')
+    lines = header.decode('ascii', 'replace').split('\r\n')
+    first = lines[0].split(' ') if lines else []
+    headers = {}
+    for line in lines[1:]:
+        key, colon, value = line.partition(':')
+        if colon: headers[key.lower()] = value.strip()
+    text = body[:1024].decode('utf-8', 'replace')
+    values = []
+    if expected_authorization:
+        values = [expected_authorization, expected_authorization.partition(' ')[2]]
+        try:
+            credentials = base64.b64decode(values[1], validate=True).decode()
+            values += [credentials, credentials.partition(':')[2]]
+        except (ValueError, UnicodeError):
+            pass
+    for secret in values:
+        if secret: text = text.replace(secret, '[redacted synthetic secret]')
+    text = re.sub(r'(?i)Basic\s+[A-Za-z0-9+/=]+', 'Basic [redacted]', text)
+    text = ''.join(c for c in text if c in '\n\r\t' or 32 <= ord(c) < 127)[:512]
+    return {'status': int(first[1]) if len(first)>1 and first[1].isdigit() else 0,
+            'header_terminated': bool(separator),
+            'content_type': headers.get('content-type', '')[:128],
+            'content_length': headers.get('content-length', '')[:16] if headers.get('content-length', '').isdigit() else None,
+            'authentication_challenge': 'www-authenticate' in headers,
+            'websocket_protocol': headers.get('sec-websocket-protocol', '')[:128],
+            'body_bytes_observed': len(body), 'body_sample': text,
+            'body_truncated': len(body)>1024 or len(text)>=512}
 
 def need(ok, message):
     if not ok:
@@ -144,6 +231,34 @@ def preflight(args):
             'network': 'existing veth fixture; not real OCI WireGuard'}
 
 
+
+def nginx_temp_metadata():
+    """Inspect directory identities only; never open cache files or follow links."""
+    values = {}
+    def inspect(path, depth):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            values[str(path)] = {'exists': False}
+            return
+        values[str(path)] = {'exists': True, 'uid': info.st_uid, 'gid': info.st_gid,
+                             'mode': stat.S_IMODE(info.st_mode), 'inode': info.st_ino}
+        if depth == 0 or not stat.S_ISDIR(info.st_mode):
+            return
+        # Nginx hash levels use short hexadecimal directory names. Temporary
+        # cache filenames and their contents are intentionally outside this snapshot.
+        with os.scandir(path) as entries:
+            children = sorted(entry.name for entry in entries
+                              if re.fullmatch(r'[0-9a-f]{1,2}', entry.name)
+                              and (entry.is_dir(follow_symlinks=False) or entry.is_symlink()))
+        for name in children:
+            inspect(path/name, depth-1)
+    inspect(Path('/var/lib/nginx'), 0)
+    for name in ('body', 'proxy', 'fastcgi', 'uwsgi', 'scgi'):
+        inspect(Path('/var/lib/nginx')/name, 3)
+    return values
+
+
 def metadata(repo):
     """Read only non-secret host network and service metadata."""
     commands = {'links': ['ip', '-j', 'link'], 'addresses': ['ip', '-j', 'address'],
@@ -159,6 +274,7 @@ def metadata(repo):
         if key == 'nft':
             value = json.dumps(boundary.canonical(json.loads(value)), sort_keys=True)
         values[key] = hashlib.sha256(value.encode()).hexdigest()
+    values['nginx_global_temp_directories'] = nginx_temp_metadata()
     return values
 
 
@@ -272,15 +388,22 @@ def wait(check, message):
 
 
 def http(ns, ca, source='10.235.0.2', destination=TARGET, port=8443,
-         path='/', headers=None, identity=None, plain=False):
-    script = '''import socket,ssl,json,base64
+         path='/', headers=None, identity=None, plain=False, authentication_file=None):
+    import inspect
+    script = inspect.getsource(websocket_request_shape) + '''\nimport socket,ssl,json,base64
 s=socket.socket();s.settimeout(2);s.bind((SOURCE,0));data=b''
+headers=dict(HEADERS);expected_authorization=None
+if AUTH_FILE:
+ from pathlib import Path
+ auth=json.loads(Path(AUTH_FILE).read_text())
+ expected_authorization='Basic '+base64.b64encode((auth['username']+':'+auth['password']).encode()).decode()
+ headers['Authorization']=expected_authorization
 try:
  s.connect((DEST,PORT))
  if not PLAIN:s=ssl.create_default_context(cafile=CA).wrap_socket(s,server_hostname=IDENTITY)
  request='GET '+PATH+' HTTP/1.1\\r\\nHost: '+DEST+':8443\\r\\n'
- if not any(k.lower()=='connection' for k in HEADERS):request+='Connection: close\\r\\n'
- for k,v in HEADERS.items():
+ if not any(k.lower()=='connection' for k in headers):request+='Connection: close\\r\\n'
+ for k,v in headers.items():
   if k.lower()=='host':request=request.replace('Host: '+DEST+':8443','Host: '+v)
   else:request+=k+': '+v+'\\r\\n'
  s.sendall((request+'\\r\\n').encode());data=b''
@@ -294,11 +417,13 @@ try:
 except ssl.SSLCertVerificationError:response={'rejected':'tls-verification'}
 except (OSError,ValueError,IndexError):response={'rejected':'transport'}
 finally:s.close()
+if 'request' in locals():response['request_shape']=websocket_request_shape((request+'\\r\\n').encode(),expected_authorization)
 if data:response['_buffer']=base64.b64encode(data).decode()
 print(json.dumps(response))
 '''
     values = {'SOURCE': source, 'DEST': destination, 'PORT': port, 'PLAIN': plain,
-              'CA': str(ca), 'IDENTITY': identity or destination, 'PATH': path, 'HEADERS': headers or {}}
+              'CA': str(ca), 'IDENTITY': identity or destination, 'PATH': path, 'HEADERS': headers or {},
+              'AUTH_FILE': str(authentication_file) if authentication_file else None}
     # Replace identifiers as tokens, avoiding changes inside inserted values.
     script = re.sub(r'\b('+ '|'.join(values)+r')\b', lambda m: repr(values[m[0]]), script)
     response = invoke(ns, script)
@@ -417,9 +542,112 @@ def execute(args, result):
             template = (args.repo/SOURCES[-1]).read_text()
             rendered = env.from_string(template).render(oci_hub_spoke_address=TARGET+'/32',
                 oci_hub_desktop_backend_basic=base64.b64encode(('synthetic:'+password).encode()).decode())
+            # Run the production login bridge with synthetic references and HOME.
+            guide_files = args.repo/'ansible/roles/employee-workspace/files'
+            guide_root = root/'guide'; guide_root.mkdir(mode=0o755); os.chmod(guide_root, 0o755)
+            generation_id = 'g-story12-synthetic'
+            material_root = guide_root/'materials'
+            generation = material_root/'generations'/generation_id/'502'
+            generation.mkdir(parents=True, mode=0o755)
+            for parent in (material_root, material_root/'generations', generation.parent, generation):
+                os.chmod(parent, 0o755)
+            refs = {'trust_ref': 'ca.pem', 'certificate_ref': 'server.pem',
+                    'private_key_ref': 'server.key', 'authentication_ref': 'authentication.json'}
+            for source, target in (('backend-ca.crt', 'ca.pem'), ('backend.crt', 'server.pem'), ('backend.key', 'server.key')):
+                shutil.copyfile(materials/source, generation/target)
+            (generation/'authentication.json').write_text(json.dumps({'username': 'synthetic', 'password': password}))
+            for path in generation.iterdir():
+                os.chown(path, 0, owner.pw_gid)
+                os.chmod(path, 0o640 if path.name in ('server.key', 'authentication.json') else 0o644)
+            pinned = {key: 'generations/'+generation_id+'/502/'+value for key, value in refs.items()}
+            descriptor = {'type': 'kasmvnc', 'address': '127.0.0.1', 'port': 8444,
+                'client_path': '/', 'route_enabled': True, 'generation_id': generation_id,
+                'tls_server_name': 'localhost', 'trust_ref': pinned['trust_ref']}
+            desktop_config = {'vmid': 502, 'backend': descriptor, 'generation': dict(pinned, vmid=502),
+                              'materials_root': str(material_root), 'viewer_url': 'https://'+TARGET+':8443/'}
+            (guide_root/'desktop.json').write_text(json.dumps(desktop_config))
+            (guide_root/'browser.json').write_text(json.dumps({'mode': 'kasmvnc', 'viewer_url': 'https://hapi.synthetic.invalid'}))
+            (guide_root/'desktop-service.py').write_text((guide_files/'desktop-service.py').read_text().replace(
+                "CONFIG = Path('/etc/employee-workspace-desktop.json')", "CONFIG = Path("+repr(str(guide_root/'desktop.json'))+")").replace("MARKER = Path('/var/lib/employee-workspace/transition.json')", "MARKER = Path("+repr(str(guide_root/'transition.json'))+")"))
+            shutil.copyfile(guide_files/'desktop-contract.py', guide_root/'desktop-contract.py')
+            for path in guide_root.iterdir():
+                if path.is_file(): os.chmod(path, 0o644)
+            guide_worker = """import importlib.util,http.server,json,sys,threading,time,re
+from pathlib import Path
+from urllib.parse import urlsplit
+spec=importlib.util.spec_from_file_location('actual_guide',sys.argv[1]);guide=importlib.util.module_from_spec(spec);spec.loader.exec_module(guide)
+root=Path(sys.argv[2]);guide.BROWSER_CONFIG=root/'browser.json';guide.DESKTOP_SERVICE=root/'desktop-service.py'
+dspec=importlib.util.spec_from_file_location('synthetic_diagnostics',sys.argv[4]);diagnostic=importlib.util.module_from_spec(dspec);dspec.loader.exec_module(diagnostic)
+auth=json.loads((root/'materials/generations/g-story12-synthetic/502/authentication.json').read_text())
+expected_authorization='Basic '+__import__('base64').b64encode((auth['username']+':'+auth['password']).encode()).decode()
+events=[];lock=threading.Lock();diagnostics=Path.home()/'guide-diagnostics.json'
+def event(code,**fields):
+ with lock:
+  events.append(dict(code=code,**fields));events[:]=events[-128:]
+  diagnostics.write_text(json.dumps(events))
+actual_connection=guide.viewer_connection
+def connection():
+ try:
+  peer,identity=actual_connection()
+ except Exception as error:
+  event('backend-connect-rejected',error_type=type(error).__name__[:64]);raise
+ event('backend-tls-connected')
+ original=peer.recv;send=peer.sendall;header=bytearray();complete=False
+ def transmit(value,*args,**kwargs):
+  event('backend-websocket-request',shape=diagnostic.websocket_request_shape(value,expected_authorization))
+  return send(value,*args,**kwargs)
+ peer.sendall=transmit
+ def receive(*args,**kwargs):
+  nonlocal complete
+  value=original(*args,**kwargs)
+  if not complete:
+   header.extend(value[:max(0,16384-len(header))])
+   if b'\\r\\n\\r\\n' in header or not value or len(header)>=16384:
+    first=bytes(header).split(b'\\r\\n',1)[0].split()
+    status=int(first[1]) if len(first)>1 and first[1].isdigit() else 0
+    event('backend-websocket-http',status=status,response=diagnostic.websocket_response_shape(header,expected_authorization));header.clear();complete=True
+  return value
+ peer.recv=receive
+ return peer,identity
+guide.viewer_connection=connection
+class DiagnosticGuide(guide.Guide):
+ def reply(self,status,body,kind='application/json; charset=utf-8',nonce=''):
+  path=urlsplit(self.path).path
+  event('guide-http',path=path[:256] if re.fullmatch(r'/[A-Za-z0-9_./-]*',path) else '[invalid-path]',status=status)
+  if nonce and kind.startswith('text/html'):
+   boot="<script nonce=\""+nonce+"\">window.__fixtureErrors=[];for(let k of ['error','unhandledrejection'])window.addEventListener(k,e=>{window.__fixtureErrors.push(String(e.message||e.reason||k).slice(0,512));window.__fixtureErrors=window.__fixtureErrors.slice(-16)});</script>"
+   body=body.replace(b'<head>',b'<head>'+boot.encode(),1)
+  return super().reply(status,body,kind,nonce)
+class DiagnosticServer(http.server.ThreadingHTTPServer):
+ def handle_error(self,request,client_address):
+  event('guide-handler-error',error_type=sys.exc_info()[0].__name__[:64])
+flow=guide.Flow(cache=Path.home()/'guide-cache',auth=lambda:(True,'claude.ai'))
+server=DiagnosticServer(('127.0.0.1',6082),DiagnosticGuide)
+server.origin=sys.argv[3];server.hapi_url='https://hapi.synthetic.invalid';server.csrf='synthetic-csrf';server.flow=flow
+event('guide-listening');server.serve_forever()
+"""
+            (root/'guide-worker.py').write_text(guide_worker); os.chmod(root/'guide-worker.py', 0o644)
+            start('guide', vms, ['python3', '-B', root/'guide-worker.py', guide_files/'login-guide.py',
+                                guide_root, 'https://'+TARGET+':8443', args.repo/SOURCES[0]], desktop)
+            # Route the same-origin synthetic HAPI mount to the unmodified Guide paths.
+            rendered = rendered.replace('    location / {',
+                '    location ^~ /hapi/ {\n'
+                '        proxy_pass http://127.0.0.1:6082/;\n'
+                '        proxy_http_version 1.1;\n'
+                '        proxy_set_header Host '+TARGET+':8443;\n'
+                '        proxy_set_header Origin $http_origin;\n'
+                '        proxy_set_header Upgrade $http_upgrade;\n'
+                '        proxy_set_header Connection "upgrade";\n'
+                '        proxy_read_timeout 3600s;\n'
+                '    }\n    location / {')
             config = root/'nginx.conf'
             config.write_text('pid '+str(root/'nginx.pid')+';\nerror_log '+str(root/'nginx-error.log')+' error;\n'
-                              'events {}\nhttp { access_log off; client_body_temp_path '+str(root/'body')+';\n'+rendered+
+                              'events {}\nhttp { access_log off;\n'
+                              'client_body_temp_path '+str(root/'body')+';\n'
+                              'proxy_temp_path '+str(root/'proxy')+';\n'
+                              'fastcgi_temp_path '+str(root/'fastcgi')+';\n'
+                              'uwsgi_temp_path '+str(root/'uwsgi')+';\n'
+                              'scgi_temp_path '+str(root/'scgi')+';\n'+rendered+
                               '\nserver { listen 10.234.0.3:8443; return 204; }\n}\n')
             nginx_unit = start('nginx', vms, ['nginx', '-c', config, '-p', root, '-g', 'daemon off;'])
             def positive():
@@ -443,6 +671,29 @@ def execute(args, result):
             record('wss', http(users, materials/'frontend-ca.crt', path='/websockify', headers=wss),
                    lambda r: r.get('status') == 101, '101', 'Upgrade /websockify with current overlay Origin',
                    'isolated-TLS-WSS')
+            # Diagnostic-only direct positive-shaped handshake to the same Kasm:
+            # credentials are read inside the child from synthetic material, never argv.
+            direct_headers = dict(wss, Host='localhost', Origin='https://localhost:8444', Connection='upgrade')
+            result['matrix']['wss-direct-diagnostic'] = {'actual': http(vms, materials/'backend-ca.crt',
+                source='127.0.0.1', destination='127.0.0.1', port=8444, identity='localhost',
+                path='/websockify', headers=direct_headers, authentication_file=generation/'authentication.json'),
+                'layer': 'synthetic-request-comparison-only',
+                'action': 'Send the successful overlay probe headers through the existing nginx header substitutions'}
+            # Bounded one-field counterfactuals preserve the direct comparison
+            # shape and are evidence only; the real noVNC acceptance remains below.
+            counterfactuals = {}
+            for label, changes in (('without-binary', {'Sec-WebSocket-Protocol': None}),
+                                   ('connection-case', {'Connection': 'Upgrade'}),
+                                   ('legacy-origin-localhost', {'Sec-WebSocket-Origin': 'https://localhost:8444'})):
+                changed = dict(direct_headers)
+                for key, value in changes.items():
+                    if value is None: changed.pop(key, None)
+                    else: changed[key] = value
+                counterfactuals[label] = http(vms, materials/'backend-ca.crt',
+                    source='127.0.0.1', destination='127.0.0.1', port=8444, identity='localhost',
+                    path='/websockify', headers=changed, authentication_file=generation/'authentication.json')
+            result['matrix']['wss-counterfactual-diagnostic'] = {'actual': counterfactuals,
+                'layer': 'synthetic-one-field-request-comparison-only'}
             other_positive = tcp(users, '10.235.0.3', '10.234.0.3', 8443)
             need(other_positive['tcp_connected'], 'Other-target owned-source TCP control unavailable')
             record('other-target', tcp(users, '10.235.0.2', '10.234.0.3', 8443),
@@ -518,6 +769,106 @@ return document.documentElement.classList.contains('noVNC_connected')&&c?{width:
                     'layer': 'isolated-real-desktop', 'expected': 'canvas and retained input round trip',
                     'action': 'Navigate/reconnect and type into real backend Firefox'}
                 browser(users, args.helper, 2828, 'WebDriver:Navigate', {'url': 'about:blank'})
+            # The existing distribution noVNC RFB client must render the Kasm
+            # stream, deliver input, and reconnect through the real Guide bridge.
+            bridge_canvas = """let c=document.querySelector('canvas');
+return c&&c.width>0&&c.height>0&&document.querySelector('#status')?.textContent.includes('Connected')?{width:c.width,height:c.height}:null;"""
+            def bridge_failure(phase):
+                """Retain only bounded synthetic browser state and fixed bridge codes."""
+                diagnosis = {'layer': 'isolated-HAPI-diagnostic'}
+                state_script = """return {ready:document.readyState,title:document.title.slice(0,256),
+status:document.querySelector('#status')?.textContent.slice(0,512)||null,
+errors:(window.__fixtureErrors||[]).slice(-16),
+canvas:Array.from(document.querySelectorAll('canvas')).slice(0,4).map(c=>({width:c.width,height:c.height,visible:c.getBoundingClientRect().width>0})),
+resources:performance.getEntriesByType('resource').slice(-64).map(e=>{let u=new URL(e.name);return {path:u.origin===location.origin?u.pathname.slice(0,256):'[other-origin]',type:e.initiatorType,status:e.responseStatus||0,size:e.transferSize}})};"""
+                try:
+                    diagnosis['browser'] = js(users, args.helper, 2828, state_script)
+                    dom = js(users, args.helper, 2828, 'return document.documentElement.outerHTML.slice(0,65536);')
+                    observe_secrets('hapi_failure_dom', dom)
+                    for marker in SECRET_MARKERS:
+                        dom = dom.replace(marker.decode(), '[redacted synthetic secret]')
+                    (evidence/(phase+'-failed-dom.html')).write_text(dom)
+                    picture = browser(users, args.helper, 2828, 'WebDriver:TakeScreenshot',
+                                      {'id': None, 'full': False, 'scroll': False})
+                    (evidence/(phase+'-failed.png')).write_bytes(base64.b64decode(picture))
+                    diagnosis['artifacts'] = [phase+'-failed-dom.html', phase+'-failed.png']
+                except Exception as error:
+                    diagnosis['browser_diagnostic_error'] = type(error).__name__
+                try:
+                    path = desktop/'guide-diagnostics.json'
+                    diagnosis['bridge'] = json.loads(path.read_text()[:65536]) if path.is_file() else [{'code': 'guide-diagnostics-absent'}]
+                except Exception as error:
+                    diagnosis['bridge_diagnostic_error'] = type(error).__name__
+                # HTTP status/content type for entry and its discovered local modules
+                # distinguishes a missing asset, an incorrect mount, and RFB failure.
+                paths = ['/hapi/vnc_lite.html', '/hapi/core/rfb.js']
+                paths += [entry['path'] for entry in diagnosis.get('browser', {}).get('resources', [])
+                          if entry['path'].startswith('/hapi/') and entry['path'] not in paths]
+                resource_script = """import http.client,ssl,json
+connection=http.client.HTTPSConnection(DEST,8443,context=ssl.create_default_context(cafile=CA),timeout=3)
+results=[]
+for path in PATHS:
+ connection.request('GET',path,headers={'Host':DEST+':8443'})
+ response=connection.getresponse();response.read(1048576)
+ results.append({'path':path,'status':response.status,'content_type':response.getheader('Content-Type','')[:128]})
+ connection.close()
+print(json.dumps(results))
+"""
+                values = {'DEST': TARGET, 'CA': str(materials/'frontend-ca.crt'), 'PATHS': paths[:32]}
+                resource_script = re.sub(r'\b('+ '|'.join(values)+r')\b', lambda m: repr(values[m[0]]), resource_script)
+                try:
+                    diagnosis['http_resources'] = invoke(users, resource_script)
+                except Exception as error:
+                    diagnosis['resource_diagnostic_error'] = type(error).__name__
+                observe_secrets('hapi_failure_diagnostic', json.dumps(diagnosis))
+                result['matrix'][phase+'-diagnostic'] = diagnosis
+
+            for phase, text in (('hapi-initial', '-hapi'), ('hapi-reconnect', '-again')):
+                browser(users, args.helper, 2828, 'WebDriver:Navigate',
+                    {'url': 'https://'+TARGET+':8443/hapi/vnc_lite.html?autoconnect=true&resize=scale&path=hapi/websockify'})
+                try:
+                    dimensions = wait(lambda: js(users, args.helper, 2828, bridge_canvas), 'HAPI noVNC canvas unavailable')
+                except Exception:
+                    bridge_failure(phase)
+                    raise
+                js(vms, args.helper, 2829, 'document.querySelector("#input").focus();return true;')
+                js(users, args.helper, 2828, 'let c=document.querySelector("canvas");c.tabIndex=0;c.focus();return true;')
+                actions = [a for char in text for a in ({'type': 'keyDown', 'value': char}, {'type': 'keyUp', 'value': char})]
+                browser(users, args.helper, 2828, 'WebDriver:PerformActions',
+                    {'actions': [{'type': 'key', 'id': 'keyboard', 'actions': actions}]})
+                expected = 'story10-input-reconnected-hapi'+('-again' if phase == 'hapi-reconnect' else '')
+                wait(lambda: js(vms, args.helper, 2829, 'return document.querySelector("#input").value;') == expected,
+                     'HAPI noVNC input round trip failed: '+phase)
+                picture = browser(users, args.helper, 2828, 'WebDriver:TakeScreenshot',
+                                  {'id': None, 'full': False, 'scroll': False})
+                (evidence/(phase+'.png')).write_bytes(base64.b64decode(picture))
+                dom = js(users, args.helper, 2828, 'return document.documentElement.outerHTML.slice(0,131072);')
+                observe_secrets('hapi_frontend_dom', dom)
+                result['matrix'][phase] = {'canvas': dimensions, 'input_round_trip': True,
+                    'screenshot': phase+'.png', 'layer': 'isolated-production-Guide-distribution-noVNC',
+                    'accept_insecure_certs_requested': False}
+                browser(users, args.helper, 2828, 'WebDriver:Navigate', {'url': 'about:blank'})
+            # Exercise all four unchanged control routes with synthetic auth only.
+            api_script = """import http.client,json,ssl
+c=http.client.HTTPSConnection(DEST,8443,context=ssl.create_default_context(cafile=CA))
+results={}
+for method,path,body,csrf,origin,expected in CASES:
+ headers={'Content-Type':'application/json','Host':DEST+':8443','X-Login-CSRF':csrf,'Origin':origin}
+ c.request(method,'/hapi'+path,body=json.dumps(body),headers=headers)
+ r=c.getresponse();r.read();results[path+':'+csrf+':'+origin]=r.status
+ if r.status!=expected:raise ValueError('Synthetic control API mismatch')
+print(json.dumps(results))
+"""
+            cases = [('GET', '/api/login/status', {}, 'synthetic-csrf', 'https://'+TARGET+':8443', 200),
+                     ('POST', '/api/login/start', {}, 'synthetic-csrf', 'https://'+TARGET+':8443', 200),
+                     ('POST', '/api/login/cancel', {}, 'synthetic-csrf', 'https://'+TARGET+':8443', 200),
+                     ('POST', '/api/login/code', {'code': 'invalid'}, 'synthetic-csrf', 'https://'+TARGET+':8443', 400),
+                     ('POST', '/api/login/start', {}, 'wrong', 'https://'+TARGET+':8443', 403),
+                     ('POST', '/api/login/start', {}, 'synthetic-csrf', 'https://wrong.invalid', 403)]
+            values = {'DEST': TARGET, 'CA': str(materials/'frontend-ca.crt'), 'CASES': cases}
+            api_script = re.sub(r'\b('+ '|'.join(values)+r')\b', lambda m: repr(values[m[0]]), api_script)
+            result['matrix']['hapi-controls'] = {'actual': invoke(users, api_script),
+                'layer': 'isolated-production-Guide-synthetic-auth', 'real_oauth': False}
             # Fault only the synthetic mounted upstream material, keeping the template intact.
             for fault, replacement in (('upstream-ca', materials/'frontend-ca.crt'),
                                        ('upstream-identity', materials/'wrong-identity.crt')):
