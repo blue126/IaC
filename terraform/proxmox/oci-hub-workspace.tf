@@ -87,7 +87,7 @@ module "oci_hub_workspace" {
   onboot              = each.value.onboot
   protection          = true
   # PVE stores tags sorted; declare them sorted so plans match the applied state.
-  tags                = sort(["oci-hub", each.key])
+  tags = sort(["oci-hub", each.key])
 }
 
 resource "ansible_host" "oci_hub_workspace" {
