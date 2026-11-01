@@ -1,6 +1,6 @@
 # 运行与恢复
 
-管理员在宿主的规范 employee-admin 目录调用 onboard.sh，直接在宿主执行。申请 JSON 与其中的 bundle_dir/run_dir 都是宿主路径，直接使用 export 输出的值。实际执行遵循仓库 AGENTS.md；不为了恢复扩大管理网络、换凭据或安装依赖。
+写操作在执行器 ws-executor 上运行（Semaphore 模板或 `sudo /srv/remotecc/employee-admin/wsctl`）；Mac 只读。申请 JSON 与其中的 bundle_dir/run_dir 都是执行器上的路径，直接使用 export 输出的值。实际执行遵循仓库 AGENTS.md；不为了恢复扩大管理网络、换凭据或安装依赖。
 
 ## 计划和动作
 

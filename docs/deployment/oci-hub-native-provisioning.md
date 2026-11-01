@@ -1,17 +1,18 @@
 # OCI Hub 原生 Mosh 开户
 
-本入口位于私有 `remotecc/employee-admin/onboard.sh`。新方案使用独立 BWS 项目、Portal 账本和 PVE VNet；不经过 VM500。SSH、SFTP 与 Mosh 会话在员工 VM 内终止。
+本入口是私有 `remotecc/employee-admin/wsctl`，写操作只在执行器 ws-executor 上运行（Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/employee-admin/wsctl ...`）；Mac 只读，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`。新方案使用独立 BWS 项目、Portal 账本和 PVE VNet；不经过 VM500。SSH、SFTP 与 Mosh 会话在员工 VM 内终止。
 
 ## 管理员操作
 
 ```bash
-./onboard.sh --profile oci-hub provision --email alice@example.com
+wsctl provision --email alice@example.com --plan-only
 # 可选规格（核心数 / MiB / GiB）
-./onboard.sh --profile oci-hub provision --email alice@example.com --cores 4 --memory-mib 8192 --disk-gib 80
-./onboard.sh --profile oci-hub apply REQUEST.json APPROVAL_SHA256
-./onboard.sh --profile oci-hub registry
-./onboard.sh --profile oci-hub online
-./onboard.sh --profile oci-hub export --device alice
+wsctl provision --email alice@example.com --cores 4 --memory-mib 8192 --disk-gib 80 --plan-only
+# 核对计划后，以同一审批 SHA 执行（Semaphore 中填 WSCTL_APPROVE）
+wsctl provision --email alice@example.com --approve APPROVAL_SHA256
+wsctl registry
+wsctl status
+wsctl export --device alice
 ```
 
 `provision` 输出请求文件和精确审批 SHA，不执行创建。已完成设备返回already_configured/configured_blocked和apply_required=false，直接按提示查询/导出；不要重复apply。默认规格来自已配置资源池（当前2核 host、8GiB、50GiB、pve2-ssd、模板9001）；已有员工复用自己的 VM，不隐式调整规格。同一设备复用原密钥/地址；新设备使用 `--device` 指定独立 ID。纯数字邮箱用户名加 `user` 前缀，其余不加 `ed-`。碰撞时停止并说明冲突。
@@ -24,13 +25,13 @@
 
 ## 查询、验收与交付
 
-`./onboard.sh --profile oci-hub registry` / `verify` 查询服务端状态，`online` 额外观察握手和 SSH/Mosh 连接。查询失败显示未知；这些观察不是员工本人已完成bootstrap的证明。`configured`只表示配置完成，交付还要核对bundle.verification状态。
+`wsctl registry` / `verify` 查询服务端状态，`status` 额外观察握手和 SSH/Mosh 连接。查询失败显示未知；这些观察不是员工本人已完成bootstrap的证明。`configured`只表示配置完成，交付还要核对bundle.verification状态。
 
 同员工新增设备用 `provision --email EMAIL --device NEWID`；同邮箱有多个工作区时加 `--employee-id ID`。已有设备导出用 `export --device ID`，不轮换密钥。export返回directory、摘要及delivery_request草稿；其中bundle_dir/run_dir是宿主数据路径，直接使用工具给出的值，不猜测或混用宿主下载目录。
 
 ### 非豁免设备的验收
 
-保存以下受保护JSON，并运行 `./onboard.sh --profile oci-hub acceptance ACCEPTANCE.json`：
+保存以下受保护JSON，并运行 `wsctl acceptance ACCEPTANCE.json`：
 
 ```json
 {"profile":"oci-hub","device_id":"alice","bundle_dir":"EXPORT返回的directory"}
@@ -52,7 +53,7 @@
 {"profile":"oci-hub","device_id":"alice","recipient":"alice@example.com","bundle_dir":"EXPORT返回的directory","run_dir":"EXPORT草稿提供的run_dir","notify":false,"purpose":"onboarding"}
 ```
 
-先执行 `./onboard.sh --profile oci-hub plan DELIVERY.json`，批准其SHA后执行 `deliver DELIVERY.json SHA256`（同样带 --profile oci-hub）。工具建立回执目录、上传并下载校验，返回verified。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。
+先执行 `wsctl deliver DELIVERY.json --plan-only`，核对后以 `wsctl deliver DELIVERY.json --approve SHA256` 执行。工具建立回执目录、上传并下载校验，返回verified。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。
 
 随后仅把notify改为true，重新plan。它要求已有verified上传，不会在没有实际链接和预览时直接发信。展示返回的收件人、mail_subject及可在宿主打开的host_mail_preview；再次批准后deliver才发邮件。主题和正文纳入审批摘要，变化后重新plan。
 
