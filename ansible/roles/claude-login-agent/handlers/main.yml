@@ -1,0 +1,6 @@
+---
+- name: Restart personal Claude login agent
+  ansible.builtin.systemd_service:
+    name: claude-login-agent
+    daemon_reload: true
+    state: restarted

@@ -1,0 +1,11 @@
+---
+all:
+  children:
+    hapi_pki_agents:
+      hosts:
+        hapi-pki-control-test:
+          ansible_host: 192.0.2.41
+          ansible_connection: local
+    hapi_pki_controller:
+      hosts:
+        hapi-pki-control-test: {}

@@ -46,6 +46,16 @@ def validate(c):
         token(c['uplink'])
         if len({v['vmid'] for v in c['workspaces']}) != len(c['workspaces']) or len({v['vnet'] for v in c['workspaces']}) != len(c['workspaces']):
             raise ValueError('duplicate allocation')
+        grants = c.get('cloudflare_tunnel_vmids', [])
+        if (not isinstance(grants, list) or any(type(v) is not int for v in grants) or
+                len(grants) != len(set(grants)) or not set(grants) <= {v['vmid'] for v in c['workspaces']}):
+            raise ValueError('Cloudflare egress must name unique allocated VMIDs')
+        for grant in c.get('hapi_ingress_grants', []):
+            if set(grant) != {'source', 'vmid'} or grant['vmid'] not in {v['vmid'] for v in c['workspaces']}:
+                raise ValueError('HAPI ingress must name an allocated workspace')
+            source = ipaddress.IPv4Network(grant['source'], strict=True)
+            if source.prefixlen != 32 or not source.network_address.is_private or source.overlaps(ipaddress.IPv4Network(c['aggregate'])):
+                raise ValueError('HAPI ingress requires an exact private control-plane source')
         networks = []
         for v in c['workspaces']:
             if type(v['vmid']) is not int or v['vmid'] < 100 or v['vmid'] == 500:
@@ -146,6 +156,12 @@ def render(c):
             # Routed administration is scoped to an external source and one VM.
             # Check source before every exception, including established replies.
             lines += [f'  iifname "{n}" ip saddr != {addr} drop']
+            for grant in c.get('hapi_ingress_grants', []):
+                if grant['vmid'] != v['vmid'] or v.get('disabled', True):
+                    continue
+                source = str(ipaddress.IPv4Network(grant['source']))
+                lines += [f'  iifname "{c["uplink"]}" oifname "{n}" ip saddr {source} ip daddr {addr} tcp dport 9443 ct state {{ new, established }} ct direction original accept',
+                          f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {source} tcp sport 9443 ct state established ct direction reply accept']
             for access in c.get('management_access',[]):
                 if access['vmid'] != v['vmid']:continue
                 source=str(ipaddress.IPv4Network(access['source']))
@@ -160,6 +176,9 @@ def render(c):
                       f'  iifname "{n}" ip daddr {{ {", ".join(protected)} }} drop']
             for destination in c['development_destinations']:
                 lines += [f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {destination} tcp dport {{ 22, 80, 443 }} accept']
+            if v['vmid'] in c.get('cloudflare_tunnel_vmids', []) and not v.get('disabled', True):
+                # HTTP/2 Tunnel transport uses TCP 7844, not HTTPS port 443.
+                lines += [f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {{ 198.41.192.0/24, 198.41.200.0/24 }} tcp dport 7844 accept']
             lines += [f'  iifname "{n}" drop', f'  oifname "{n}" ip daddr {addr} ct state established,related ct direction reply accept', f'  oifname "{n}" drop']
     lines += [' }', '}']
     if c['kind'] == 'pve':
@@ -350,6 +369,15 @@ def verify_routing(c):
             raise ValueError('managed destination routes through an unexpected interface')
 
 
+def load_service_egress(c, path=Path('/etc/oci-hub/service-egress.json')):
+    if c['kind'] != 'pve' or not path.exists():
+        return c
+    grants = json.loads(path.read_text())
+    if not set(grants) <= {'cloudflare_tunnel_vmids', 'hapi_ingress_grants'}:
+        raise ValueError('unexpected service egress fields')
+    return validate({**c, **grants})
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['render', 'apply', 'verify', 'hook'])
@@ -361,6 +389,7 @@ def main():
     parser.add_argument('phase', nargs='?')
     a = parser.parse_args()
     c = validate(json.loads(sys.stdin.read() if a.config=='-' else Path(a.config).read_text()))
+    c = load_service_egress(c)
     if a.require_management_vmid is not None and (c['kind']!='pve' or not any(rule['vmid']==a.require_management_vmid for rule in c.get('management_access',[]))):
         raise ValueError('approved management source missing for the Ansible target')
     if a.action == 'render':

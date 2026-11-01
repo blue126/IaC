@@ -1,0 +1,6 @@
+interface:
+  display_name: "HAPI 独立开户（已撤回）"
+  short_description: "识别已撤回方案；不执行独立HAPI开户或创建VM"
+  default_prompt: "使用 $hapi-provision 说明独立开户方案已撤回，保留现网服务和历史材料，等待用户重新设计provisioning。"
+policy:
+  allow_implicit_invocation: false

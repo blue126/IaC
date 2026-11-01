@@ -1,0 +1,4 @@
+---
+- name: Verify every HAPI policy against its kernel receipt
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-network.py verify
+  changed_when: false

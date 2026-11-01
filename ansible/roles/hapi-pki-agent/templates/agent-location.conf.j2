@@ -1,0 +1,14 @@
+# Reachable only through the existing private mTLS server.
+location = /_hapi_pki/op {
+    allow {{ hapi_pki_agent_control_address }};
+    deny all;
+    client_max_body_size 1m;
+    proxy_set_header Host localhost;
+    proxy_set_header Cookie "";
+    proxy_set_header Authorization "";
+    proxy_set_header Cf-Access-Jwt-Assertion "";
+    proxy_set_header X-Hapi-CSRF "";
+    proxy_http_version 1.1;
+    proxy_request_buffering on;
+    proxy_pass http://unix:/run/hapi-pki-agent/agent.sock:/op;
+}

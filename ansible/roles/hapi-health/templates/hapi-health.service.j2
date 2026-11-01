@@ -1,0 +1,19 @@
+[Unit]
+Description=Check HAPI public PKI expiry and external network boundaries
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/hapi-health.py /etc/hapi-health/config.json
+TimeoutStartSec=90
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+{% if hapi_health_check_network | bool %}
+# The verifier serializes with enforcement through this existing lock only.
+ReadWritePaths=/var/lib/hapi-network/lock
+{% endif %}
+StandardOutput=journal
+StandardError=journal
