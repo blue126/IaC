@@ -1,5 +1,7 @@
 # HAPI 网络开户自动化
 
+> **保留的网络能力与历史原型。** 独立HAPI开户候选已撤回；本页不提供当前员工开户入口。QA VM9101／9102和关联定时巡检已[回收](../planning/2026-10-31-hapi-qa-retirement.md)，网络代码与验收证据保留。当前员工操作约定见[wsctl流程](../deployment/oci-hub-native-provisioning.md)。
+
 状态：现有bridge的端口ACL已在pve2两台新VM完成35项通信与11项生命周期验收；VLAN后端尚未实测，完整员工开户与公开应用入口仍未就绪。2026-10-30。
 
 本阶段遵循“先自动化、用新VM验证、再逐台推广”。已获授权在pve2创建两台测试VM并部署只匹配它们tap端口的边界；没有修改既有业务VM配置、路由器或Cloudflare，也没有调用WireGuard开户入口。完整的员工申请、分配台账、BWS、身份登记和交付执行器仍待实现。真实执行记录见[两VM验收](../planning/2026-10-30-hapi-two-vm-pve2.md)。

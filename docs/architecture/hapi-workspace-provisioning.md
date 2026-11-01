@@ -1,12 +1,14 @@
 # HAPI／Cloudflare 员工工作区开户设计
 
+> **阅读顺序（2026-11-01）。** 当前服务拓扑和维护见[统一入口](../guides/hapi-unified-entry.md)，证书维护见[PKI生命周期](../guides/hapi-pki-lifecycle.md)。员工操作以[执行器wsctl约定](../deployment/oci-hub-native-provisioning.md)为准。下文原独立申请／台账／执行器契约仅供历史追溯，不代表统一HAPI开户已经完成或应创建另一台VM。
+
 > **独立开户方案已撤回（2026-10-31）。** 用户将重新设计 provisioning。HAPI 与 WireGuard 是同一员工 VM 的两种接入方式；本文关于独立 VM 开户、独立资源台账／state 和独立执行器的内容仅作历史设计，不再作为可执行开户契约。现有 VM500 单 Hub、统一入口、Runner 与 Claude 登录引导继续保留。本次不实现新的统一 provisioning，也不迁移或删除任何 VM、凭据和运行数据。
 
 状态：统一入口、单Hub与会话数据库现已在VM500运行；VM502保留原Runner、Claude及localhost3006兼容代理。独立BWS、固定namespace、最终数据库导入及20项现场验收已完成；用户已完成Cloudflare登录并确认HAPI可用，完整新员工开户仍未就绪。参见[迁移记录](../planning/2026-10-30-hapi-single-hub-migration.md)。
 
 网络阶段已补充独立计划、VM外边界角色、停止创建的VM模块与pre-start门禁，见[网络开户自动化](../guides/hapi-network-automation.md)。按用户要求直接在pve2新建两台测试VM，现有vmbr0端口ACL的35项真实通信与11项生命周期验收通过，详见[两VM验收记录](../planning/2026-10-30-hapi-two-vm-pve2.md)。两台QA VM随后已按原Terraform state回收，关联测试接入和pve2巡检已退役，见[回收记录](../planning/2026-10-31-hapi-qa-retirement.md)；组件和验收证据继续保留。VLAN后端仍未实测；私有开户执行器、正式分配／state绑定、新员工HAPI／Cloudflare身份绑定及全新VM个人首次授权验收仍待补齐，此进展不表示已能自动交付员工VM。
 
-本文件落实用户已确认的方向：HAPI 开户独立于 WireGuard 的 `employee-provision`／`onboard.sh`；员工统一访问 `https://hapi.willfan.me`，身份验证后进入本人独立 VM。VM500 明确承担 HAPI 控制面与统一公网接入，Cloudflare Tunnel 连接器终结在 VM500。本文不是部署记录，不授权创建基础设施、申请新凭据、发送邮件或迁移既有工作区。
+以下各节记录已撤回的独立开户草案：其中“独立于WireGuard开户”“独立VM／state”等旧约束不再作为当前执行依据。草案当时拟定员工统一访问 `https://hapi.willfan.me`，身份验证后进入本人独立 VM。VM500 明确承担 HAPI 控制面与统一公网接入，Cloudflare Tunnel 连接器终结在 VM500。本文不是部署记录，不授权创建基础设施、申请新凭据、发送邮件或迁移既有工作区。
 
 ## 1. 边界与现有基线
 

@@ -35,4 +35,4 @@ Terraform返回`0 added, 0 changed, 2 destroyed`；同一lineage的最终serial�
 
 回执、日志和完整元数据保存在主检出`remotecc/hapi-data/operations/20261031-qa-retirement/`；宿主侧归档分别在VM500的`/var/lib/hapi-qa-retirement-20261031/`和pve2的`/var/lib/hapi-network/retired-qa-20261031/`。没有Cloudflare变更或新员工发布。
 
-本次未创建Git提交或推送。完整新员工应用／身份发布及个人首次授权仍待后续从干净模板验收，不能把本次回收当作已完成完整开户。
+QA回收执行阶段没有同时创建Git提交或推送；公开实现及本记录随后已经[PR #201](https://github.com/blue126/IaC/pull/201)完整CI与审核后合入`main`。新员工完整交付及个人首次授权仍需在当前员工流程中独立验收，不能把QA回收当作已完成完整开户。

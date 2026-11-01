@@ -1,21 +1,22 @@
 # HAPI 单一入口迁移与验收
 
-状态：现有所有者试点已迁移；用户已确认同站Claude授权的远程浏览器画面恢复。2026-10-31。个人Claude官方授权由用户继续完成，不主动取消或清除个人凭据。独立新员工自动开户后端仍未完成。
+状态核对：2026-11-01。现有所有者试点的统一入口、单Hub和会话数据库已迁入VM500；VM502保留Runner、Claude、登录执行服务和Firefox。用户已确认网页登录与远程浏览器可用，个人Claude认证保留在本人VM。源码经[PR #201](https://github.com/blue126/IaC/pull/201)完整CI与独立审核后合入`main`。独立HAPI开户候选已撤回；现有试点验收不等于新员工完整开户验收。
 
-唯一正式网址为 `https://hapi.willfan.me`，Claude登录引导位于 `/_workspace/login/`。Cloudflare Tunnel与身份网关均运行于VM500；VM502保留自身Hub、Runner、任务、文件和个人Claude环境，通过私有mTLS入口提供服务。
+唯一正式网址为 `https://hapi.willfan.me`，Claude登录引导位于 `/_workspace/login/`。Cloudflare Tunnel、身份网关、共享HAPI Hub和会话数据库均位于VM500。网关验证Access身份并换取绑定本人namespace的短期HAPI会话，不要求用户再次输入HAPI令牌。员工VM运行Runner、任务、文件和个人Claude环境，通过私有mTLS通道连接控制面。这里的Hub是HAPI应用服务，与OCI WireGuard Hub不同。
 
 ```mermaid
 flowchart LR
     U[员工浏览器] --> C[Cloudflare Access 单次身份验证]
     C --> T[VM500 Tunnel与身份网关]
+    T --> H[VM500 共享HAPI Hub与会话数据库]
     T --> P[VM500 同站Claude登录引导]
-    T --> B[本人VM 私有mTLS服务]
-    P --> B
-    B --> H[本人的Hub与Runner]
-    B --> A[本人的Claude授权执行与Firefox]
+    P --> A[本人VM Claude登录执行服务与Firefox]
+    R[本人VM Runner与Claude] -->|私有mTLS通道| H
 ```
 
-## 已执行的切换
+## 入口切换历史（2026-10-30／31）
+
+以下记录先于单Hub和PKI升级的入口切换步骤。Hub／数据随后完成集中迁移，签发权限的后续变化见[证书生命周期说明](hapi-pki-lifecycle.md)；不能将阶段内的旧布局当作当前部署。
 
 - 将已有Access应用迁到正式域名，保留原所有者授权、应用AUD和168小时会话，不扩大可访问账户。
 - 网关依已验证的邮箱与subject映射到当前登记工作区，在服务端换取短期HAPI票据；部署自动登录前端，不再要求浏览器填写长期HAPI令牌。
@@ -25,7 +26,7 @@ flowchart LR
 - 更新Hub的公开URL与CORS Origin，并仅重载Hub。实际检查Runner进程未重启，任务目录、个人认证及Firefox配置没有迁移或重置。
 - 既有WireGuard服务、员工VM通用出网和Cloudflare账户全局会话设置未随此次入口迁移修改。
 
-当前登记仍限定原获批所有者及其试点工作区；新增员工必须独立登记身份、VM、令牌与路由，不能共享试点作为员工隔离方案。内部原型健康信息的完整开户就绪标记仍为false，不能据此将本次部署描述成完整新员工开户后端已经完成。
+本轮验收仅覆盖原获批所有者及其试点工作区。新增员工须在当前员工流程中明确本人VM、身份、凭据与路由，不共享试点，也不另建第二台工作VM或第二份Terraform state。员工管理以执行器上的`wsctl`为入口，见[当前操作约定](../deployment/oci-hub-native-provisioning.md)；旧独立HAPI执行器不再用于开户。新员工首次授权及两种接入的完整交付需另行验收。
 
 ## 真实问题与回归
 
@@ -37,8 +38,8 @@ flowchart LR
 
 ## 维护边界
 
-使用 `hapi-control-plane` 管理VM500身份与路由，`hapi-ingress`管理现有试点的私有适配和VM500连接器，`claude-login-agent`管理本人VM中的固定执行API。旧 `employee-hapi` 通过迁移标记拒绝重新部署旧公网试点，防止恢复旧域名或旧连接器。
+使用`hapi-control-plane`管理VM500身份与路由，`hapi-shared-hub`管理共享Hub，`hapi-hub-client`管理worker到共享Hub的兼容通道，`hapi-ingress`管理私有登录适配和VM500连接器，`claude-login-agent`管理本人VM中的固定执行API。旧 `employee-hapi` 通过迁移标记拒绝重新部署旧公网试点，防止恢复旧域名或旧连接器。
 
 PVE现有OCI边界需保留独立服务授权文件及相关编译器支持。现场编译器的既有Mosh等功能在修复时保留，不能直接用较旧分支覆盖现场版本。私有运行记录保存了部署基线、差异和回退配置；合并代码和后续部署应以当前边界所有者版本为基线集成作用域修复。
 
-传输叶证书有效期90天，签发材料及回退记录位于本次迁移的Git忽略私有运行目录。回收任务工作树前必须按RemoteCC私有材料约定保存这些文件；不能只保留公开代码而丢弃签发Vault。实际迁移记录不构成commit、push、批量员工迁移或资源清理授权。
+内部TLS已采用365天叶证书、1825天CA证书和180天CRL，由VM500每小时检查并自动续期／分发；详见[生命周期说明](hapi-pki-lifecycle.md)和[运维巡检](hapi-operations.md)。签发材料、回执和旧Vault位于Git忽略的私有运行目录；PKI接管后不能把历史Vault的旧TLS材料覆盖回现网。VM500的VM级备份由用户负责。服务配置变更和凭据操作仍需相应授权。

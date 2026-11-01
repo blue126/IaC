@@ -1,5 +1,7 @@
 # VM500 单 Hub：已迁入口核对与后续迁移范围
 
+> **历史实施日志。** 下文按阶段保留当时的“当前／尚未”状态，不作为今天的待办清单。Hub与数据库迁移已完成；后续PKI签发服务已[部署到VM500](2026-10-31-hapi-pki-rollout.md)，旧QA已[回收](2026-10-31-hapi-qa-retirement.md)，公开代码已通过[PR #201](https://github.com/blue126/IaC/pull/201)完整审核并合入`main`。现行拓扑见[统一入口说明](../guides/hapi-unified-entry.md)。
+
 状态：本次独立BWS／namespace绑定及Hub、会话数据库迁移已完成验收。VM500运行唯一共享Hub，VM502原Runner PID保持不变；20项现场检查及持久化服务审计通过。用户已完成所请求的Cloudflare登录并确认HAPI可用，作为浏览器端验收反馈；完整新员工开户仍不据此自动放行。最后核对：2026-10-31（Sydney）。
 
 ## 2026-10-31 实施进展
