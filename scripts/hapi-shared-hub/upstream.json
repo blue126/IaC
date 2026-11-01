@@ -1,0 +1,20 @@
+{
+  "ref": "v0.33.2",
+  "commit": "730dfcb22e31ec5572446d066cbb5e92d6a6254d",
+  "archive_sha256": "62bea2b29fb086808617faf0138e4f92f30888b116388263d6e81e778d8f2f62",
+  "bun": "1.4.4",
+  "files": {
+    "hub/src/web/routes/auth.ts": "172a7760db89fef4b064fe43a87a23454585c5a2c03f4be88a6ecebc826cb856",
+    "hub/src/web/routes/cli.ts": "fbbc141a197f9a278f581422c303bdced5c7f4cc52181a156314514b818c0fa2",
+    "hub/src/web/routes/bind.ts": "001bb1b59f26eabaa67f72e58fe45e9eb66af9061c62f662a4c310b948436052",
+    "hub/src/web/middleware/auth.ts": "cd34e0edfef89170544e982a6fd986fef320e69097eb4832164a7557aa7edce6",
+    "hub/src/socket/server.ts": "0637276839e52300311c9c7f35dc91ad37a7780d75602aa93b68f0c0a9958fe0",
+    "hub/src/socket/socketTypes.ts": "09979c487763287f5649a12c49ee721c77564873aad0ef98253e22e6a1b29419",
+    "hub/src/socket/rpcRegistry.ts": "16d0b175405da9a78fc85131e9c3f5533a874fbfff48b345efb395203d6c5af2",
+    "hub/src/sync/rpcGateway.ts": "fd8c0ca60dd2ba1ad554180c6183a614b7d19b9f9cf991741197c67a962741c2",
+    "hub/src/sync/syncEngine.ts": "d0cb138fc8a5b794dc052778659c48effe4ffbf8b48afc6cfc4d447d7177d97e",
+    "hub/src/web/server.ts": "64e16c00bb999cf94aef7f72ca81a73bdad6335af71137d7299b2871c2508b14",
+    "hub/src/startHub.ts": "a0ccdcb5c374a1c38f89cfeeae56ac44bcbbb6b4a1953b66f4ac6ec5b2f0202c",
+    "hub/src/web/routes/events.ts": "46037bdc293080f85c18d6d2764a62fd701411d7dfd82318f1eacf8add92bdf6"
+  }
+}

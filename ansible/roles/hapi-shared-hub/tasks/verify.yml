@@ -1,0 +1,43 @@
+---
+- name: Verify the shared Hub credential and transport binding
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py bindings /etc/hapi-shared-hub
+  changed_when: false
+  no_log: true
+
+- name: Verify the imported shared Hub database
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py migration /var/lib/hapi-shared-hub
+  changed_when: false
+  when: hapi_shared_hub_activate | bool
+
+- name: Verify the control-plane signing key format and permissions
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-hub-config.py jwt /var/lib/hapi-shared-hub/jwt-secret.json
+  changed_when: false
+  no_log: true
+  when: hapi_shared_hub_activate | bool
+
+- name: Check the shared Hub and transport service state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, '{{ item }}']
+  loop: [hapi-shared-hub, hapi-hub-transport]
+  changed_when: false
+  when: hapi_shared_hub_activate | bool
+
+- name: Check the shared Hub loopback health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3006/health
+    status_code: 200
+    use_proxy: false
+  when: hapi_shared_hub_activate | bool
+
+- name: Reject the old unrestricted service token authentication path
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3006/api/auth
+    method: POST
+    body_format: json
+    body: {accessToken: '{{ hapi_shared_hub_bootstrap_token }}'}
+    headers:
+      X-Hapi-Expected-Namespace: '{{ hapi_shared_hub_agents[0].namespace }}'
+    status_code: [401, 403]
+    use_proxy: false
+  no_log: true
+  when: hapi_shared_hub_activate | bool

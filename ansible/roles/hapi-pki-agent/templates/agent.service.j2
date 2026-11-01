@@ -1,0 +1,40 @@
+[Unit]
+Description=HAPI scoped certificate deployment agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group={{ 'hapi-pki' if hapi_pki_agent_config.role == 'control' else 'hapi-ingress' }}
+RuntimeDirectory=hapi-pki-agent
+RuntimeDirectoryMode=0750
+StateDirectory=hapi-pki-agent
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /usr/local/lib/hapi-pki.py agent --config /etc/hapi-pki/agent.json
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_KILL
+RestrictNamespaces=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/hapi-pki-agent /run/hapi-pki-agent
+{% if hapi_pki_agent_config.role == 'control' %}
+ReadWritePaths=/etc/hapi-control-plane /etc/hapi-shared-hub /run/hapi-control-proxy /run/hapi-hub-transport
+{% else %}
+ReadWritePaths=/etc/hapi-hub-client /etc/hapi-ingress /run/hapi-hub-client /run/hapi-ingress
+{% endif %}
+InaccessiblePaths=-/etc/hapi-pki/issuer-credentials -/run/credentials/hapi-pki-controller.service -/proc -/run/systemd -/run/dbus
+InaccessiblePaths=-/etc/hapi-shared-hub/hub.env -/etc/hapi-shared-hub/credentials.json -/etc/hapi-shared-hub/agents.json
+InaccessiblePaths=-/etc/hapi-control-plane/tokens -/var/lib/hapi-shared-hub -/var/lib/hapi-control-plane
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+IPAddressDeny=any
+IPAddressAllow={{ hapi_pki_agent_config.probe.address }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,136 @@
+---
+- name: Require an explicitly selected PVE host and manifest
+  ansible.builtin.assert:
+    that:
+      - hapi_network_manifest | length > 0
+      - hapi_network_manifest.node == inventory_hostname
+      - hapi_network_expected_manifest_sha256 is match('^(absent|[a-f0-9]{64})$')
+      - ansible_facts.system == 'Linux'
+
+- name: Check the preinstalled nftables runtime
+  ansible.builtin.command: /usr/sbin/nft --version
+  changed_when: false
+
+- name: Check the preinstalled iproute2 runtime
+  ansible.builtin.command: /usr/sbin/ip -Version
+  changed_when: false
+
+- name: Create independent HAPI enforcement directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop: [/etc/hapi-network, /etc/hapi-network/candidates, /var/lib/hapi-network]
+
+- name: Install HAPI network enforcement programs
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: '/usr/local/lib/{{ item }}'
+    owner: root
+    group: root
+    mode: '0755'
+  loop: [hapi-network.py, hapi-sdn.py, hapi-preflight.py, hapi-network-stage.py]
+
+- name: Inspect the published HAPI allocation before binding new VM gates
+  ansible.builtin.stat:
+    path: /etc/hapi-network/manifest.json
+  register: hapi_network_published
+
+- name: Bind missing gates only on stopped independently allocated VMs
+  ansible.builtin.command: /usr/bin/python3 /usr/local/lib/hapi-network.py bind-hooks
+  when: hapi_network_published.stat.exists
+  register: hapi_network_bind
+  changed_when: hapi_network_bind.stdout == 'changed'
+
+- name: Stage a validated immutable network candidate
+  ansible.builtin.copy:
+    content: '{{ hapi_network_manifest | to_nice_json }}'
+    dest: '/etc/hapi-network/candidates/{{ hapi_network_manifest | to_nice_json | hash("sha256") }}.json'
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/bin/python3 /usr/local/lib/hapi-network.py check --config %s
+
+- name: Resolve the reviewed hook storage path through PVE
+  ansible.builtin.command:
+    argv: [pvesm, path, '{{ hapi_network_manifest.hook_file_id | default("local:snippets/hapi-network-hook.py") }}']
+  register: hapi_network_hook_path
+  changed_when: false
+
+- name: Validate the resolved hook path
+  ansible.builtin.assert:
+    that:
+      - hapi_network_hook_path.stdout is match('^/[A-Za-z0-9_./-]+/snippets/hapi-network-hook.py$')
+      - "'..' not in hapi_network_hook_path.stdout"
+
+- name: Inspect the approved shared snippets directory
+  ansible.builtin.stat:
+    path: '{{ hapi_network_hook_path.stdout | dirname }}'
+  register: hapi_network_hook_directory
+
+- name: Require a real snippets directory when already present
+  ansible.builtin.assert:
+    that:
+      - not hapi_network_hook_directory.stat.exists or hapi_network_hook_directory.stat.isdir
+      - not (hapi_network_hook_directory.stat.islnk | default(false))
+
+- name: Create the independent hook directory only when absent
+  ansible.builtin.file:
+    path: '{{ hapi_network_hook_path.stdout | dirname }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: not hapi_network_hook_directory.stat.exists
+
+- name: Reconcile and verify the network stage under one deployment lock
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - /usr/local/lib/hapi-network-stage.py
+      - '/etc/hapi-network/candidates/{{ hapi_network_manifest | to_nice_json | hash("sha256") }}.json'
+      - '{{ hapi_network_expected_manifest_sha256 }}'
+  register: hapi_network_stage
+  changed_when: hapi_network_stage.stdout == 'changed'
+
+- name: Install the shared HAPI pre-start hook
+  ansible.builtin.copy:
+    src: hapi-network-hook.py
+    dest: '{{ hapi_network_hook_path.stdout }}'
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install persistent HAPI boundary loading
+  ansible.builtin.template:
+    src: hapi-network.service.j2
+    dest: /etc/systemd/system/hapi-network.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable HAPI boundary loading before guest auto start
+  ansible.builtin.systemd_service:
+    name: hapi-network.service
+    enabled: true
+    daemon_reload: true
+
+- name: Verify the complete applied boundary
+  ansible.builtin.include_tasks: verify.yml
+
+- name: Configure the approved runtime boundary monitor after enforcement
+  ansible.builtin.include_role:
+    name: hapi-health
+  vars:
+    hapi_health_check_network: true
+    hapi_health_tls_files: []
+    hapi_health_enable_timer: true
+  when: hapi_network_enable_health | bool
+
+- name: Verify the approved runtime boundary monitor
+  ansible.builtin.include_role:
+    name: hapi-health
+    tasks_from: verify
+  when: hapi_network_enable_health | bool

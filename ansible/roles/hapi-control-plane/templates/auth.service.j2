@@ -1,0 +1,27 @@
+[Unit]
+Description=HAPI prototype Access verification and ticket exchange
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hapi-auth
+Group=hapi-proxy
+RuntimeDirectory=hapi-control-plane
+RuntimeDirectoryMode=0750
+StateDirectory=hapi-control-plane
+StateDirectoryMode=0700
+ExecStartPre=/usr/bin/python3 /usr/local/lib/hapi-auth.py --config /etc/hapi-control-plane/config.json --check
+ExecStart=/usr/bin/python3 /usr/local/lib/hapi-auth.py --config /etc/hapi-control-plane/config.json
+ExecStopPost=/usr/bin/rm -f /run/hapi-control-plane/auth.sock
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

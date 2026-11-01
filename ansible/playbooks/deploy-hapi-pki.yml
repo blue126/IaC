@@ -1,0 +1,34 @@
+---
+- name: Deploy the bounded certificate agents to explicitly selected existing HAPI hosts
+  hosts: hapi_pki_agents
+  become: true
+  roles:
+    - hapi-pki-agent
+
+- name: Deploy the VM500 certificate lifecycle controller
+  hosts: hapi_pki_controller
+  become: true
+  roles:
+    - hapi-pki-controller
+
+- name: Verify the existing host certificate agents
+  hosts: hapi_pki_agents
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the private certificate agents
+      ansible.builtin.include_role:
+        name: hapi-pki-agent
+        tasks_from: verify
+
+- name: Verify the VM500 lifecycle units
+  hosts: hapi_pki_controller
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the private certificate lifecycle controller
+      ansible.builtin.include_role:
+        name: hapi-pki-controller
+        tasks_from: verify

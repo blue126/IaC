@@ -1,0 +1,23 @@
+---
+all:
+  children:
+    hapi_health:
+      hosts:
+        hapi-health-test:
+          ansible_host: 192.0.2.23
+          hapi_health_check_network: true
+    hapi_pve:
+      hosts:
+        fixture-pve:
+          ansible_host: 192.0.2.22
+    hapi_control_plane:
+      hosts:
+        hapi-control-test:
+          ansible_host: 192.0.2.20
+    hapi_workspaces:
+      hosts:
+        hapi-workspace-test:
+          ansible_host: 192.0.2.21
+    hapi_hub_clients:
+      hosts:
+        hapi-workspace-test:

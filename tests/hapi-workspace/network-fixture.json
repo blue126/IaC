@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "node": "fixture-pve",
+  "bridge": "vmbr77",
+  "control_address": "10.90.0.10",
+  "admin_addresses": ["10.90.0.20"],
+  "dns_addresses": ["8.8.8.8"],
+  "protected_networks": ["203.0.113.64/26"],
+  "workspaces": [
+    {"id": "alice", "vmid": 7701, "vnet": "haalice", "vlan": 770,
+     "mac": "02:00:00:77:01:02", "address": "10.77.1.2/30",
+     "gateway": "10.77.1.1", "gateway_mac": "02:00:00:77:01:01", "enabled": true},
+    {"id": "bob", "vmid": 7702, "vnet": "habob", "vlan": 771,
+     "mac": "02:00:00:77:02:02", "address": "10.77.2.2/30",
+     "gateway": "10.77.2.1", "gateway_mac": "02:00:00:77:02:01", "enabled": true}
+  ]
+}
