@@ -22,8 +22,9 @@ TEMPLATES={
     'wsctl access':(['access'],[APPROVE],False),
     'wsctl enforce':(['enforce'],[],False),
     'wsctl reissue':(['reissue'],[APPROVE],True),
+    'wsctl remind':(['remind'],[],False),
 }
-SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *'}
+SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *','wsctl remind':'0 * * * *'}
 
 jar=http.cookiejar.CookieJar()
 opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
