@@ -21,6 +21,7 @@ TEMPLATES={
     'wsctl provision':(['provision'],[APPROVE],True),
     'wsctl access':(['access'],[APPROVE],False),
     'wsctl enforce':(['enforce'],[],False),
+    'wsctl reissue':(['reissue'],[APPROVE],True),
 }
 SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *'}
 
