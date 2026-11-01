@@ -1,19 +1,20 @@
 variable "employee_access" {
-  description = "Single-node managed gateway; null creates no employee infrastructure"
+  description = "Retained VM500 control-plane host with an explicitly retired legacy gateway"
   type = object({
-    node               = string
-    pve_inventory_host = string
-    vmid               = number
-    template_id        = number
-    storage_pool       = string
-    uplink_bridge      = string
-    uplink_address     = string
-    uplink_gateway     = string
-    uplink_mac         = string
-    dns_server         = string
-    admin_public_keys  = list(string)
-    boundary_ready     = optional(bool, false)
-    snippet_datastore  = optional(string, "local")
+    node                   = string
+    pve_inventory_host     = string
+    vmid                   = number
+    template_id            = number
+    storage_pool           = string
+    uplink_bridge          = string
+    uplink_address         = string
+    uplink_gateway         = string
+    uplink_mac             = string
+    dns_server             = string
+    admin_public_keys      = list(string)
+    boundary_ready         = optional(bool, false)
+    legacy_gateway_retired = optional(bool, false)
+    snippet_datastore      = optional(string, "local")
   })
   default = null
 }
@@ -49,7 +50,7 @@ resource "proxmox_virtual_environment_vm" "employee_access" {
     firewall    = false
   }
   dynamic "network_device" {
-    for_each = [for slot in range(1, length(var.employee_workspaces) + 1) : one([for id, vm in var.employee_workspaces : merge(vm, { employee_id = id }) if vm.nic_slot == slot])]
+    for_each = var.employee_access.legacy_gateway_retired ? [] : [for slot in range(1, length(var.employee_workspaces) + 1) : one([for id, vm in var.employee_workspaces : merge(vm, { employee_id = id }) if vm.nic_slot == slot])]
     content {
       bridge      = proxmox_virtual_environment_network_linux_bridge.employee[network_device.value.employee_id].name
       mac_address = network_device.value.gateway_mac
@@ -73,7 +74,13 @@ resource "proxmox_virtual_environment_vm" "employee_access" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [clone, initialization[0].user_account[0].keys]
+    precondition {
+      condition = !var.employee_access.legacy_gateway_retired || alltrue([
+        for vm in values(var.employee_workspaces) : vm.disabled && (vm.retired || vm.oci_hub_managed)
+      ])
+      error_message = "Remove legacy gateway NICs only after every old workspace is migrated or retired."
+    }
+    ignore_changes = [clone, initialization[0].user_account[0].keys]
     precondition {
       condition = try(
         cidrhost(var.employee_access.uplink_address, 0) == cidrhost("${var.employee_access.uplink_gateway}/${split("/", var.employee_access.uplink_address)[1]}", 0) &&
@@ -107,6 +114,7 @@ resource "ansible_host" "employee_access" {
     ansible_user                           = "ubuntu"
     employee_access_pve_host               = var.employee_access.pve_inventory_host
     employee_access_vmid                   = tostring(var.employee_access.vmid)
+    employee_access_legacy_gateway_retired = tostring(var.employee_access.legacy_gateway_retired)
     employee_access_uplink_mac             = var.employee_access.uplink_mac
     employee_access_uplink_address         = var.employee_access.uplink_address
     employee_access_uplink_gateway         = var.employee_access.uplink_gateway

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run real routed nft ACL positive/negative probes in disposable Linux netns."""
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
@@ -33,7 +34,7 @@ def main():
             run('ip','-n',hub,'link','set',iface,'up');run('ip','-n',other,'link','set',prefix+n+'p','up')
             subnet='10.235.0.' if n=='u' else '10.234.0.'
             run('ip','-n',hub,'addr','add',subnet+'1/24','dev',iface)
-            for suffix in ('2','3'):run('ip','-n',other,'addr','add',subnet+suffix+'/24','dev',prefix+n+'p')
+            for suffix in ('2','3','4'):run('ip','-n',other,'addr','add',subnet+suffix+'/24','dev',prefix+n+'p')
             run('ip','-n',other,'route','add','default','via',subnet+'1')
         run('ip','netns','exec',hub,'sysctl','-w','net.ipv4.ip_forward=0')
         with tempfile.TemporaryDirectory(prefix='oci-hub-netns-') as directory:
@@ -55,6 +56,36 @@ def main():
             probe('10.235.0.2','10.234.0.3',22,False)
             probe('10.235.0.2','10.234.0.2',8006,False)
             probe('10.235.0.2','10.235.0.1',22,False)
+            udp_server = "import socket,threading,time\ndef echo(ip,port):\n s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((ip,port))\n while True:\n  data,peer=s.recvfrom(1024);s.sendto(data,peer)\nfor ip in ('10.234.0.2','10.234.0.3'):\n for port in (60000,60010,60020):threading.Thread(target=echo,args=(ip,port),daemon=True).start()\ntime.sleep(60)"
+            servers.append(subprocess.Popen(['ip','netns','exec',vms,'python3','-c',udp_server]))
+            time.sleep(.3)
+            def udp_probe(source, destination, port, expected, namespace=users, local_port=43000):
+                code="import socket,sys\ns=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout(.4);s.bind((sys.argv[1],int(sys.argv[5])))\ns.sendto(b'controlled-udp-echo',(sys.argv[2],int(sys.argv[3])))\ntry:ok=s.recv(128)==b'controlled-udp-echo'\nexcept OSError:ok=False\nassert ok==(sys.argv[4]=='yes'),(sys.argv[1:],ok)"
+                run('ip','netns','exec',namespace,'python3','-c',code,source,destination,str(port),'yes' if expected else 'no',str(local_port))
+            udp_probe('10.235.0.2','10.234.0.2',60000,False)
+            config=copy.deepcopy(m.HUB)
+            config['device_sources']=config.pop('ga2_sources')
+            config['pairs'][0]['mosh_ports']=[60000,60009]
+            config['pairs'][1]['mosh_ports']=[60020,60029]
+            config['pairs'].append({'device':'10.235.0.4','workspace':'10.234.0.2','mosh_ports':[60010,60019]})
+            def apply_hub():
+                policy.write_text(json.dumps(config))
+                run('ip','netns','exec',hub,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'apply','--config',str(policy),'--receipt',str(receipt))
+            apply_hub()
+            udp_probe('10.235.0.2','10.234.0.2',60000,True)
+            udp_probe('10.235.0.2','10.234.0.2',60010,False)
+            udp_probe('10.235.0.4','10.234.0.2',60010,True)
+            udp_probe('10.235.0.4','10.234.0.2',60000,False)
+            udp_probe('10.235.0.2','10.234.0.3',60020,False)
+            udp_probe('10.235.0.3','10.234.0.3',60020,True)
+            udp_probe('10.235.0.2','10.235.0.1',60000,False)
+            # Preserve the existing UDP conntrack tuple: deleting only its grant
+            # must block it while other devices and native SSH continue working.
+            del config['pairs'][0]['mosh_ports'];apply_hub()
+            udp_probe('10.235.0.2','10.234.0.2',60000,False)
+            udp_probe('10.235.0.4','10.234.0.2',60010,True)
+            probe('10.235.0.2','10.234.0.2',22,True)
+            print('PASS: native Mosh UDP replies, cross-device/VM/input denial and revocation with an existing conntrack tuple; SSH remains available')
             run('ip','netns','exec',hub,'nft','delete','table','inet','oci_hub')
             result=subprocess.run(['ip','netns','exec',hub,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'verify','--config',str(policy),'--receipt',str(receipt)],capture_output=True)
             assert result.returncode!=0,'missing ACL was accepted'
@@ -89,7 +120,6 @@ def main():
         run('ip','netns','exec',pve,'sysctl','-w','net.ipv4.ip_forward=0')
         with tempfile.TemporaryDirectory(prefix='oci-hub-pve-netns-') as directory:
             p=Path(directory);policy=p/'policy.json';receipt=p/'receipt.json'
-            import copy
             config=copy.deepcopy(m.PVE);config.update(endpoint='198.51.100.2',protected=['198.51.100.2/32'])
             config['workspaces'][0]['vnet']='ohfix'
             config['workspaces'].append({'vmid':602,'vnet':'ohbob','subnet':'10.236.2.0/30','address':'10.236.2.2','gateway':'10.236.2.1','mac':'02:00:00:00:02:02','disabled':False})

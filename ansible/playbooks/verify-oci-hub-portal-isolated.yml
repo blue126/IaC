@@ -1,0 +1,98 @@
+---
+- name: Deploy a synthetic Portal fixture in an isolated network on the approved OCI host
+  hosts: oci
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Validate the exact approved OCI host and upstream binary
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'oracle-cloud-ubuntu2404'
+          - oci_hub_isolated_test_authorized | default(false) | bool
+          - oci_hub_portal_sha256 == '73b524f7427c1975d1b0744a4c1ad82418ad07589df48f850d7a66935d9952e7'
+
+    - name: Check existing network-test dependencies without installing packages
+      ansible.builtin.command:
+        argv: [which, python3, ip, nft, wg]
+      changed_when: false
+
+    - name: Verify the approved source-only artifact before transfer
+      ansible.builtin.command:
+        argv: [python3, '{{ oci_hub_artifact_verifier }}', --verify, '{{ oci_hub_source_artifact }}']
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Create a task-owned temporary fixture directory
+      ansible.builtin.tempfile:
+        state: directory
+        path: /var/tmp
+        prefix: oci-hub-portal-smoke-
+      register: oci_hub_smoke_root
+
+    - name: Create the source fixture layout
+      ansible.builtin.file:
+        path: '{{ oci_hub_smoke_root.path }}/{{ item }}'
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+      loop: [scripts/oci-hub, tests/oci-hub]
+
+    - name: Copy the approved upstream binary into the fixture only
+      ansible.builtin.copy:
+        src: '{{ oci_hub_portal_binary }}'
+        dest: '{{ oci_hub_smoke_root.path }}/wg-portal'
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Check the transferred upstream binary identity
+      ansible.builtin.stat:
+        path: '{{ oci_hub_smoke_root.path }}/wg-portal'
+        checksum_algorithm: sha256
+      register: oci_hub_smoke_binary
+
+    - name: Require the fixed upstream digest before any execution
+      ansible.builtin.assert:
+        that: oci_hub_smoke_binary.stat.checksum == oci_hub_portal_sha256
+
+    - name: Extract only verified service source into the fixture
+      ansible.builtin.unarchive:
+        src: '{{ oci_hub_source_artifact }}'
+        dest: '{{ oci_hub_smoke_root.path }}'
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Copy the scoped kernel controller and synthetic test
+      ansible.builtin.copy:
+        src: '{{ playbook_dir }}/../../{{ item }}'
+        dest: '{{ oci_hub_smoke_root.path }}/{{ item }}'
+        owner: root
+        group: root
+        mode: '0700'
+      loop: [scripts/oci-hub/boundary.py, tests/oci-hub/test-live-portal.py]
+
+- name: Verify the actual Portal API and WireGuard lifecycle in a disposable namespace
+  hosts: oci
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Run the official Portal against synthetic credentials and isolated kernel state
+      ansible.builtin.command:
+        argv:
+          - python3
+          - '{{ oci_hub_smoke_root.path }}/tests/oci-hub/test-live-portal.py'
+          - --portal-binary
+          - '{{ oci_hub_smoke_root.path }}/wg-portal'
+          - --source-dir
+          - '{{ oci_hub_smoke_root.path }}/services/oci-hub'
+      register: oci_hub_smoke_result
+      changed_when: false
+      failed_when: oci_hub_smoke_result.rc != 0
+
+    - name: Report the synthetic integration results without credentials
+      ansible.builtin.debug:
+        var: oci_hub_smoke_result.stdout_lines

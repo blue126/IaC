@@ -1,6 +1,10 @@
 ---
 all:
   children:
+    employee_access:
+      hosts:
+        existing-gateway-fixture:
+          ansible_connection: local
     oci:
       hosts:
         hub-fixture:
@@ -8,6 +12,14 @@ all:
     oci_hub_workspaces:
       hosts:
         oci-hub-alice:
+          ansible_connection: local
+    oci_hub_mosh_pilot:
+      hosts:
+        oci-hub-alice:
+          ansible_connection: local
+    oci_hub_mosh_gateway:
+      hosts:
+        hub-fixture:
           ansible_connection: local
     oci_hub_pve:
       hosts:

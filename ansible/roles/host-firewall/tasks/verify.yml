@@ -1,0 +1,31 @@
+---
+# Checks ufw state and user rules only; Ubuntu before.rules (ICMP, DHCP,
+# mDNS) and the chains tailscaled manages are outside this check.
+- name: Read ufw status
+  ansible.builtin.command:
+    argv: [ufw, status, verbose]
+  register: host_firewall_status
+  changed_when: false
+  check_mode: false
+
+- name: Assert ufw is active and denies inbound by default
+  ansible.builtin.assert:
+    that:
+      - "'Status: active' in host_firewall_status.stdout_lines"
+      - host_firewall_status.stdout is search('Default:\s+deny \(incoming\)')
+    fail_msg: ufw is not active with a default deny incoming policy
+
+- name: Read configured ufw rules
+  ansible.builtin.command:
+    argv: [ufw, show, added]
+  register: host_firewall_verify_added
+  changed_when: false
+  check_mode: false
+
+- name: Assert ufw user rules match the expected allow rules
+  ansible.builtin.assert:
+    that:
+      - host_firewall_user_rules | sort == host_firewall_expected_rules | sort
+    fail_msg: "Unexpected ufw user rules: {{ host_firewall_user_rules }}"
+  vars:
+    host_firewall_user_rules: "{{ host_firewall_verify_added.stdout_lines | select('match', '^ufw ') | list }}"

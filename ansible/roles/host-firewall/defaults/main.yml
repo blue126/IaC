@@ -1,0 +1,13 @@
+---
+# Source networks allowed to reach any inbound port.
+host_firewall_allowed_cidrs:
+  - 192.168.1.0/24
+
+# Interfaces whose inbound traffic is allowed (the tailnet arrives on tailscale0).
+host_firewall_allowed_interfaces:
+  - tailscale0
+
+# ufw user rules the role is expected to have added (derived; do not override).
+host_firewall_expected_rules: >-
+  {{ host_firewall_allowed_cidrs | map('regex_replace', '^', 'ufw allow from ') | list
+     + host_firewall_allowed_interfaces | map('regex_replace', '^', 'ufw allow in on ') | list }}

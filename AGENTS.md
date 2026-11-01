@@ -26,7 +26,7 @@ docs/               # Deployment guides, technical guides, learning notes
 
 ## Key Commands
 
-**Where these run:** run this repository's Ansible inside the Docker Sandbox. The macOS host also has `terraform` and `ansible-core` in `~/.local/bin`, but that Ansible belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Do not use or change the host Ansible for this repository. Detect where you are before assuming:
+**Where these run:** by default on the macOS host, from the checkout or task worktree being worked on, using that checkout's own uv toolchain. Run `./scripts/setup-dev-env.sh` once per checkout (and again after `requirements.txt` or `ansible/requirements.yml` changes); it creates `.venv` from `requirements.txt` and installs the pinned collections into `ansible/collections`. Then `source .venv/bin/activate`. The host's `~/.local/bin/ansible` belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Never use or change it for this repository. Git-ignored per-checkout state is not shared between worktrees: a new worktree needs `terraform init` in each Terraform root it uses, and `ansible/.vault_pass` comes from the main checkout (pass `--vault-password-file` with that path rather than copying it). A Docker Sandbox is optional, for isolated unattended agent runs; detect where you are before assuming:
 
 ```bash
 [ -n "$SANDBOX_ID" ] && echo sandbox || echo host
@@ -84,7 +84,7 @@ PR validation is `.github/workflows/repo-validation.yml`: it classifies the chan
 - **Naming**: All vault variables use `vault_` prefix. Consumer variables drop the prefix
 - **Indirection**: Host-specific → `host_vars/`, group-shared → `group_vars/`, role config → `roles/<role>/defaults/main.yml`
 - **Terraform bridge**: `scripts/get-secrets.sh` extracts IaC vault secrets into `*.auto.tfvars` (gitignored). Ansible Vault is the source of truth for IaC credentials.
-- **Employee credential exception**: Employee workspace SSH and WireGuard private keys are stored in the dedicated Bitwarden Secrets Manager `EmployeeWorkspace` project, managed only by the private `~/Projects/IaC/remotecc/employee-admin/onboard.sh` workflow (the old `~/Projects/employee-workspace-admin` path remains a compatibility link). Private code and runtime data live under the main checkout's Git-ignored `remotecc/`; see `docs/architecture/remotecc-layout.md`. Do not add these keys to the global Vault or run employee Ansible plays with that Vault alone; the private workflow composes a temporary encrypted runtime Vault from BWS and the IaC Vault.
+- **Employee credential exception**: Active OCI Hub workspace SSH and WireGuard private keys are stored in the dedicated Bitwarden Secrets Manager `EmployeeWorkspace-OCIHub` project; the former `EmployeeWorkspace` project is retained for historical credentials, managed only by the private `~/Projects/IaC/remotecc/employee-admin/onboard.sh` workflow (the old `~/Projects/employee-workspace-admin` path remains a compatibility link). Private code and runtime data live under the main checkout's Git-ignored `remotecc/`; see `docs/architecture/remotecc-layout.md`. Do not add these keys to the global Vault or run employee Ansible plays with that Vault alone; the private workflow composes a temporary encrypted runtime Vault from BWS and the IaC Vault.
 - Never store plaintext credentials in inventory or defaults — always use vault indirection
 
 ### Naming Conventions
@@ -124,7 +124,7 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## Project-local Employee Provisioning
 
-- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for WireGuard-based employee workspace onboarding/provisioning (`existing` and `oci-hub`), device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
+- Automatically load this repository's `.agents/skills/employee-provision/SKILL.md` for employee workspace onboarding/provisioning (active `oci-hub`; `existing` is retired), device bundles and delivery, recovery, or changes/reviews of that workflow. This is a project-scoped exception to the default explicit-only skill preference.
 - HAPI and WireGuard are access methods for the same employee workspace VM. The standalone HAPI onboarding candidate has been withdrawn while the user redesigns provisioning. Do not create a second VM or manage one VM from two Terraform states.
 - `.agents/skills/hapi-provision/SKILL.md` is now a withdrawal notice, not an executable onboarding workflow. Preserve existing HAPI services, infrastructure prototypes, credentials and runtime evidence; do not invoke the historical standalone provisioning executor or integrate it into `onboard.sh` without the new design. See `docs/planning/2026-10-31-hapi-onboarding-withdrawal.md`.
 - For the WireGuard workflow, reuse the existing administrator `onboard.sh` entry and read its README before changing it. Extend that workflow instead of creating another engine for the same purpose.
@@ -154,6 +154,7 @@ When working on specific areas, read the relevant design doc for detailed patter
 
 ## Docker Sandbox Environment
 
+- A Sandbox is optional. Development and employee onboarding run on the host with the uv toolchain described under Key Commands; onboarding runs from the main checkout's `remotecc/employee-admin/onboard.sh`. The rules below apply only when a Sandbox is chosen.
 - Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
 - Choose the topology before running an entry command. Treat the main checkout as coordination-only; direct-mode commands must run from an assigned host task worktree. Create clone-mode Sandboxes only from the verified main checkout when Git will be managed inside the Sandbox. Never create a clone-mode Sandbox from a host linked worktree.
 - Replace `TASK` with a unique kebab-case task name. Use versioned, task-specific Sandbox names so parallel work and Kit-upgrade testing never reconnect to an unrelated or stale Sandbox.

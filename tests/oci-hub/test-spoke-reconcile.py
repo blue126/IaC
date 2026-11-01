@@ -35,7 +35,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='oci-hub-spoke-review1-') as directory:
         base=Path(directory);role=base/'roles/fixture-spoke'
         for name in ('tasks','handlers','templates'):(role/name).mkdir(parents=True)
-        tasks=yaml.safe_load((ROOT/'ansible/roles/oci-hub-spoke/tasks/main.yml').read_text())
+        tasks=yaml.safe_load((ROOT/'ansible/roles/oci-hub-spoke/tasks/vpn.yml').read_text())
         end=next(i for i,t in enumerate(tasks) if t.get('ansible.builtin.meta')=='flush_handlers')+1
         # Redirect only the destination into this fixture; execute original logic.
         for task in tasks[:end]:

@@ -8,5 +8,7 @@ employee_workspace_packages: [git, curl, ca-certificates, sudo, openssh-server, 
 employee_workspace_baseline_id: ""
 employee_workspace_baseline_ready: false
 
-employee_workspace_profile: existing
+employee_workspace_profile: oci-hub
 oci_hub_workspace_devices: []
+
+employee_workspace_viewer_url: "{{ 'https://' + oci_hub_spoke_address.split('/')[0] + ':8443/' if oci_hub_spoke_address is defined else 'http://127.0.0.1:6081/vnc.html' }}"

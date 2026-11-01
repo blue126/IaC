@@ -1,3 +1,5 @@
 ---
 oci_hub_profile: oci-hub
 oci_hub_install_authorized: false
+oci_hub_bootstrap_interfaces_authorized: false
+oci_hub_portal_external_url: http://127.0.0.1:8888

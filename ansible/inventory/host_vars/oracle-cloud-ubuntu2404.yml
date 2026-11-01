@@ -19,3 +19,6 @@ repo_url: "https://github.com/blue126/unified-proxy.git"
 repo_version: "main"
 proxy_domain: "proxy.willfan.me"   # TODO: set to your public domain, e.g. proxy.yourdomain.com
 # vault_proxy_api_key and vault_auth_json must be added to vault
+
+# OCI Hub browser administration through the existing HTTPS reverse proxy.
+oci_hub_portal_external_url: https://wgportal.willfan.me

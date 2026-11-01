@@ -1,0 +1,7 @@
+---
+semaphore_version: "2.19.17"
+semaphore_deb_sha256: 470e2284f32b0dafb0454e54abfe257e272db9b74747c0f2e5b1881bb341007b
+semaphore_data_dir: /var/lib/semaphore
+semaphore_config_dir: /etc/semaphore
+semaphore_admin_login: admin
+semaphore_admin_email: admin@ws-executor.local

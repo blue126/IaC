@@ -1,0 +1,9 @@
+#!/bin/bash
+# Check out the pushed {{ item.branch }} branch into the runtime work tree.
+set -euo pipefail
+while read -r _old new ref; do
+  if [[ "${ref}" == "refs/heads/{{ item.branch }}" ]]; then
+    git --git-dir="{{ ws_executor_git_root }}/{{ item.name }}.git" --work-tree="{{ item.work_tree }}" checkout -f "{{ item.branch }}"
+    echo "deployed {{ item.name }} ${new}"
+  fi
+done

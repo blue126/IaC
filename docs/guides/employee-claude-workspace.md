@@ -1,5 +1,8 @@
 # 员工 Claude Code 工作环境：实施与验收
 
+> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。
+
+
 本实现对应 [SPEC](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/SPEC.md)、[访问契约](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/access-and-isolation.md) 和 [验收矩阵](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/verification.md)。代码生成、离线测试不代表部署或 CAP 验收通过。当前采用单节点、每人一个持久 VM、外置受管 SSH 入口；WireGuard 是待实测的自建接入候选。
 
 ## Terraform 模块与 provider

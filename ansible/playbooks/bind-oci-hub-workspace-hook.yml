@@ -1,0 +1,48 @@
+---
+- name: Bind the approved boundary hook to a stopped new Hub workspace
+  hosts: oci_hub_pve
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require the exact independent allocation and deferred binding
+      ansible.builtin.assert:
+        that:
+          - oci_hub_create_workspace.defer_hook_binding | bool
+          - oci_hub_create_workspace.vmid | int == oci_hub_prepare_vmid | int
+          - oci_hub_create_workspace.vmid | int != 500
+          - oci_hub_create_workspace.hook_script_file_id is match('^[a-z0-9-]+:snippets/oci-hub-[a-z0-9.-]+$')
+          - oci_hub_create_name is match('^oci-hub-[a-z0-9-]+$')
+    - name: Verify independent PVE rules and routes before binding
+      ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
+      changed_when: false
+    - name: Bind only after checking identity power network and hook ownership
+      ansible.builtin.shell: |
+        python3 - <<'PY'
+        import json, pathlib, re, subprocess
+        vm = json.loads({{ oci_hub_create_workspace | to_json | to_json }})
+        name = {{ oci_hub_create_name | to_json }}
+        vmid = str(vm['vmid'])
+        def run(*args):
+            return subprocess.check_output(args, text=True).strip()
+        assert run('qm', 'status', vmid) == 'status: stopped', 'new VM must remain stopped'
+        config = dict(line.split(': ', 1) for line in run('qm', 'config', vmid).splitlines() if ': ' in line)
+        assert config.get('name') == name, 'VM name mismatch'
+        net = config.get('net0', '').split(',')
+        assert 'bridge=' + vm['vnet'] in net, 'VNet mismatch'
+        assert 'VIRTIO=' + vm['mac_address'].upper() in [v.upper() for v in net], 'MAC mismatch'
+        hook = vm['hook_script_file_id']
+        path = pathlib.Path(run('pvesm', 'path', hook))
+        assert not path.is_symlink() and path.is_file(), 'hook must be an existing regular file'
+        info = path.stat()
+        assert info.st_uid == 0 and not info.st_mode & 0o022, 'hook ownership mismatch'
+        assert config.get('hookscript') in (None, hook), 'foreign hook must not be replaced'
+        if config.get('hookscript') != hook:
+            subprocess.run(['qm', 'set', vmid, '--hookscript', hook], check=True, capture_output=True)
+            print('changed')
+        else:
+            print('unchanged')
+        PY
+      args:
+        executable: /bin/bash
+      register: oci_hub_hook_binding
+      changed_when: "'changed' in oci_hub_hook_binding.stdout_lines"

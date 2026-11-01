@@ -245,3 +245,9 @@ variable "hook_script_file_id" {
   type        = string
   default     = null
 }
+
+variable "vendor_data_file_id" {
+  description = "Optional vendor bootstrap; generated user data continues to supply hostname and administrator keys"
+  type        = string
+  default     = null
+}

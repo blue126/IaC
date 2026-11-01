@@ -59,3 +59,32 @@ run "legacy_module_defaults_remain_compatible" {
     error_message = "Existing module callers must retain default first boot and an absent hook."
   }
 }
+
+run "deferred_root_hook_is_bound_only_after_stopped_creation" {
+  command = plan
+  variables {
+    oci_hub_workspaces = {
+      alice = {
+        defer_hook_binding  = true
+        bios                = "seabios"
+        vmid                = 601
+        vnet                = "ohalice"
+        address             = "10.236.1.2/30"
+        gateway             = "10.236.1.1"
+        mac_address         = "02:00:00:00:01:02"
+        template_name       = "approved-fixture"
+        baseline_id         = "fixture-v1"
+        bootstrap_file      = "local:snippets/fixture.yaml"
+        hook_script_file_id = "local:snippets/oci-hub-boundary.sh"
+        storage_pool        = "local-zfs"
+        admin_public_keys   = []
+        dns_server          = "192.0.2.53"
+        overlay             = "10.234.0.2/32"
+      }
+    }
+  }
+  assert {
+    condition     = !module.oci_hub_workspace["alice"].startup_contract.started && !module.oci_hub_workspace["alice"].startup_contract.on_boot && module.oci_hub_workspace["alice"].startup_contract.protection && module.oci_hub_workspace["alice"].startup_contract.hook == null
+    error_message = "Deferred root-owned hooks must keep the VM stopped, protected and without an API hook write."
+  }
+}
