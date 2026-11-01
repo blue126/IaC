@@ -50,6 +50,21 @@ def validate(c):
         if (not isinstance(grants, list) or any(type(v) is not int for v in grants) or
                 len(grants) != len(set(grants)) or not set(grants) <= {v['vmid'] for v in c['workspaces']}):
             raise ValueError('Cloudflare egress must name unique allocated VMIDs')
+        hub_grants = c.get('hapi_hub_grants', [])
+        if not isinstance(hub_grants, list):
+            raise ValueError('HAPI Hub grants must be a list')
+        seen_hub_grants = set()
+        for grant in hub_grants:
+            if (not isinstance(grant, dict) or set(grant) != {'destination', 'vmid'} or
+                    type(grant['vmid']) is not int or grant['vmid'] not in {v['vmid'] for v in c['workspaces']}):
+                raise ValueError('HAPI Hub egress must name an allocated worker')
+            target = ipaddress.IPv4Network(grant['destination'], strict=True)
+            private = any(target.subnet_of(ipaddress.IPv4Network(cidr)) for cidr in
+                          ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'])
+            pair = (grant['vmid'], str(target))
+            if target.prefixlen != 32 or not private or target.overlaps(ipaddress.IPv4Network(c['aggregate'])) or pair in seen_hub_grants:
+                raise ValueError('HAPI Hub requires a unique exact private destination outside worker networks')
+            seen_hub_grants.add(pair)
         for grant in c.get('hapi_ingress_grants', []):
             if set(grant) != {'source', 'vmid'} or grant['vmid'] not in {v['vmid'] for v in c['workspaces']}:
                 raise ValueError('HAPI ingress must name an allocated workspace')
@@ -162,6 +177,12 @@ def render(c):
                 source = str(ipaddress.IPv4Network(grant['source']))
                 lines += [f'  iifname "{c["uplink"]}" oifname "{n}" ip saddr {source} ip daddr {addr} tcp dport 9443 ct state {{ new, established }} ct direction original accept',
                           f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {source} tcp sport 9443 ct state established ct direction reply accept']
+            for grant in c.get('hapi_hub_grants', []):
+                if grant['vmid'] != v['vmid'] or v.get('disabled', True):
+                    continue
+                target = str(ipaddress.IPv4Network(grant['destination']))
+                lines += [f'  iifname "{n}" oifname "{c["uplink"]}" ip saddr {addr} ip daddr {target} tcp dport 9443 ct state {{ new, established }} ct direction original accept',
+                          f'  iifname "{c["uplink"]}" oifname "{n}" ip saddr {target} ip daddr {addr} tcp sport 9443 ct state established ct direction reply accept']
             for access in c.get('management_access',[]):
                 if access['vmid'] != v['vmid']:continue
                 source=str(ipaddress.IPv4Network(access['source']))
@@ -373,7 +394,7 @@ def load_service_egress(c, path=Path('/etc/oci-hub/service-egress.json')):
     if c['kind'] != 'pve' or not path.exists():
         return c
     grants = json.loads(path.read_text())
-    if not set(grants) <= {'cloudflare_tunnel_vmids', 'hapi_ingress_grants'}:
+    if not set(grants) <= {'cloudflare_tunnel_vmids', 'hapi_ingress_grants', 'hapi_hub_grants'}:
         raise ValueError('unexpected service egress fields')
     return validate({**c, **grants})
 
