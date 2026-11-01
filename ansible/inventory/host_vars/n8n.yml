@@ -1,5 +1,9 @@
 proxmox_node: pve0
 proxmox_vmid: 106
+ansible_user: ubuntu
+n8n_legacy_migration_enabled: false
+n8n_existing_docker_runtime: true
+n8n_checkout_app: false
 n8n_version: "2.39.5"
 n8n_app_ref: "754bd88"
 n8n_legacy_data_dir: "/root/.n8n"
