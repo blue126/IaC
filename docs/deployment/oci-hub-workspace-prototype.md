@@ -25,7 +25,7 @@
 4. 通过 `deploy-oci-hub.yml` 部署固定校验值的 Portal 二进制及白名单源码 artifact。先加载/校验 ACL，再启动 Portal。明确忽略所有现有接口，禁用 import、自助/默认 peer、自动用户恢复与配置导出；API/界面仅监听 loopback。保护 Portal 数据库、配置、执行器配置与备份，OCI 不接收任一 BWS 令牌或员工 SSH 私钥。
 5. 首次账本初始化必须显式 `oci_hub_new_ledger_authorized=true`。执行器另留 `.initialized` 标记；账本丢失/损坏不能重新初始化为零。timer 每 5 秒向同一执行器采样，只采 `wg-users`，不重复计工作区 peer。
 6. `deploy-oci-hub-workspace.yml` 只限新 VM 与明确 PVE host；安装该 VM Spoke 配置与来自设备 /32 的 native SSH 公钥。nginx 仅监听该 VM overlay:8443，注入仅本 VM 的受限 Basic 后端凭据，验证 loopback:8444 KasmVNC 的 TLS；浏览器不接收后台凭据。前端只代理 GET/HEAD 静态资源与 WebSocket，显式拒绝 `/api` 和 `/api/`；非 owner 的受限后端凭据不提供管理 API。Host/Origin、原始后端不可外部监听、TLS SAN/host pin、路径/API、XFCE/Firefox 生命周期仍需实际验收。
-7. 新对象初始禁用，通过 OCI 执行器登记 profile/代次/用户—设备—VM 映射并回读，再解除本次新建身份的初始原因。旧身份的 admin/revoked/quota 不因重跑解除。生成受保护的本地 v2 候选包，完成独立端到端验收后才允许交付；Temp.sh 上传和邮件分别需要明确交付范围及审批摘要。
+7. 新对象初始禁用，通过 OCI 执行器登记 profile/代次/用户—设备—VM 映射并回读，再解除本次新建身份的初始原因。旧身份的 admin/revoked/quota 不因重跑解除。生成受保护的本地 v2 候选包，完成独立端到端验收后才允许交付；设备包上传（现为 `cc.willfan.me`）和邮件分别需要明确交付范围及审批摘要。
 
 ## 管理员入口
 
