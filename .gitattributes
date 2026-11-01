@@ -12,9 +12,6 @@
 *.json text eol=lf
 *.md text eol=lf
 
-# Unified diff context uses a single space to represent a blank source line.
-/scripts/hapi-workspace-web/workspace-auth.patch whitespace=-blank-at-eol
-
 # Preserve the vendored BMad agent runtime byte-for-byte.
 /.agents/** -text -whitespace
 

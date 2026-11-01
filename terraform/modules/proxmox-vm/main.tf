@@ -71,9 +71,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
   dynamic "clone" {
     for_each = local.from_image ? [] : [1]
     content {
-      vm_id        = local.template_vm_id
-      full         = var.full_clone
-      datastore_id = var.storage_pool
+      vm_id = local.template_vm_id
+      full  = var.full_clone
     }
   }
 
