@@ -1,4 +1,10 @@
 ---
+- name: Inspect the dedicated certificate lifecycle ownership marker
+  ansible.builtin.stat:
+    path: /var/lib/hapi-pki-agent/managed.json
+    follow: false
+  register: hapi_shared_hub_pki_managed
+
 - name: Validate the shared Hub deployment target and immutable release
   ansible.builtin.assert:
     that:
@@ -162,6 +168,8 @@
   no_log: true
   diff: false
   notify: Restart shared HAPI transport
+
+  when: not hapi_shared_hub_pki_managed.stat.exists
 
 - name: Prepare the isolated shared Hub proxy runtime
   ansible.builtin.file:

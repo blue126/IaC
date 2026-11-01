@@ -1,4 +1,10 @@
 ---
+- name: Inspect the dedicated certificate lifecycle ownership marker
+  ansible.builtin.stat:
+    path: /var/lib/hapi-pki-agent/managed.json
+    follow: false
+  register: hapi_control_plane_pki_managed
+
 - name: Restrict the control plane to VM500 and explicitly authorized publication
   ansible.builtin.assert:
     that:
@@ -93,6 +99,8 @@
   no_log: true
   diff: false
   notify: Reload HAPI control proxy
+
+  when: not hapi_control_plane_pki_managed.stat.exists
 
 - name: Deploy the supplied workspace API tokens without exposing them
   ansible.builtin.copy:

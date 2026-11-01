@@ -1,4 +1,10 @@
 ---
+- name: Inspect the dedicated certificate lifecycle ownership marker
+  ansible.builtin.stat:
+    path: /var/lib/hapi-pki-agent/managed.json
+    follow: false
+  register: hapi_ingress_pki_managed
+
 - name: Require supplied transport identities
   ansible.builtin.assert:
     that:
@@ -23,6 +29,7 @@
   no_log: true
   diff: false
   notify: Restart HAPI ingress proxy
+  when: not hapi_ingress_pki_managed.stat.exists
 
 - name: Prepare the isolated proxy runtime paths for candidate validation
   ansible.builtin.file:
