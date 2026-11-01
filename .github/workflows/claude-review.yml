@@ -66,7 +66,7 @@ jobs:
             completed reliably or a blocking concern is ambiguous or not safely
             actionable. Fingerprints must be stable for the same underlying issue.
           claude_args: >-
-            --tools "Read,Glob,Grep,Bash"
+            --disallowedTools "Agent,Task"
             --allowedTools "Read,Glob,Grep,Bash(git diff:*),Bash(git show:*),Bash(git status:*)"
             --json-schema '{"type":"object","additionalProperties":false,"required":["status","findings"],"properties":{"status":{"enum":["pass","needs_fix","human_required"]},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["fingerprint","severity","actionable","path","summary"],"properties":{"fingerprint":{"type":"string","minLength":1,"maxLength":256},"severity":{"enum":["blocking","non_blocking"]},"actionable":{"type":"boolean"},"path":{"type":"string","minLength":1,"maxLength":512},"summary":{"type":"string","minLength":1,"maxLength":2000}}}}}}'
 
