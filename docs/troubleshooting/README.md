@@ -10,6 +10,7 @@
 
 | 症状描述 | 相关文档 | 关键词 |
 |---------|---------|-------|
+| pve2 克隆员工 VM 后扩容超时，开户核对失败 | [2026-11-01-pve2-clone-resize-timeout.md](./2026-11-01-pve2-clone-resize-timeout.md) | qemu-img resize、fdatasync、dirty_bytes、已修复 |
 | pve0 local-zfs 在 CT111 恢复期间持续低速写入 | [2026-10-27-pve0-sa510-write-slowdown.md](./2026-10-27-pve0-sa510-write-slowdown.md) | SA510、ZFS、空闲恢复、根因未确定 |
 | pve0 系统池 rpool 出现 SATA/I/O 写入错误 | [2026-10-02-pve0-rpool-sata-link-errors.md](./2026-10-02-pve0-rpool-sata-link-errors.md) | SA510、SATA链路省电、ZFS、临时监控收尾 |
 | Terraform 命令崩溃或报权限错误 | [terraform-issues.md](./terraform-issues.md) | Provider版本、Proxmox兼容性、API Token |
