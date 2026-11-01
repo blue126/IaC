@@ -7,6 +7,7 @@ provider "registry.terraform.io/ansible/ansible" {
   hashes = [
     "h1:Ki8m3lAW3l6f6tPktHiyecEzOydKACJv/vMriuLDWhE=",
     "h1:Qx8tn8IqmKXsU0joap0dtZto3Qdkv8g3e0q9sEtV0l8=",
+    "h1:X2gqMF6zc+J5VxAkJGwxOO6XXNWpX+8m6MRVETzKr2g=",
     "zh:0307c80c6a890b629e866318688ac6c73acd99dfd61c371e9036feb001baff45",
     "zh:28bddf36dce285d79391b7bbceae08e33533da4412f9c9434eb769a1e75c3992",
     "zh:3979596203cc64fd602a1e03cca198c2071f85ec29bf8c8816b35cc74b271411",
@@ -29,6 +30,8 @@ provider "registry.terraform.io/bpg/proxmox" {
   version     = "0.70.0"
   constraints = "0.70.0"
   hashes = [
+    "h1:KkD1hiamnF1itGOdHm/2GmXOljnC5vFgPl02xpzGKHA=",
+    "h1:Vq+frhavl4SIBtt7BqGJ4XNjzvWl2lAhA0feK5i4ocg=",
     "h1:a/tyPZyVunUAhCgdokhwipkMymKrXvbHHqz2/1swrHg=",
     "zh:05fe0d04fa07c6f23028e08ebf14ed01f8cb6295c926bdc923b333c1b82263e7",
     "zh:2507482294e544990946c4ae660843c3c783dca0a104ba41156dadd9f99a6c03",
