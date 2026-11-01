@@ -13,10 +13,13 @@ PROJECT='employee-lifecycle'
 # work tree that git push keeps current.
 REPOSITORY={'name':'employee-admin','git_url':'/srv/remotecc/employee-admin','git_branch':'main'}
 SCRIPT='semaphore/wsctl.sh'
+APPROVE={'name':'WSCTL_APPROVE','title':'approval_sha256 (empty = plan only)','required':False,'type':''}
 # name -> (arguments, survey variables, allow overriding arguments per task)
 TEMPLATES={
     'wsctl status':(['status'],[],False),
-    'wsctl deliver':(['deliver'],[{'name':'WSCTL_APPROVE','title':'approval_sha256 (empty = plan only)','required':False,'type':''}],True),
+    'wsctl deliver':(['deliver'],[APPROVE],True),
+    'wsctl provision':(['provision'],[APPROVE],True),
+    'wsctl access':(['access'],[APPROVE],False),
 }
 SCHEDULES={'wsctl status':'*/30 * * * *'}
 

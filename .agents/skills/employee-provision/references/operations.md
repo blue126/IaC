@@ -1,6 +1,6 @@
 # 运行与恢复
 
-管理员在宿主的规范 employee-admin 目录调用 onboard.sh，直接在宿主执行。申请 JSON 与其中的 bundle_dir/run_dir 都是宿主路径，直接使用 export 输出的值。实际执行遵循仓库 AGENTS.md；不为了恢复扩大管理网络、换凭据或安装依赖。
+写操作在执行器 ws-executor 上运行（Semaphore 模板或 `sudo /srv/remotecc/employee-admin/wsctl`）；Mac 只读。申请 JSON 与其中的 bundle_dir/run_dir 都是执行器上的路径，直接使用 export 输出的值。实际执行遵循仓库 AGENTS.md；不为了恢复扩大管理网络、换凭据或安装依赖。
 
 ## 计划和动作
 
@@ -27,7 +27,7 @@ DELIVERY_PURPOSE_REVIEW_REQUIRED 表示历史未发回执没有用途信息：�
 
 acceptance REQUEST.json 仅输出绑定包的必要检查、pending记录模板及已登记记录的校验结果。校验读取宿主 settings.json 的 oci_hub.e2e_verification；证据/记录路径须是宿主上归管理员所有、mode0600 的私有路径。禁止复制整份设置或输出凭据来“修复”。独立验证人员按批准的测试方案提供日志/JSON证据，补齐时间、哈希和通过项，管理员审阅后登记保护记录的路径/哈希及批准引用。没有证据的项保持pending，不伪造passed。
 
-验收记录最长有效1小时，并绑定当时全局mapping_generation及网络策略；其他登记使其失效时重新核对subject和独立证据，不能只改旧记录时间。验收与特定设备的用户豁免都是独立授权；已批准豁免保留，不能迁给另一设备。管理员verify/online只报告服务侧观察，员工bootstrap和VM内个人Claude认证另行确认。Git定义同步是单独收尾阶段。
+验收记录最长有效1小时，并绑定当时全局mapping_generation及网络策略；其他登记使其失效时重新核对subject和独立证据，不能只改旧记录时间。验收与特定设备的用户豁免都是独立授权；已批准豁免保留，不能迁给另一设备。管理员verify/status只报告服务侧观察，员工bootstrap和VM内个人Claude认证另行确认。Git定义同步是单独收尾阶段。
 
 ## 历史共享同步
 
