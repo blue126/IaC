@@ -72,10 +72,8 @@
       failed_when: retired_boundary_verify_unit.rc == 0
 
     - name: Check the legacy employee bridges
-      ansible.builtin.shell: set -o pipefail; ip -o link show | awk -F': ' '{print $2}' | grep -E '^vmbr50[1-8]$' || true
-      args:
-        executable: /bin/bash
+      ansible.builtin.command: ip -o link show
       register: retired_boundary_verify_bridges
       changed_when: false
       check_mode: false
-      failed_when: retired_boundary_verify_bridges.stdout | length > 0
+      failed_when: retired_boundary_verify_bridges.stdout is search(' vmbr50[1-8][:@]')
