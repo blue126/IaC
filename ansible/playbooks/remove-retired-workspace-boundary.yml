@@ -65,11 +65,10 @@
       failed_when: retired_boundary_verify_table.rc == 0
 
     - name: Check the legacy guard unit
-      ansible.builtin.command: systemctl cat employee-firewall.service
+      ansible.builtin.stat:
+        path: /etc/systemd/system/employee-firewall.service
       register: retired_boundary_verify_unit
-      changed_when: false
-      check_mode: false
-      failed_when: retired_boundary_verify_unit.rc == 0
+      failed_when: retired_boundary_verify_unit.stat.exists
 
     - name: Check the legacy employee bridges
       ansible.builtin.command: ip -o link show
