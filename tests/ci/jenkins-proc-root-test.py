@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explicit Linux Sandbox fixture; uses existing sudo/unshare and synthetic canaries only."""
+"""Explicit Linux-only fixture; uses existing sudo/unshare and synthetic canaries only."""
 import tempfile,pathlib,os,json,subprocess,shlex,sys,errno
 from importlib.machinery import SourceFileLoader
 ROOT=pathlib.Path(__file__).resolve().parents[2]
@@ -7,7 +7,7 @@ SCRIPTS=ROOT/'scripts/jenkins'
 sys.path.insert(0,str(SCRIPTS))
 import control
 probe=SourceFileLoader('kernel_proc_probe',str(SCRIPTS/'isolation-probe.py')).load_module()
-if sys.platform!='linux':raise SystemExit('Run this explicit fixture in the assigned Linux Sandbox.')
+if sys.platform!='linux':raise SystemExit('Run this explicit fixture on an assigned Linux host.')
 
 def access(path,flags):
  try:

@@ -849,7 +849,7 @@ bin_ansible_callbacks = True  # 推荐：允许 ad-hoc 命令也使用此回调
 - `default` 插件的配置在 `[defaults]` 节下（特例）
 - 普通插件使用 `[callback_<name>]` 节
 
-### 6.3 Docker Sandbox Ansible 依赖缺失
+### 6.3 Ansible 依赖缺失
 
 #### 问题：Python 库和 Ansible 集合缺失
 
@@ -873,41 +873,26 @@ ERROR! couldn't resolve module/action 'ansible.posix.sysctl'
 
 显式声明依赖，但不要在本文复制清单：Python 依赖的唯一权威来源是仓库根目录
 [`requirements.txt`](../../requirements.txt)，Ansible collection 的唯一权威来源是
-[`ansible/requirements.yml`](../../ansible/requirements.yml)。`.sandbox-kit/spec.yaml` 中的 Python
-和 collection literal lists 必须与这两份清单同步；修改任一依赖时应同时更新对应 Kit list。
+[`ansible/requirements.yml`](../../ansible/requirements.yml)。
 
-当前 Docker Sandbox Kit 会在创建时安装这些依赖；不要在宿主机或工作区临时执行
-`pip install` 或 `ansible-galaxy collection install`。先从仓库根目录验证 Kit：
-
-```bash
-sbx kit validate .sandbox-kit
-```
-
-随后使用 [README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境)
-中的对应 `sbx run` 命令创建新的 sandbox。进入 sandbox 后验证依赖和 Ansible：
+两份清单由 [`scripts/setup-dev-env.sh`](../../scripts/setup-dev-env.sh) 安装到当前 checkout 的
+`.venv` 与 `ansible/collections`；不要用宿主全局 `pip install`、`ansible-galaxy` 或
+`~/.local/bin/ansible`（其他项目的 ansible-core 2.21）。依赖缺失时，从仓库或任务 worktree
+根目录重建并验证：
 
 ```bash
+./scripts/setup-dev-env.sh
+source .venv/bin/activate
 ansible-galaxy collection list | grep ansible.posix
 cd ansible
 ansible-playbook playbooks/<service>.yml --syntax-check
 ```
 
-需要增加软件包或系统依赖时，先获得明确授权，再同步更新依赖清单和 Kit 的 literal
-package/collection list，并重新创建 sandbox。
+需要增加软件包或系统依赖时，先获得明确授权，再更新依赖清单并重跑脚本。
 
 **关键教训**: Infrastructure as Code 必须可复制。不能依赖"环境里正好有"某个包。
 
-### 6.4 Docker Sandbox Playwright MCP
-
-本节只用于 Playwright MCP 连接异常，不是 Ansible 依赖缺失的诊断步骤。先在宿主检查：
-
-```bash
-sbx mcp ls
-```
-
-`playwright` 应为 `ready`。默认 dynamic MCP Gateway 允许 Agent 按需发现并附加；运行中的实例也可用 `sbx mcp load playwright --sandbox <name>` 修复，无需重启。
-
-### 6.5 命令存在检测
+### 6.4 命令存在检测
 
 #### 问题：检测命令是否存在的错误方式
 
@@ -944,7 +929,7 @@ sbx mcp ls
 - 添加 `ignore_errors: true` 处理不存在的情况
 - 添加 `changed_when: false` 因为这是只读检查
 
-### 6.6 验证步骤中的最佳实践
+### 6.5 验证步骤中的最佳实践
 
 #### 关键 1：`changed_when: false`
 

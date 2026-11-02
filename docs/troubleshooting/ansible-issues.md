@@ -65,7 +65,7 @@ callback_result_format = yaml  # 直接在 defaults 下
 
 ---
 
-## 问题 2: Docker Sandbox Ansible 依赖缺失
+## 问题 2: Ansible 依赖缺失
 
 ### 症状 A: Passlib 缺失
 ```
@@ -90,7 +90,7 @@ fatal: [target]: FAILED! => {
 ### 诊断步骤
 1. 检查 Python 依赖：
    ```bash
-   python3 -m pip list | grep passlib
+   .venv/bin/python -m pip list | grep passlib
    ```
 2. 检查 Ansible 集合：
    ```bash
@@ -106,15 +106,15 @@ fatal: [target]: FAILED! => {
 
 Ansible 依赖分为三层：
 
-| 依赖类型 | 安装命令 | 典型文件 |
+| 依赖类型 | 安装方式 | 典型文件 |
 |---------|---------|--------|
-| Python 库 | 由 Kit 安装 | `requirements.txt` + `.sandbox-kit/spec.yaml` |
-| Ansible 集合 | 由 Kit 安装 | `ansible/requirements.yml` + `.sandbox-kit/spec.yaml` |
-| System 包 | 由 Kit 安装 | `.sandbox-kit/spec.yaml` |
+| Python 库 | `scripts/setup-dev-env.sh` 装入 `.venv` | `requirements.txt` |
+| Ansible 集合 | `scripts/setup-dev-env.sh` 装入 `ansible/collections` | `ansible/requirements.yml` |
+| System 包 | 宿主手动安装（需授权） | — |
 
-**Docker Sandbox 原因**：当前项目由 `.sandbox-kit` 在 sandbox 创建时安装 Python
-依赖和 Ansible collections。若 Kit 创建失败或仍在使用旧 sandbox，就可能出现上述
-缺失。
+**常见原因**：当前 checkout 尚未运行 `scripts/setup-dev-env.sh`、依赖清单变更后未重跑，
+或误用了宿主 `~/.local/bin/ansible`（其他项目的 ansible-core 2.21，看不到本仓库的 `.venv`
+和 `ansible/collections`）。
 
 ### 解决方案
 
@@ -124,57 +124,29 @@ Python 依赖以仓库根目录的 [`requirements.txt`](../../requirements.txt) 
 [`ansible/requirements.yml`](../../ansible/requirements.yml) 为准。不要从本文复制依赖列表；列表会随
 项目演进而变化。
 
-`.sandbox-kit/spec.yaml` 的 Python 与 collection literal lists 是上述两个清单的安装期镜像（Kit hook
-运行时工作区文件尚不可用），因此增删或升级依赖时必须同步更新相应 Kit list。
+#### 方案 B: 重建当前 checkout 的工具链
 
-#### 方案 B: 验证 Docker Sandbox Kit 并重新创建 sandbox
-
-从仓库根目录验证 Kit；不要在宿主机或工作区中临时安装依赖。
+从仓库根目录（或任务 worktree 根目录）运行：
 
 ```bash
-sbx kit validate .sandbox-kit
-```
-
-使用 README 中对应 agent 的 `sbx run ... --kit ./.sandbox-kit` 命令创建新的
-sandbox。进入 sandbox 后检查依赖并运行 Ansible syntax check：
-
-```bash
+./scripts/setup-dev-env.sh
+source .venv/bin/activate
 ansible-galaxy collection list | grep ansible.posix
 cd ansible
 ansible-playbook playbooks/<service>.yml --syntax-check
 ```
 
-若 Kit 需要新增软件包或系统依赖，先获得明确授权后，同步更新依赖清单和 Kit 的
-literal package/collection list，再重新创建 sandbox。
+若需要新增软件包或系统依赖，先获得明确授权，再更新相应依赖清单并重跑脚本。
 
 ### 最佳实践
 
 **Infrastructure as Code 必须可复现**:
 
 ```bash
-# 任何人克隆项目后，先从仓库根目录启动对应的 Docker Sandbox
-sbx run --name iac-claude claude . --kit ./.sandbox-kit
-# 依赖由 Kit 安装，避免污染宿主机或工作区
+# 任何人克隆项目或新建 worktree 后，先构建该 checkout 自己的工具链
+./scripts/setup-dev-env.sh
+# 依赖装入 .venv 与 ansible/collections，不污染宿主全局环境
 ```
-
----
-
-## Docker Sandbox Playwright MCP
-
-本节只处理 Playwright MCP 连接异常，与缺少 `passlib` 或 `ansible.posix` 无关。
-先在宿主检查注册状态：
-
-```bash
-sbx mcp ls
-```
-
-`playwright` 应显示为 `ready`。默认 dynamic MCP Gateway 允许 Agent 按需发现并附加它；也可以从宿主直接加载到运行中的 Sandbox：
-
-```bash
-sbx mcp load playwright --sandbox <sandbox-name>
-```
-
-Playwright MCP 和可见浏览器运行在宿主，Agent 通过 Sandbox MCP Gateway 使用它。访问 Sandbox 内服务时，确认服务监听 `0.0.0.0`、端口已发布到宿主 loopback，并让浏览器使用发布后的地址。
 
 ---
 

@@ -24,7 +24,7 @@ Hub/Runner 的 stdout/stderr 分别追加到 `.hapi/logs/hub-service.log` 和 `r
 
 `--no-relay` 禁用公共 relay，`HAPI_DISABLE_PEER_TOOLS=1` 禁用 peer tools；Telegram、Server酱、iOS 和 Android 推送已关闭。v0.33.2 没有全局禁用 Web Push 的环境开关，专用 Tunnel 将 `/api/push/.*` 返回 403，阻止公网浏览器登记订阅。浏览器通知保持未授权，试点期间不在网页启用通知；新安装没有现存 Web Push 订阅。试点不修改 Claude 配置。
 
-所有 Ansible 命令从任务 Docker Sandbox 的仓库 `ansible/` 目录执行，Sandbox 名称为 `iac-codex-vm502-hapi-pilot-direct-v130`。私有 EmployeeWorkspace BWS 工作流生成临时加密 runtime extra-vars；HAPI 维护须显式使用正式管理员工具的 `bws-store.py compose-vault OUTPUT --include-hapi`，提供 `vault_employee_hapi_api_token`，第二阶段另提供 `vault_employee_hapi_tunnel_token`。普通员工开户仍使用 `onboard.sh`，不会读取或注入 HAPI 服务令牌。不得仅带全局 IaC Vault 执行员工部署，不把 BWS machine token 复制到 VM。下文 `/tmp/employee-hapi-runtime.yml` 代表该私有流程输出，实际路径以本次输出为准。
+所有 Ansible 命令从已授权执行位置的仓库 `ansible/` 目录执行（原任务 Docker Sandbox `iac-codex-vm502-hapi-pilot-direct-v130` 已退役）。私有 EmployeeWorkspace BWS 工作流生成临时加密 runtime extra-vars；HAPI 维护须显式使用正式管理员工具的 `bws-store.py compose-vault OUTPUT --include-hapi`，提供 `vault_employee_hapi_api_token`，第二阶段另提供 `vault_employee_hapi_tunnel_token`。普通员工开户仍使用 `onboard.sh`，不会读取或注入 HAPI 服务令牌。不得仅带全局 IaC Vault 执行员工部署，不把 BWS machine token 复制到 VM。下文 `/tmp/employee-hapi-runtime.yml` 代表该私有流程输出，实际路径以本次输出为准。
 
 ```bash
 ansible-playbook playbooks/deploy-employee-hapi.yml --syntax-check
@@ -62,7 +62,7 @@ VM502 的查看地址现为 `http://127.0.0.1:16081/vnc.html#autoconnect=1&resiz
 
 已启动的旧助手不会因复制文件而改变行为，须本人先退出旧 `workspace-login`，再重跑。热修复不自动取消当前授权会话。
 
-在本任务 Sandbox 的 `ansible/` 目录，用管理员准备的精确 VM502 静态 inventory 执行：
+在已授权执行位置的 `ansible/` 目录，用管理员准备的精确 VM502 静态 inventory 执行：
 
 ```bash
 ansible-playbook -i /tmp/employee-hapi-inventory.yml \

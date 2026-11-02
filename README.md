@@ -51,7 +51,7 @@
 | **Networking** | Tailscale mesh VPN, Caddy reverse proxy, Cloudflare Tunnel |
 | **Secret Management** | Ansible Vault + Terraform secrets bridge |
 | **State Backend** | HCP Terraform (local execution mode) |
-| **Dev Environment** | Docker Sandboxes (isolated microVMs) |
+| **Dev Environment** | macOS host + per-checkout uv toolchain (`.venv`) |
 
 ## Repository Structure
 
@@ -123,80 +123,28 @@ Pipeline stages: **Change Detection → Terraform Lint → Terraform Plan → An
 - Ansible 2.16+
 - Python 3.8+
 
-### 1. Docker Sandboxes 环境
+### 1. 宿主开发环境
 
-Playwright 在宿主通过 `sbx mcp` 全局注册。每个 Sandbox 默认使用 dynamic MCP Gateway，Agent 在需要浏览器时从全局注册表附加 `playwright`，无需项目配置或创建参数。
-
-将 `TASK` 替换为唯一的 kebab-case 任务名。Direct mode 必须从已分配的 host task worktree 启动；clone mode 必须从 verified main checkout 启动。开始任何 Ansible SSH 操作前，先运行 `ssh-add -L`，确认输出中包含用于 Ansible 认证的已加载 SSH 公钥身份（public identity）。
+所有命令默认在 macOS 宿主上、从当前 checkout 或任务 worktree 执行，使用该 checkout 自己的 uv 工具链：
 
 ```bash
-# Direct mode
-sbx run --name iac-codex-TASK-direct-v130 codex . --kit ./.sandbox-kit
-sbx run --name iac-claude-TASK-direct-v130 claude . --kit ./.sandbox-kit
-sbx run --name iac-opencode-TASK-direct-v130 opencode . --kit ./.sandbox-kit
-
-# Clone mode: --clone is fixed when the sandbox is first created
-sbx run --clone --name iac-codex-TASK-clone-v130 codex . --kit ./.sandbox-kit
-sbx run --clone --name iac-claude-TASK-clone-v130 claude . --kit ./.sandbox-kit
-sbx run --clone --name iac-opencode-TASK-clone-v130 opencode . --kit ./.sandbox-kit
-
-# OpenCode Desktop server: default loopback mode
-sbx run --name iac-opencode-desktop-TASK-loopback-v130 \
-  --publish 127.0.0.1:4096:4096 \
-  opencode . --kit ./.sandbox-kit \
-  -- serve --hostname 0.0.0.0 --port 4096
+./scripts/setup-dev-env.sh      # 每个 checkout 一次；requirements 变更后重跑
+source .venv/bin/activate
 ```
 
-Direct mode 直接挂载整个主机工作区，因此也会读取被 Git 忽略的 `ansible/.vault_pass` 和已生成的 Terraform tfvars。仓库工作区中严禁存放 `.ssh` 私钥：它们会随 direct mode 暴露给 sandbox。SSH 私钥只能由宿主 SSH agent 管理，并通过转发供 sandbox 使用。Clone mode 使用私有 clone；如需上述未追踪文件，必须从 `/run/sandbox/source` 手动复制所需文件，且不得输出其内容。
+脚本按 `requirements.txt` 创建 `.venv`，并把固定版本的 collections 装入 `ansible/collections`。宿主 `~/.local/bin/ansible` 属于其他项目（ansible-core 2.21，超出本仓库 `<2.21` 约束），不得用于本仓库。
 
-Playwright 不再由项目级 Agent 配置直接启动。先运行 `sbx mcp ls`，确认宿主全局注册的 `playwright` 为 `ready`。未传 `--static-mcp` 的 Sandbox 使用 dynamic mode，Agent 可通过 Gateway 的发现与附加工具按需启用；宿主也可运行 `sbx mcp load playwright --sandbox <name>`，绑定会跨重启保留。
-
-### Git 与 host worktree 边界
-
-- 从 **main checkout** 以 direct mode 启动时，sandbox 内可正常使用 Git。
-- 从宿主 **linked worktree** 以 direct mode 启动时，agent 仍可编辑文件，但 Docker 只挂载该 worktree，无法解析指向外部 common Git directory 的 `.git` pointer，因此 sandbox 内 Git 不可用；Git 操作由宿主机管理，且不得自动挂载 common Git directory。
-- `--clone` 必须从 main checkout 创建，不能从 linked worktree 创建；agent 在 private clone 中可使用 Git。
-
-因此，当前 linked-worktree smoke 中的 `No Git` 是 Docker 的预期 host-worktree 限制，不是迁移缺陷；正式验收在 main checkout 中进行即可。参见 [Docker host worktree Git 边界](https://docs.docker.com/ai/sandboxes/workflows/git/) 与 [Docker Sandboxes clone mode 限制](https://docs.docker.com/ai/sandboxes/usage/)。
-
-前端服务必须在 sandbox 内监听 `0.0.0.0`，并只将需要检查的端口发布到主机 loopback。宿主 Playwright 通过发布后的 `127.0.0.1:<host-port>` 访问服务，用户可以直接观察同一个浏览器窗口。受认证的 OpenCode Desktop LAN 模式是唯一受控例外，不得推广到其他 Sandbox 服务。
-
-OpenCode Desktop 的 loopback 与 LAN 模式必须使用不同名称：分别使用
-`iac-opencode-desktop-TASK-loopback-v130` 和 `iac-opencode-desktop-TASK-lan-v130`。
-`--publish` 只在 Sandbox 首次创建时生效，重连时会被忽略。启动前若同名 Sandbox 已存在，
-必须运行 `sbx ports <name>` 并确认现有映射与所需模式完全一致；不一致时停止，不得假定
-重新运行 `sbx run` 已切换映射。
-
-默认使用 loopback。只有用户明确要求从可信、隔离的私有 LAN 访问时，才允许 LAN 模式：
-
-```bash
-sbx run --name iac-opencode-desktop-TASK-lan-v130 \
-  --publish <LAN_IP>:4096:4096 \
-  opencode . --kit ./.sandbox-kit \
-  -- serve --hostname 0.0.0.0 --port 4096
-```
-
-`<LAN_IP>` 必须是目标物理 LAN 网卡拥有的具体私有 IPv4；禁止公网、VPN、bridge、IPv4
-通配 `0.0.0.0`、IPv6 通配 `::` 或省略宿主地址。启动前验证地址归属与端口空闲；端口
-占用时停止并询问用户，不得自行改端口。可信隔离 LAN 默认不设置 Server 密码；如需认证，
-通过未纳入版本控制的运行时渠道注入 `OPENCODE_SERVER_PASSWORD`，不得把密码写入仓库、
-示例、命令参数或 shell 历史。
-
-LAN 模式的明文 HTTP 仅限可信隔离 LAN；其他网络必须使用 TLS 或可信 VPN。启动后确认宿主
-只监听所选 `<LAN_IP>`。默认无密码模式验证未认证访问返回 `200`；设置密码时验证未认证访问
-失败且认证访问成功。任一后检失败时立即终止长期 attached session，并确认宿主端口已经关闭。禁止 `--detached`；Sandbox 内
-`serve --hostname 0.0.0.0` 仍是转发所需，不代表允许宿主通配发布。
+每个任务使用独立 worktree 和唯一分支；main checkout 只做协调。Git 忽略的状态不在 worktree 间共享：新 worktree 需在所用 Terraform 根目录重新 `terraform init`，`ansible/.vault_pass` 来自 main checkout（用 `--vault-password-file` 指向该路径，不要复制）。开始任何 Ansible SSH 操作前，先运行 `ssh-add -L`，确认已加载用于 Ansible 认证的 SSH 公钥身份；仓库工作区中严禁存放 `.ssh` 私钥。
 
 ### Project-Specific Credential Handling
 
-OCI 凭据注入是 IaC 项目要求，不是 Docker Sandbox 的 topology 或 Agent runtime。仅在 OCI 任务中执行以下宿主侧预检和只读挂载：
+仅在需要 OCI 的任务中先做宿主侧预检：
 
 ```bash
 test -d "${HOME}/.oci" || { echo 'OCI credentials directory is missing; stop and ask the user to restore or provide approved OCI credentials.' >&2; exit 1; }
-sbx run --name iac-codex-TASK-oci-v130 codex . "${HOME}/.oci:ro" --kit ./.sandbox-kit
 ```
 
-目录不存在时必须停止或跳过 OCI Sandbox 创建，并请求用户恢复或提供已批准的 OCI credentials。不得创建空目录、搜索替代私钥位置或使用可写挂载。只读挂载允许 Sandbox 进程读取 OCI API 私钥，但禁止修改。修改 Kit 后需要重新创建 Sandbox；只有 `sbx kit add` 明确支持的变更例外。
+目录不存在时必须停止，并请求用户恢复或提供已批准的 OCI credentials。不得创建空目录、搜索替代私钥位置或修改 `~/.oci` 内容。
 
 ### 2. Provision Infrastructure
 

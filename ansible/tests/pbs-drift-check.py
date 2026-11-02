@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Run PBS regression checks on Sandbox localhost with fake storage commands."""
+"""Run PBS regression checks on localhost with fake storage commands."""
 import copy
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 import yaml
 from jinja2 import Environment, StrictUndefined, meta
 
 ROOT = Path(__file__).resolve().parents[2]
-if not os.environ.get("SANDBOX_ID"):
-    raise SystemExit("Run inside the task Docker Sandbox, not on production or the host")
-WORK = Path(tempfile.mkdtemp(prefix="pbs-drift-check-", dir=os.environ["TMPDIR"]))
+WORK = Path(tempfile.mkdtemp(prefix="pbs-drift-check-", dir=os.environ.get("TMPDIR")))
+ANSIBLE_PLAYBOOK = str(Path(sys.executable).with_name("ansible-playbook"))
 BIN = WORK / "bin"
 BIN.mkdir()
 CONFIG = WORK / "ansible.cfg"
-CONFIG.write_text("[defaults]\ncollections_path=/home/agent/.ansible/collections\n")
+CONFIG.write_text(f"[defaults]\ncollections_path={ROOT}/ansible/collections\n")
 ENV = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
 ENV.update(ANSIBLE_CONFIG=str(CONFIG), PATH=str(BIN) + os.pathsep + os.environ["PATH"])
 
@@ -27,7 +27,7 @@ def load(path):
 
 
 # Unexpected storage operations fail and are logged; no real zfs/zpool is called.
-STUB = '''#!/opt/iac-venv/bin/python
+STUB = "#!" + sys.executable + '''
 import json, os, sys
 from pathlib import Path
 with open(os.environ["PBS_TEST_LOG"], "a") as handle:
@@ -56,12 +56,12 @@ def run_case(name, tasks, variables, success=True, extra_env=None):
     log = WORK / (name + ".commands.jsonl")
     playbook.write_text(yaml.safe_dump([{
         "hosts": "localhost", "gather_facts": False,
-        "vars": dict(variables, ansible_python_interpreter="/opt/iac-venv/bin/python"),
+        "vars": dict(variables, ansible_python_interpreter=sys.executable),
         "tasks": tasks,
     }], sort_keys=False))
     env = dict(ENV, PBS_TEST_LOG=str(log), **(extra_env or {}))
     proc = subprocess.run(
-        ["ansible-playbook", "-i", "localhost,", "-c", "local", str(playbook)],
+        [ANSIBLE_PLAYBOOK, "-i", "localhost,", "-c", "local", str(playbook)],
         cwd=WORK, env=env, capture_output=True, text=True, timeout=90,
     )
     output = proc.stdout + proc.stderr

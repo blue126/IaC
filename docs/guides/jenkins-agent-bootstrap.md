@@ -24,7 +24,7 @@ CT110 三个 remoting JVM 分别使用 iac-plan/iac-deploy/iac-apps、Xmx96MiB�
 
 1. **资源准入**：获准部署后，在 CT107 root 以专用只读 PVE/NetBox 身份运行 `peer-preflight.py --policy <root policy> --output <root report>`。核对 VMID110、IPAM无占用、精确 Debian 模板、vmdata rootdir 支持及空间。任一冲突保留旧入口，禁止 import/覆盖解决冲突。已存在受管 peer 的后续配置更新不复用“新分配”报告；必须核对已有 state/资源所有权。
 2. **AD-9引导**：先从健康 controller 的 Web UI/executor 创建 CT110/对应 inventory；代码预期 Terraform diff 只有这两个新对象。记录操作者、批准ID、命令、目标、原因和真实结果。首次 node 建立可用明确 AD-9 操作创建三个 exclusive、各一 executor 的节点；从 controller 获取真实 remoting secret 后写入唯一 Vault 文件，消费者为 host_vars 中的三个 `vault_jenkins_agent_*_secret`。不生成假 secret。
-3. **离线工具链与节点**：在已授权的隔离 Sandbox 运行 `prepare-toolchain.py --destination <fresh task dir>`，复制至 CT110 `/var/lib/jenkins-agent-kit` 并核对 root 所有权。部署 agent role 的 `jenkins_agent_install_authorized=true` 只在此次安装授权下设置。预先提供 root-owned runner/trust policy、控制服务 CA/证书与公钥；先安装、后单独激活。`jenkins_agent_activate=false` 保持到这些材料齐全。JAR 从 BOM 消费，部署时重新核对 controller 返回的 SHA256。
+3. **离线工具链与节点**：在已授权的隔离环境运行 `prepare-toolchain.py --destination <fresh task dir>`，复制至 CT110 `/var/lib/jenkins-agent-kit` 并核对 root 所有权。部署 agent role 的 `jenkins_agent_install_authorized=true` 只在此次安装授权下设置。预先提供 root-owned runner/trust policy、控制服务 CA/证书与公钥；先安装、后单独激活。`jenkins_agent_activate=false` 保持到这些材料齐全。JAR 从 BOM 消费，部署时重新核对 controller 返回的 SHA256。
 4. **producer/broker**：部署 CT107 `jenkins-plan-gateway` role，填写实际 workspace ID、专用最小 state-read 权限、primary/pve2 各自只读 token、可信 CA、完整 alias/node/VMID/模板/file 白名单及 `bridges[alias][node]` 的逐名桥接接口范围（仓库默认空且 broker 禁用；producer policy 的 `broker.bridges` 必须保持同一范围）。专用 HCP 身份存在多余 mutation 权限或权限结构未知时拒绝；不能替换 owner/org token。原始 state/下载 URL 不进入 peer。先完成真实锁定 provider 的当前 root 预测及盲区记录，才启用 plan job。
 5. **admission/runner**：按 `ci/agent-jobs.yml` 部署固定映射，root policy 的 profiles 默认 disabled。每个 profile 固定 user、executable、scope、targets、hosts 与 timeout；每次 admission 绑定实际 build/SHA、bundle 和 Vault 凭据版本及 root HMAC 输入摘要。IaC/plan/应用执行 profile 的 executable 固定为 `job-entry.py`，它先执行边界 probe，再分派到 IaC `transaction.py`、plan `plan-task.py` 或经过摘要审核的私有应用包装器；应用包装器仅由授权所有者依接入契约交付。缺证书、秘密、审核输入或内核能力时拒绝启动。工作 unit 的异常退出、失联、OOM、残留分别实测。 对 standalone `CpsScmFlowDefinition` 轻量 SCM job，root profile 必须提供 `standalone_entry: {sha: <审核的40位commit>, script_sha256: <该commit入口文件SHA256>}`；此 SHA 只标识已审核的入口脚本版本。helper 核对实际 `build.execution.script`、固定 SCM URL、main branch、script path；admission 验证 root 记录对应的 Git 脚本，再刷新固定 main，要求该 main 的入口脚本字节也一致，随后签名冻结该 main 的实际执行 SHA、bundle 与来源记录。普通文件变更可正常准入；入口变更须重新审核 root 记录。没有 SCMRevisionAction 时，签名明确记录 `jenkins_fetch_sha: null`，不宣称知道 Jenkins 原始轻量 fetch 的 commit；运行中 lease 使用已签名的执行 SHA，不重新解析 main。
 6. **独立恢复 baseline**：准备固定 core/Java 的 WAR，部署 `jenkins-watchdog`，将 CT107 `jenkins-recovery` 身份限定为来源 CT110、forced command、无 PTY/SFTP/转发、唯一 argument-fixed sudo helper。签名授权后调用 `watchdog.py capture-and-drill --bundle <root signed bundle>`。它取 control-plane/global 锁、停止三个 agent，quiet/drain/停止 Jenkins，导出 home/service config，CT110 仅 loopback 启动副本。原配置先解析，再记录抑制 jobs/triggers/agents 的 overlay；匹配 core/plugins/Java 并校验内存1792MiB、磁盘 A+H+R+max(512MiB,0.25H)+2GiB 和 inode。Gitea 独立运行，禁止整 CT 回滚。失败/超时启动原 Jenkins且 gate 不开；成功后保持 Jenkins 停止、签发证据并武装独立 watchdog，不能先恢复生产写入再沿用备份。
@@ -60,7 +60,7 @@ root source 的 SCM 只读密钥/known_hosts 也由 Vault 供应，固定在 roo
 
 ## 本地验证与上线记录
 
-代码验证专用 Sandbox：`iac-codex-jenkins-peer-recovery-direct-v130`。它是 linux_arm64，Kit Terraform1.14.9 / Ansible-core2.20.10；另外在任务临时路径校验官方 Terraform1.14.4，SHA256 `dcbc9d4b9fcd47e76ae194d5d569bfbf9f15bf1c59ca692aff6d2a92eb8e8994`。这不替代 CT110 linux_amd64、Java25/Ansible2.19.12 的部署兼容与峰值实测。
+历史代码验证环境（Docker Sandbox，已退役）：`iac-codex-jenkins-peer-recovery-direct-v130`。它是 linux_arm64，Kit Terraform1.14.9 / Ansible-core2.20.10；另外在任务临时路径校验官方 Terraform1.14.4，SHA256 `dcbc9d4b9fcd47e76ae194d5d569bfbf9f15bf1c59ca692aff6d2a92eb8e8994`。这不替代 CT110 linux_amd64、Java25/Ansible2.19.12 的部署兼容与峰值实测。
 
 生产验收尚未执行：IPAM/provision、真实 secrets、namespace/cgroup内核能力、五 job 调度、应用补丁、停服/恢复、重连/二次幂等与归零。AD-9 的实际记录留在获批部署时补入，未执行不能写通过。
 
@@ -80,7 +80,7 @@ JCasC 重复 Ansible 先只读比较所需核心版本、受管 plugin SHA、渲
 
 peer IaC 入口保留10次构建、ANSI/时间戳和可读阶段摘要。变更分类由 controller 对固定 commit 的 Git 对象生成并签名；删除保留，已删除 playbook 不执行，broad/unmatched 需要 root 审核的 explicit_scope。controller 和未经批准的 agent 范围在任何工具调用前拒绝。可选 Notion 同步默认关闭；开启时 admission profile 与 wrapper trust 的 notion 配置必须相同，固定 destination=https://api.notion.com、database_id 和 integration:notion scope，将目的地/范围纳入 Ansible 审批摘要。root 只在该审批之后的 notion stage 临时绑定 notion-token/notion-database-id，网络仍使用明确 peers/hosts；同步执行在 job unit 内，失败保留既有非阻断结果语义。无需运行时安装依赖。
 
-本地安全套件通过现有 `scripts/ci/validate-repository.sh` Python 分支执行；角色的合成 shell/TLS/rescue/no-op fixture 由现有 Ansible 验证入口执行。另行在任务 Sandbox 运行真实集成：
+本地安全套件通过现有 `scripts/ci/validate-repository.sh` Python 分支执行；角色的合成 shell/TLS/rescue/no-op fixture 由现有 Ansible 验证入口执行。另行在任务 worktree 运行真实集成：
 
 ```bash
 python3 tests/ci/jenkins-peer-provider-test.py --terraform /tmp/jenkins-peer-terraform-1.14.4/terraform --mirror /tmp/jenkins-peer-schema/.terraform/providers
@@ -101,13 +101,13 @@ admission 的 global registry 锁只用于原子占用最多8个 run 名额、�
 
 同 UID 的 remoting/job 即使有私有 mount 和 hidepid=2，也可通过 `/proc/<pid>/root` 绕回另一进程的根，复制文件到本 run 外。因此 transient unit 增加 `PrivateUsers=yes`。按 [systemd252 的 PrivateUsers 语义](https://www.freedesktop.org/software/systemd/man/252/systemd.exec.html#PrivateUsers=)，由 root 创建独立 user namespace，再保持 unit UID/GID 自映射；三个现有 Unix 身份保持不变。job probe 必须确认 user/net/ipc/mnt namespace 均不同，并拒绝读写 remoting 的 proc-root 非秘密金丝雀。root 随后以同 UID、原 user namespace 的受控 helper 验证反向 job proc-root 读写也被拒绝，前后确认两个 PID 与两份金丝雀真实存活。hidepid 产生的 ENOENT 仅在这些 root 存活检查下视为拒绝；其他异常失败并隔离，任何阶段秘密都在双向检查通过之后绑定。金丝雀使用相同的有界、nofollow、nonblocking 文件读取，cleanup 只回收本 nonce 的精确 probe 文件。
 
-在指定 Sandbox 显式执行下面的真实内核反例，使用现有 sudo/unshare 和临时合成文件：
+在指定 Linux 环境显式执行下面的真实内核反例，使用现有 sudo/unshare 和临时合成文件：
 
 ```bash
 python3 tests/ci/jenkins-proc-root-test.py
 ```
 
-控制组保持 root:root/000/只读 mask、hidepid=2、NoNewPrivileges=1、CapEff=0，仍能双向 proc-root 读写且留下合成残留；先由 root 创建 userns、映射 0→0 与原非 root UID→自身后，实际 probe 的双向读写均拒绝，合成残留为 false。此结果验证当前 Sandbox 的机制，不能替代 CT110 上 systemd/LXC 的实际验收；不支持 userns 或任何 probe 不通过时拒绝绑定秘密，不能静默降级。
+控制组保持 root:root/000/只读 mask、hidepid=2、NoNewPrivileges=1、CapEff=0，仍能双向 proc-root 读写且留下合成残留；先由 root 创建 userns、映射 0→0 与原非 root UID→自身后，实际 probe 的双向读写均拒绝，合成残留为 false。此结果验证当时 Linux 验证环境的机制，不能替代 CT110 上 systemd/LXC 的实际验收；不支持 userns 或任何 probe 不通过时拒绝绑定秘密，不能静默降级。
 
 ## 第二轮实现修订
 

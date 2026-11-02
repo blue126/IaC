@@ -91,7 +91,7 @@ docker compose --project-directory /opt/immich logs --since 10m --tail 100
 
 其他入口、独立 Redis 检查、机器学习任务和 Homepage 不作为每次升级的必检项，相关组件变更或异常时再查。缺少登录/测试条件时，请用户完成对应检查并记录结果，不把“未验证”写成成功。
 
-Ansible 验证是可选补充，使用时只运行 `--tags verify --limit immich`，且先确认验证 play 适配当前版本。Ansible 只在已有 Docker Sandbox 中执行，确认其仓库版本和主机匹配；`no hosts matched` 不是通过，按仓库规则刷新 Terraform state 后重验。验证 play 自身出错要修 playbook，不用临时命令绕过后宣称通过。
+Ansible 验证是可选补充，使用时只运行 `--tags verify --limit immich`，且先确认验证 play 适配当前版本。Ansible 使用宿主当前 checkout 的 `.venv` 执行，确认其仓库版本和主机匹配；`no hosts matched` 不是通过，按仓库规则刷新 Terraform state 后重验。验证 play 自身出错要修 playbook，不用临时命令绕过后宣称通过。
 
 ## 6. 失败处理和结束汇报
 

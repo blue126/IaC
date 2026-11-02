@@ -29,7 +29,7 @@
 
 ## 部署输入与顺序
 
-本次交付实现及独立 Sandbox 验证。真正安装、部署、写凭据或变更网络前仍须另行授权。
+本次交付实现及当时的独立验证环境验证（该 Docker Sandbox 已退役）。真正安装、部署、写凭据或变更网络前仍须另行授权。
 
 1. 核实 Q-4／Q-5：PVE 节点和 provider 指向同一集群；VMID、bridge、子网、MAC 无冲突；现有 PVE nft/防火墙规则与新表共同生效；所有家庭公网 IP、受保护服务及 NAT 回流路径已列出；明确维护源和恢复管理路径。bridge provider 会应用节点待生效网络配置，先处理其他 pending 网络更改，不能直接套用示例地址。当前员工资源使用专用 employee provider，API以root@pam认证到独立pve2，SSH也限定该节点；既有集群与pve2 token providers不变。启动hook和可执行snippet需要这一管理认证。
 2. 先以prepare-employee-pve.yml校验固定Ubuntu26.04镜像摘要并创建本任务专用employee-snippets存储，不修改既有storage。Terraform创建从未启动的干净模板；每次克隆的vendor-data安装qemu-guest-agent，核实SSH host keys独立生成。模板不含员工令牌、浏览器状态或设备私钥。网关模板不得预启用路由、额外 NIC、代理服务或 cloudflared。确认既有备份作业是否自动纳入新 VMID，Q-6 未确定前不配置个人凭据。
@@ -94,7 +94,7 @@ employee_access_devices:
 CPU约定：员工VM、网关和干净模板均显式设置`cpu.type = "host"`，保持本仓库通用VM模块的既有默认。变更运行VM的CPU型号会触发重新启动，须安排验收或工作中断窗口；检查配置与实际运行CPU均已生效，不能只看Terraform源码。
 
 6. 在 `employee_workspaces` 组配置经核实的官方 native Claude 二进制 URL 和 SHA-256：`employee_workspace_claude_binary_url`、`employee_workspace_claude_sha256`。这是部署输入，不使用漂移的 installer 管道。公司提供 `/usr/local/bin/claude`，员工可自行管理工具和依赖。基础包包含git/curl/sudo/SSH/Python/tmux/unzip，以及用于VM内授权的Firefox及日常图形查看组件；其他项目工具仍由员工管理。浏览器安装由employee-workspace角色维护，新建员工VM随部署自动配置，可用employee_browser标签仅更新该项。
-7. 获准运行 `deploy-employee-workspace.yml`。先配置 PVE 二层边界，再启动网关防火墙、固定接口、WireGuard 和专属 SSH，最后部署 workspace 账户/工具/公司第二段公钥。管理机器需对员工子网有经网关的明确路由；不能用员工入口承载任意 Ansible 命令。新工作环境尚未验收前，不把设备配置交付员工。网关 sysctl 默认关闭路由；专属 firewall controller 每次先关闭转发，以单个 nft 事务重建本任务表，成功记录实际内核策略后才打开转发。启动或重载失败保持关闭；PVE 使用无路由模式，不修改宿主 routing。正常部署重载防火墙，避免重启停止依赖它的 SSH 服务。`--tags verify` 比较当前内核表、应用时记录和配置摘要，缺失或漂移即失败；这不替代 CAP 实测。必要的 related ICMP 错误按连接状态放行，支持公网 PMTU，新建受保护目标连接仍拒绝。WireGuard 地址改变时更新实际接口地址，只有 peers 改变时保留地址。部署和停用均执行共享同步任务，即使配置文件未变化也重试实际状态协调。员工 firewall 在标准 nftables.service 之后加载，保留标准服务和PVE既有规则；这里只检查启动顺序配置，不宣称Sandbox实际boot已测。
+7. 获准运行 `deploy-employee-workspace.yml`。先配置 PVE 二层边界，再启动网关防火墙、固定接口、WireGuard 和专属 SSH，最后部署 workspace 账户/工具/公司第二段公钥。管理机器需对员工子网有经网关的明确路由；不能用员工入口承载任意 Ansible 命令。新工作环境尚未验收前，不把设备配置交付员工。网关 sysctl 默认关闭路由；专属 firewall controller 每次先关闭转发，以单个 nft 事务重建本任务表，成功记录实际内核策略后才打开转发。启动或重载失败保持关闭；PVE 使用无路由模式，不修改宿主 routing。正常部署重载防火墙，避免重启停止依赖它的 SSH 服务。`--tags verify` 比较当前内核表、应用时记录和配置摘要，缺失或漂移即失败；这不替代 CAP 实测。必要的 related ICMP 错误按连接状态放行，支持公网 PMTU，新建受保护目标连接仍拒绝。WireGuard 地址改变时更新实际接口地址，只有 peers 改变时保留地址。部署和停用均执行共享同步任务，即使配置文件未变化也重试实际状态协调。员工 firewall 在标准 nftables.service 之后加载，保留标准服务和PVE既有规则；这里只检查启动顺序配置，不宣称实际boot已测。
 8. 员工 WireGuard 客户端 `AllowedIPs` 仅设置网关 WireGuard 地址 `/32`，Endpoint 指向获准的家庭入口 UDP 51820；不开放个人 VM 公网端口。示例连接为 `ssh ed-alice-laptop@10.230.0.1`、`sftp ed-alice-laptop@10.230.0.1`，客户端先核实网关 host key。转为正式入口前按实际中国工作网络验证。
 
 家庭 WAN 动态变化时，应先更新并验证所有回流目标；旧地址列表不构成持续防回流保证。公网服务的其他入口、代理地址和任何上游 DNAT 路径也必须列入受保护目标，未知项不能验收通过。IPv6当前全部阻断；若以后启用须单独扩展设计和验收。
@@ -144,12 +144,12 @@ ansible-playbook playbooks/disable-employee-workspace.yml \
 
 ## 验证与证据
 
-`tests/employee-workspace/test-offline.py` 测试固定映射、未知命令和注入拒绝、SFTP分派、输入一致性、规则渲染、撤销和停用保盘调用。它只验证程序/模板契约，不模拟真实内核或 SSH 握手。`render-fixtures.py <临时目录>` 生成非秘密配置供隔离 Sandbox 执行 `nft --check` 和 `sshd -T`。检查环境须已有对应工具；脚本不安装依赖。
+`tests/employee-workspace/test-offline.py` 测试固定映射、未知命令和注入拒绝、SFTP分派、输入一致性、规则渲染、撤销和停用保盘调用。它只验证程序/模板契约，不模拟真实内核或 SSH 握手。`render-fixtures.py <临时目录>` 生成非秘密配置供隔离 Linux 环境执行 `nft --check` 和 `sshd -T`。检查环境须已有对应工具；脚本不安装依赖。
 
 ```bash
 python3 tests/employee-workspace/test-offline.py
 python3 tests/employee-workspace/render-fixtures.py /tmp/employee-workspace-check
-# Sandbox only, with installed providers and no cloud/backend credentials:
+# Isolated checkout only, with installed providers and no cloud/backend credentials:
 terraform fmt -check terraform/proxmox/employee-access.tf terraform/proxmox/employee-workspace.tf
 # Run syntax checks using a fixture inventory outside production inventory ancestry:
 ANSIBLE_CONFIG=tests/ci/fixtures/ansible.cfg \
@@ -171,7 +171,7 @@ Terraform无后端校验在独立临时目录通过测试准备脚本只复制�
 
 ### 日常浏览器与授权入口的部署及撤销
 
-首次完整部署已包含此入口。单独更新使用 `ansible-playbook playbooks/deploy-employee-auth.yml`（在 Sandbox 内，指定已审批 inventory）；该 playbook 的 Deploy 与 Verify 分开。组件来源为 Ubuntu 已配置仓库及既有 Mozilla 原生 Firefox。网关 nginx 使用独立 systemd 服务和独立配置，不启动默认 80/443 网站，只监听 WireGuard 地址 8443；画面 HTTP/WebSocket 位于现有加密 WireGuard 隧道内。拒绝错误 Host、异源 WebSocket、未知设备和自选后端参数，关闭访问日志。
+首次完整部署已包含此入口。单独更新使用 `ansible-playbook playbooks/deploy-employee-auth.yml`（在已授权执行位置，指定已审批 inventory）；该 playbook 的 Deploy 与 Verify 分开。组件来源为 Ubuntu 已配置仓库及既有 Mozilla 原生 Firefox。网关 nginx 使用独立 systemd 服务和独立配置，不启动默认 80/443 网站，只监听 WireGuard 地址 8443；画面 HTTP/WebSocket 位于现有加密 WireGuard 隧道内。拒绝错误 Host、异源 WebSocket、未知设备和自选后端参数，关闭访问日志。
 
 VM 以 employee 身份运行，X11 不监听 TCP，VNC 仅 loopback 5901；后端 HTTP/WebSocket 仅在该 VM 内部地址 6081，网关只增加该端口的窄向出站及已建立回包。设备不能直接路由到 VM。员工 sudo 能修改自己 VM，VM 外隔离与网关固定映射继续有效。
 

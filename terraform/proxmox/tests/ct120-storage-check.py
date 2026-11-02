@@ -13,11 +13,8 @@ import subprocess
 import tempfile
 import threading
 
-if not os.environ.get("SANDBOX_ID"):
-    raise SystemExit("Run inside the task Docker Sandbox, not on production or the host")
-
 parser = argparse.ArgumentParser()
-parser.add_argument("--provider", type=Path, required=True, help="Existing bpg 0.70.0 binary for this Linux platform")
+parser.add_argument("--provider", type=Path, required=True, help="Existing bpg 0.70.0 binary for this platform")
 args = parser.parse_args()
 if args.provider.name != "terraform-provider-proxmox_v0.70.0" or not args.provider.is_file():
     raise SystemExit("Provide the already installed bpg/proxmox 0.70.0 binary")
@@ -26,9 +23,10 @@ ROOT = Path(__file__).resolve().parents[3]
 WORK = Path(tempfile.mkdtemp(prefix="ct120-terraform-check-"))
 MIRROR = WORK / "mirror"
 architecture = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "amd64", "amd64": "amd64"}.get(platform.machine())
-if platform.system() != "Linux" or architecture is None:
-    raise SystemExit("The existing provider must run on a Linux amd64 or arm64 Sandbox")
-provider_dir = MIRROR / f"registry.terraform.io/bpg/proxmox/0.70.0/linux_{architecture}"
+system = platform.system().lower()
+if system not in ("linux", "darwin") or architecture is None:
+    raise SystemExit("The existing provider must run on a Linux or macOS amd64/arm64 host")
+provider_dir = MIRROR / f"registry.terraform.io/bpg/proxmox/0.70.0/{system}_{architecture}"
 provider_dir.mkdir(parents=True)
 shutil.copy2(args.provider, provider_dir / args.provider.name)
 MODULE = WORK / "module"
