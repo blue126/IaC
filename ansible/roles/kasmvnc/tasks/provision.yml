@@ -140,18 +140,28 @@
     state: started
     enabled: true
 
-- name: Read the VM browser configuration
+- name: Check for an existing VM browser configuration
+  ansible.builtin.stat:
+    path: /etc/employee-workspace-browser.json
+  register: kasmvnc_browser_config_file
+
+- name: Read the existing VM browser configuration
   ansible.builtin.slurp:
     src: /etc/employee-workspace-browser.json
   register: kasmvnc_browser_config
+  when: kasmvnc_browser_config_file.stat.exists
 
+# Template-built VMs carry the browser tools but no configuration yet; start
+# from the same shape the employee-workspace login tasks write.
 - name: Point the VM browser viewer at this VM overlay
   ansible.builtin.copy:
     dest: /etc/employee-workspace-browser.json
     owner: root
     group: root
     mode: '0644'
-    content: "{{ (kasmvnc_browser_config.content | b64decode | from_json) | combine({'viewer_url': 'https://' + kasmvnc_update.address + ':8443/'}) | to_nice_json }}"
+    content: >-
+      {{ ((kasmvnc_browser_config.content | b64decode | from_json) if kasmvnc_browser_config_file.stat.exists else {'bind_address': '127.0.0.1'})
+         | combine({'viewer_url': 'https://' + kasmvnc_update.address + ':8443/'}) | to_nice_json }}
 
 - name: Install and activate the desktop with the retained frontend identity
   ansible.builtin.include_tasks: update.yml
