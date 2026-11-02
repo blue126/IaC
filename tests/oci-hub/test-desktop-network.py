@@ -29,6 +29,7 @@ SOURCES = ('tests/oci-hub/test-desktop-network.py', 'tests/oci-hub/test-network.
            'ansible/roles/employee-workspace/files/login-guide.py',
            'ansible/roles/employee-workspace/files/desktop-service.py',
            'ansible/roles/employee-workspace/files/desktop-contract.py',
+           'ansible/roles/employee-workspace/files/desktop-targets.json',
            'ansible/roles/oci-hub-spoke/templates/desktop.conf.j2')
 
 
@@ -570,6 +571,7 @@ def execute(args, result):
             (guide_root/'desktop-service.py').write_text((guide_files/'desktop-service.py').read_text().replace(
                 "CONFIG = Path('/etc/employee-workspace-desktop.json')", "CONFIG = Path("+repr(str(guide_root/'desktop.json'))+")").replace("MARKER = Path('/var/lib/employee-workspace/transition.json')", "MARKER = Path("+repr(str(guide_root/'transition.json'))+")"))
             shutil.copyfile(guide_files/'desktop-contract.py', guide_root/'desktop-contract.py')
+            shutil.copyfile(guide_files/'desktop-targets.json', guide_root/'desktop-targets.json')
             for path in guide_root.iterdir():
                 if path.is_file(): os.chmod(path, 0o644)
             guide_worker = """import importlib.util,http.server,json,sys,threading,time,re

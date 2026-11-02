@@ -22,6 +22,7 @@ INSTALL = Path(TEMP.name)
 for name in ('desktop-service.py', 'browser-service.py'):
     shutil.copyfile(FILES / name, INSTALL / name)
 shutil.copyfile(FILES / 'desktop-contract.py', INSTALL / 'desktop-contract.py')
+shutil.copyfile(FILES / 'desktop-targets.json', INSTALL / 'desktop-targets.json')
 
 
 def load(name, path):

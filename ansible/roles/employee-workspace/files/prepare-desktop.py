@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Apply only the staged VM502 presentation surface, under its existing lock."""
+"""Apply only the staged employee presentation surface, under its existing lock."""
 import base64
 import fcntl
 import importlib.util
@@ -68,10 +68,18 @@ def validate_frontend(config):
     run(['openssl', 'verify', '-CAfile', config['ca'], '-verify_ip', address, config['certificate']])
     run(['openssl', 'x509', '-checkend', '0', '-noout', '-in', config['certificate']])
     ca = run(['openssl', 'x509', '-text', '-noout', '-in', config['ca']])
+    pinned = config.get('pinned_sha256')
+    if pinned is not None:
+        if not isinstance(pinned, str) or len(pinned) != 64 or any(c not in '0123456789abcdef' for c in pinned):
+            raise ValueError('Invalid frontend fingerprint')
+        actual = run(['openssl', 'x509', '-in', config['certificate'], '-noout', '-fingerprint', '-sha256']).split('=', 1)[1].replace(':', '').lower()
+        if actual != pinned or config['ca'] != config['certificate']:
+            raise ValueError('Pinned frontend identity mismatch')
+
     san = run(['openssl', 'x509', '-ext', 'subjectAltName', '-noout', '-in', config['certificate']])
     if ('IP Address:' + address) not in [value.strip() for value in san.splitlines()[-1].split(',')]:
         raise ValueError('Frontend SAN mismatch')
-    if 'CA:TRUE' not in ca:
+    if pinned is None and 'CA:TRUE' not in ca:
         raise ValueError('Frontend trust anchor must be a CA')
     if run(['openssl', 'x509', '-pubkey', '-noout', '-in', config['certificate']]) != run(['openssl', 'pkey', '-pubout', '-in', config['private_key']]):
         raise ValueError('Frontend material identity mismatch')
@@ -112,7 +120,7 @@ def activate():
             raise ValueError('Unsafe startup lock')
         fcntl.flock(fd, fcntl.LOCK_EX)
         if MARKER.exists() or MARKER.is_symlink():
-            if MARKER.is_symlink() or json.loads(MARKER.read_text()) != {'purpose': 'vm502-presentation', 'vmid': 502}:
+            if MARKER.is_symlink() or json.loads(MARKER.read_text()) != {'purpose': 'vm502-presentation' if candidate['vmid'] == 502 else 'employee-presentation', 'vmid': candidate['vmid']}:
                 raise ValueError('Another maintenance operation owns the desktop')
         for unit in ('employee-browser.service', 'employee-desktop.service'):
             result = subprocess.run(['systemctl', 'show', '--property=LoadState,ActiveState', unit], capture_output=True, text=True)
@@ -126,7 +134,7 @@ def activate():
         MARKER.parent.mkdir(exist_ok=True)
         if not MARKER.exists():
             with MARKER.open('x') as stream:
-                json.dump({'purpose': 'vm502-presentation', 'vmid': 502}, stream)
+                json.dump({'purpose': 'vm502-presentation' if candidate['vmid'] == 502 else 'employee-presentation', 'vmid': candidate['vmid']}, stream)
         # Close only this presentation route before changing runtime definitions.
         disabled = NGINX.with_suffix('.conf.presentation-disabled')
         if NGINX.exists():
@@ -134,7 +142,7 @@ def activate():
             run(['nginx', '-t'])
             run(['systemctl', 'reload', 'nginx'])
         try:
-            for name in ('desktop-contract.py', 'desktop-service.py', 'browser-service.py'):
+            for name in ('desktop-targets.json', 'desktop-contract.py', 'desktop-service.py', 'browser-service.py'):
                 install(STAGE / name, LIB / name, 0o755 if name.endswith('service.py') else 0o644)
             for name in ('workspace-desktop.py', 'workspace-browser.py'):
                 install(STAGE / name, BIN / name[:-3], 0o755)

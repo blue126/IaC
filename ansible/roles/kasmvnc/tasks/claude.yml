@@ -1,0 +1,76 @@
+---
+- name: Download the official Claude Desktop signing key
+  ansible.builtin.get_url:
+    url: https://downloads.claude.ai/claude-desktop/key.asc
+    dest: /var/cache/claude-desktop-key.asc
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create the isolated signing key inspection directory
+  ansible.builtin.file:
+    path: /var/cache/claude-desktop-gnupg
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Read the signing key fingerprint without importing it
+  ansible.builtin.command:
+    argv: [gpg, --batch, --with-colons, --show-keys, /var/cache/claude-desktop-key.asc]
+  environment:
+    GNUPGHOME: /var/cache/claude-desktop-gnupg
+  register: kasmvnc_claude_key
+  changed_when: false
+
+- name: Require the verified Anthropic signing key
+  ansible.builtin.assert:
+    that:
+      - "(kasmvnc_claude_key.stdout | regex_findall('(?m)^pub:')) | length == 1"
+      - "(kasmvnc_claude_key.stdout | regex_findall('(?m)^fpr:::::::::([^:]+):')) | first == '31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE'"
+
+- name: Install the verified repository key
+  ansible.builtin.copy:
+    remote_src: true
+    src: /var/cache/claude-desktop-key.asc
+    dest: /usr/share/keyrings/claude-desktop-archive-keyring.asc
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure the official Claude Desktop repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/claude-desktop.list
+    content: "deb [signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main\n"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Refresh package metadata for the approved installation
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Simulate the fixed Claude Desktop transaction without recommended packages
+  ansible.builtin.command:
+    argv: [apt-get, --simulate, --no-install-recommends, --no-remove, install, claude-desktop=4.4212.0, gnome-keyring]
+  environment:
+    LC_ALL: C
+  register: kasmvnc_claude_plan
+  changed_when: false
+
+- name: Reject changes to existing packages or virtualization dependencies
+  ansible.builtin.assert:
+    that:
+      - "kasmvnc_claude_plan.stdout is search('(?m)^0 upgraded,')"
+      - "kasmvnc_claude_plan.stdout is search(', 0 to remove')"
+      - "kasmvnc_claude_plan.stdout is not search('(?m)^Inst [^ ]+ \\[')"
+      - "kasmvnc_claude_plan.stdout is not search('(?m)^(Inst|Remv) (qemu[^ ]*|ovmf|virtiofsd) ')"
+
+- name: Install the fixed official application without recommended packages
+  ansible.builtin.command:
+    argv: [apt-get, --yes, --no-install-recommends, --no-remove, install, claude-desktop=4.4212.0, gnome-keyring]
+  environment:
+    LC_ALL: C
+    DEBIAN_FRONTEND: noninteractive
+  register: kasmvnc_claude_install
+  changed_when: "kasmvnc_claude_install.stdout is not search('(?m)^0 upgraded, 0 newly installed,')"
