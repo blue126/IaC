@@ -1,6 +1,6 @@
 # HAPI 受控内网 HTTP 简化
 
-状态：2026-11-01用户批准方案，代码与本机隔离回归已准备；尚未执行现网切换。现网在单独批准发布并完成验收前仍使用原内部mTLS／PKI服务。本方案接受VM500到员工VM这一段明文传输，不新增VPN或SSH隧道。
+状态：2026-11-02已按用户授权部署[PR #210](https://github.com/blue126/IaC/pull/210)合并版本，VM500／VM502内部HTTP切换及playbook现场验收通过，旧PKI和证书巡检服务已退役。详见[发布记录](../planning/2026-11-02-hapi-internal-http-rollout.md)。本方案接受VM500到员工VM这一段明文传输，不新增VPN或SSH隧道。
 
 ## 保留的职责
 
@@ -28,7 +28,7 @@ CA签发密钥、历史证书与签发状态不在迁移中销毁，仍保留为
 ../.venv/bin/ansible-playbook -i ../tests/hapi-http/inventory.yml playbooks/rollback-hapi-internal-http.yml --syntax-check
 ```
 
-实际迁移使用私有inventory和单独批准的发布清单。`hapi_internal_http_authorized`默认false，必须显式确认受控内网明文模型。当前原地切换入口限定VM500与VM502，不表示已完成新员工provisioning。
+此次迁移使用私有inventory和用户批准的发布清单，由既有执行器执行。后续变更仍使用独立批准的清单。`hapi_internal_http_authorized`默认false，必须显式确认受控内网明文模型。当前原地切换入口限定VM500与VM502，不表示已完成新员工provisioning。
 
 迁移顺序：
 

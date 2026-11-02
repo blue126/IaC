@@ -1,6 +1,6 @@
 # HAPI／Cloudflare 员工工作区开户设计
 
-> **阅读顺序（2026-11-01）。** 当前服务拓扑和维护见[统一入口](../guides/hapi-unified-entry.md)，证书维护见[PKI生命周期](../guides/hapi-pki-lifecycle.md)。员工操作以[执行器wsctl约定](../deployment/oci-hub-native-provisioning.md)为准。下文原独立申请／台账／执行器契约仅供历史追溯，不代表统一HAPI开户已经完成或应创建另一台VM。
+> **阅读顺序（2026-11-02）。** 当前服务拓扑和维护见[统一入口](../guides/hapi-unified-entry.md)与[内部HTTP运维](../guides/hapi-internal-http.md)；内部PKI已退役，[PKI生命周期](../guides/hapi-pki-lifecycle.md)仅供历史追溯。员工操作以[执行器wsctl约定](../deployment/oci-hub-native-provisioning.md)为准。下文原独立申请／台账／执行器契约仅供历史追溯，不代表统一HAPI开户已经完成或应创建另一台VM。
 
 > **独立开户方案已撤回（2026-10-31）。** 用户将重新设计 provisioning。HAPI 与 WireGuard 是同一员工 VM 的两种接入方式；本文关于独立 VM 开户、独立资源台账／state 和独立执行器的内容仅作历史设计，不再作为可执行开户契约。现有 VM500 单 Hub、统一入口、Runner 与 Claude 登录引导继续保留。本次不实现新的统一 provisioning，也不迁移或删除任何 VM、凭据和运行数据。
 

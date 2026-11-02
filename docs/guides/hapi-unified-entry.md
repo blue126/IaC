@@ -1,10 +1,10 @@
 # HAPI 单一入口迁移与验收
 
-后续变更见[内部HTTP简化方案](hapi-internal-http.md)，目前是已批准的代码候选，尚未切换现网。
+2026-11-02已完成[内部HTTP简化](hapi-internal-http.md)现网切换及旧PKI服务退役，见[发布记录](../planning/2026-11-02-hapi-internal-http-rollout.md)。
 
-状态核对：2026-11-01。现有所有者试点的统一入口、单Hub和会话数据库已迁入VM500；VM502保留Runner、Claude、登录执行服务和Firefox。用户已确认网页登录与远程浏览器可用，个人Claude认证保留在本人VM。源码经[PR #201](https://github.com/blue126/IaC/pull/201)完整CI与独立审核后合入`main`。独立HAPI开户候选已撤回；现有试点验收不等于新员工完整开户验收。
+状态核对：2026-11-02。现有所有者试点的统一入口、单Hub和会话数据库已迁入VM500；VM502保留Runner、Claude、登录执行服务和Firefox。用户已确认网页登录与远程浏览器可用，个人Claude认证保留在本人VM。源码经[PR #201](https://github.com/blue126/IaC/pull/201)完整CI与独立审核后合入`main`。独立HAPI开户候选已撤回；现有试点验收不等于新员工完整开户验收。
 
-唯一正式网址为 `https://hapi.willfan.me`，Claude登录引导位于 `/_workspace/login/`。Cloudflare Tunnel、身份网关、共享HAPI Hub和会话数据库均位于VM500。网关验证Access身份并换取绑定本人namespace的短期HAPI会话，不要求用户再次输入HAPI令牌。员工VM运行Runner、任务、文件和个人Claude环境，通过私有mTLS通道连接控制面。这里的Hub是HAPI应用服务，与OCI WireGuard Hub不同。
+唯一正式网址为 `https://hapi.willfan.me`，Claude登录引导位于 `/_workspace/login/`。Cloudflare Tunnel、身份网关、共享HAPI Hub和会话数据库均位于VM500。网关验证Access身份并换取绑定本人namespace的短期HAPI会话，不要求用户再次输入HAPI令牌。员工VM运行Runner、任务、文件和个人Claude环境，通过受控内网HTTP连接控制面。这里的Hub是HAPI应用服务，与OCI WireGuard Hub不同。
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,7 @@ flowchart LR
     T --> H[VM500 共享HAPI Hub与会话数据库]
     T --> P[VM500 同站Claude登录引导]
     P --> A[本人VM Claude登录执行服务与Firefox]
-    R[本人VM Runner与Claude] -->|私有mTLS通道| H
+    R[本人VM Runner与Claude] -->|受控内网HTTP| H
 ```
 
 ## 入口切换历史（2026-10-30／31）
@@ -44,4 +44,4 @@ flowchart LR
 
 PVE现有OCI边界需保留独立服务授权文件及相关编译器支持。现场编译器的既有Mosh等功能在修复时保留，不能直接用较旧分支覆盖现场版本。私有运行记录保存了部署基线、差异和回退配置；合并代码和后续部署应以当前边界所有者版本为基线集成作用域修复。
 
-内部TLS已采用365天叶证书、1825天CA证书和180天CRL，由VM500每小时检查并自动续期／分发；详见[生命周期说明](hapi-pki-lifecycle.md)和[运维巡检](hapi-operations.md)。签发材料、回执和旧Vault位于Git忽略的私有运行目录；PKI接管后不能把历史Vault的旧TLS材料覆盖回现网。VM500的VM级备份由用户负责。服务配置变更和凭据操作仍需相应授权。
+当前VM500到员工VM及Runner到Hub使用受控内网HTTP，来源绑定、HAPI原生令牌／JWT及固定工作区校验继续生效。内部证书签发／分发／巡检已退役；历史CA、证书和配置checkpoint仅供显式回退，不能把旧Vault覆盖回当前HTTP配置。VM500的VM级备份由用户负责。服务配置变更和凭据操作仍需相应授权。
