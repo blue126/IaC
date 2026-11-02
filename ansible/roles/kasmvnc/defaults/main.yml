@@ -1,0 +1,4 @@
+---
+kasmvnc_approved_vmids: "{{ (lookup('ansible.builtin.file', role_path ~ '/../employee-workspace/files/desktop-targets.json') | from_json).approved_vmids }}"
+
+kasmvnc_presentation_phase: "{{ employee_desktop_phase }}"

@@ -15,6 +15,10 @@ def require(ok, message):
         raise ValueError(message)
 
 
+def approved_vmids():
+    return json.loads(Path(__file__).with_name('desktop-targets.json').read_text())['approved_vmids']
+
+
 def validate_backends(config):
     backends = config['desktop_backends']
     expected = {str(n['vmid']): n for n in config['networks'].values()}
@@ -29,7 +33,7 @@ def validate_backends(config):
         fields = common | ({'generation_id', 'tls_server_name', 'trust_ref'} if kind == 'kasmvnc' else set())
         require(set(backend) == fields, 'Unexpected or missing backend fields')
         require(isinstance(backend['address'], str), 'Backend address must be a string')
-        require(vmid == '502' and backend['address'] == expected[vmid]['ip'] == '127.0.0.1', 'Only VM502 loopback is permitted')
+        require(vmid in {str(value) for value in approved_vmids()} and backend['address'] == expected[vmid]['ip'] == '127.0.0.1', 'Only approved VM loopback is permitted')
         require(type(backend['port']) is int and backend['port'] == 8444, 'Backend port must be 8444')
         require(backend['client_path'] == '/', 'Client entry must be canonical root')
         require(type(backend['route_enabled']) is bool, 'Route state must be boolean')

@@ -81,6 +81,7 @@ class OCITests(unittest.TestCase):
         source = source.replace("pwd.getpwnam('employee')", 'pwd.getpwuid(os.getuid())').replace("grp.getgrnam('employee').gr_gid", 'os.getgid()')
         cls.service_path = cls.base / 'desktop-service.py'; cls.service_path.write_text(source)
         shutil.copyfile(FILES / 'desktop-contract.py', cls.base / 'desktop-contract.py')
+        shutil.copyfile(FILES / 'desktop-targets.json', cls.base / 'desktop-targets.json')
         cls.service = load('oci_fixture_service', cls.service_path)
 
     @classmethod
@@ -241,6 +242,30 @@ class OCITests(unittest.TestCase):
                 with self.assertRaises((ValueError, subprocess.CalledProcessError)):
                     preparation.validate_frontend(changed)
 
+    def test_existing_self_signed_leaf_requires_its_exact_pin(self):
+        cert = self.base / 'existing-frontend.pem'
+        key = self.base / 'existing-frontend.key'
+        subprocess.run(['openssl', 'req', '-new', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                        '-days', '1', '-subj', '/CN=198.18.53.10',
+                        '-addext', 'basicConstraints=critical,CA:FALSE',
+                        '-addext', 'subjectAltName=IP:198.18.53.10',
+                        '-keyout', str(key), '-out', str(cert)], check=True, capture_output=True)
+        key.chmod(0o600)
+        pin = preparation.run(['openssl', 'x509', '-in', str(cert), '-noout', '-fingerprint', '-sha256']).split('=', 1)[1].replace(':', '').lower()
+        config = dict(address='198.18.53.10', certificate=str(cert), private_key=str(key), ca=str(cert), pinned_sha256=pin)
+        actual_stat = Path.stat
+        def root_stat(path, *args, **kwargs):
+            info = actual_stat(path, *args, **kwargs)
+            return types.SimpleNamespace(st_uid=0, st_mode=info.st_mode)
+        with patch.object(Path, 'stat', root_stat):
+            preparation.validate_frontend(config)
+            for change in (dict(pinned_sha256='0'*64), dict(address='198.18.53.11'), dict(ca=str(self.generation / 'ca.pem'))):
+                with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                    preparation.validate_frontend(dict(config, **change))
+            config.pop('pinned_sha256')
+            with self.assertRaisesRegex(ValueError, 'trust anchor'):
+                preparation.validate_frontend(config)
+
     def test_trust_phase_does_not_touch_route_or_services(self):
         frontend = {'certificate': 'leaf', 'private_key': 'key', 'ca': 'ca', 'address': '198.18.53.10'}
         with patch.object(preparation, 'validate_frontend'), patch.object(preparation, 'install', side_effect=[True, True]) as install, patch.object(preparation, 'run') as run:
@@ -252,11 +277,11 @@ class OCITests(unittest.TestCase):
             run.assert_called_once_with(['nginx', '-t'])
 
     def test_prepare_tasks_do_not_replace_active_definitions(self):
-        text = (ROOT / 'ansible/roles/employee-workspace/tasks/presentation.yml').read_text()
+        text = (ROOT / 'ansible/roles/kasmvnc/tasks/presentation.yml').read_text()
         self.assertNotIn('ansible.builtin.apt', text)
         self.assertNotIn('workspace-login.py', text)
-        self.assertIn("when: employee_desktop_phase == 'activate'", text)
-        self.assertIn("when: employee_desktop_phase == 'trust'", text)
+        self.assertIn("when: kasmvnc_presentation_phase == 'activate'", text)
+        self.assertIn("when: kasmvnc_presentation_phase == 'trust'", text)
         self.assertNotIn('employee-access', text)
         self.assertIn('tasks_from: presentation', (ROOT / 'ansible/playbooks/prepare-vm502-desktop.yml').read_text())
 
@@ -340,7 +365,7 @@ class ActivationTests(unittest.TestCase):
         self.nginx.write_text('old-noVNC-upstream')
         self.marker = self.base / 'maintenance.json'
         self.lock = self.base / 'lock'; self.lock.touch(); self.lock.chmod(0o660)
-        for name in ('desktop-service.py', 'desktop-contract.py', 'browser-service.py',
+        for name in ('desktop-targets.json', 'desktop-service.py', 'desktop-contract.py', 'browser-service.py',
                      'workspace-browser.py', 'workspace-desktop.py', 'login-guide.py',
                      'employee-desktop.service', 'employee-browser.service', 'employee-browser-desktop.conf'):
             shutil.copyfile(FILES / name, self.stage / name)
@@ -353,7 +378,7 @@ class ActivationTests(unittest.TestCase):
         for key, value in dict(STAGE=self.stage, LIB=self.lib, ETC=self.etc, LOCK=self.lock,
                                MARKER=self.marker, NGINX=self.nginx, BIN=self.bin, GUIDE=self.lib / 'guide.py').items():
             context = patch.object(preparation, key, value); context.start(); self.addCleanup(context.stop)
-        for target, value in (('validate_stage', (self.module, {}, {})), ('trust', False), ('configure_browser_entries', None)):
+        for target, value in (('validate_stage', (self.module, {'vmid': 502}, {})), ('trust', False), ('configure_browser_entries', None)):
             context = patch.object(preparation, target, return_value=value); context.start(); self.addCleanup(context.stop)
         info = types.SimpleNamespace(st_uid=0, st_gid=os.getgid(), st_mode=0o100660)
         context = patch.object(preparation.os, 'fstat', return_value=info); context.start(); self.addCleanup(context.stop)
@@ -369,6 +394,8 @@ class ActivationTests(unittest.TestCase):
                 raise RuntimeError('synthetic interruption')
             if '--property=User,Restart' in argv:
                 return 'User=employee\nRestart=no'
+            if '--property=LoadState' in argv:
+                return 'loaded'
             if '--property=UnitFileState' in argv:
                 return 'static'
             return ''
@@ -382,6 +409,33 @@ class ActivationTests(unittest.TestCase):
         self.assertEqual(self.nginx.read_text(), 'old-noVNC-upstream')
         self.assertEqual(json.loads(self.browser.read_text()), self.original_browser)
         self.module.profile_guard.assert_not_called()
+
+    def test_native_mosh_vm_without_login_guide_can_activate(self):
+        original = preparation.run.side_effect
+        def command(argv):
+            if '--property=LoadState' in argv:
+                return 'not-found'
+            return original(argv)
+        preparation.run.side_effect = command
+        preparation.activate()
+        self.assertFalse(self.marker.exists())
+        self.assertNotIn(['systemctl', 'restart', 'employee-login-guide.service'],
+                         [call.args[0] for call in preparation.run.call_args_list])
+
+    def test_vm508_interruption_is_bound_to_its_own_vmid(self):
+        with patch.object(preparation, 'validate_stage', return_value=(self.module, {'vmid': 508}, {})):
+            self.fail = True
+            with self.assertRaises(RuntimeError):
+                preparation.activate()
+            self.assertEqual(json.loads(self.marker.read_text()),
+                             {'purpose': 'employee-presentation', 'vmid': 508})
+            self.marker.write_text(json.dumps({'purpose': 'employee-presentation', 'vmid': 509}))
+            with self.assertRaisesRegex(ValueError, 'Another maintenance'):
+                preparation.activate()
+            self.marker.write_text(json.dumps({'purpose': 'employee-presentation', 'vmid': 508}))
+            self.fail = False
+            preparation.activate()
+            self.assertFalse(self.marker.exists())
 
     def test_interruption_closes_only_desktop_and_can_continue_forward(self):
         self.fail = True

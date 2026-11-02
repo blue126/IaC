@@ -1,0 +1,80 @@
+---
+- name: Require the approved update identity and frontend pin
+  ansible.builtin.assert:
+    that:
+      - employee_workspace_vmid | int in kasmvnc_approved_vmids
+      - ansible_play_hosts_all | length == 1
+      - kasmvnc_update.vmid | int == employee_workspace_vmid | int
+      - kasmvnc_update.address == oci_hub_spoke_address.split('/')[0]
+      - kasmvnc_update.frontend_sha256 is match('^[a-f0-9]{64}$')
+      - kasmvnc_update.stop_browser | bool
+
+- name: Install the fixed desktop runtime
+  ansible.builtin.import_tasks: packages.yml
+
+- name: Install the official Claude Desktop application
+  ansible.builtin.import_tasks: claude.yml
+
+- name: Create the private presentation staging directory
+  ansible.builtin.file:
+    path: /usr/local/lib/employee-workspace/presentation
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Install the backend material preparation helper
+  ansible.builtin.copy:
+    src: prepare-materials.py
+    dest: /usr/local/lib/employee-workspace/presentation/prepare-materials.py
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Prepare only this VM backend generation and retain the frontend identity
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -I
+      - /usr/local/lib/employee-workspace/presentation/prepare-materials.py
+      - "{{ kasmvnc_update.vmid | string }}"
+      - "{{ kasmvnc_update.address }}"
+      - "{{ kasmvnc_update.generation }}"
+      - "{{ kasmvnc_update.frontend_sha256 }}"
+  register: kasmvnc_material_preparation
+  changed_when: kasmvnc_material_preparation.stdout == 'changed'
+  no_log: true
+
+- name: Read the private generated presentation variables
+  ansible.builtin.slurp:
+    src: /usr/local/lib/employee-workspace/presentation/update-vars.json
+  register: kasmvnc_update_variables
+  no_log: true
+
+- name: Select the generated VM presentation
+  ansible.builtin.set_fact:
+    employee_desktop_frontend: "{{ (kasmvnc_update_variables.content | b64decode | from_json).employee_desktop_frontend }}"
+    employee_desktop_config: "{{ (kasmvnc_update_variables.content | b64decode | from_json).employee_desktop_config }}"
+    oci_hub_desktop_backend_basic: "{{ (kasmvnc_update_variables.content | b64decode | from_json).oci_hub_desktop_backend_basic }}"
+    kasmvnc_presentation_phase: prepare
+  no_log: true
+
+- name: Validate and stage the presentation before interrupting the old browser
+  ansible.builtin.include_tasks: presentation.yml
+
+- name: Gather the installed managed service definitions
+  ansible.builtin.service_facts:
+
+- name: Stop the approved installed graphical services after successful staging
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+  loop: [employee-browser.service, employee-desktop.service]
+  when: item in ansible_facts.services
+
+- name: Select the approved activation phase
+  ansible.builtin.set_fact:
+    kasmvnc_presentation_phase: activate
+
+- name: Activate the staged presentation under its existing maintenance lock
+  ansible.builtin.include_tasks: presentation.yml

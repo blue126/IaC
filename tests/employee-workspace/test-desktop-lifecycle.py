@@ -21,6 +21,7 @@ CONTRACT = FILES / 'desktop-contract.py'
 TEMP = tempfile.TemporaryDirectory(prefix='story3-lifecycle-')
 INSTALLED = Path(TEMP.name)
 shutil.copyfile(CONTRACT, INSTALLED / 'desktop-contract.py')
+shutil.copyfile(FILES / 'desktop-targets.json', INSTALLED / 'desktop-targets.json')
 shutil.copyfile(FILES / 'desktop-service.py', INSTALLED / 'desktop-service.py')
 spec = importlib.util.spec_from_file_location('desktop_service', INSTALLED / 'desktop-service.py')
 service = importlib.util.module_from_spec(spec)
@@ -37,6 +38,25 @@ FIXTURE = json.loads((Path(__file__).parent / 'fixtures/desktop-lifecycle.json')
 
 
 class DesktopTests(unittest.TestCase):
+    def test_vm508_uses_its_own_generation_and_loopback(self):
+        config = copy.deepcopy(FIXTURE)
+        config['vmid'] = 508
+        config['generation']['vmid'] = 508
+        for key in ('trust_ref', 'certificate_ref', 'private_key_ref', 'authentication_ref'):
+            config['generation'][key] = config['generation'][key].replace('/502/', '/508/')
+        config['backend']['trust_ref'] = config['generation']['trust_ref']
+        self.assertEqual(service.validate_config_content(copy.deepcopy(config))['vmid'], 508)
+        for mutation in (
+            lambda c: c['generation'].update(vmid=502),
+            lambda c: c['generation'].update(private_key_ref=FIXTURE['generation']['private_key_ref']),
+            lambda c: c['backend'].update(address='10.234.0.2'),
+            lambda c: c.update(vmid=509),
+        ):
+            candidate = copy.deepcopy(config)
+            mutation(candidate)
+            with self.assertRaises((ValueError, service.Refused)):
+                service.validate_config_content(candidate)
+
     def test_explicit_selection_and_bad_generation(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'config.json'

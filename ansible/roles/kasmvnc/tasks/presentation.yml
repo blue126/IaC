@@ -1,0 +1,152 @@
+---
+- name: Require an explicit presentation phase and the approved VM identity
+  ansible.builtin.assert:
+    that:
+      - kasmvnc_presentation_phase in ['trust', 'prepare', 'activate']
+      - employee_workspace_vmid | int in kasmvnc_approved_vmids
+      - ansible_play_hosts_all | length == 1
+      - employee_desktop_frontend.address == oci_hub_spoke_address.split('/')[0]
+    fail_msg: Supply the explicit approved VM phase and presentation-only material references.
+
+- name: Require the staged configuration to match the inventory target
+  ansible.builtin.assert:
+    that: employee_desktop_config.vmid | int == employee_workspace_vmid | int
+  when: kasmvnc_presentation_phase in ['prepare', 'activate']
+
+- name: Verify the installed platform without changing packages
+  ansible.builtin.setup:
+    gather_subset: [min]
+
+- name: Reject unapproved platform drift
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '26.04'
+      - ansible_facts.architecture == 'x86_64'
+
+- name: Verify the preinstalled KasmVNC package
+  ansible.builtin.command:
+    argv: [dpkg-query, -W, '-f=${Version}', kasmvncserver]
+  register: employee_desktop_kasm_version
+  changed_when: false
+
+- name: Reject package drift without installing dependencies
+  ansible.builtin.assert:
+    that: employee_desktop_kasm_version.stdout == '1.5.0-1'
+
+- name: Verify the preinstalled graphical runtime
+  ansible.builtin.command:
+    argv: [which, Xkasmvnc, xfce4-session, xfwm4, xfsettingsd, xfce4-panel, xfdesktop, Thunar, xfconf-query, xauth, xprop, xset, dbus-daemon, kasmvncpasswd, firefox, tmux, gio, nginx, openssl]
+  changed_when: false
+
+- name: Create the independent root-only staging directory
+  ansible.builtin.file:
+    path: /usr/local/lib/employee-workspace/presentation
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Stage the presentation operation helper
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../employee-workspace/files/prepare-desktop.py"
+    dest: /usr/local/lib/employee-workspace/presentation/prepare-desktop.py
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Stage frontend material references without replacing the existing route
+  ansible.builtin.copy:
+    dest: /usr/local/lib/employee-workspace/presentation/frontend.json
+    owner: root
+    group: root
+    mode: '0600'
+    content: "{{ employee_desktop_frontend | to_nice_json }}"
+  no_log: true
+
+- name: Validate and update only frontend trust while retaining the current upstream
+  ansible.builtin.command:
+    argv: [python3, -I, /usr/local/lib/employee-workspace/presentation/prepare-desktop.py, trust, /usr/local/lib/employee-workspace/presentation/frontend.json]
+  register: employee_desktop_trust
+  changed_when: employee_desktop_trust.stdout == 'changed'
+  no_log: true
+  when: kasmvnc_presentation_phase == 'trust'
+
+- name: Stage the independent desktop runtime without changing active definitions
+  when: kasmvnc_presentation_phase in ['prepare', 'activate']
+  block:
+    - name: Stage the selected runtime components
+      ansible.builtin.copy:
+        src: "{{ role_path }}/../employee-workspace/files/{{ item }}"
+        dest: "/usr/local/lib/employee-workspace/presentation/{{ item }}"
+        owner: root
+        group: root
+        mode: '0600'
+      loop:
+        - desktop-service.py
+        - browser-service.py
+        - desktop-contract.py
+        - desktop-targets.json
+        - workspace-desktop.py
+        - workspace-browser.py
+        - login-guide.py
+        - employee-desktop.service
+        - employee-browser.service
+        - employee-browser-desktop.conf
+
+    - name: Stage the pinned desktop configuration
+      ansible.builtin.copy:
+        dest: /usr/local/lib/employee-workspace/presentation/desktop.json
+        owner: root
+        group: root
+        mode: '0600'
+        content: "{{ employee_desktop_config | to_nice_json }}"
+        validate: /usr/bin/python3 -I /usr/local/lib/employee-workspace/presentation/desktop-service.py validate-config %s
+      no_log: true
+
+    - name: Stage the existing strict OCI frontend template
+      ansible.builtin.template:
+        src: "{{ role_path }}/../oci-hub-spoke/templates/desktop.conf.j2"
+        dest: /usr/local/lib/employee-workspace/presentation/desktop.conf
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+
+    - name: Stage the pinned backend trust anchor
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ employee_desktop_config.materials_root }}/{{ employee_desktop_config.generation.trust_ref }}"
+        dest: /usr/local/lib/employee-workspace/presentation/backend-ca.crt
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+
+    - name: Configure the shared lock without replacing an existing inode
+      ansible.builtin.copy:
+        dest: /etc/tmpfiles.d/employee-desktop.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          f /run/lock/employee-desktop.lock 0660 root employee -
+          d /var/lib/employee-workspace 0755 root root -
+
+    - name: Create the managed lock and maintenance marker directory
+      ansible.builtin.command:
+        argv: [systemd-tmpfiles, --create, /etc/tmpfiles.d/employee-desktop.conf]
+      changed_when: false
+
+    - name: Validate all staged references without changing active definitions
+      ansible.builtin.command:
+        argv: [python3, -I, /usr/local/lib/employee-workspace/presentation/prepare-desktop.py, check]
+      changed_when: false
+      no_log: true
+
+    - name: Activate the staged presentation under the shared maintenance lock
+      ansible.builtin.command:
+        argv: [python3, -I, /usr/local/lib/employee-workspace/presentation/prepare-desktop.py, activate]
+      no_log: true
+      changed_when: true
+      when: kasmvnc_presentation_phase == 'activate'

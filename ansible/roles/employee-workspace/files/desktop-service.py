@@ -64,15 +64,15 @@ def load_config():
 
 
 def validate_config_content(config):
-    if set(config) != {'vmid', 'backend', 'generation', 'materials_root', 'viewer_url'} or config['vmid'] != 502:
+    if set(config) != {'vmid', 'backend', 'generation', 'materials_root', 'viewer_url'} or type(config.get('vmid')) is not int or config['vmid'] not in contract.approved_vmids():
         raise Refused('Desktop target rejected')
     backend = config['backend']
     if backend.get('type') != 'kasmvnc':
         raise Refused('Desktop mode rejected')
     generation = config['generation']
     # Reuse the fixed descriptor contract with the already selected target.
-    contract.validate_backends({'networks': {'target': {'vmid': 502, 'ip': backend['address'], 'disabled': False}},
-                                'desktop_backends': {'502': backend},
+    contract.validate_backends({'networks': {'target': {'vmid': config['vmid'], 'ip': backend['address'], 'disabled': False}},
+                                'desktop_backends': {str(config['vmid']): backend},
                                 'desktop_generations': {backend['generation_id']: generation}})
     viewer = urlsplit(config['viewer_url'])
     if (viewer.scheme != 'https' or viewer.port != 8443 or viewer.path != '/' or viewer.query or viewer.fragment or viewer.username is not None or viewer.password is not None):

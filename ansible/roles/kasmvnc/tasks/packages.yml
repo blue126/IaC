@@ -1,0 +1,61 @@
+---
+- name: Require a single approved package installation target
+  ansible.builtin.assert:
+    that:
+      - employee_workspace_vmid | int in kasmvnc_approved_vmids
+      - ansible_play_hosts_all | length == 1
+
+- name: Gather the target platform
+  ansible.builtin.setup:
+    gather_subset: [min]
+
+- name: Require the verified Ubuntu platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '26.04'
+      - ansible_facts.architecture == 'x86_64'
+
+- name: Download the verified KasmVNC installation asset
+  ansible.builtin.get_url:
+    url: https://github.com/kasmtech/KasmVNC/releases/download/v1.5.0/kasmvncserver_noble_1.5.0_amd64.deb
+    checksum: sha256:f599fe02e2175b9817b6165f74a5d2bebdc73118dde9181ba3410963bed7ae1e
+    dest: /var/cache/kasmvncserver-1.5.0-amd64.deb
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Read the downloaded package identity
+  ansible.builtin.command:
+    argv: [dpkg-deb, --show, '--showformat=${Package} ${Version} ${Architecture}', /var/cache/kasmvncserver-1.5.0-amd64.deb]
+  register: kasmvnc_package_identity
+  changed_when: false
+
+- name: Reject an unexpected package identity
+  ansible.builtin.assert:
+    that: kasmvnc_package_identity.stdout == 'kasmvncserver 1.5.0-1 amd64'
+
+- name: Simulate the exact desktop package transaction
+  ansible.builtin.command:
+    argv: [apt-get, --simulate, --no-install-recommends, --no-remove, install, xfce4=4.20.1, /var/cache/kasmvncserver-1.5.0-amd64.deb]
+  environment:
+    LC_ALL: C
+  register: kasmvnc_package_plan
+  changed_when: false
+
+- name: Reject removal or upgrades of existing packages
+  ansible.builtin.assert:
+    that:
+      - "kasmvnc_package_plan.stdout is search('(?m)^0 upgraded,')"
+      - "kasmvnc_package_plan.stdout is search(', 0 to remove')"
+      - "kasmvnc_package_plan.stdout is not search('(?m)^Inst [^ ]+ \\[')"
+      - "kasmvnc_package_plan.stdout is not search('(?m)^Remv ')"
+
+- name: Install the reviewed desktop package transaction
+  ansible.builtin.command:
+    argv: [apt-get, --yes, --no-install-recommends, --no-remove, install, xfce4=4.20.1, /var/cache/kasmvncserver-1.5.0-amd64.deb]
+  environment:
+    LC_ALL: C
+    DEBIAN_FRONTEND: noninteractive
+  register: kasmvnc_package_install
+  changed_when: "kasmvnc_package_install.stdout is not search('(?m)^0 upgraded, 0 newly installed,')"

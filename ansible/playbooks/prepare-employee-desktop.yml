@@ -1,0 +1,46 @@
+---
+- name: Deploy the explicitly selected employee presentation phase
+  hosts: "{{ employee_desktop_target | default('kasmvnc_no_target_selected') }}"
+  become: true
+  gather_facts: false
+  roles:
+    - kasmvnc
+
+- name: Verify the selected employee presentation phase without starting a session
+  hosts: "{{ employee_desktop_target | default('kasmvnc_no_target_selected') }}"
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the pinned KasmVNC package
+      ansible.builtin.command:
+        argv: [dpkg-query, -W, '-f=${Version}', kasmvncserver]
+      register: kasmvnc_verified_version
+      changed_when: false
+      failed_when: kasmvnc_verified_version.stdout != '1.5.0-1'
+
+    - name: Validate the staged desktop configuration and immutable materials
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -I
+          - /usr/local/lib/employee-workspace/presentation/desktop-service.py
+          - validate-config
+          - /usr/local/lib/employee-workspace/presentation/desktop.json
+      changed_when: false
+      no_log: true
+      when: employee_desktop_phase in ['prepare', 'activate', 'update']
+
+    - name: Validate the active nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      no_log: true
+
+    - name: Verify installed on-demand desktop metadata and strict material checks
+      ansible.builtin.command:
+        argv: [python3, -I, /usr/local/lib/employee-workspace/desktop-service.py, check]
+      become_user: employee
+      become: true
+      changed_when: false
+      no_log: true
+      when: employee_desktop_phase in ['activate', 'update']
