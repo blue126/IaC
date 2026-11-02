@@ -1,145 +1,172 @@
 ---
+- name: Load CI toolchain BOM
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/../../../ci/toolchain-bom.yml"
+    name: ci_toolchain_bom
+
+- name: Require explicit peer installation authorization
+  ansible.builtin.assert:
+    that:
+      - jenkins_agent_install_authorized | bool
+    fail_msg: Peer package installation and deployment require separate authorization.
+
 - name: Validate Jenkins agent configuration
   ansible.builtin.assert:
     that:
       - jenkins_agent_controller_url | length > 0
-      - jenkins_agent_jar_checksum is match('^sha256:[0-9a-f]{64}$')
-      - jenkins_agent_instances | map(attribute='name') | list | sort == ['iac-deploy', 'iac-plan']
-      - jenkins_agent_instances | map(attribute='name') | list | unique | length == 2
+      - ci_toolchain_bom.jenkins.agent_jar.sha256 is match('^[0-9a-f]{64}$')
+      - jenkins_agent_instances | map(attribute='name') | list | sort == ['iac-apps', 'iac-deploy', 'iac-plan']
+      - jenkins_agent_instances | map(attribute='name') | list | unique | length == 3
+      - jenkins_agent_base_dir == '/var/lib/jenkins-agent'
+      - jenkins_agent_config_dir == '/etc/jenkins-agent'
+      - jenkins_agent_jar_path == '/opt/jenkins-agent/agent.jar'
     fail_msg: >-
-      Jenkins agent URL, pinned agent.jar checksum, and the exact plan/deploy
+      Jenkins agent URL, pinned agent.jar checksum, and the exact plan/deploy/apps
       identities are required.
 
 - name: Validate Jenkins agent connection secrets
   ansible.builtin.assert:
     that:
-      - item.secret | length > 0
+      - item.secret is match('^[0-9a-f]{64}$')
     fail_msg: "A Vault-backed connection secret is required for each Jenkins agent."
   loop: "{{ jenkins_agent_instances }}"
   no_log: true
 
-- name: Install Jenkins agent runtime packages
-  ansible.builtin.apt:
-    name:
-      - ca-certificates
-      - "{{ jenkins_agent_java_package }}"
-    state: present
-    update_cache: true
+- name: Validate the approved peer operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Debian'
+      - ansible_distribution_major_version == '12'
+      - ansible_architecture == 'x86_64'
 
-- name: Create Jenkins agent groups
-  ansible.builtin.group:
-    name: "{{ item.name }}"
-    system: true
-    state: present
+- name: Read peer user namespace mapping
+  ansible.builtin.command: cat /proc/self/uid_map
+  register: jenkins_agent_uid_mapping
+  changed_when: false
+
+- name: Reject privileged or unmapped peer containers
+  ansible.builtin.assert:
+    that:
+      - jenkins_agent_uid_mapping.stdout.split()[0] | int == 0
+      - jenkins_agent_uid_mapping.stdout.split()[1] | int > 0
+
+- name: Inspect existing reserved peer accounts
+  ansible.builtin.command: "getent passwd {{ item.name }}"
   loop: "{{ jenkins_agent_instances }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Create Jenkins agent base directory
-  ansible.builtin.file:
-    path: "{{ jenkins_agent_base_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Create Jenkins agent accounts
-  ansible.builtin.user:
-    name: "{{ item.name }}"
-    group: "{{ item.name }}"
-    groups: ""
-    append: false
-    home: "{{ jenkins_agent_base_dir }}/{{ item.name }}"
-    shell: /bin/bash
-    system: true
-    create_home: true
-    state: present
-  loop: "{{ jenkins_agent_instances }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Create Jenkins agent installation directory
-  ansible.builtin.file:
-    path: "{{ jenkins_agent_jar_path | dirname }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Download pinned Jenkins agent runtime
-  ansible.builtin.get_url:
-    url: "{{ jenkins_agent_jar_url }}"
-    dest: "{{ jenkins_agent_jar_path }}"
-    checksum: "{{ jenkins_agent_jar_checksum }}"
-    owner: root
-    group: root
-    mode: "0555"
-  notify: Restart Jenkins agent services
-
-- name: Create private Jenkins agent directories
-  ansible.builtin.file:
-    path: >-
-      {{ jenkins_agent_base_dir }}/{{ item.0.name }}{{ '/' + item.1 if item.1 else '' }}
-    state: directory
-    owner: "{{ item.0.name }}"
-    group: "{{ item.0.name }}"
-    mode: "0700"
-  loop: "{{ jenkins_agent_instances | product(jenkins_agent_private_directory_suffixes) | list }}"
-  loop_control:
-    label: "{{ item.0.name }}:{{ item.1 | default('home', true) }}"
-  vars:
-    jenkins_agent_private_directory_suffixes:
-      - ""
-      - workspace
-      - tmp
-
-- name: Create Jenkins agent configuration directory
-  ansible.builtin.file:
-    path: "{{ jenkins_agent_config_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Create Jenkins agent secret directories
-  ansible.builtin.file:
-    path: "{{ jenkins_agent_config_dir }}/{{ item.name }}"
-    state: directory
-    owner: root
-    group: "{{ item.name }}"
-    mode: "0750"
-  loop: "{{ jenkins_agent_instances }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Deploy Jenkins agent connection secrets
-  ansible.builtin.copy:
-    content: "{{ item.secret }}\n"
-    dest: "{{ jenkins_agent_config_dir }}/{{ item.name }}/secret"
-    owner: root
-    group: "{{ item.name }}"
-    mode: "0440"
-  loop: "{{ jenkins_agent_instances }}"
-  loop_control:
-    label: "{{ item.name }}"
+  register: jenkins_agent_existing_accounts
+  changed_when: false
+  failed_when: jenkins_agent_existing_accounts.rc not in [0, 2]
   no_log: true
-  notify: Restart Jenkins agent services
 
-- name: Deploy Jenkins agent systemd service template
-  ansible.builtin.template:
-    src: jenkins-agent.service.j2
-    dest: /etc/systemd/system/jenkins-agent@.service
+- name: Refuse conflicting existing account ownership
+  ansible.builtin.assert:
+    that:
+      - item.rc == 2 or (item.stdout.split(':')[2] | int > 0 and item.stdout.split(':')[5] == jenkins_agent_base_dir + '/' + item.item.name)
+  loop: "{{ jenkins_agent_existing_accounts.results }}"
+  no_log: true
+
+- name: Inspect runner before staging to distinguish first activation
+  ansible.builtin.command:
+    argv: [systemctl, is-active, jenkins-job-runner.service]
+  register: jenkins_agent_runner_before_staging
+  changed_when: false
+  failed_when: jenkins_agent_runner_before_staging.rc not in [0, 3, 4]
+
+- name: Refuse staging over an active runtime without activation authorization
+  ansible.builtin.assert:
+    that:
+      - jenkins_agent_runner_before_staging.rc != 0 or jenkins_agent_activate | bool
+    fail_msg: Stop the runtime through approved maintenance before staging with activate=false.
+
+- name: Create persistent runner registry
+  ansible.builtin.file:
+    path: /var/lib/jenkins-agent-control
+    state: directory
     owner: root
     group: root
-    mode: "0644"
-  notify: Restart Jenkins agent services
+    mode: "0700"
 
-- name: Enable and start Jenkins agent services
-  ansible.builtin.systemd:
-    name: "jenkins-agent@{{ item.name }}"
-    enabled: true
-    state: started
-    daemon_reload: true
-  loop: "{{ jenkins_agent_instances }}"
-  loop_control:
-    label: "{{ item.name }}"
+- name: Mark agent configuration as incomplete during staging
+  ansible.builtin.copy:
+    content: "staging\n"
+    dest: /var/lib/jenkins-agent-control/agent-update-incomplete
+    owner: root
+    group: root
+    mode: "0600"
+  changed_when: false
+
+- name: Stage the peer runtime with a persistent failure fence
+  block:
+    - name: Apply the complete peer runtime configuration
+      ansible.builtin.include_tasks: runtime.yml
+
+    - name: Mark the peer runtime configuration as complete
+      ansible.builtin.file:
+        path: /var/lib/jenkins-agent-control/agent-update-incomplete
+        state: absent
+      changed_when: false
+
+    - name: Enable runner before remoting
+      ansible.builtin.systemd:
+        name: jenkins-job-runner.socket
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: jenkins_agent_activate | bool and jenkins_agent_runner_before_staging.rc != 0
+
+    - name: Start the reconciled runner on first activation
+      ansible.builtin.systemd:
+        name: jenkins-job-runner.service
+        enabled: true
+        state: started
+      when: jenkins_agent_activate | bool and jenkins_agent_runner_before_staging.rc != 0
+
+    - name: Enable and start Jenkins agent services
+      ansible.builtin.systemd:
+        name: "jenkins-agent@{{ item.name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop: "{{ jenkins_agent_instances }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: jenkins_agent_activate | bool and jenkins_agent_runner_before_staging.rc != 0
+      no_log: true
+
+    - name: Inspect remoting services for asynchronous reconciliation
+      ansible.builtin.command:
+        argv: [systemctl, is-active, "jenkins-agent@{{ item.name }}.service"]
+      loop: "{{ jenkins_agent_instances }}"
+      register: jenkins_agent_remoting_states
+      changed_when: false
+      failed_when: jenkins_agent_remoting_states.rc not in [0, 3, 4]
+      when: jenkins_agent_activate | bool and jenkins_agent_runner_before_staging.rc == 0
+
+    - name: Queue maintenance to reconcile stopped remoting services
+      ansible.builtin.copy:
+        content: "pending\n"
+        dest: /var/lib/jenkins-agent-control/agent-update-pending
+        owner: root
+        group: root
+        mode: "0600"
+      when:
+        - jenkins_agent_activate | bool and jenkins_agent_runner_before_staging.rc == 0
+        - jenkins_agent_remoting_states.results | rejectattr('rc', 'equalto', 0) | list | length > 0
+  rescue:
+    - name: Stop all remoting identities after partial configuration
+      ansible.builtin.command:
+        argv: [systemctl, stop, 'jenkins-agent@iac-plan.service', 'jenkins-agent@iac-deploy.service', 'jenkins-agent@iac-apps.service']
+      changed_when: true
+      failed_when: false
+
+    - name: Fence admissions after partial agent configuration
+      ansible.builtin.copy:
+        content: '{"reason":"agent configuration failed; rerun the approved configuration before verify-and-release"}'
+        dest: /var/lib/jenkins-agent-control/quarantine.json
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Refuse activation of a partially configured peer
+      ansible.builtin.fail:
+        msg: Agent configuration failed and persistent quarantine remains in force.

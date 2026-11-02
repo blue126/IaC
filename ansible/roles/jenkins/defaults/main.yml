@@ -11,6 +11,10 @@ jenkins_systemd_override_dir: /etc/systemd/system/jenkins.service.d
 # Controller lifecycle gates. All must be explicitly enabled for a planned
 # JCasC/plugin change after backup and peer-watchdog preparation.
 jenkins_manage_casc: false
+jenkins_controller_bootstrap_install_authorized: false
+jenkins_controller_mode: bootstrap
+jenkins_controller_evidence_path: /var/lib/jenkins-recovery/evidence.json
+jenkins_controller_gate_policy_path: /etc/jenkins-recovery/gate-policy.json
 jenkins_controller_change_authorized: false
 jenkins_controller_watchdog_ready: false
 jenkins_controller_restore_tested_backup_ready: false
@@ -28,6 +32,12 @@ jenkins_casc_nodes:
     description: Isolated trusted mutation executor
     labels: iac-deploy
     remote_fs: /var/lib/jenkins-agent/iac-deploy
+    executors: 1
+
+  - name: iac-apps
+    description: Isolated private application executor
+    labels: iac-apps
+    remote_fs: /var/lib/jenkins-agent/iac-apps
     executors: 1
 
 # Legacy bootstrap Java for the guarded 2.541.1 upgrade source.

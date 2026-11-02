@@ -67,6 +67,7 @@ for directory, subdirs, filenames in os.walk(ansible_root):
 PY
 
 "${PYTHON_BIN}" "${REPOSITORY_ROOT}/tests/ci/ansible-shell-tasks-test.py"
+"${PYTHON_BIN}" "${REPOSITORY_ROOT}/tests/ci/jenkins-role-fixture-test.py"
 
 (
   cd "${ANSIBLE_ROOT}"

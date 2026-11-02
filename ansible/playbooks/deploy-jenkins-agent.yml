@@ -14,13 +14,14 @@
   tags: [verify]
   tasks:
     - name: Read Jenkins agent account IDs
+      check_mode: false
       ansible.builtin.command: "id -u {{ item }}"
       loop:
         - iac-plan
         - iac-deploy
+        - iac-apps
       register: jenkins_agent_account_ids
       changed_when: false
-      check_mode: false
 
     - name: Assert Jenkins agent accounts are non-root
       ansible.builtin.assert:
@@ -30,11 +31,16 @@
       loop_control:
         label: "{{ item.item }}"
 
+    - name: Assert all three peer identities have distinct Unix IDs
+      ansible.builtin.assert:
+        that:
+          - jenkins_agent_account_ids.results | map(attribute='stdout') | unique | length == 3
+
     - name: Check Jenkins agent private directories
       ansible.builtin.stat:
         path: >-
           /var/lib/jenkins-agent/{{ item.0 }}{{ '/' + item.1 if item.1 else '' }}
-      loop: "{{ ['iac-plan', 'iac-deploy'] | product(['', 'workspace', 'tmp']) | list }}"
+      loop: "{{ ['iac-plan', 'iac-deploy', 'iac-apps'] | product(['', 'workspace', 'tmp']) | list }}"
       loop_control:
         label: "{{ item.0 }}:{{ item.1 | default('home', true) }}"
       register: jenkins_agent_directory_stats
@@ -56,6 +62,7 @@
       loop:
         - iac-plan
         - iac-deploy
+        - iac-apps
       register: jenkins_agent_service_status
 
     - name: Assert Jenkins agent services are active
@@ -66,11 +73,85 @@
       loop: "{{ jenkins_agent_service_status.results }}"
       loop_control:
         label: "{{ item.item }}"
+      when: jenkins_agent_activate | default(false) | bool
+
+    - name: Assert staged Jenkins agent services are not running
+      ansible.builtin.assert:
+        that:
+          - >-
+            item.status.LoadState == 'not-found' or
+            (item.status.LoadState == 'loaded' and item.status.ActiveState == 'inactive' and
+             item.status.MainPID | default(-1) | int == 0)
+      loop: "{{ jenkins_agent_service_status.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: not jenkins_agent_activate | default(false) | bool
+
+    - name: Check staged Jenkins runtime installation files
+      ansible.builtin.stat:
+        path: "{{ item.path }}"
+      loop:
+        - path: /etc/systemd/system/jenkins-agent@.service
+          mode: '0644'
+        - path: /etc/systemd/system/jenkins-job-runner.service
+          mode: '0644'
+        - path: /etc/systemd/system/jenkins-job-runner.socket
+          mode: '0644'
+        - path: "{{ jenkins_agent_jar_path | default('/opt/jenkins-agent/agent.jar') }}"
+          mode: '0555'
+      register: jenkins_agent_staged_installation
+      when: not jenkins_agent_activate | default(false) | bool
+
+    - name: Assert staged Jenkins runtime files are installed and protected
+      ansible.builtin.assert:
+        that:
+          - item.stat.isreg | default(false)
+          - item.stat.pw_name | default('') == 'root'
+          - item.stat.gr_name | default('') == 'root'
+          - item.stat.mode | default('') == item.item.mode
+      loop: "{{ jenkins_agent_staged_installation.results }}"
+      loop_control:
+        label: "{{ item.item.path }}"
+      when: not jenkins_agent_activate | default(false) | bool
+
+    - name: Check staged Jenkins admission service and socket
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+      loop:
+        - jenkins-job-runner.service
+        - jenkins-job-runner.socket
+      register: jenkins_agent_staged_control_status
+      when: not jenkins_agent_activate | default(false) | bool
+
+    - name: Assert staged Jenkins admission cannot accept jobs
+      ansible.builtin.assert:
+        that:
+          - >-
+            item.status.LoadState == 'not-found' or
+            (item.status.LoadState == 'loaded' and item.status.ActiveState == 'inactive' and
+             item.status.SubState == 'dead' and
+             (item.item == 'jenkins-job-runner.socket' or item.status.MainPID | default(-1) | int == 0))
+      loop: "{{ jenkins_agent_staged_control_status.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: not jenkins_agent_activate | default(false) | bool
+
+    - name: Check staged Jenkins remoting readiness marker
+      ansible.builtin.stat:
+        path: /run/jenkins-agent-remoting-ready
+      register: jenkins_agent_staged_remoting_ready
+      when: not jenkins_agent_activate | default(false) | bool
+
+    - name: Assert staged Jenkins remoting is not admitted
+      ansible.builtin.assert:
+        that:
+          - not jenkins_agent_staged_remoting_ready.stat.exists
+      when: not jenkins_agent_activate | default(false) | bool
 
     - name: Check plan identity privilege boundaries
       ansible.builtin.shell: |
-        set -o pipefail
-        ! id -nG | tr ' ' '\n' | grep -Eq '^(sudo|docker)$'
+        set -euo pipefail
+        if id -nG | tr ' ' '\n' | grep -Eq '^(sudo|docker)$'; then exit 1; fi
         [[ ! -r /var/run/docker.sock && ! -w /var/run/docker.sock ]]
       args:
         executable: /bin/bash

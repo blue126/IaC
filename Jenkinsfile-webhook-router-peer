@@ -1,0 +1,123 @@
+pipeline {
+    agent none
+    options { skipDefaultCheckout(true) }
+    parameters {
+        string(name: 'MANUAL_PLATFORM', defaultValue: '', description: 'Manual platform override (proxmox/physical; ESXi retired)')
+        string(name: 'MANUAL_OBJECT_ID', defaultValue: '', description: 'Manual object ID for testing')
+        string(name: 'MANUAL_OBJECT_NAME', defaultValue: '', description: 'Manual object name for testing')
+    }
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'netbox_event', value: '$.event'],
+                [key: 'netbox_model', value: '$.model'],
+                [key: 'netbox_object_id', value: '$.data.id'],
+                [key: 'netbox_object_name', value: '$.data.name'],
+                [key: 'infrastructure_platform', value: '$.data.custom_fields.infrastructure_platform'],
+                [key: 'automation_level', value: '$.data.custom_fields.automation_level']
+            ],
+            tokenCredentialId: 'netbox-webhook-token',
+            regexpFilterExpression: '^(virtualmachine|device)$',
+            regexpFilterText: '$netbox_model'
+        )
+    }
+    stages {
+        stage('Validate Payload') {
+            steps {
+                script {
+                    def startTime = System.currentTimeMillis()
+                    env.ROUTER_START_TIME = startTime.toString()
+
+                    // Support manual trigger for testing
+                    if (params.MANUAL_PLATFORM) {
+                        env.PLATFORM = params.MANUAL_PLATFORM
+                        env.netbox_object_id = params.MANUAL_OBJECT_ID ?: '0'
+                        env.netbox_object_name = params.MANUAL_OBJECT_NAME ?: 'manual-test'
+                        env.automation_level = 'fully_automated'
+                        env.netbox_event = 'manual-trigger'
+                        env.netbox_model = 'manual'
+                        echo "Manual trigger mode: Platform=${env.PLATFORM}"
+                    } else {
+                        // Variables already extracted by GenericTrigger — no readJSON needed
+                        env.PLATFORM = env.infrastructure_platform
+                    }
+
+                    // Log routing decision
+                    echo "========== ROUTING DECISION =========="
+                    echo "Platform: ${env.PLATFORM}"
+                    echo "Automation Level: ${env.automation_level}"
+                    echo "NetBox Object ID: ${env.netbox_object_id}"
+                    echo "NetBox Object Name: ${env.netbox_object_name}"
+                    echo "Event: ${env.netbox_event}"
+                    echo "Model: ${env.netbox_model}"
+                    echo "======================================"
+
+                    // Validate platform field exists
+                    if (!env.PLATFORM) {
+                        error "Missing infrastructure_platform custom field"
+                    }
+
+                    // Validate platform value
+                    def validPlatforms = ['proxmox', 'physical']
+                    if (!validPlatforms.contains(env.PLATFORM)) {
+                        error "Unknown platform: ${env.PLATFORM}. Expected: ${validPlatforms.join(', ')}"
+                    }
+                    echo "✓ Platform validation passed: ${env.PLATFORM}"
+                }
+            }
+        }
+        stage('Route to Platform Pipeline') {
+            steps {
+                script {
+                    // Route to platform-specific pipeline
+                    switch(env.PLATFORM) {
+                        case 'proxmox':
+                            echo "→ Routing to Proxmox-Provisioning"
+                            build job: 'Proxmox-Provisioning', parameters: [
+                                string(name: 'NETBOX_EVENT', value: env.netbox_event),
+                                string(name: 'NETBOX_VM_ID', value: env.netbox_object_id),
+                                string(name: 'NETBOX_VM_NAME', value: env.netbox_object_name),
+                                string(name: 'PLATFORM', value: 'proxmox'),
+                                string(name: 'AUTOMATION_LEVEL', value: env.automation_level)
+                            ], wait: false
+                            break
+                        case 'physical':
+                            echo "→ Routing to Physical-Device-Sync"
+                            build job: 'Physical-Device-Sync', parameters: [
+                                string(name: 'NETBOX_EVENT', value: env.netbox_event),
+                                string(name: 'NETBOX_DEVICE_ID', value: env.netbox_object_id),
+                                string(name: 'NETBOX_DEVICE_NAME', value: env.netbox_object_name),
+                                string(name: 'PLATFORM', value: 'physical'),
+                                string(name: 'AUTOMATION_LEVEL', value: env.automation_level)
+                            ], wait: false
+                            break
+                        default:
+                            error "Unhandled platform: ${env.PLATFORM}"
+                    }
+
+                    // Performance measurement
+                    def endTime = System.currentTimeMillis()
+                    def duration = (endTime - Long.parseLong(env.ROUTER_START_TIME)) / 1000
+                    echo "✓ Router decision time: ${duration}s (limit: 10s)"
+                    if (duration >= 10) {
+                        echo "⚠ Warning: Router decision time exceeded 10s"
+                    }
+                }
+            }
+        }
+    }
+    post {
+        failure {
+            echo "❌ Router Pipeline FAILED"
+            echo "Platform: ${env.PLATFORM}"
+            echo "NetBox Object: ${env.netbox_object_name} (ID: ${env.netbox_object_id})"
+            echo "Event: ${env.netbox_event} ${env.netbox_model}"
+            // Future enhancement: Send notification to Slack/Email
+        }
+        success {
+            echo "✓ Router Pipeline completed successfully"
+            echo "Event: ${env.netbox_event} ${env.netbox_model}"
+            echo "Routed ${env.netbox_object_name} to ${env.PLATFORM} pipeline"
+        }
+    }
+}

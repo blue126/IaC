@@ -1,0 +1,10 @@
+[Unit]
+Description=Peer job admission socket
+
+[Socket]
+ListenStream=/run/jenkins-job-runner.sock
+SocketMode=0666
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

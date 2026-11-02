@@ -1,0 +1,26 @@
+[Unit]
+Description=Root peer admission and cleanup monitor
+Requires=jenkins-job-runner.socket
+After=jenkins-job-runner.socket
+Before=jenkins-agent@iac-plan.service jenkins-agent@iac-deploy.service jenkins-agent@iac-apps.service
+
+[Service]
+Slice=jenkins-control.slice
+Type=notify
+NotifyAccess=main
+Sockets=jenkins-job-runner.socket
+User=root
+UMask=0077
+ExecStartPre=/usr/bin/rm -f /run/jenkins-agent-remoting-ready
+ExecStopPost=/usr/bin/rm -f /run/jenkins-agent-remoting-ready
+ExecStart=/usr/bin/python3 /opt/jenkins-agent/control/job-runner.py serve
+Restart=on-failure
+RestartSec=5
+MemoryMax=128M
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/jenkins-agent-control /run /sys/fs/cgroup {{ jenkins_agent_base_dir }}/iac-plan {{ jenkins_agent_base_dir }}/iac-deploy {{ jenkins_agent_base_dir }}/iac-apps
+
+[Install]
+WantedBy=multi-user.target

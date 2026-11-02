@@ -1,0 +1,200 @@
+---
+- name: Require separate watchdog deployment authorization
+  ansible.builtin.assert:
+    that:
+      - jenkins_watchdog_install_authorized | bool
+      - jenkins_watchdog_policy | length > 0
+      - jenkins_recovery_controller_policy | length > 0
+      - jenkins_recovery_authorized_key | length > 0
+      - jenkins_recovery_known_hosts | length > 0
+
+- name: Install recovery material validation prerequisites after authorization
+  ansible.builtin.apt:
+    name: [ca-certificates, openssl, openssh-client, python3]
+    state: present
+    update_cache: false
+
+- name: Validate recovery identity and binding names before writing secrets
+  ansible.builtin.command:
+    argv: [/usr/bin/python3, '-c', "{{ lookup('file', role_path + '/../../../scripts/jenkins/validate-materials.py') | replace('from control import Refused', 'class Refused(ValueError): pass') }}"]
+    stdin: "{{ {'kind': 'watchdog', 'public': jenkins_recovery_authorized_key, 'private': jenkins_recovery_private_key | default(''), 'peer_bindings': jenkins_watchdog_peer_bindings, 'controller_bindings': jenkins_watchdog_controller_bindings} | to_json }}"
+  changed_when: false
+  no_log: true
+
+- name: Create root-owned peer watchdog directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: [/opt/jenkins-watchdog, /etc/jenkins-watchdog, /var/lib/jenkins-agent-control]
+
+- name: Create isolated restore drill account
+  ansible.builtin.user:
+    name: jenkins-drill
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Deploy trusted peer watchdog code
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../scripts/jenkins/{{ item }}"
+    dest: "/opt/jenkins-watchdog/{{ item }}"
+    owner: root
+    group: root
+    mode: "0500"
+  loop: [control.py, watchdog.py, controller-maintenance.py]
+
+- name: Deploy root-only peer watchdog policy
+  ansible.builtin.copy:
+    content: "{{ jenkins_watchdog_policy | to_nice_json }}"
+    dest: /etc/jenkins-watchdog/policy.json
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Deploy Vault-backed peer maintenance bindings
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "/etc/jenkins-watchdog/{{ item.filename }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ jenkins_watchdog_peer_bindings }}"
+  no_log: true
+
+- name: Deploy dedicated recovery SSH identity
+  ansible.builtin.copy:
+    content: "{{ jenkins_recovery_private_key }}"
+    dest: /etc/jenkins-watchdog/recovery.key
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Deploy verified controller host key
+  ansible.builtin.copy:
+    content: "{{ jenkins_recovery_known_hosts }}\n"
+    dest: /etc/jenkins-watchdog/known_hosts
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy independent watchdog unit
+  ansible.builtin.template:
+    src: jenkins-watchdog.service.j2
+    dest: /etc/systemd/system/jenkins-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create root-owned controller recovery paths
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: [/opt/jenkins-recovery, /etc/jenkins-recovery, /var/lib/jenkins-recovery]
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Deploy argument-fixed controller helper
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../scripts/jenkins/{{ item }}"
+    dest: "/opt/jenkins-recovery/{{ item }}"
+    owner: root
+    group: root
+    mode: "0500"
+  loop: [control.py, controller-maintenance.py]
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Deploy controller helper trust policy
+  ansible.builtin.copy:
+    content: "{{ jenkins_recovery_controller_policy | to_nice_json }}"
+    dest: /etc/jenkins-recovery/policy.json
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Deploy Vault-backed controller recovery bindings
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "/etc/jenkins-recovery/{{ item.filename }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ jenkins_watchdog_controller_bindings }}"
+  no_log: true
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Create restricted controller recovery account
+  ansible.builtin.user:
+    name: jenkins-recovery
+    create_home: true
+    shell: /bin/sh
+    password_lock: true
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Prevent recovery identity from replacing forced-command keys
+  ansible.builtin.file:
+    path: /home/jenkins-recovery
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Create root-owned forced-command key directory
+  ansible.builtin.file:
+    path: /home/jenkins-recovery/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Restrict recovery SSH to the fixed root helper and CT110 source
+  ansible.builtin.copy:
+    content: >-
+      restrict,from="192.168.1.110",command="sudo -n /opt/jenkins-recovery/controller-maintenance.py helper"
+      {{ jenkins_recovery_authorized_key }}
+    dest: /home/jenkins-recovery/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Permit only the argument-fixed recovery helper
+  ansible.builtin.copy:
+    content: "jenkins-recovery ALL=(root) NOPASSWD: /opt/jenkins-recovery/controller-maintenance.py helper\n"
+    dest: /etc/sudoers.d/jenkins-recovery
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  delegate_to: "{{ jenkins_recovery_controller }}"
+
+- name: Validate controller helper key material before activation
+  ansible.builtin.command:
+    argv: [/usr/bin/python3, /opt/jenkins-recovery/controller-maintenance.py, check-policy]
+  changed_when: false
+  delegate_to: "{{ jenkins_recovery_controller }}"
+  when: jenkins_watchdog_activate | bool
+
+- name: Validate maintenance key material before activation
+  ansible.builtin.command:
+    argv: [/usr/bin/python3, /opt/jenkins-watchdog/watchdog.py, check-policy]
+  changed_when: false
+  when: jenkins_watchdog_activate | bool
+
+- name: Activate independent watchdog
+  ansible.builtin.systemd:
+    name: jenkins-watchdog.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: jenkins_watchdog_activate | bool

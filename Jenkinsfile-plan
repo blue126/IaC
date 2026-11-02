@@ -1,0 +1,40 @@
+pipeline {
+    agent none
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
+    }
+    parameters {
+        choice(name: 'ROOT', choices: ['proxmox'], description: 'Reviewed projection root')
+    }
+    stages {
+        stage('Read-only prediction') {
+            agent { label 'iac-plan' }
+            steps {
+                script {
+                    def wrapper = '/usr/bin/python3 /opt/jenkins-agent/control/runner-client.py'
+                    def parse = { text -> new groovy.json.JsonSlurperClassic().parseText(text) }
+                    def run = parse(sh(script: "${wrapper} start", returnStdout: true).trim())
+                    env.PEER_NONCE = run.nonce
+                    try {
+                        while (true) {
+                            def status = parse(sh(script: "${wrapper} status --nonce ${env.PEER_NONCE}", returnStdout: true).trim())
+                            if (status.status == 'failed' || status.status == 'refused') { error 'Prediction failed, became stale or peer was quarantined' }
+                            if (status.status == 'completed') {
+                                if (status.exit_code != 0) { error 'Prediction did not complete' }
+                                echo groovy.json.JsonOutput.toJson(status.summary)
+                                echo groovy.json.JsonOutput.toJson(status.prediction)
+                                break
+                            }
+                            sleep time: 3, unit: 'SECONDS'
+                        }
+                    } catch (failure) {
+                        sh(script: "${wrapper} abort --nonce ${env.PEER_NONCE}", returnStatus: true)
+                        throw failure
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,132 @@
+---
+- name: Require explicit gateway installation authorization
+  ansible.builtin.assert:
+    that:
+      - jenkins_plan_gateway_install_authorized | bool
+      - jenkins_plan_gateway_policy | length > 0
+      - jenkins_plan_gateway_producer_policy | length > 0
+      - jenkins_admission_policy | length > 0
+    fail_msg: Root-owned gateway policy and separate deployment authorization are required.
+
+- name: Install gateway material validation prerequisites after authorization
+  ansible.builtin.apt:
+    name: [ca-certificates, openssl, openssh-client, python3]
+    state: present
+    update_cache: false
+
+- name: Validate gateway and admission TLS before writing bindings
+  ansible.builtin.command:
+    argv: [/usr/bin/python3, '-c', "{{ lookup('file', role_path + '/../../../scripts/jenkins/validate-materials.py') | replace('from control import Refused', 'class Refused(ValueError): pass') }}"]
+    stdin: "{{ {'kind': 'gateway', 'policies': [{'certificate': jenkins_plan_gateway_tls_certificate, 'private_key': jenkins_plan_gateway_tls_key, 'ca': jenkins_plan_gateway_tls_ca}, jenkins_admission_policy | combine({'ca': jenkins_admission_policy.server_ca | default('')})], 'bindings': jenkins_plan_gateway_secret_files} | to_json }}"
+  changed_when: false
+  no_log: true
+
+- name: Create private controller gateway directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: [/etc/jenkins-plan-gateway, /var/lib/jenkins-plan-gateway, /opt/jenkins-plan-gateway]
+
+- name: Deploy trusted gateway control code
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../scripts/jenkins/{{ item }}"
+    dest: "/opt/jenkins-plan-gateway/{{ item }}"
+    owner: root
+    group: root
+    mode: "0500"
+  loop: [control.py, plan-gateway.py, plan-snapshot.py, proxmox-projection.py]
+
+- name: Deploy root-owned gateway policies
+  ansible.builtin.copy:
+    content: "{{ item.value | to_nice_json }}"
+    dest: "/etc/jenkins-plan-gateway/{{ item.name }}.json"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - name: broker
+      value: "{{ jenkins_plan_gateway_policy }}"
+    - name: producer
+      value: "{{ jenkins_plan_gateway_producer_policy }}"
+  no_log: true
+
+- name: Deploy gateway service
+  ansible.builtin.template:
+    src: jenkins-plan-gateway.service.j2
+    dest: /etc/systemd/system/jenkins-plan-gateway.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create root-owned admission service paths
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop: [/etc/jenkins-control, /var/lib/jenkins-control]
+
+- name: Deploy trusted admission control code
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../scripts/jenkins/{{ item }}"
+    dest: "/opt/jenkins-plan-gateway/{{ item }}"
+    owner: root
+    group: root
+    mode: "0500"
+  loop: [controller-admission.py, toolchain.py, peer-preflight.py]
+
+- name: Deploy authoritative provider schema and finite source policy
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../ci/{{ item }}"
+    dest: "/etc/jenkins-plan-gateway/{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: [agent-provider-schema.json, proxmox-plan-policy.json]
+
+- name: Deploy root-only admission policy
+  ansible.builtin.copy:
+    content: "{{ jenkins_admission_policy | to_nice_json }}"
+    dest: /etc/jenkins-control/admission.json
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Deploy Vault-backed controller service bindings
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ jenkins_plan_gateway_secret_files }}"
+  no_log: true
+
+- name: Deploy independent controller admission unit
+  ansible.builtin.template:
+    src: jenkins-admission.service.j2
+    dest: /etc/systemd/system/jenkins-admission.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Activate verified admission service
+  ansible.builtin.systemd:
+    name: jenkins-admission
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: jenkins_plan_gateway_activate | bool
+
+- name: Activate verified gateway
+  ansible.builtin.systemd:
+    name: jenkins-plan-gateway
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: jenkins_plan_gateway_activate | bool

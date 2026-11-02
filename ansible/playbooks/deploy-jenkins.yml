@@ -33,25 +33,25 @@
         fail_msg: "Jenkins service is not running"
 
     - name: Test Jenkins HTTP accessibility
+      check_mode: false
       ansible.builtin.uri:
         url: http://localhost:8080/login
         status_code: 200
         timeout: 10
       register: http_check
-      check_mode: false
       ignore_errors: yes
 
     - name: Verify Terraform is installed
+      check_mode: false
       ansible.builtin.command: terraform version
       register: terraform_check
       changed_when: false
-      check_mode: false
 
     - name: Verify Ansible is installed
+      check_mode: false
       ansible.builtin.command: ansible --version
       register: ansible_check
       changed_when: false
-      check_mode: false
 
     - name: Load CI toolchain BOM for verification
       ansible.builtin.include_vars:
@@ -65,6 +65,7 @@
       loop:
         - iac-plan
         - iac-deploy
+        - iac-apps
       register: jenkins_casc_node_files
       when: jenkins_manage_casc | bool
 
@@ -80,7 +81,7 @@
 
     - name: Verify JCasC-managed Jenkins node boundaries
       ansible.builtin.shell: |
-        set -o pipefail
+        set -euo pipefail
         grep -F '<numExecutors>1</numExecutors>' "{{ item.config }}" >/dev/null
         grep -F '<mode>EXCLUSIVE</mode>' "{{ item.config }}" >/dev/null
         grep -F '<remoteFS>{{ item.remote_fs }}</remoteFS>' "{{ item.config }}" >/dev/null
@@ -93,17 +94,20 @@
         - name: iac-deploy
           config: /var/lib/jenkins/nodes/iac-deploy/config.xml
           remote_fs: /var/lib/jenkins-agent/iac-deploy
+        - name: iac-apps
+          config: /var/lib/jenkins/nodes/iac-apps/config.xml
+          remote_fs: /var/lib/jenkins-agent/iac-apps
       loop_control:
         label: "{{ item.name }}"
       changed_when: false
       when: jenkins_manage_casc | bool
 
-    - name: Verify controller executor bootstrap count
+    - name: Verify controller executor mode
       ansible.builtin.command:
         argv:
           - grep
           - -F
-          - "<numExecutors>{{ ci_toolchain_bom.jenkins.controller_executors_bootstrap }}</numExecutors>"
+          - "<numExecutors>{{ ci_toolchain_bom.jenkins.controller_executors_bootstrap if (jenkins_controller_mode | default('bootstrap')) == 'bootstrap' else 0 }}</numExecutors>"
           - /var/lib/jenkins/config.xml
       changed_when: false
       when: jenkins_manage_casc | bool

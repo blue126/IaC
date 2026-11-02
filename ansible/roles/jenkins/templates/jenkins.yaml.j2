@@ -1,5 +1,5 @@
 jenkins:
-  numExecutors: {{ ci_toolchain_bom.jenkins.controller_executors_bootstrap }}
+  numExecutors: {{ ci_toolchain_bom.jenkins.controller_executors_bootstrap if jenkins_controller_mode == "bootstrap" else 0 }}
   nodes:
 {% for node in jenkins_casc_nodes %}
     - permanent:

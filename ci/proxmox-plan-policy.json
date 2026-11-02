@@ -1,0 +1,1345 @@
+{
+  "schema": 1,
+  "root": "proxmox",
+  "source_files": {
+    "proxmox/anki.tf": "e123868227540c0f0ed75e1556399bbbb5b3e69cd3befb5322b80cbcfcefb504",
+    "proxmox/caddy.tf": "66469c440dabfb513a76f20d3bfa36733eeb38ef0321d552d08c9c86f1fc1448",
+    "proxmox/container-lab.tf": "c1fe42a280139149d1eb26fbbca01b66ad7ca07ee12aa3710abf0ee07ff66d9e",
+    "proxmox/ct120.tf": "8877bf8e6a6151c83452cede2b802166a022212d3ef8d63a5720846f7daabbe5",
+    "proxmox/employee-access.tf": "cfeae73dbf65db2e060be146d2c3f0282d0c750b3b1714e04af836e2747c9684",
+    "proxmox/employee-template.tf": "20604f789d984f67e4245d1b5fac539721e913dc5c3799c276d34f811bf20ea3",
+    "proxmox/employee-workspace-oci-adoption.tf": "b0a63e6dba49354da0e865867bb1699e66a784f3660647e70f6c75e5672bce0e",
+    "proxmox/employee-workspace.tf": "3384f46308bfc3074c35c71cbd6c0ffd429a5c8a5e0fc4d0c523ff86a8d4dc11",
+    "proxmox/fileserver.tf": "e6b2d3650f58232d009a4b3679c2e594f5a0a4492156b98ae60351afe231b8a8",
+    "proxmox/homepage.tf": "b3f10f7868ff94cbcdcca3988395ab5a28f4b6014fa5888da2485828677c1cd9",
+    "proxmox/immich.tf": "2b746443ba3dfdf3e81b26fccdcdbcadf5e6beaf32083c8c3e52a6717cb042e9",
+    "proxmox/jenkins-agent.tf": "c72d4b556023ea83b39e558c0fd6d83743ecf679523fd5ed9d8b42ceb6b4c321",
+    "proxmox/jenkins.tf": "797d536b04d0bf3a57f2ad779e333811147cfc3e1f95b23c0c4faf7250729bdc",
+    "proxmox/main.tf": "2d18e6f35f736123d4036ff284b3281e5fe1ef3424f795c4fdfadd1b20ede0e7",
+    "proxmox/mcp-gateway.tf": "6e2ed85582dbf7eaf7a9f8191ef3ee09c6662465d0c148cd3857b9d7fa6ab9a4",
+    "proxmox/n8n.tf": "5c4adfbb3d483c1d780e84e3debce509453da6c5e4bcbffef9b19683839c16bc",
+    "proxmox/netbox.tf": "49731864a8fcad019a0589259f72f8b9ce8400522d38aa0e27e64bfb31b751d9",
+    "proxmox/oci-hub-workspace.tf": "1cf06b49cbaf1d6f40fbf4bb0fb430f4c4df37d4af4d34eef6fb2d25f78b781b",
+    "proxmox/openbao-testbed.tf": "1e721a6b5e18646274cb3de20f7df5c5303bc257388e2cc1d4b9e5dc9b98a301",
+    "proxmox/pbs.tf": "05bbd1186b57eaa1ae8a749d44eaaebc548e47a8de49e2fda81cc605fa569269",
+    "proxmox/pdm.tf": "4ff58fed3064f5392acd1bc2bca44c167670ad96b9f5c7c3f7c94454371b6f5a",
+    "proxmox/pnetlab.tf": "55deca1dde6d1f0580d6257cb1e1ef7958e7183809c5020922b9b6f69d9e7be0",
+    "proxmox/provider.tf": "4f42656b09e2f88df4caf52dbb03c5a872ba6187f9f9bae983d024577a82d363",
+    "proxmox/provisioning.tf": "140e48213de616af6646e3f8979380f18871f44592b4e9b9b9d70e43740f7189",
+    "proxmox/pve-cluster.tf": "20bfe065c9384dc9b1258d185af6499cd3052990cb82af62b68b4c0e74ddf716",
+    "proxmox/rustdesk.tf": "91dfafd3de53c378aaf57473a83208c5381c0a19d63085ce8efdc8c037c47dad",
+    "proxmox/variables.tf": "d2fbcd63c5a757973ec100635065a0c50b5e899385df5ebb46b2581959630738",
+    "proxmox/versions.tf": "f8f3dcc4ce4ae4bc3f6c0e8127c45e91e96df3f8f5020cc89a3611c6308c2f22",
+    "proxmox/ws-executor.tf": "96a33ed90ee577a2643181102aeb46a6295a5ea47400621fff23c206b66788b3",
+    "modules/proxmox-lxc/main.tf": "33be1cd645e9eb9d2b5d0ba9989597b43446ca668bb6d3d3c42b759a6bcbeb0e",
+    "modules/proxmox-lxc/outputs.tf": "f772a16fc1e4fbc7787e001058ec59b7fd70ec09d587d1d284ed7deb47f01c62",
+    "modules/proxmox-lxc/variables.tf": "d0016cde144e69645757231c1a73dea1873df9534565aeae523332e941204c45",
+    "modules/proxmox-vm/main.tf": "2e16a831e53fdb55a9529b491bc4ba5055236222376326e4a548e3e7df5f9a79",
+    "modules/proxmox-vm/outputs.tf": "a7d3e874dbf8a186f5f707faf860fc98274ea3a0c11cda21704571747ef010d1",
+    "modules/proxmox-vm/variables.tf": "d80aaac5251c72f05829f01b208602b806c3032800d77f400c8092dc21358f11",
+    "proxmox/employee-boundary-hook.py.tftpl": "a955736a44ecb2b6c4ff2255bf9aec0b1e4b6c845e0e148c5d944a546a587c88",
+    "proxmox/employee-workspaces.auto.tfvars.json": "48175d927544cc66a93571337bc84d31dec8ea6dbbe93761ec60fde15cc0b509",
+    "proxmox/oci-hub-workspaces.auto.tfvars.json": "26c33b7b3b831b37700683007123c6d2d251b407fb8b9cebc4c6436766966c68",
+    "proxmox/provisioning.auto.tfvars.json": "78586dc8feb160a1364bcd5c84250438dc84420edd277b3ea4b87e9e77d341ad",
+    "proxmox/terraform.auto.tfvars": "bf7c380bbfb214c5cb64ed6f54dfe33e28e53d417210706877ed34e17ebce76f"
+  },
+  "provider_aliases": {
+    "default": "https://192.168.1.107:9443",
+    "root": "https://192.168.1.107:9443",
+    "pve2": "https://192.168.1.107:9443",
+    "pve2_root": "https://192.168.1.107:9443",
+    "cloud_image": "https://192.168.1.107:9443"
+  },
+  "public_inputs": {
+    "pm_api_url": "https://192.168.1.107:9443",
+    "pm_api_url_pve2": "https://192.168.1.107:9443",
+    "sshkeys": []
+  },
+  "coverage": {
+    "status": "partial",
+    "public_domains": [
+      "vm/lxc CPU and memory",
+      "vm/lxc disks and network configuration",
+      "runtime state",
+      "download metadata",
+      "inventory public keys",
+      "reviewed bridge configuration and snippet file identity",
+      "typed employee allocation/retirement payloads and OpenBao identifiers"
+    ],
+    "blind_spots": [
+      "passwords and inventory secret values",
+      "free-form description and VM args",
+      "SSH keys",
+      "LXC raw lxc.* configuration",
+      "provider private payloads outside schema_version",
+      "nested or sensitive outputs",
+      "source_raw snippet contents",
+      "bridge comments"
+    ],
+    "provider_read_source": "https://github.com/bpg/terraform-provider-proxmox/tree/v0.70.0",
+    "live_evidence": null
+  },
+  "broker": {
+    "enabled": false,
+    "listen_ip": "192.168.1.107",
+    "upstreams": {
+      "primary": {
+        "origin": "https://192.168.1.50:8006",
+        "nodes": [
+          "pve0",
+          "pve1"
+        ],
+        "token_file": "/etc/jenkins-plan-gateway/primary.token",
+        "ca_file": "/etc/jenkins-plan-gateway/pve-ca.pem"
+      },
+      "pve2": {
+        "origin": "https://192.168.1.52:8006",
+        "nodes": [
+          "pve2"
+        ],
+        "token_file": "/etc/jenkins-plan-gateway/pve2.token",
+        "ca_file": "/etc/jenkins-plan-gateway/pve2-ca.pem"
+      }
+    },
+    "vmids": {},
+    "storages": [
+      "local",
+      "vmdata",
+      "local-lvm",
+      "mainpool"
+    ],
+    "routes": [
+      {
+        "path": "/api2/json/version",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "scalar"
+                },
+                "release": {
+                  "type": "scalar"
+                },
+                "repoid": {
+                  "type": "scalar"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "scalar"
+                  },
+                  "status": {
+                    "type": "scalar"
+                  },
+                  "id": {
+                    "type": "scalar"
+                  },
+                  "type": {
+                    "type": "scalar"
+                  },
+                  "level": {
+                    "type": "scalar"
+                  },
+                  "cpu": {
+                    "type": "scalar"
+                  },
+                  "maxcpu": {
+                    "type": "scalar"
+                  },
+                  "mem": {
+                    "type": "scalar"
+                  },
+                  "maxmem": {
+                    "type": "scalar"
+                  },
+                  "disk": {
+                    "type": "scalar"
+                  },
+                  "maxdisk": {
+                    "type": "scalar"
+                  },
+                  "uptime": {
+                    "type": "scalar"
+                  },
+                  "ssl_fingerprint": {
+                    "type": "scalar"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/lxc/[0-9]+/config",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "console": {
+                  "type": "scalar"
+                },
+                "cmode": {
+                  "type": "scalar"
+                },
+                "arch": {
+                  "type": "scalar"
+                },
+                "cores": {
+                  "type": "scalar"
+                },
+                "cpulimit": {
+                  "type": "scalar"
+                },
+                "cpuunits": {
+                  "type": "scalar"
+                },
+                "memory": {
+                  "type": "scalar"
+                },
+                "digest": {
+                  "type": "scalar"
+                },
+                "searchdomain": {
+                  "type": "scalar"
+                },
+                "nameserver": {
+                  "type": "scalar"
+                },
+                "features": {
+                  "type": "scalar"
+                },
+                "hookscript": {
+                  "type": "scalar"
+                },
+                "hostname": {
+                  "type": "scalar"
+                },
+                "lock": {
+                  "type": "scalar"
+                },
+                "dev0": {
+                  "type": "scalar"
+                },
+                "dev1": {
+                  "type": "scalar"
+                },
+                "dev2": {
+                  "type": "scalar"
+                },
+                "dev3": {
+                  "type": "scalar"
+                },
+                "dev4": {
+                  "type": "scalar"
+                },
+                "dev5": {
+                  "type": "scalar"
+                },
+                "dev6": {
+                  "type": "scalar"
+                },
+                "dev7": {
+                  "type": "scalar"
+                },
+                "mp0": {
+                  "type": "scalar"
+                },
+                "mp1": {
+                  "type": "scalar"
+                },
+                "mp2": {
+                  "type": "scalar"
+                },
+                "mp3": {
+                  "type": "scalar"
+                },
+                "mp4": {
+                  "type": "scalar"
+                },
+                "mp5": {
+                  "type": "scalar"
+                },
+                "mp6": {
+                  "type": "scalar"
+                },
+                "mp7": {
+                  "type": "scalar"
+                },
+                "net0": {
+                  "type": "scalar"
+                },
+                "net1": {
+                  "type": "scalar"
+                },
+                "net2": {
+                  "type": "scalar"
+                },
+                "net3": {
+                  "type": "scalar"
+                },
+                "net4": {
+                  "type": "scalar"
+                },
+                "net5": {
+                  "type": "scalar"
+                },
+                "net6": {
+                  "type": "scalar"
+                },
+                "net7": {
+                  "type": "scalar"
+                },
+                "ostype": {
+                  "type": "scalar"
+                },
+                "protection": {
+                  "type": "scalar"
+                },
+                "rootfs": {
+                  "type": "scalar"
+                },
+                "onboot": {
+                  "type": "scalar"
+                },
+                "startup": {
+                  "type": "scalar"
+                },
+                "swap": {
+                  "type": "scalar"
+                },
+                "tags": {
+                  "type": "scalar"
+                },
+                "template": {
+                  "type": "scalar"
+                },
+                "tty": {
+                  "type": "scalar"
+                },
+                "unprivileged": {
+                  "type": "scalar"
+                },
+                "description": {
+                  "type": "scalar",
+                  "sentinel_identity": "redacted:description"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/lxc/[0-9]+/status/current",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "cpus": {
+                  "type": "scalar"
+                },
+                "lock": {
+                  "type": "scalar"
+                },
+                "maxmem": {
+                  "type": "scalar"
+                },
+                "name": {
+                  "type": "scalar"
+                },
+                "maxdisk": {
+                  "type": "scalar"
+                },
+                "status": {
+                  "type": "scalar"
+                },
+                "maxswap": {
+                  "type": "scalar"
+                },
+                "tags": {
+                  "type": "scalar"
+                },
+                "uptime": {
+                  "type": "scalar"
+                },
+                "vmid": {
+                  "type": "scalar"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/qemu/[0-9]+/config",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "acpi": {
+                  "type": "scalar"
+                },
+                "agent": {
+                  "type": "scalar"
+                },
+                "reboot": {
+                  "type": "scalar"
+                },
+                "audio0": {
+                  "type": "scalar"
+                },
+                "autostart": {
+                  "type": "scalar"
+                },
+                "archive": {
+                  "type": "scalar"
+                },
+                "bwlimit": {
+                  "type": "scalar"
+                },
+                "bios": {
+                  "type": "scalar"
+                },
+                "bootdisk": {
+                  "type": "scalar"
+                },
+                "boot": {
+                  "type": "scalar"
+                },
+                "cdrom": {
+                  "type": "scalar"
+                },
+                "searchdomain": {
+                  "type": "scalar"
+                },
+                "nameserver": {
+                  "type": "scalar"
+                },
+                "cicustom": {
+                  "type": "scalar"
+                },
+                "citype": {
+                  "type": "scalar"
+                },
+                "ciuser": {
+                  "type": "scalar"
+                },
+                "ciupgrade": {
+                  "type": "scalar"
+                },
+                "arch": {
+                  "type": "scalar"
+                },
+                "cores": {
+                  "type": "scalar"
+                },
+                "cpu": {
+                  "type": "scalar"
+                },
+                "cpulimit": {
+                  "type": "scalar"
+                },
+                "sockets": {
+                  "type": "scalar"
+                },
+                "cpuunits": {
+                  "type": "scalar"
+                },
+                "affinity": {
+                  "type": "scalar"
+                },
+                "memory": {
+                  "type": "scalar"
+                },
+                "protection": {
+                  "type": "scalar"
+                },
+                "efidisk0": {
+                  "type": "scalar"
+                },
+                "balloon": {
+                  "type": "scalar"
+                },
+                "shares": {
+                  "type": "scalar"
+                },
+                "freeze": {
+                  "type": "scalar"
+                },
+                "hookscript": {
+                  "type": "scalar"
+                },
+                "hotplug": {
+                  "type": "scalar"
+                },
+                "hugepages": {
+                  "type": "scalar"
+                },
+                "ipconfig0": {
+                  "type": "scalar"
+                },
+                "ipconfig1": {
+                  "type": "scalar"
+                },
+                "ipconfig2": {
+                  "type": "scalar"
+                },
+                "ipconfig3": {
+                  "type": "scalar"
+                },
+                "ipconfig4": {
+                  "type": "scalar"
+                },
+                "ipconfig5": {
+                  "type": "scalar"
+                },
+                "ipconfig6": {
+                  "type": "scalar"
+                },
+                "ipconfig7": {
+                  "type": "scalar"
+                },
+                "ipconfig8": {
+                  "type": "scalar"
+                },
+                "ipconfig9": {
+                  "type": "scalar"
+                },
+                "ipconfig10": {
+                  "type": "scalar"
+                },
+                "ipconfig11": {
+                  "type": "scalar"
+                },
+                "ipconfig12": {
+                  "type": "scalar"
+                },
+                "ipconfig13": {
+                  "type": "scalar"
+                },
+                "ipconfig14": {
+                  "type": "scalar"
+                },
+                "ipconfig15": {
+                  "type": "scalar"
+                },
+                "ipconfig16": {
+                  "type": "scalar"
+                },
+                "ipconfig17": {
+                  "type": "scalar"
+                },
+                "ipconfig18": {
+                  "type": "scalar"
+                },
+                "ipconfig19": {
+                  "type": "scalar"
+                },
+                "ipconfig20": {
+                  "type": "scalar"
+                },
+                "ipconfig21": {
+                  "type": "scalar"
+                },
+                "ipconfig22": {
+                  "type": "scalar"
+                },
+                "ipconfig23": {
+                  "type": "scalar"
+                },
+                "ipconfig24": {
+                  "type": "scalar"
+                },
+                "ipconfig25": {
+                  "type": "scalar"
+                },
+                "ipconfig26": {
+                  "type": "scalar"
+                },
+                "ipconfig27": {
+                  "type": "scalar"
+                },
+                "ipconfig28": {
+                  "type": "scalar"
+                },
+                "ipconfig29": {
+                  "type": "scalar"
+                },
+                "ipconfig30": {
+                  "type": "scalar"
+                },
+                "ipconfig31": {
+                  "type": "scalar"
+                },
+                "keephugepages": {
+                  "type": "scalar"
+                },
+                "keyboard": {
+                  "type": "scalar"
+                },
+                "kvm": {
+                  "type": "scalar"
+                },
+                "localtime": {
+                  "type": "scalar"
+                },
+                "lock": {
+                  "type": "scalar"
+                },
+                "machine": {
+                  "type": "scalar"
+                },
+                "migrate_downtime": {
+                  "type": "scalar"
+                },
+                "migrate_speed": {
+                  "type": "scalar"
+                },
+                "name": {
+                  "type": "scalar"
+                },
+                "net0": {
+                  "type": "scalar"
+                },
+                "net1": {
+                  "type": "scalar"
+                },
+                "net2": {
+                  "type": "scalar"
+                },
+                "net3": {
+                  "type": "scalar"
+                },
+                "net4": {
+                  "type": "scalar"
+                },
+                "net5": {
+                  "type": "scalar"
+                },
+                "net6": {
+                  "type": "scalar"
+                },
+                "net7": {
+                  "type": "scalar"
+                },
+                "net8": {
+                  "type": "scalar"
+                },
+                "net9": {
+                  "type": "scalar"
+                },
+                "net10": {
+                  "type": "scalar"
+                },
+                "net11": {
+                  "type": "scalar"
+                },
+                "net12": {
+                  "type": "scalar"
+                },
+                "net13": {
+                  "type": "scalar"
+                },
+                "net14": {
+                  "type": "scalar"
+                },
+                "net15": {
+                  "type": "scalar"
+                },
+                "net16": {
+                  "type": "scalar"
+                },
+                "net17": {
+                  "type": "scalar"
+                },
+                "net18": {
+                  "type": "scalar"
+                },
+                "net19": {
+                  "type": "scalar"
+                },
+                "net20": {
+                  "type": "scalar"
+                },
+                "net21": {
+                  "type": "scalar"
+                },
+                "net22": {
+                  "type": "scalar"
+                },
+                "net23": {
+                  "type": "scalar"
+                },
+                "net24": {
+                  "type": "scalar"
+                },
+                "net25": {
+                  "type": "scalar"
+                },
+                "net26": {
+                  "type": "scalar"
+                },
+                "net27": {
+                  "type": "scalar"
+                },
+                "net28": {
+                  "type": "scalar"
+                },
+                "net29": {
+                  "type": "scalar"
+                },
+                "net30": {
+                  "type": "scalar"
+                },
+                "net31": {
+                  "type": "scalar"
+                },
+                "numa": {
+                  "type": "scalar"
+                },
+                "numa0": {
+                  "type": "scalar"
+                },
+                "numa1": {
+                  "type": "scalar"
+                },
+                "numa2": {
+                  "type": "scalar"
+                },
+                "numa3": {
+                  "type": "scalar"
+                },
+                "numa4": {
+                  "type": "scalar"
+                },
+                "numa5": {
+                  "type": "scalar"
+                },
+                "numa6": {
+                  "type": "scalar"
+                },
+                "numa7": {
+                  "type": "scalar"
+                },
+                "ostype": {
+                  "type": "scalar"
+                },
+                "force": {
+                  "type": "scalar"
+                },
+                "pool": {
+                  "type": "scalar"
+                },
+                "revert": {
+                  "type": "scalar"
+                },
+                "scsihw": {
+                  "type": "scalar"
+                },
+                "serial0": {
+                  "type": "scalar"
+                },
+                "serial1": {
+                  "type": "scalar"
+                },
+                "serial2": {
+                  "type": "scalar"
+                },
+                "serial3": {
+                  "type": "scalar"
+                },
+                "ivshmem": {
+                  "type": "scalar"
+                },
+                "skiplock": {
+                  "type": "scalar"
+                },
+                "smbios1": {
+                  "type": "scalar"
+                },
+                "spice_enhancements": {
+                  "type": "scalar"
+                },
+                "startdate": {
+                  "type": "scalar"
+                },
+                "onboot": {
+                  "type": "scalar"
+                },
+                "startup": {
+                  "type": "scalar"
+                },
+                "tablet": {
+                  "type": "scalar"
+                },
+                "tags": {
+                  "type": "scalar"
+                },
+                "template": {
+                  "type": "scalar"
+                },
+                "tdf": {
+                  "type": "scalar"
+                },
+                "tpmstate0": {
+                  "type": "scalar"
+                },
+                "usb0": {
+                  "type": "scalar"
+                },
+                "usb1": {
+                  "type": "scalar"
+                },
+                "usb2": {
+                  "type": "scalar"
+                },
+                "usb3": {
+                  "type": "scalar"
+                },
+                "vga": {
+                  "type": "scalar"
+                },
+                "vcpus": {
+                  "type": "scalar"
+                },
+                "vmgenid": {
+                  "type": "scalar"
+                },
+                "vmstatestorage": {
+                  "type": "scalar"
+                },
+                "watchdog": {
+                  "type": "scalar"
+                },
+                "-": {
+                  "type": "scalar"
+                },
+                "cipassword": {
+                  "type": "scalar",
+                  "sentinel_identity": "variable:ubuntu_2604_bootstrap_password"
+                },
+                "description": {
+                  "type": "scalar",
+                  "sentinel_identity": "redacted:description"
+                },
+                "args": {
+                  "type": "scalar",
+                  "sentinel_identity": "redacted:args"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/qemu/[0-9]+/status/current",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "agent": {
+                  "type": "scalar"
+                },
+                "cpus": {
+                  "type": "scalar"
+                },
+                "lock": {
+                  "type": "scalar"
+                },
+                "maxmem": {
+                  "type": "scalar"
+                },
+                "name": {
+                  "type": "scalar"
+                },
+                "pid": {
+                  "type": "scalar"
+                },
+                "qmpstatus": {
+                  "type": "scalar"
+                },
+                "maxdisk": {
+                  "type": "scalar"
+                },
+                "spice": {
+                  "type": "scalar"
+                },
+                "status": {
+                  "type": "scalar"
+                },
+                "tags": {
+                  "type": "scalar"
+                },
+                "uptime": {
+                  "type": "scalar"
+                },
+                "vmid": {
+                  "type": "scalar"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/qemu",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "scalar"
+                  },
+                  "tags": {
+                    "type": "scalar"
+                  },
+                  "template": {
+                    "type": "scalar"
+                  },
+                  "status": {
+                    "type": "scalar"
+                  },
+                  "vmid": {
+                    "type": "scalar"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/qemu/[0-9]+/agent/network-get-interfaces",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "scalar"
+                      },
+                      "hardware-address": {
+                        "type": "scalar"
+                      },
+                      "ip-addresses": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "ip-address": {
+                              "type": "scalar"
+                            },
+                            "ip-address-type": {
+                              "type": "scalar"
+                            },
+                            "prefix": {
+                              "type": "scalar"
+                            }
+                          }
+                        }
+                      },
+                      "statistics": {
+                        "type": "object",
+                        "properties": {
+                          "rx-bytes": {
+                            "type": "scalar"
+                          },
+                          "rx-dropped": {
+                            "type": "scalar"
+                          },
+                          "rx-errs": {
+                            "type": "scalar"
+                          },
+                          "rx-packets": {
+                            "type": "scalar"
+                          },
+                          "tx-bytes": {
+                            "type": "scalar"
+                          },
+                          "tx-dropped": {
+                            "type": "scalar"
+                          },
+                          "tx-errs": {
+                            "type": "scalar"
+                          },
+                          "tx-packets": {
+                            "type": "scalar"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/storage/[a-zA-Z0-9_-]+/content",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "volid": {
+                    "type": "scalar"
+                  },
+                  "content": {
+                    "type": "scalar"
+                  },
+                  "format": {
+                    "type": "scalar"
+                  },
+                  "size": {
+                    "type": "scalar"
+                  },
+                  "ctime": {
+                    "type": "scalar"
+                  },
+                  "vmid": {
+                    "type": "scalar"
+                  },
+                  "used": {
+                    "type": "scalar"
+                  },
+                  "parent": {
+                    "type": "scalar"
+                  },
+                  "protected": {
+                    "type": "scalar"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/storage/[a-zA-Z0-9_-]+",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "scalar"
+                },
+                "path": {
+                  "type": "scalar"
+                },
+                "content": {
+                  "type": "scalar"
+                },
+                "nodes": {
+                  "type": "scalar"
+                },
+                "shared": {
+                  "type": "scalar"
+                },
+                "disable": {
+                  "type": "scalar"
+                },
+                "storage": {
+                  "type": "scalar"
+                },
+                "thinpool": {
+                  "type": "scalar"
+                },
+                "vgname": {
+                  "type": "scalar"
+                },
+                "pool": {
+                  "type": "scalar"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/query-url-metadata",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "scalar"
+                },
+                "mimetype": {
+                  "type": "scalar"
+                },
+                "size": {
+                  "type": "scalar"
+                }
+              }
+            }
+          }
+        },
+        "query": {
+          "url": [
+            "https://cloud-images.ubuntu.com/releases/26.04/release-20260823/ubuntu-26.04-server-cloudimg-amd64.img"
+          ],
+          "verify-certificates": [
+            "1"
+          ]
+        },
+        "adaptation": "fixed-image-head"
+      },
+      {
+        "path": "/api2/json/cluster/resources",
+        "query": {
+          "type": [
+            "vm"
+          ]
+        },
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "scalar"
+                  },
+                  "node": {
+                    "type": "scalar"
+                  },
+                  "type": {
+                    "type": "scalar"
+                  },
+                  "vmid": {
+                    "type": "scalar"
+                  },
+                  "name": {
+                    "type": "scalar"
+                  },
+                  "status": {
+                    "type": "scalar"
+                  },
+                  "pool": {
+                    "type": "scalar"
+                  },
+                  "tags": {
+                    "type": "scalar"
+                  },
+                  "template": {
+                    "type": "scalar"
+                  },
+                  "hastate": {
+                    "type": "scalar"
+                  },
+                  "cpu": {
+                    "type": "scalar"
+                  },
+                  "maxcpu": {
+                    "type": "scalar"
+                  },
+                  "mem": {
+                    "type": "scalar"
+                  },
+                  "maxmem": {
+                    "type": "scalar"
+                  },
+                  "disk": {
+                    "type": "scalar"
+                  },
+                  "maxdisk": {
+                    "type": "scalar"
+                  },
+                  "uptime": {
+                    "type": "scalar"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "path": "/api2/json/nodes/[a-zA-Z0-9_-]+/network",
+        "response": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "iface",
+                  "type"
+                ],
+                "properties": {
+                  "iface": {
+                    "type": "scalar"
+                  },
+                  "type": {
+                    "type": "scalar"
+                  },
+                  "active": {
+                    "type": "scalar"
+                  },
+                  "autostart": {
+                    "type": "scalar"
+                  },
+                  "bridge_ports": {
+                    "type": "scalar"
+                  },
+                  "bridge_stp": {
+                    "type": "scalar"
+                  },
+                  "bridge_fd": {
+                    "type": "scalar"
+                  },
+                  "cidr": {
+                    "type": "scalar"
+                  },
+                  "cidr6": {
+                    "type": "scalar"
+                  },
+                  "address": {
+                    "type": "scalar"
+                  },
+                  "address6": {
+                    "type": "scalar"
+                  },
+                  "netmask": {
+                    "type": "scalar"
+                  },
+                  "netmask6": {
+                    "type": "scalar"
+                  },
+                  "gateway": {
+                    "type": "scalar"
+                  },
+                  "gateway6": {
+                    "type": "scalar"
+                  },
+                  "mtu": {
+                    "type": "scalar"
+                  },
+                  "priority": {
+                    "type": "scalar"
+                  },
+                  "comments": {
+                    "type": "scalar",
+                    "sentinel_identity": "redacted:bridge.comment"
+                  },
+                  "bridge_vlan_aware": {
+                    "type": "scalar"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "download_probes": [
+      {
+        "alias": "primary",
+        "node": "pve0",
+        "query": {
+          "url": "https://cloud-images.ubuntu.com/releases/26.04/release-20260823/ubuntu-26.04-server-cloudimg-amd64.img",
+          "verify-certificates": "1"
+        }
+      },
+      {
+        "alias": "pve2",
+        "node": "pve2",
+        "query": {
+          "url": "https://cloud-images.ubuntu.com/releases/26.04/release-20260823/ubuntu-26.04-server-cloudimg-amd64.img",
+          "verify-certificates": "1"
+        }
+      }
+    ],
+    "file_ids": [
+      "local:iso/ubuntu-26.04-server-cloudimg-amd64.img",
+      "local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst"
+    ],
+    "template_vmids": {},
+    "bridges": {}
+  },
+  "schema_sha256": "6fb77d5fd0d9b820bf952bfbdf51981a3f0ade18d93e4f732c010cddf1e0f9a9"
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Read-only Proxmox projection broker
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/jenkins-plan-gateway/plan-gateway.py --policy /etc/jenkins-plan-gateway/broker.json --cert {{ jenkins_plan_gateway_tls_certificate }} --key {{ jenkins_plan_gateway_tls_key }}
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateIPC=true
+ProtectControlGroups=true
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

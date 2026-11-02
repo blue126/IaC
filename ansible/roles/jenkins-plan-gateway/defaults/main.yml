@@ -1,0 +1,10 @@
+---
+jenkins_plan_gateway_install_authorized: false
+jenkins_plan_gateway_activate: false
+jenkins_plan_gateway_policy: {}
+jenkins_plan_gateway_producer_policy: {}
+jenkins_plan_gateway_tls_certificate: ""
+jenkins_plan_gateway_tls_key: ""
+jenkins_plan_gateway_tls_ca: ""
+jenkins_admission_policy: {}
+jenkins_plan_gateway_secret_files: []
