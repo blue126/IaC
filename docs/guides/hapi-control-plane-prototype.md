@@ -1,6 +1,8 @@
 # HAPI控制面原型配置契约
 
-> **历史配置契约。** 下文保留早期每VM Hub原型及回归依据。现网已迁至VM500单共享Hub，旧工作区角色不是当前生产拓扑；运维以[统一入口说明](hapi-unified-entry.md)和[PKI生命周期](hapi-pki-lifecycle.md)为准。独立开户候选已撤回，不据本文执行开户。
+> **当前维护入口（2026-11-02）。** 现网已完成[内部HTTP切换与PKI退役](hapi-internal-http.md)。本页保留早期原型的mTLS、证书／CRL输入和发布门禁契约，仅供历史追溯，不能作为当前部署指令；当前拓扑见[统一入口](hapi-unified-entry.md)。
+
+> **历史配置契约。** 下文保留早期每VM Hub原型及回归依据。现网已迁至VM500单共享Hub，旧工作区角色不是当前生产拓扑；运维以[统一入口说明](hapi-unified-entry.md)及[内部HTTP说明](hapi-internal-http.md)为准。独立开户候选已撤回，不据本文执行开户。
 
 本实现提供VM500的Access身份检查、固定后端路由、Hub票据交换、集中登录引导、可撤销实时连接和独立工作VM的mTLS代理／登录执行服务。对应[设计](../architecture/hapi-workspace-provisioning.md)和[第一阶段计划](../planning/2026-10-30-hapi-control-plane-phase-one.md)。已补齐锁定版本的前端自动登录衔接，并按明确授权将现有VM502所有者试点迁至VM500单一入口；见[实际迁移与验收](hapi-unified-entry.md)。旧独立HAPI开户候选已撤回，不能把该试点部署记作新员工完整交付已验收。
 

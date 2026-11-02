@@ -2,7 +2,7 @@
 
 > **独立开户已撤回（2026-10-31）。** 以下为早期运行绑定及历史说明，不再作为实际HAPI开户步骤。源码、服务运维材料与运行数据保留；等待用户重新设计provisioning，不据旧入口创建或认领VM。
 
-HAPI 私有源码正式存放在主检出的`~/Projects/IaC/remotecc/hapi-admin/`，运行数据在同级`hapi-data/`。源码独立本地Git管理，运行区不入Git；任务工作树副本用于开发。原工作树材料已逐文件SHA256校验复制并保留，历史回执不改写为新计划。
+早期HAPI私有原型曾存放在主检出的`~/Projects/IaC/remotecc/hapi-admin/`，运行数据在同级`hapi-data/`。独立原型及其绑定Sandbox现已清理，运行数据、凭据和验收证据继续保留且不入Git。以下原型命令与绑定描述仅为历史记录，不能直接执行。
 
 历史上验证过的诊断入口（不作为现行开户步骤）：
 
@@ -31,4 +31,4 @@ python3 ~/Projects/IaC/remotecc/hapi-admin/hapi-entry.py doctor
 
 5项绑定回归、17项基础设施执行器回归及正式`doctor`／挂载验证通过。上述不替代真实新增员工的完整开户验收。
 
-QA VM9101／9102已按原Terraform state完成销毁，相关记录见[回收记录](../planning/2026-10-31-hapi-qa-retirement.md)。服务运行索引为`hapi-data/credentials/service-runtime.json`。v3运行Vault是QA回收后的引导快照；PKI生命周期接管后，当前签发状态位于VM500的`/var/lib/hapi-pki-controller/authorities.json`，两端agent以`/var/lib/hapi-pki-agent/managed.json`标记接管，不能重放旧TLS材料。旧QA提案、Vault及计划只作历史证据，不重新执行；见[PKI生命周期说明](hapi-pki-lifecycle.md)。
+QA VM9101／9102已按原Terraform state完成销毁，相关记录见[回收记录](../planning/2026-10-31-hapi-qa-retirement.md)。服务运行索引为`hapi-data/credentials/service-runtime.json`。v3运行Vault是QA回收后的历史引导快照。2026-11-02内部HTTP已部署，签发／分发／证书巡检服务已退役；VM500原签发状态、两端证书及agent标记仅保留为回退材料，不能重放旧TLS材料或启用旧独立开户原型。旧QA提案、Vault及计划只作历史证据，不重新执行；当前维护见[内部HTTP说明](hapi-internal-http.md)，旧[PKI生命周期说明](hapi-pki-lifecycle.md)仅供追溯。
