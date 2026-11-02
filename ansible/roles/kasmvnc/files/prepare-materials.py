@@ -74,9 +74,16 @@ def prepare(vmid, address, generation, frontend_pin):
             raise ValueError('Unsafe existing generation')
     authentication = json.loads((target / 'authentication.json').read_text())
     basic = base64.b64encode((authentication['username'] + ':' + authentication['password']).encode()).decode()
+    # A frontend issued by a separate CA (the VM502 pilot) keeps that CA beside it;
+    # every other VM uses a self-signed frontend that is its own trust anchor.
+    frontend_ca = FRONTEND / 'desktop-ca.crt'
+    if not frontend_ca.exists():
+        frontend_ca = FRONTEND / 'desktop.crt'
+    elif frontend_ca.is_symlink() or frontend_ca.stat().st_uid != 0 or frontend_ca.stat().st_mode & 0o022:
+        raise ValueError('Unsafe frontend CA')
     variables = {
         'employee_desktop_frontend': {'address': address, 'certificate': str(FRONTEND / 'desktop.crt'),
-            'private_key': str(FRONTEND / 'desktop.key'), 'ca': str(FRONTEND / 'desktop.crt'), 'pinned_sha256': frontend_pin},
+            'private_key': str(FRONTEND / 'desktop.key'), 'ca': str(frontend_ca), 'pinned_sha256': frontend_pin},
         'employee_desktop_config': {'vmid': vmid, 'backend': {'type': 'kasmvnc', 'address': '127.0.0.1',
             'port': 8444, 'client_path': '/', 'route_enabled': True, 'generation_id': generation,
             'tls_server_name': 'localhost', 'trust_ref': refs['trust_ref']},
