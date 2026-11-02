@@ -16,7 +16,10 @@ def require(ok, message):
 
 
 def approved_vmids():
-    return json.loads(Path(__file__).with_name('desktop-targets.json').read_text())['approved_vmids']
+    # Explicit VMIDs plus the employee workspace VMID scheme (every workspace has a desktop).
+    targets = json.loads(Path(__file__).with_name('desktop-targets.json').read_text())
+    first, last = targets.get('approved_vmid_range', [0, -1])
+    return sorted(set(targets['approved_vmids']) | set(range(first, last + 1)))
 
 
 def validate_backends(config):

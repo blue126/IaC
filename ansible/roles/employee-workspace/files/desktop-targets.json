@@ -1,3 +1,4 @@
 {
-  "approved_vmids": [502, 508]
+  "approved_vmids": [502, 508],
+  "approved_vmid_range": [502, 754]
 }

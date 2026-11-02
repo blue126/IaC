@@ -1,4 +1,9 @@
 ---
-kasmvnc_approved_vmids: "{{ (lookup('ansible.builtin.file', role_path ~ '/../employee-workspace/files/desktop-targets.json') | from_json).approved_vmids }}"
+kasmvnc_desktop_targets: "{{ lookup('ansible.builtin.file', role_path ~ '/../employee-workspace/files/desktop-targets.json') | from_json }}"
+# Explicit VMIDs plus the employee workspace VMID scheme, as desktop-contract.py reads them.
+kasmvnc_approved_vmids: >-
+  {{ (kasmvnc_desktop_targets.approved_vmids
+      + (range(kasmvnc_desktop_targets.approved_vmid_range[0], kasmvnc_desktop_targets.approved_vmid_range[1] + 1) | list))
+     | unique | list }}
 
 kasmvnc_presentation_phase: "{{ employee_desktop_phase }}"
