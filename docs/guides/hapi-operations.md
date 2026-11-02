@@ -1,8 +1,16 @@
-# HAPI 证书与网络规则巡检
+# HAPI 运维与历史证书巡检
 
-> **后续简化候选（2026-11-01）。** 用户已批准[受控内网HTTP方案](hapi-internal-http.md)。本分支已撤回旧PKI／证书巡检部署源码，现网在单独批准切换前仍按本页历史部署运行；不要把代码候选视为已退役现网签发服务，也不要从本分支重新部署旧PKI。
+> **已退役（2026-11-02）。** [内部HTTP切换](hapi-internal-http.md)已部署并验收，VM500／VM502的`hapi-pki-controller`、`hapi-pki-agent`及`hapi-health`服务／定时器已停用并移除。以下内容保留为历史记录，不能作为当前部署指令。原证书与CA材料仅保留供显式回退，已不参与当前业务认证。见[发布记录](../planning/2026-11-02-hapi-internal-http-rollout.md)。
 
-`deploy-hapi-health.yml`部署独立的只读巡检。目标必须显式属于`hapi_health`组并指定检查范围，定时器默认不启用；获批发布时才设置`hapi_health_enable_timer: true`。2026-10-31曾按单独授权发布并验收；随后QA VM9101／9102完成回收，pve2巡检已撤下。目前仅VM500／VM502的证书巡检继续运行，见[发布记录](../planning/2026-10-31-hapi-health-rollout.md)及[QA回收记录](../planning/2026-10-31-hapi-qa-retirement.md)。
+## 当前维护入口
+
+当前使用[内部HTTP运维说明](hapi-internal-http.md)及[统一入口说明](hapi-unified-entry.md)。保留公网Cloudflare Access／HTTPS、HAPI令牌及工作区权限校验、PVE／SDN边界；不再维护内部证书有效期或CRL刷新。BWS管理token仍按自身授权期限维护，VM500的VM级备份由用户负责。
+
+## 历史巡检记录
+
+以下各节记录2026-10-31部署时的配置与验收，服务已于2026-11-02退役。
+
+`deploy-hapi-health.yml`部署独立的只读巡检。目标必须显式属于`hapi_health`组并指定检查范围，定时器默认不启用；获批发布时才设置`hapi_health_enable_timer: true`。2026-10-31曾按单独授权发布并验收；随后QA VM9101／9102完成回收，pve2巡检已撤下。当时仅VM500／VM502的证书巡检继续运行，见[发布记录](../planning/2026-10-31-hapi-health-rollout.md)及[QA回收记录](../planning/2026-10-31-hapi-qa-retirement.md)。
 
 ## 检查范围
 
