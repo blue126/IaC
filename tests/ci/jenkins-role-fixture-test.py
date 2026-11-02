@@ -282,7 +282,7 @@ module.exit_json(changed=False,stat=fixture['files'][module.params['path']])
             result=self.play(convergence,variables)
             with self.subTest(target=str(target),operation=operation):
                 self.assertNotEqual(result.returncode,0,result.stdout)
-                self.assertIn('Planned Jenkins controller changes require explicit authorization',result.stdout)
+                self.assertIn('Planned Jenkins controller changes require explicit authorization',result.stdout+result.stderr)
             if original is not None:target.chmod(mode|0o200);target.write_bytes(original)
             target.chmod(mode)
 
