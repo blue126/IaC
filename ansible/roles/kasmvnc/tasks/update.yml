@@ -56,7 +56,7 @@
     employee_desktop_frontend: "{{ (kasmvnc_update_variables.content | b64decode | from_json).employee_desktop_frontend }}"
     employee_desktop_config: "{{ (kasmvnc_update_variables.content | b64decode | from_json).employee_desktop_config }}"
     oci_hub_desktop_backend_basic: "{{ (kasmvnc_update_variables.content | b64decode | from_json).oci_hub_desktop_backend_basic }}"
-    employee_desktop_phase: prepare
+    kasmvnc_presentation_phase: prepare
   no_log: true
 
 - name: Validate and stage the presentation before interrupting the old browser
@@ -74,7 +74,7 @@
 
 - name: Select the approved activation phase
   ansible.builtin.set_fact:
-    employee_desktop_phase: activate
+    kasmvnc_presentation_phase: activate
 
 - name: Activate the staged presentation under its existing maintenance lock
   ansible.builtin.include_tasks: presentation.yml

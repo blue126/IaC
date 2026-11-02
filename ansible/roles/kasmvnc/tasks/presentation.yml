@@ -2,7 +2,7 @@
 - name: Require an explicit presentation phase and the approved VM identity
   ansible.builtin.assert:
     that:
-      - employee_desktop_phase in ['trust', 'prepare', 'activate']
+      - kasmvnc_presentation_phase in ['trust', 'prepare', 'activate']
       - employee_workspace_vmid | int in kasmvnc_approved_vmids
       - ansible_play_hosts_all | length == 1
       - employee_desktop_frontend.address == oci_hub_spoke_address.split('/')[0]
@@ -11,7 +11,7 @@
 - name: Require the staged configuration to match the inventory target
   ansible.builtin.assert:
     that: employee_desktop_config.vmid | int == employee_workspace_vmid | int
-  when: employee_desktop_phase in ['prepare', 'activate']
+  when: kasmvnc_presentation_phase in ['prepare', 'activate']
 
 - name: Verify the installed platform without changing packages
   ansible.builtin.setup:
@@ -70,10 +70,10 @@
   register: employee_desktop_trust
   changed_when: employee_desktop_trust.stdout == 'changed'
   no_log: true
-  when: employee_desktop_phase == 'trust'
+  when: kasmvnc_presentation_phase == 'trust'
 
 - name: Stage the independent desktop runtime without changing active definitions
-  when: employee_desktop_phase in ['prepare', 'activate']
+  when: kasmvnc_presentation_phase in ['prepare', 'activate']
   block:
     - name: Stage the selected runtime components
       ansible.builtin.copy:
@@ -149,4 +149,4 @@
         argv: [python3, -I, /usr/local/lib/employee-workspace/presentation/prepare-desktop.py, activate]
       no_log: true
       changed_when: true
-      when: employee_desktop_phase == 'activate'
+      when: kasmvnc_presentation_phase == 'activate'

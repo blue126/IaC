@@ -280,8 +280,8 @@ class OCITests(unittest.TestCase):
         text = (ROOT / 'ansible/roles/kasmvnc/tasks/presentation.yml').read_text()
         self.assertNotIn('ansible.builtin.apt', text)
         self.assertNotIn('workspace-login.py', text)
-        self.assertIn("when: employee_desktop_phase == 'activate'", text)
-        self.assertIn("when: employee_desktop_phase == 'trust'", text)
+        self.assertIn("when: kasmvnc_presentation_phase == 'activate'", text)
+        self.assertIn("when: kasmvnc_presentation_phase == 'trust'", text)
         self.assertNotIn('employee-access', text)
         self.assertIn('tasks_from: presentation', (ROOT / 'ansible/playbooks/prepare-vm502-desktop.yml').read_text())
 
