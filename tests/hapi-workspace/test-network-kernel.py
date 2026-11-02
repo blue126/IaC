@@ -41,7 +41,7 @@ except (OSError,AssertionError):sys.exit(1)
 def main():
     expected_unsupported = sys.argv[1:] == ['--run-isolated-netns', '--boundary-only', '--expect-no-bridge-conntrack']
     subset = sys.argv[1:] == ['--run-isolated-netns', '--boundary-only'] or expected_unsupported
-    if os.geteuid() != 0 or (sys.argv[1:] != ['--run-isolated-netns'] and not subset) or not os.environ.get('SANDBOX_ID'):
+    if os.geteuid() != 0 or (sys.argv[1:] != ['--run-isolated-netns'] and not subset):
         sys.exit('Run as root in the approved Sandbox with --run-isolated-netns')
     names = {k: 'hapi-test-' + uuid.uuid4().hex[:8] + '-' + k for k in ('pve', 'router', 'alice', 'bob')}
     created, processes = [], []

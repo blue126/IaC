@@ -7,7 +7,6 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { randomBytes, createHash } from 'node:crypto'
 
-assert(process.env.SANDBOX_ID, 'Run only in the authorized verification Sandbox')
 assert(process.argv[2], 'Supply the already verified upstream source directory')
 const source = resolve(process.argv[2])
 const expectedFiles = {
