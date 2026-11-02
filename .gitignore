@@ -10,6 +10,8 @@
 *.tfvars
 !terraform.auto.tfvars
 secrets.auto.tfvars
+# OCI Hub roster is executor runtime state (employee-data), never tracked
+terraform/proxmox/oci-hub-workspaces.auto.tfvars.json
 #Python Related
 venv/
 .venv/

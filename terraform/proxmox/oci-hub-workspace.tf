@@ -1,5 +1,7 @@
 # SDN objects are owned exclusively by the oci-hub-pve Ansible role.
 variable "oci_hub_workspaces" {
+  # Runtime state kept outside Git; pass it with -var-file (the executor reads
+  # settings oci_hub.terraform_roster). There is deliberately no default.
   description = "Independent, explicitly allocated OCI Hub workspace roster"
   type = map(object({
     vmid                = number
@@ -25,7 +27,6 @@ variable "oci_hub_workspaces" {
     machine             = optional(string)
     bootstrap_mode      = optional(string, "user")
   }))
-  default = {}
   validation {
     condition = alltrue([for id, vm in var.oci_hub_workspaces :
       can(regex("^[a-z][a-z0-9-]{0,19}$", id)) && vm.vmid >= 100 && vm.vmid != 500 &&
@@ -38,15 +39,6 @@ variable "oci_hub_workspaces" {
       try(cidrhost(vm.address, 0) == cidrhost("${vm.gateway}/${split("/", vm.address)[1]}", 0) && split("/", vm.address)[0] != vm.gateway, false)
     ]) && length(distinct([for vm in values(var.oci_hub_workspaces) : vm.vmid])) == length(var.oci_hub_workspaces) && length(distinct([for vm in values(var.oci_hub_workspaces) : vm.vnet])) == length(var.oci_hub_workspaces)
     error_message = "Supply unique new VMIDs/VNets, explicit approved baseline/template, hook, IPv4 addresses and MACs."
-  }
-  validation {
-    condition = alltrue(flatten([for id, vm in var.oci_hub_workspaces : [for old_id, existing in var.employee_workspaces : try(
-      ((vm.vmid != existing.vmid && lower(vm.mac_address) != lower(existing.mac_address)) ||
-      (id == old_id && existing.oci_hub_managed && vm.vmid == existing.vmid && lower(vm.mac_address) == lower(existing.mac_address))) &&
-      cidrhost("${split("/", vm.address)[0]}/${min(tonumber(split("/", vm.address)[1]), tonumber(split("/", existing.address)[1]))}", 0) !=
-      cidrhost("${split("/", existing.address)[0]}/${min(tonumber(split("/", vm.address)[1]), tonumber(split("/", existing.address)[1]))}", 0), false)
-    ]]))
-    error_message = "OCI Hub VMIDs, MAC addresses and physical subnets must be independent of existing workspaces."
   }
   validation {
     condition = alltrue([for vm in values(var.oci_hub_workspaces) : try(

@@ -1,6 +1,6 @@
 # 员工 Claude Code 工作环境：实施与验收
 
-> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。
+> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。2026-11-02 起旧员工模型（`employee-workspace.tf`、`employee_workspaces` 表、永久槽位/墓碑、vmbr501-508、`employee-*-boundary.py` hook 与 pve2 退役 guard）已从仓库拆除，下文涉及这些输入的步骤均不可再执行；OCI Hub 名单是执行器 `employee-data` 中的运行状态（settings `oci_hub.terraform_roster`），VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`。
 
 
 本实现对应 [SPEC](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/SPEC.md)、[访问契约](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/access-and-isolation.md) 和 [验收矩阵](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/verification.md)。代码生成、离线测试不代表部署或 CAP 验收通过。当前采用单节点、每人一个持久 VM、外置受管 SSH 入口；WireGuard 是待实测的自建接入候选。

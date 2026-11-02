@@ -63,7 +63,7 @@ wsctl export --device alice
 
 ### Git收尾与员工认证
 
-开户写入受Git跟踪的oci-hub-workspaces.auto.tfvars.json。配置/交付后展示定义差异，另行取得提交、PR、合并授权；合并前审阅计划中的相关变化，不执行意外destroy。未获Git授权时明确标记待收尾，保留正在引用的工作树。
+名单是执行器运行状态，不进入任何Git仓库：开户/退役读写执行器 `employee-data` 中由 settings `oci_hub.terraform_roster` 指向的 `oci-hub-workspaces.auto.tfvars.json`，Terraform 以 `-var-file` 读取；路径缺失时 wsctl 报 `ROSTER_MISSING` 且不调用 Terraform，`oci_hub_workspaces` 变量无默认值。开户/退役不再需要回流 PR；审阅计划只含目标员工变化，不执行意外destroy。Mac 上手动 plan 须显式给出名单副本的 `-var-file`。
 
 员工Agent配置电脑并通过SSH进入本人VM；系统授权、密码及个人Claude授权由员工本人处理。Claude认证必须在本人VM的Firefox中完成；终端包没有桌面链接时先确认另行配置的VM浏览器入口，缺入口报告等待，不用本机认证代替。
 
@@ -99,4 +99,4 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 VM500 现仅保留 net0；旧 gateway 网卡/路由/NAT已清理，其防火墙只保护 HAPI 主机本身。维护勿再使用旧 gateway controller 的 --routing 模式，见 [VM500 清理](2026-10-30-vm500-legacy-nic-cleanup.md)。
 
-旧 employee-access role、六个组合入口和 parallel 授权分支已移除。仍使用的管理员公钥维护由 admin-ssh-keys 提供，PVE 永久退役 guard 由 retired-workspace-boundary 提供；共享 snippets 和 Terraform 永久分配不删除。
+旧 employee-access role、六个组合入口和 parallel 授权分支已移除。仍使用的管理员公钥维护由 admin-ssh-keys 提供。旧员工模型（`employee_workspaces` 表、`employee_slot` 永久分配、`employee_retirement` 墓碑、vmbr501-508 与 `employee-*-boundary.py` hook）及 pve2 上丢弃 `tap503i0` 的退役 guard 已拆除：Terraform 以 `removed` 遗忘两类 `terraform_data`，销毁旧网桥与 hook 文件；guard 由一次性剧本 `ansible/playbooks/remove-retired-workspace-boundary.yml` 删除。VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`；共享 snippets 不删除。

@@ -55,4 +55,4 @@ VM509 目前运行，独立 Spoke、原生员工 SSH 授权及 workspace-mosh �
 
 2026-10-30 真实核对 VM509：machine=q35、2 核 host、4096 MiB、pve2-ssd 上 50 GiB raw 盘、net0=oh509、onboot=0、protection=1，hookscript 指向受控 OCI Hub 边界脚本。VM 保持 stopped。PVE live boundary/路由校验通过；直接执行 pre-start 校验，确认因工作区 disabled 而拒绝，未启动 VM。
 
-已将无密钥的已部署 roster 写入本任务 IaC 的 terraform/proxmox/oci-hub-workspaces.auto.tfvars.json，避免后续计划把这台 VM 视为缺少期望定义。创建完成尚不代表 WireGuard/SSH/Mosh 可用，未登记或启用设备，也未上传或发邮件。
+已将无密钥的已部署 roster 写入当时 IaC 的 terraform/proxmox/oci-hub-workspaces.auto.tfvars.json，避免后续计划把这台 VM 视为缺少期望定义（2026-11-02 起该名单移出 Git，改为执行器 `employee-data` 中由 settings `oci_hub.terraform_roster` 指向的运行状态）。创建完成尚不代表 WireGuard/SSH/Mosh 可用，未登记或启用设备，也未上传或发邮件。
