@@ -1,0 +1,23 @@
+[Unit]
+Description=Employee persistent XFCE desktop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=employee
+Group=employee
+Environment=HOME=/home/employee
+WorkingDirectory=/home/employee
+RuntimeDirectory=employee-desktop
+RuntimeDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/python3 -I /usr/local/lib/employee-workspace/desktop-service.py
+ExecStopPost=/usr/bin/python3 -I /usr/local/lib/employee-workspace/desktop-service.py cleanup
+KillMode=control-group
+Restart=no
+TimeoutStartSec=60
+TimeoutStopSec=20
+StandardOutput=null
+StandardError=null

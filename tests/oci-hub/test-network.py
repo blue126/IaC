@@ -2,6 +2,7 @@
 """Run real routed nft ACL positive/negative probes in disposable Linux netns."""
 import importlib.util
 import copy
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -19,16 +20,72 @@ m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 def run(*args,**kwargs):return subprocess.run(args,check=True,capture_output=True,text=True,**kwargs)
 
 
-def main():
-    if sys.platform!='linux' or os.geteuid()!=0:
-        print('NOT RUN: Linux root and network namespace capabilities required');return 77
-    prefix='oh'+uuid.uuid4().hex[:6];hub=prefix+'h';users=prefix+'u';vms=prefix+'v';names=[];servers=[]
+
+class NamespaceUnavailable(RuntimeError):
+    """Only an initial namespace permission/capability denial is a skip."""
+
+
+def stop_servers(servers):
+    errors=[]
+    for server in list(reversed(servers)):
+        try:
+            server.terminate()
+        except Exception:
+            errors.append('terminate')
+        try:
+            server.wait(timeout=10)
+            servers.remove(server)
+        except Exception:
+            errors.append('wait')
+    if errors:
+        raise RuntimeError('Owned server cleanup failed: '+','.join(errors))
+
+
+def cleanup_resources(names, links, cleanup=None):
+    errors=[]
+    if cleanup:
+        try:
+            cleanup()
+        except Exception as error:
+            errors.append('callback:'+type(error).__name__)
+    for ns in reversed(names):
+        try:
+            if run('ip','netns','pids',ns).stdout.split():
+                errors.append('live namespace:'+ns)
+                continue
+            run('ip','netns','del',ns)
+        except Exception as error:
+            errors.append('namespace:'+ns+':'+type(error).__name__)
+    for name in reversed(links):
+        try:
+            if subprocess.run(['ip','link','show',name],capture_output=True).returncode==0:
+                run('ip','link','delete',name)
+        except Exception as error:
+            errors.append('veth:'+name+':'+type(error).__name__)
+    if errors:
+        raise RuntimeError('Owned resource cleanup failed: '+','.join(errors))
+
+
+@contextmanager
+def hub_topology(prefix=None, cleanup=None):
+    """Own only the existing Hub/users/workspace fixture and its resources."""
+    prefix = prefix or 'oh'+uuid.uuid4().hex[:6]
+    hub, users, vms = (prefix+suffix for suffix in ('h','u','v'))
+    names=[];created_links=[]
     try:
         for ns in (hub,users,vms):
-            run('ip','netns','add',ns);names.append(ns)
+            try:
+                run('ip','netns','add',ns)
+            except subprocess.CalledProcessError as error:
+                detail=(error.stderr or '').lower()
+                if not names and any(term in detail for term in ('operation not permitted','permission denied')):
+                    raise NamespaceUnavailable('Initial network namespace permission denied') from error
+                raise
+            names.append(ns)
             run('ip','-n',ns,'link','set','lo','up')
         for n,other,iface in [('u',users,'wg-users'),('v',vms,'wg-workspaces')]:
             run('ip','link','add',prefix+n,'type','veth','peer','name',prefix+n+'p')
+            created_links.extend((prefix+n,prefix+n+'p'))
             run('ip','link','set',prefix+n,'netns',hub);run('ip','link','set',prefix+n+'p','netns',other)
             run('ip','-n',hub,'link','set',prefix+n,'name',iface)
             run('ip','-n',hub,'link','set',iface,'up');run('ip','-n',other,'link','set',prefix+n+'p','up')
@@ -45,6 +102,19 @@ def main():
             denied=subprocess.run(['ip','netns','exec',hub,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'verify','--routing','--config',str(policy),'--receipt',str(receipt)],capture_output=True)
             assert denied.returncode!=0,'disabled forwarding was accepted'
             run('ip','netns','exec',hub,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'apply','--config',str(policy),'--receipt',str(receipt))
+            yield hub, users, vms, policy, receipt
+    finally:
+        cleanup_resources(names, created_links, cleanup)
+
+
+def main():
+    if sys.platform!='linux' or os.geteuid()!=0:
+        print('NOT RUN: Linux root and network namespace capabilities required');return 77
+    prefix='oh'+uuid.uuid4().hex[:6];hub=prefix+'h';users=prefix+'u';vms=prefix+'v';names=[];servers=[];created_links=[]
+    try:
+        def stop_hub_servers():
+            stop_servers(servers)
+        with hub_topology(prefix, stop_hub_servers) as (hub,users,vms,policy,receipt):
             server="import socket,threading,time\ndef listen(ip,port):\n s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind((ip,port));s.listen()\n while True:\n  c,_=s.accept();c.close()\nfor ip in ('10.234.0.2','10.234.0.3'):\n for port in (22,8443,8006):threading.Thread(target=listen,args=(ip,port),daemon=True).start()\ntime.sleep(60)"
             servers.append(subprocess.Popen(['ip','netns','exec',vms,'python3','-c',server]))
             time.sleep(.3)
@@ -96,6 +166,7 @@ def main():
             run('ip','-n',ns,'link','set','lo','up')
         for suffix,left,right,leftname,rightname in [('t',pve,guest,'tap601i0','eth0'),('e',pve,outside,'eth0','eth0')]:
             run('ip','link','add',prefix+suffix,'type','veth','peer','name',prefix+suffix+'p')
+            created_links.extend((prefix+suffix,prefix+suffix+'p'))
             run('ip','link','set',prefix+suffix,'netns',left);run('ip','link','set',prefix+suffix+'p','netns',right)
             run('ip','-n',left,'link','set',prefix+suffix,'name',leftname);run('ip','-n',right,'link','set',prefix+suffix+'p','name',rightname)
             run('ip','-n',left,'link','set',leftname,'up');run('ip','-n',right,'link','set',rightname,'up')
@@ -110,6 +181,7 @@ def main():
         bob=prefix+'b';run('ip','netns','add',bob);names.append(bob)
         run('ip','-n',bob,'link','set','lo','up')
         run('ip','link','add',prefix+'b0','type','veth','peer','name',prefix+'b1')
+        created_links.extend((prefix+'b0',prefix+'b1'))
         run('ip','link','set',prefix+'b0','netns',pve);run('ip','link','set',prefix+'b1','netns',bob)
         run('ip','-n',pve,'link','set',prefix+'b0','name','tap602i0');run('ip','-n',bob,'link','set',prefix+'b1','name','eth0')
         run('ip','-n',pve,'link','add','ohbob','type','bridge');run('ip','-n',pve,'link','set','ohbob','up')
@@ -181,14 +253,11 @@ def main():
             physical_probe('10.236.1.2','198.51.100.2',True)
             run('ip','netns','exec',guest,'python3','-c',ipv6.replace('assert not ok','assert ok'))
         print('PASS: PVE pure routing preserves source; protected OCI service, spoofed source and IPv6 probes denied; VLAN result reported separately')
-        print('PASS: real routed own-VM SSH/HTTPS, cross-user/port/input rejection and missing-ACL startup rejection');return 0
-    except subprocess.CalledProcessError as e:
-        if not names:
-            print('NOT RUN: network namespace creation denied: '+e.stderr.strip());return 77
-        raise
+        print('PASS: routed own-VM TCP22/TCP8443, cross-user/port/input rejection and missing-ACL startup rejection');return 0
+    except NamespaceUnavailable as error:
+        print('NOT RUN: '+str(error));return 77
     finally:
-        for server in servers:server.terminate();server.wait()
-        for ns in reversed(names):subprocess.run(['ip','netns','del',ns],capture_output=True)
+        cleanup_resources(names, created_links, lambda: stop_servers(servers))
 
 
 if __name__=='__main__':sys.exit(main())
