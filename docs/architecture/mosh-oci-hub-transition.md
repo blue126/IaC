@@ -55,10 +55,10 @@ VM502 保留原磁盘、旧网卡和原入口；新增网卡属于独立 VNet �
 
 ## Mosh 权限和会话生命周期
 
-- Mosh UDP 仅在设备 overlay /32 → 本人 VM overlay /32 的已登记端口范围内放行；回包匹配反向地址、源端口范围和 established/reply。允许双方交换数据的 UDP conntrack 状态，拒绝跨设备范围和其他 VM。撤销映射优先于任何通用 established 放行。
-- OCI 公网只开放批准的 WireGuard 外层端口，不开放 60000–61000。VM mosh-server 绑定 VM overlay 地址，包中的服务器 IP 使用该地址；不通过 SSH 转发传输 Mosh UDP。
-- 沿用每设备独立端口范围，复用当前分配以降低员工理解成本；Hub 内新身份使用独立凭据和地址。多个设备访问同一 VM 时，端口范围不得重叠。
-- VM 登录用户仍为 employee。Mosh 启动端必须固定自身设备的已登记范围；Hub ACL 才是设备隔离权威，不能依赖用户遵守启动参数。
+- Mosh UDP 按每个“设备 overlay /32 → 本人 VM overlay /32”配对放行整段 60000–61000；回包匹配反向地址、源端口范围和 established/reply。拒绝其他员工的设备到该 VM 以及到其他 VM 的流量。撤销映射优先于任何通用 established 放行。
+- OCI 公网只开放批准的 WireGuard 外层端口，不开放 60000–61000。VM 上系统自带的 mosh-server 由原生 `mosh` 经 SSH 直接启动，超时由 sshd `SetEnv` 给 `employee` 用户提供；`workspace-mosh`（绑定 VM overlay 地址）只为旧客户端保留。不通过 SSH 转发传输 Mosh UDP。
+- 执行器不再逐设备分配端口：同一员工的多台设备共享本人 VM 的整段，旧包中的窄段都在整段内，照常可用；Hub 内新身份使用独立凭据和地址。
+- VM 登录用户仍为 employee。Hub ACL 是隔离权威，隔离依靠目标 VM 地址，不依赖客户端启动参数。
 - 沿用当前 604800 秒网络断连超时。它不是键盘空闲超时；会话恢复不等于命令已执行完成。
 - Mosh-only 撤销关闭该设备的 UDP grant；规则不对旧 conntrack 广泛放行，因此旧会话也立即失去数据通路。完全撤销停用对应 peer。残留会话由网络断连超时回收，不新增逐进程登记器，不对共享 employee 用户整体 pkill。
 - 设备完全撤销需停用 OCI peer、删除全部该设备映射并使在途连接失效。仅禁用 SSH key 不会切断已建立的 Mosh UDP。
@@ -115,16 +115,22 @@ online 区分“近期 VPN 握手”“SSH TCP 连接”“Mosh UDP 活跃/会�
 
 本节记录独立网络部署前的过渡实现，不是当前能力或操作指引。当前仅接受 `employee_workspace_profile=oci-hub`，使用 native 授权；不再支持 existing/parallel 授权合集。实际操作见[原生开户说明](../deployment/oci-hub-native-provisioning.md)。当时的实现包括：
 
-- Hub/PVE boundary 保持独立表；Hub 的 `pairs` 可选 `mosh_ports: [60030, 60039]`，按设备→本人 VM 放行，已有 UDP conntrack 也不能绕过撤销。未提供该字段的映射保持原 TCP 权限。
+- Hub/PVE boundary 保持独立表；Hub 的 `pairs` 可选 `mosh_ports`，当前为整段 `[60000, 61000]`（早期为逐设备窄段如 `[60030, 60039]`，由 `wsctl mosh-ports-migrate` 统一迁移到整段），按设备→本人 VM 放行，已有 UDP conntrack 也不能绕过撤销。未提供该字段的映射保持原 TCP 权限。
 - Hub boundary 使用互斥的 `device_sources` 或旧 `ga2_sources`；OCI Terraform 对应提供同名互斥来源，保留旧规则资源地址。试点继续限制 /24 或更窄；没有放开动态公网来源。
 - 历史版本曾生成新旧 SSH 授权合集。该过渡分支及其配置变量现已删除；当前 `employee-workspace` 和 `oci-hub-spoke` 仅接受 OCI Hub profile，按完整设备清单协调原生授权。不要恢复旧变量或依赖新旧授权合并行为。
 - `oci-hub-spoke` 拆出 `tasks/vpn.yml`；历史一次性 `deploy-oci-hub-mosh-pilot.yml`（现已移至私有执行记录）当时只处理一个明确的现有工作区，不执行 Terraform、不启动其他 VM、不配置桌面。校验目标主机、员工归属和 VM 主机名；需要已批准的新方案密钥与完整设备清单。
-- VM 的 `workspace-mosh` 启动器调用原生 mosh-server，绑定 VM overlay，保留 7 天网络断连超时。Mosh 和 WireGuard 包安装默认关闭，只有另行批准 `oci_hub_mosh_install_authorized=true` 才执行。
+- VM 的 `workspace-mosh` 启动器调用原生 mosh-server，绑定 VM overlay，保留 7 天网络断连超时。2026-11-02 起该启动器只为旧客户端保留；系统 `mosh-server` 可直接使用，超时由 `/etc/ssh/sshd_config.d/10-mosh.conf` 对 `employee` 用户 `SetEnv` 提供（写入后 `sshd -t` 通过才 reload，失败回滚）。Mosh 和 WireGuard 包安装默认关闭，只有另行批准 `oci_hub_mosh_install_authorized=true` 才执行。
 
 真实设备启动命令将由公开客户端根据经过校验的新包产生，形态如下；这是供实施使用的命令模板，alias、SSH 配置路径与端口必须来自本设备包：
 
 ```bash
 mosh --ssh='ssh -F <本设备SSH配置>' --server=workspace-mosh --port=<本设备端口范围> <新方案SSH别名>
+```
+
+2026-11-02 起执行器不再逐设备分配端口：每个“设备 → 本人 VM”配对放行 UDP 60000–61000（旧窄段均在其内，旧命令照常可用），同一员工多台设备共享整段，跨员工隔离依靠目标 VM 地址。原生命令无需 `--server`/`--port`：
+
+```bash
+mosh --ssh='ssh -F <本设备SSH配置>' <新方案SSH别名>
 ```
 
 历史阶段使用私有 `onboard.sh --profile oci-hub` 作为管理员入口，终端候选包沿用 `access_mode=mosh` 和 `mosh_ports`。当时的 `attach-mosh` 实现依赖 VM500 例外，仅只读核对 Terraform state，**不能用于当前独立目标**。需在同一入口补齐独立 PVE 网络、原 VM 第二网卡的受限 Terraform 计划、来宾路由和联合 hook 的审批/恢复，不另造 provisioning 引擎。原计划及其失败检查点只留作审计，不能恢复 apply。这些是当时尚未完成的工作；现行入口已接通独立网络，不使用该历史计划。

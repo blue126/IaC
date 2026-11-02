@@ -165,7 +165,7 @@ OCI 在 `oci-hub` profile 内维护受管映射：设备公钥 → 固定设备 
 
 ### Mosh（本轮终端模式）
 
-mosh-server及workspace-mosh运行在员工VM；设备先经同一VPN路径SSH到本人VM启动会话，再使用分配的UDP端口范围。OCI只转发并按设备地址/VM地址/端口范围限制，不承担Mosh终点或第二跳SSH。终端v2包声明access_mode=mosh与mosh_ports，不要求桌面TLS字段。
+系统 mosh-server 运行在员工VM（超时由 sshd `SetEnv` 给 employee 用户提供，workspace-mosh 只为旧客户端保留）；设备先经同一VPN路径SSH到本人VM启动会话，再使用 UDP 60000–61000。OCI只转发并按设备地址/本人VM地址放行整段端口，不承担Mosh终点或第二跳SSH。终端v2包声明access_mode=mosh与mosh_ports，不要求桌面TLS字段。
 
 VM509 已配置原生员工授权及 workspace-mosh，正式试点本地包已生成；公开 bootstrap v2 已由 PR #1 合并至 main。没有活动会话在无人测试时是正常状态；已完成的UDP回显与TCP建连不代替真实Mosh验收。
 

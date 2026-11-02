@@ -26,9 +26,9 @@ R8 增补 `management_access` 合同：只允许明确远端来源 `/32` + 已�
 
 ## 无 GA2 的 Mosh 试点增量
 
-以上命令均在已有授权的验证 Sandbox 内执行，不携带生产凭据。`test-native-authorization.py` 运行实际 Ansible 任务，验证原生公钥协调、重跑幂等、逐设备撤销、空清单及无效/旧授权的拒绝；`test-native-mosh.py` 运行已渲染启动器的参数测试，不创建真实 Mosh 会话或密钥。
+以上命令均在已有授权的验证 Sandbox 内执行，不携带生产凭据。`test-native-authorization.py` 运行实际 Ansible 任务，验证原生公钥协调、重跑幂等、逐设备撤销、空清单及无效/旧授权的拒绝；`test-native-mosh.py` 运行已渲染启动器的参数测试，并渲染 `sshd_config.d/10-mosh.conf`（`Match User employee` 的 `SetEnv MOSH_SERVER_NETWORK_TMOUT`），不创建真实 Mosh 会话或密钥。
 
-`test-network.py` 另检查隧道内 UDP 往返、同 VM 两设备端口隔离、跨 VM/Hub input 拒绝，以及已有 UDP conntrack 下撤销 Mosh grant 后立即阻断、保留其他设备及 SSH。这使用 veth 模拟 WG 接口，仍不代表实际 WireGuard 或 Mosh 协议验收。
+`test-network.py` 另检查隧道内 UDP 往返、同一员工多台设备共享本人 VM 的 UDP 60000–61000、其他员工设备到该 VM 一律拒绝（隔离靠目标 VM 地址）、Hub input 拒绝，以及已有 UDP conntrack 下撤销 Mosh grant 后立即阻断、保留其他设备及 SSH。这使用 veth 模拟 WG 接口，仍不代表实际 WireGuard 或 Mosh 协议验收。
 
 `python3 tests/oci-hub/prepare-ingress-terraform.py` 输出只含 OCI NSG 的临时 root。在其中运行 `terraform init -backend=false -input=false`、`terraform validate`、`terraform test`；固定 OCI provider 8.3.0，测试使用 mock provider，检查直连源、旧 GA 源兼容、歧义来源和过宽网段拒绝，不读取 OCI 凭据、不 apply。
 

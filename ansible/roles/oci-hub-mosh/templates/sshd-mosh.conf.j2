@@ -1,0 +1,6 @@
+# Managed by Ansible (oci-hub-mosh). Native `mosh` starts the system
+# mosh-server over SSH; give it the workspace network timeout.
+Match User employee
+    SetEnv MOSH_SERVER_NETWORK_TMOUT={{ oci_hub_mosh_network_timeout }}
+# Close the Match block so later sshd_config.d files stay global.
+Match all

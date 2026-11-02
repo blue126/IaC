@@ -43,7 +43,7 @@ def main():
             policy.write_text(json.dumps(old))
             previous = hashlib.sha256(policy.read_bytes()).hexdigest()
             candidate = copy.deepcopy(old);candidate['generation'] += 1
-            candidate['pairs'][0]['mosh_ports'] = [60000, 60009]
+            candidate['pairs'][0]['mosh_ports'] = [60000, 61000]
             content = json.dumps(candidate, sort_keys=True, indent=2)
             approved = hashlib.sha256(content.encode()).hexdigest()
             plays = (ROOT / 'ansible/playbooks/configure-oci-hub-mosh-boundary.yml').read_text()

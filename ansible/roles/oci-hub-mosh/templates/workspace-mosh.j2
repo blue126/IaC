@@ -1,5 +1,5 @@
 #!/bin/bash
-# Native VM endpoint; the OCI boundary enforces per-device port grants.
+# Legacy native VM endpoint for existing clients; the OCI boundary isolates each device to its own VM.
 set -euo pipefail
 export MOSH_SERVER_NETWORK_TMOUT={{ oci_hub_mosh_network_timeout }}
 if [[ "${1:-}" == '--version' && "$#" == 1 ]]; then
