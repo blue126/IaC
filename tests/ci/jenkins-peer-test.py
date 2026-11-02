@@ -222,19 +222,19 @@ class ProjectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             projection.project_source(ROOT/'terraform',directory,self.policy)
             inputs=json.loads((Path(directory)/'proxmox/projection.auto.tfvars.json').read_text())
-            for key,file in [('employee_workspaces','employee-workspaces'),('oci_hub_workspaces','oci-hub-workspaces')]:
-                original=json.loads((ROOT/'terraform/proxmox'/f'{file}.auto.tfvars.json').read_text())[key]
-                self.assertTrue(original);self.assertEqual(set(inputs[key]),set(original))
+            # The OCI Hub roster is executor runtime state. Jenkins never projects it
+            # (an empty roster would plan deleting every employee VM); its plan fails
+            # on the required variable until the external-service root is split out.
+            self.assertNotIn('oci_hub_workspaces',inputs);self.assertNotIn('employee_workspaces',inputs)
             self.assertEqual(inputs['employee_access']['admin_public_keys'],[])
             for file in (ROOT/'terraform/proxmox').glob('*.tf'):
                 original=projection.blocks(file.read_text());projected=projection.blocks((Path(directory)/'proxmox'/file.name).read_text())
                 self.assertEqual([(b['kind'],b['labels']) for b in original],[(b['kind'],b['labels']) for b in projected])
-            snippet=(Path(directory)/'proxmox/employee-workspace.tf').read_text()
-            self.assertIn('employee-${each.key}-boundary.py',snippet);self.assertNotIn('templatefile(',snippet)
+            snippet=(Path(directory)/'proxmox/employee-template.tf').read_text()
             self.assertIn(projection.sentinel('redacted:source_raw.data'),snippet)
 
     def test_source_input_template_and_link_changes_fail_closed(self):
-        for relative in ['proxmox/employee-boundary-hook.py.tftpl','proxmox/employee-workspaces.auto.tfvars.json','proxmox/main.tf']:
+        for relative in ['proxmox/employee-access.auto.tfvars.json','proxmox/main.tf']:
             with tempfile.TemporaryDirectory() as directory:
                 source=Path(directory)/'source';destination=Path(directory)/'out'
                 for name in self.policy['source_files']:
@@ -245,8 +245,10 @@ class ProjectionTests(unittest.TestCase):
                 with self.assertRaises(control.Refused):projection.project_source(source,destination,self.policy)
         with self.assertRaises(control.Refused):projection.project_file('resource "proxmox_virtual_environment_file" "bad" { source_file { path = "/private" } }','bad.tf',self.policy)
         with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory)/'bad.json';path.write_text('{"employee_workspaces":{},"employee_access":null,"private":"CANARY"}')
-            with self.assertRaises(control.Refused):projection.public_inputs(path,'proxmox/employee-workspaces.auto.tfvars.json')
+            path=Path(directory)/'bad.json';path.write_text('{"employee_access":null,"private":"CANARY"}')
+            with self.assertRaises(control.Refused):projection.public_inputs(path,'proxmox/employee-access.auto.tfvars.json')
+            path.write_text('{"employee_access":null,"oci_hub_workspaces":{}}')
+            with self.assertRaises(control.Refused):projection.public_inputs(path,'proxmox/employee-access.auto.tfvars.json')
 
 
 class BrokerTests(unittest.TestCase):

@@ -5,11 +5,14 @@ mock_provider "proxmox" {
   }
 }
 mock_provider "ansible" {}
-run "defaults_preserve_existing" {
+run "empty_roster_preserves_existing" {
   command = plan
+  variables {
+    oci_hub_workspaces = {}
+  }
   assert {
     condition     = length(module.oci_hub_workspace) == 0
-    error_message = "Default empty roster must introduce no new VM."
+    error_message = "An empty roster must introduce no new VM."
   }
 }
 run "new_workspaces_stopped_protected_and_hooked" {

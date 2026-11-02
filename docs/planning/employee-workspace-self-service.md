@@ -11,7 +11,7 @@
 >
 > 员工邮箱验证后领取文件的要求已由 `cc.willfan.me` 实现：申请需邮箱验证码，设备包下载需再次邮箱验证码，包存于网站 D1 并在下载满或过期后删除。
 >
-> IaC 仓库跟踪 `terraform/proxmox/employee-workspaces.auto.tfvars.json` 中的 VM 分配，以及 `ansible/inventory/host_vars/employee-access.yml` 中的设备公钥和网关接入配置。私有管理员项目负责开户编排、候选配置、设备包和交付回执；设备私钥留在 BWS。后续开户更新这两份 IaC 配置后，需要审查并提交对应 Git 变更，避免已部署配置只留在本地工作树。
+> 员工 VM 分配（OCI Hub 名单）是执行器 `employee-data` 中由 settings `oci_hub.terraform_roster` 指向的运行状态，不进入 IaC Git，开户/退役无需回流 PR；旧 `employee-workspaces.auto.tfvars.json` 已删除，VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`。私有管理员项目负责开户编排、候选配置、设备包和交付回执；设备私钥留在 BWS。
 
 
 状态：自助申请与领取门户方案保留，暂缓实施；以下步骤描述当时设想的方案；现行申请、开户与交付见 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md)。

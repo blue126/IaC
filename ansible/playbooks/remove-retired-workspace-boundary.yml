@@ -1,0 +1,78 @@
+---
+# One-time teardown of the legacy PVE retirement guard that dropped tap503i0.
+# Every task is idempotent; a second run reports no changes.
+- name: Remove the legacy retired workspace guard
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require the explicitly selected hypervisor
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'pve2'
+
+    - name: Check whether the legacy guard unit is installed
+      ansible.builtin.stat:
+        path: /etc/systemd/system/employee-firewall.service
+      register: retired_boundary_unit
+
+    - name: Stop and disable the legacy guard unit
+      ansible.builtin.systemd_service:
+        name: employee-firewall
+        state: stopped
+        enabled: false
+      when: retired_boundary_unit.stat.exists
+
+    - name: Check whether the legacy bridge table is loaded
+      ansible.builtin.command: /usr/sbin/nft list table bridge employee_boundary
+      register: retired_boundary_table
+      changed_when: false
+      check_mode: false
+      failed_when: false
+
+    - name: Delete the legacy bridge table
+      ansible.builtin.command: /usr/sbin/nft delete table bridge employee_boundary
+      when: retired_boundary_table.rc == 0
+      changed_when: true
+
+    - name: Remove the legacy guard files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/employee-firewall.service
+        - /etc/employee-access.nft
+        - /etc/employee-access.applied.json
+        - /usr/local/lib/employee-firewall.py
+      register: retired_boundary_files
+
+    - name: Reload systemd after removing the unit
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: retired_boundary_files.results | selectattr('changed') | list | length > 0
+
+- name: Verify the legacy retired workspace guard is gone
+  hosts: pve2
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Check the legacy bridge table
+      ansible.builtin.command: /usr/sbin/nft list table bridge employee_boundary
+      register: retired_boundary_verify_table
+      changed_when: false
+      check_mode: false
+      failed_when: retired_boundary_verify_table.rc == 0
+
+    - name: Check the legacy guard unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/employee-firewall.service
+      register: retired_boundary_verify_unit
+      failed_when: retired_boundary_verify_unit.stat.exists
+
+    - name: Check the legacy employee bridges
+      ansible.builtin.command: ip -o link show
+      register: retired_boundary_verify_bridges
+      changed_when: false
+      check_mode: false
+      failed_when: retired_boundary_verify_bridges.stdout is search(' vmbr50[1-8][:@]')

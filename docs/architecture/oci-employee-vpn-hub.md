@@ -242,7 +242,7 @@ OCI 使用相同原则：新方案 ACL 就绪校验成功，Portal 才能恢复�
 
 ### Terraform 资源与模块契约
 
-当前现有员工 VM 在 `terraform/proxmox/employee-workspace.tf` 直接声明专用资源，使用绑定 VM500 的 `employee_workspaces` schema，并有 `prevent_destroy`、hook 和 start_ready。它并非现成的通用 module 调用；新方案不能把自己的记录加入这份变量或接管这些资源地址。
+旧员工 VM 曾在 `terraform/proxmox/employee-workspace.tf` 直接声明专用资源，使用绑定 VM500 的 `employee_workspaces` schema。所有员工 VM 迁入 `oci_hub_workspaces` 后，该文件、旧表、永久分配/墓碑、vmbr501-508 与旧 hook 已于 2026-11-02 拆除；`oci_hub_workspaces` 名单是执行器 `employee-data` 中的运行状态（settings `oci_hub.terraform_roster`），不在 Git 中，变量无默认值。
 
 新方案在独立服务文件中定义 `oci_hub_workspaces` 变量和 `oci_hub_workspace` module 调用键（已实现），使用 `terraform/modules/proxmox-vm`、`proxmox.pve2` 及独立 inventory 分组。VMID、接口/VNet、IP/MAC、磁盘和模板来源明确分配；不继承 VM500 的 nic_slot/gateway_mac 约束。同一 employee_id 在两套变量中可以存在，不相互覆盖。
 
@@ -491,4 +491,4 @@ PVE SDN 采用 API 全局锁拒绝无关 pending changes；内核规则 JSON 和
 
 ## 旧角色源码收口
 
-旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 仍需的永久退役端口 guard 由 retired-workspace-boundary 独立维护，兼容安装文件名保留，不含 VM500 转发/NAT或gateway功能。历史设备关联移至管理员私有记录，Terraform 原分配、状态迁移和退役防重用测试保留。HAPI 及其他业务角色不在本次清理范围。
+旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 永久退役端口 guard（retired-workspace-boundary）已由一次性拆除剧本 `remove-retired-workspace-boundary.yml` 取代，旧 Terraform 原分配、状态迁移和退役防重用测试一并移除，VMID 503 可重新分配。历史设备关联移至管理员私有记录。HAPI 及其他业务角色不在本次清理范围。

@@ -17,10 +17,6 @@ shutil.copy2(Path(__file__).with_name('startup.tftest.hcl'),fixture/'proxmox/tes
   }
 }
 provider "proxmox" { alias = "pve2" }
-variable "employee_workspaces" {
-  type = map(any)
-  default = {}
-}
 ''')
 # Expose module values in this synthetic root only, for create-time assertions.
 p=fixture/'modules/proxmox-vm/outputs.tf'
