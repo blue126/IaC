@@ -29,7 +29,7 @@
           - /usr/local/lib/employee-workspace/presentation/desktop.json
       changed_when: false
       no_log: true
-      when: employee_desktop_phase in ['prepare', 'activate', 'update']
+      when: employee_desktop_phase in ['prepare', 'activate', 'update', 'provision']
 
     - name: Validate the active nginx configuration
       ansible.builtin.command: nginx -t
@@ -43,4 +43,4 @@
       become: true
       changed_when: false
       no_log: true
-      when: employee_desktop_phase in ['activate', 'update']
+      when: employee_desktop_phase in ['activate', 'update', 'provision']

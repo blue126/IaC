@@ -1,7 +1,7 @@
 ---
 - name: Require an explicit desktop operation
   ansible.builtin.assert:
-    that: employee_desktop_phase in ['packages', 'trust', 'prepare', 'activate', 'update']
+    that: employee_desktop_phase in ['packages', 'trust', 'prepare', 'activate', 'update', 'provision']
 
 - name: Install the pinned desktop packages
   ansible.builtin.import_tasks: packages.yml
@@ -14,3 +14,7 @@
 - name: Update the approved existing employee desktop
   ansible.builtin.include_tasks: update.yml
   when: employee_desktop_phase == 'update'
+
+- name: Install the desktop and its frontend identity on a new employee VM
+  ansible.builtin.include_tasks: provision.yml
+  when: employee_desktop_phase == 'provision'

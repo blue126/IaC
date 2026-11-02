@@ -1,0 +1,157 @@
+---
+- name: Require the approved new desktop identity and its frontend material
+  ansible.builtin.assert:
+    that:
+      - employee_workspace_vmid | int in kasmvnc_approved_vmids
+      - ansible_play_hosts_all | length == 1
+      - kasmvnc_update.vmid | int == employee_workspace_vmid | int
+      - kasmvnc_update.address == oci_hub_spoke_address.split('/')[0]
+      - kasmvnc_update.frontend_sha256 is match('^[a-f0-9]{64}$')
+      - kasmvnc_update.stop_browser | bool
+      - kasmvnc_frontend_certificate is search('-----BEGIN CERTIFICATE-----')
+      - kasmvnc_frontend_private_key is search('-----BEGIN PRIVATE KEY-----')
+  no_log: true
+
+- name: Install the overlay presentation proxy without starting its default site
+  ansible.builtin.apt:
+    name: [nginx]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    install_recommends: false
+    policy_rc_d: 101
+
+- name: Inspect the unused package default site
+  ansible.builtin.stat:
+    path: /etc/nginx/sites-enabled/default
+  register: kasmvnc_nginx_default
+
+- name: Require only the known package default before removing it
+  ansible.builtin.assert:
+    that:
+      - not kasmvnc_nginx_default.stat.exists or (kasmvnc_nginx_default.stat.islnk and kasmvnc_nginx_default.stat.lnk_source == '/etc/nginx/sites-available/default')
+
+- name: Remove only the package default listener
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Create the protected frontend identity directory
+  ansible.builtin.file:
+    path: /etc/oci-hub
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Inspect an existing frontend certificate
+  ansible.builtin.stat:
+    path: /etc/oci-hub/desktop.crt
+  register: kasmvnc_frontend_existing
+
+- name: Inspect this install's provision marker
+  ansible.builtin.stat:
+    path: /var/lib/employee-workspace/desktop-provision.json
+  register: kasmvnc_provision_marker
+
+- name: Read this install's provision marker
+  ansible.builtin.slurp:
+    src: /var/lib/employee-workspace/desktop-provision.json
+  register: kasmvnc_provision_marker_content
+  when: kasmvnc_provision_marker.stat.exists
+
+- name: Install only on a VM without a frontend identity, or resume this same install
+  ansible.builtin.assert:
+    that:
+      - >-
+        not kasmvnc_frontend_existing.stat.exists or
+        (kasmvnc_provision_marker.stat.exists and
+         (kasmvnc_provision_marker_content.content | b64decode | from_json) ==
+         {'generation': kasmvnc_update.generation, 'frontend_sha256': kasmvnc_update.frontend_sha256})
+    fail_msg: This VM already has a VM browser entry; switch it with the regular desktop update, which keeps its certificate.
+
+- name: Create the maintenance marker directory
+  ansible.builtin.file:
+    path: /var/lib/employee-workspace
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Record this install before writing any frontend identity
+  ansible.builtin.copy:
+    dest: /var/lib/employee-workspace/desktop-provision.json
+    owner: root
+    group: root
+    mode: '0644'
+    force: false
+    content: "{{ {'generation': kasmvnc_update.generation, 'frontend_sha256': kasmvnc_update.frontend_sha256} | to_json }}"
+
+- name: Read the existing frontend certificate fingerprint
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, /etc/oci-hub/desktop.crt, -noout, -fingerprint, -sha256]
+  register: kasmvnc_frontend_existing_pin
+  changed_when: false
+  when: kasmvnc_frontend_existing.stat.exists
+
+- name: Never replace a different frontend identity
+  ansible.builtin.assert:
+    that:
+      - not kasmvnc_frontend_existing.stat.islnk
+      - (kasmvnc_frontend_existing_pin.stdout.split('=', 1)[1] | replace(':', '') | lower) == kasmvnc_update.frontend_sha256
+    fail_msg: A different frontend certificate is installed; use the desktop update instead.
+  when: kasmvnc_frontend_existing.stat.exists
+
+- name: Install this VM frontend TLS identity only where it is absent
+  ansible.builtin.copy:
+    content: '{{ item.content }}'
+    dest: '/etc/oci-hub/{{ item.name }}'
+    owner: root
+    group: root
+    mode: '0600'
+    force: false
+  loop:
+    - {name: desktop.key, content: '{{ kasmvnc_frontend_private_key }}'}
+    - {name: desktop.crt, content: '{{ kasmvnc_frontend_certificate }}'}
+  no_log: true
+
+- name: Compare the installed certificate and private key
+  ansible.builtin.shell: |
+    set -o pipefail
+    [ "$(openssl x509 -pubkey -noout -in /etc/oci-hub/desktop.crt)" = "$(openssl pkey -pubout -in /etc/oci-hub/desktop.key)" ]
+  args:
+    executable: /bin/bash
+  changed_when: false
+  no_log: true
+
+- name: Read the installed frontend certificate fingerprint
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, /etc/oci-hub/desktop.crt, -noout, -fingerprint, -sha256]
+  register: kasmvnc_frontend_installed_pin
+  changed_when: false
+
+- name: Require the installed frontend identity to match the bundle pin
+  ansible.builtin.assert:
+    that: (kasmvnc_frontend_installed_pin.stdout.split('=', 1)[1] | replace(':', '') | lower) == kasmvnc_update.frontend_sha256
+
+- name: Start the presentation proxy that later steps reload
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Read the VM browser configuration
+  ansible.builtin.slurp:
+    src: /etc/employee-workspace-browser.json
+  register: kasmvnc_browser_config
+
+- name: Point the VM browser viewer at this VM overlay
+  ansible.builtin.copy:
+    dest: /etc/employee-workspace-browser.json
+    owner: root
+    group: root
+    mode: '0644'
+    content: "{{ (kasmvnc_browser_config.content | b64decode | from_json) | combine({'viewer_url': 'https://' + kasmvnc_update.address + ':8443/'}) | to_nice_json }}"
+
+- name: Install and activate the desktop with the retained frontend identity
+  ansible.builtin.include_tasks: update.yml
