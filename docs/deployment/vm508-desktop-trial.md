@@ -1,6 +1,6 @@
 # VM508 中国侧桌面更新部署范围
 
-本次仅更新已有员工／设备 `suixiaoyou` 的 VM508（`oci-hub-suixiaoyou`，收件邮箱为既有登记 `suxiaoyo@gmail.com`）。源码准备与检查已完成，尚未提交、发布或执行部署。员工的 Mac／Linux 具体系统及是否已用新包接入仍待本人确认。
+本次仅更新已有员工／设备 `suixiaoyou` 的 VM508（`oci-hub-suixiaoyou`，收件邮箱为既有登记 `suxiaoyo@gmail.com`）。用户已明确批准源码提交、执行器发布及本次VM508更新；2026-11-02已通过wsctl完成配置。员工的 Mac／Linux 具体系统及是否已用新包接入仍待本人确认。
 
 ## 2026-11-02 只读事实
 
@@ -49,6 +49,18 @@
 
 ## 验证证据
 
-新旧presentation入口语法检查通过，相关role和playbook lint通过。桌面生命周期29项、浏览器12项、presentation／TLS60项、新材料3项合成测试通过；私有desktop更新8项和wsctl44项测试通过。测试覆盖错配员工／设备／VM、证书pin变化、旧批准拒绝、单目标执行、前端自签名叶证书精确pin、独立后端生成／重复使用和符号链接拒绝。未执行真实安装、停止服务或中国侧真人验收。
+新旧presentation入口语法检查通过，相关role和playbook lint通过。桌面生命周期29项、浏览器12项、presentation／TLS61项、新材料3项合成测试通过；私有desktop更新8项和wsctl44项测试通过。测试覆盖错配员工／设备／VM、证书pin变化、旧批准拒绝、单目标执行、前端自签名叶证书精确pin、独立后端生成／重复使用和符号链接拒绝。未执行真实安装、停止服务或中国侧真人验收。
 
 官方安装来源：[Anthropic安装说明](https://support.claude.com/en/articles/10065433-install-claude-desktop)。角色用法见[KasmVNC role](../../ansible/roles/kasmvnc/README.md)。
+
+## 2026-11-02 实际部署结果
+
+公开任务分支源码已提交并发布到执行器，私有wsctl接缝亦已提交和发布。执行器Git自动hook含强制检出main，而运行目录存在员工roster修改，因此本次推送任务分支并在既有锁下正常检出／仅更新本任务文件；已核对roster原修改保留，未覆盖其他运行数据。
+
+实际执行经两项修复后完成：内部presentation阶段使用独立变量，避免被命令行update覆盖；缺少可选employee-login-guide.service的原生Mosh工作区跳过该服务重启。回归覆盖缺失服务，未为VM508额外安装HAPI登录服务。
+
+最终wsctl返回configured，Ansible为71ok／3changed／0unreachable／0failed。实机回读为KasmVNC1.5.0-1、XFCE4.20.1、Claude Desktop4.4212.0、gnome-keyring50.0-1；nginx检查通过且运行，维护标记已清除，旧6081／5901监听不存在，前端指纹完全保留，VM508独立后端证书链与localhost身份验证通过。桌面和浏览器service均为employee／Restart=no／static，当前inactive，保持按需启动。
+
+执行器私有审计位于 `/srv/remotecc/employee-data/runs/desktop-update/suixiaoyou/g-vm508-trial-v1/`，保存approved-plan.json与ansible.log。最终批准摘要为 `42f845eb807df99805ba950d8e8d122b44cb34ac61777a1f545c799485125311`。
+
+员工下一步：通过原接入身份进入自己的VM508，执行 `workspace-browser start`，再在本机浏览器打开 `https://10.234.0.8:8443/`。接受已获准的本站证书例外后确认WSS桌面连接，在VM内打开官方Claude并本人登录。首次连接可使用Local Scaling和IME Input Mode；中国侧操作延迟、滚动、中文输入、必要剪贴板及重连仍待员工实测。此次部署没有打开个人窗口、读取OAuth／账号内容，也没有代替员工验收。
