@@ -70,7 +70,7 @@ cat ~/work/acceptance/persistence.txt
 workspace-browser start
 ```
 
-保持 WireGuard 开启，在本机浏览器打开[我的 VM 浏览器](http://10.230.0.1:8443/vnc.html#autoconnect=1&resize=scale&reconnect=0)。Firefox 在你的澳洲 VM 上运行，可在画面内输入网址、操作网站或访问 VM 内的开发网页。需要时允许本机浏览器访问此私网地址。页面首次一直加载时，可刷新重试。
+保持 WireGuard 开启，从就绪后的 `workspace-browser start` 或 `workspace-browser status` 输出取得自己的 `https://<目标 VM overlay IPv4>:8443/` 根 URL。设备经 OCI Hub 访问所分配 VM，TLS 在目标 VM 终止，叶证书 IP SAN 必须匹配该 overlay IP。首次连接先完成[桌面入口与设备信任核验](employee-browser-lifecycle.md)，再在本机浏览器打开命令输出的 URL；未知分配地址时联系管理员，不猜地址、不追加旧路径、不改用 HTTP 或旧共享入口。Firefox 在你的澳洲 VM 上运行，可在画面内输入网址、操作网站或访问 VM 内的开发网页。需要时允许本机浏览器访问此私网地址。完成 HTTPS/CA 核验且没有证书警告后，页面首次一直加载时可刷新重试；遇到证书警告时停止并联系管理员。VM500 保留 HAPI 控制面；HAPI 接入不要求执行本项桌面信任步骤。
 
 | 远端命令 | 用途 |
 | --- | --- |
@@ -81,7 +81,7 @@ workspace-browser start
 
 关闭本机网页、SSH 断开或暂时停用 WireGuard，VM 浏览器会继续运行。重新连接 WireGuard 后刷新上方地址即可继续；无需重新启动浏览器。浏览器没有 30 分钟运行上限，画面连接空闲断开时可刷新重连。不用时请运行 `workspace-browser stop`。
 
-Cookie、历史记录、个人设置和下载文件留在自己的 VM。下载文件可通过 SFTP 取回；本机剪贴板与 VM 剪贴板通过 noVNC 左侧工具栏的剪贴板面板操作。VM 重启后需要重新运行 start；恢复哪些标签由 Firefox 设置决定。不要把画面访问地址理解为可绕过 WireGuard 的公网入口。
+Cookie、历史记录、个人设置和下载文件留在自己的 VM。下载文件可通过 SFTP 取回；本机与 VM 之间的剪贴板操作按当前桌面界面提示进行。VM 重启后需要重新运行 start；恢复哪些标签由 Firefox 设置决定。不要把画面访问地址理解为可绕过 WireGuard 的公网入口。
 
 ## Claude 登录与使用
 
@@ -93,11 +93,11 @@ workspace-login
 
 助手先检查已保存的 Claude 订阅登录；有效时直接显示状态。需要授权时，自动启动或复用同一个 VM 浏览器，并在新标签打开当次授权页，终端会显示私网画面地址：
 
-[打开我的 VM 授权画面](http://10.230.0.1:8443/vnc.html#autoconnect=1&resize=scale&reconnect=0)
+使用就绪后的 `workspace-browser start` 或 `workspace-browser status` 输出的同一目标 HTTPS 根 URL；首次打开前按[设备信任说明](employee-browser-lifecycle.md)核验公开 CA 与目标 IP SAN。
 
-保持 WireGuard 开启，并保留这个 SSH 终端。在本机浏览器打开上方地址。你看到的 Firefox 实际运行在自己的澳洲 VM；在这个画面内点击邮箱框、输入、完成邮件／SSO／验证码和授权同意。本机浏览器只显示远端画面。无需安装 VNC 客户端，也无需复制 CLI 的 OAuth 链接到本机。
+保持 WireGuard 开启，并保留这个 SSH 终端。在本机浏览器打开已核验的命令输出地址。你看到的 Firefox 实际运行在自己的澳洲 VM；在这个画面内点击邮箱框、输入、完成邮件／SSO／验证码和授权同意。本机浏览器只显示远端画面。无需安装 VNC 客户端，也无需复制 CLI 的 OAuth 链接到本机。
 
-网页画面太大时，在 noVNC 设置中选择“缩放／Local Scaling”；先点击远端输入框再输入。需要粘贴时可使用画面左侧工具栏的剪贴板面板。若 Firefox 页面显示一段授权码，复制该码并按当前 SSH 终端中的官方提示粘贴；不要发给管理员或 Agent。
+网页画面太大或需要粘贴时，按当前桌面界面的缩放与剪贴板提示操作；先点击远端输入框再输入。若 Firefox 页面显示一段授权码，复制该码并按当前 SSH 终端中的官方提示粘贴；不要发给管理员或 Agent。
 
 看到终端“Claude 登录成功”后，在远端执行：
 
