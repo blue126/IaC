@@ -25,6 +25,7 @@ class FakePVE(BaseHTTPRequestHandler):
     writes=0
     reads=[]
     heads=0
+    network_mode='normal'
     def log_message(self,*_args):pass
     def do_GET(self):
         self.reads.append(self.path)
@@ -46,11 +47,15 @@ class FakePVE(BaseHTTPRequestHandler):
         elif self.path=='/api2/json/nodes/pve0/qemu':data=[{'vmid':210,'name':'fixture-vm','template':0,'status':'running'},{'vmid':999,'name':'UNOWNED_VM_CANARY'}]
         elif self.path=='/api2/json/nodes/pve0/lxc/110/status/current':
             data={'status':'running','vmid':110,'maxmem':2147483648,'maxdisk':17179869184,'maxswap':1073741824,'name':'jenkins-agent','uptime':100}
-        elif self.path=='/api2/json/nodes/pve0/storage/local/content':data=[{'volid':'local:iso/fixed-image.img','content':'iso','format':'raw','size':1048576}]
+        elif self.path=='/api2/json/nodes/pve0/network':data=[{'iface':'vmbr501','type':'bridge','autostart':1,'bridge_ports':'','bridge_vlan_aware':0,'mtu':'1400','comments':'SECRET_CANARY_BRIDGE_COMMENT','unreviewed':'SECRET_CANARY'}, {'iface':'vmbr999','type':'bridge','comments':'UNOWNED_BRIDGE_CANARY'}]
+        elif self.path=='/api2/json/nodes/pve0/storage/local/content':data=[{'volid':'local:iso/fixed-image.img','content':'iso','format':'raw','size':1048576},{'volid':'local:snippets/hook.py','content':'snippets','format':'raw','size':128},{'volid':'local:snippets/private.py','content':'snippets','private':'SECRET_CANARY'}]
         elif self.path.startswith('/api2/json/storage/'):
             data={'type':'zfspool','pool':'vmdata','content':'rootdir,images','username':'CANARY','password':'CANARY'}
         else:
             self.send_error(404);return
+        if self.path=='/api2/json/nodes/pve0/network':
+            if self.network_mode=='missing':data=[item for item in data if item['iface']!='vmbr501']
+            elif self.network_mode=='wrong-type':data[0]['type']='eth'
         raw=json.dumps({'data':data}).encode()
         self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
     def do_HEAD(self):
@@ -80,7 +85,8 @@ def main():
         credential=directory/'fake.token';credential.write_text('fixture@pve!read=synthetic-token')
         policy['upstreams']['primary'].update(origin='https://127.0.0.1:'+str(upstream.server_port),token_file=str(credential),ca_file=str(cert))
         policy['vmids']={'primary':{'pve0':[110,210]}}
-        policy['file_ids']=['local:iso/fixed-image.img']
+        policy['file_ids']=['local:iso/fixed-image.img','local:snippets/hook.py']
+        policy['bridges']={'primary':{'pve0':['vmbr501']}}
         image='https://127.0.0.1:'+str(upstream.server_port)+'/fixed-image.img'
         probe=next(route for route in policy['routes'] if route.get('adaptation'))
         probe['query']['url']=[image]
@@ -116,6 +122,8 @@ def main():
         (directory/'terraform.rc').write_text('disable_checkpoint = true\nprovider_installation { filesystem_mirror { path = '+json.dumps(args.mirror)+' } }\n')
         (directory/'.terraform.lock.hcl').write_bytes((ROOT/'terraform/proxmox/.terraform.lock.hcl').read_bytes())
         shutil.copytree(ROOT/'terraform/modules/proxmox-lxc',directory/'modules/proxmox-lxc')
+        projection=SourceFileLoader('provider_projection',str(ROOT/'scripts/jenkins/proxmox-projection.py')).load_module()
+        projection_sentinel=projection.sentinel
         def configuration(cores):
             return '''terraform {
  required_providers {
@@ -152,6 +160,23 @@ resource "proxmox_virtual_environment_vm" "fixture_vm" {
  cpu { cores = '''+str(cores)+''' }
  memory { dedicated = 2048 }
 }
+resource "proxmox_virtual_environment_network_linux_bridge" "fixture_bridge" {
+ node_name = "pve0"
+ name = "vmbr501"
+ mtu = 1500
+ ports = []
+ autostart = true
+ comment = "'''+projection_sentinel('redacted:bridge.comment')+'''"
+}
+resource "proxmox_virtual_environment_file" "fixture_snippet" {
+ node_name = "pve0"
+ datastore_id = "local"
+ content_type = "snippets"
+ source_raw {
+  file_name = "hook.py"
+  data = "'''+projection_sentinel('redacted:source_raw.data')+'''"
+ }
+}
 data "proxmox_virtual_environment_vms" "fixture_templates" { node_name = "pve0" }
 resource "proxmox_virtual_environment_download_file" "fixture" {
  node_name = "pve0"
@@ -169,7 +194,11 @@ resource "proxmox_virtual_environment_download_file" "fixture" {
             terraform('init','-backend=false','-lockfile=readonly','-input=false','-no-color')
             terraform('import','-input=false','-no-color','module.peer.proxmox_virtual_environment_container.lxc','pve0/110')
             terraform('import','-input=false','-no-color','proxmox_virtual_environment_vm.fixture_vm','pve0/210')
+            terraform('import','-input=false','-no-color','proxmox_virtual_environment_network_linux_bridge.fixture_bridge','pve0:vmbr501')
+            terraform('import','-input=false','-no-color','proxmox_virtual_environment_file.fixture_snippet','pve0/local:snippets/hook.py')
             state=json.loads((directory/'terraform.tfstate').read_text())
+            snippet=next(resource for resource in state['resources'] if resource['type']=='proxmox_virtual_environment_file')['instances'][0]['attributes']
+            snippet['source_raw']=[{'data':projection_sentinel('redacted:source_raw.data'),'file_name':'hook.py','resize':0}]
             attributes=next(resource for resource in state['resources'] if resource['type']=='proxmox_virtual_environment_container')['instances'][0]['attributes']
             attributes.update(unprivileged=True,vm_id=110,start_on_boot=True,features=[{'nesting':True,'fuse':False,'keyctl':False}])
             attributes['operating_system'][0]['template_file_id']='local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst'
@@ -186,6 +215,18 @@ resource "proxmox_virtual_environment_download_file" "fixture" {
             projection=SourceFileLoader('provider_state_projection',str(ROOT/'scripts/jenkins/proxmox-projection.py')).load_module()
             projected,_=projection.project_state(refreshed,json.loads((ROOT/'ci/agent-provider-schema.json').read_text()))
             assert 'SECRET_CANARY' not in json.dumps(projected)
+            # A successful empty interface list would let this pinned provider keep stale bridge state.
+            for scope,mode in [(None,'normal'),({},'normal'),({'primary':{'pve0':[]}},'normal'),
+                               ({'primary':{'pve0':['vmbr501']}},'missing'),
+                               ({'primary':{'pve0':['vmbr501']}},'wrong-type'),
+                               ({'primary':{'pve0':['vmbr501','vmbr502']}},'normal')]:
+                if scope is None:policy.pop('bridges',None)
+                else:policy['bridges']=scope
+                FakePVE.network_mode=mode
+                rejected=terraform('plan','-refresh-only','-input=false','-lock=false','-no-color',allowed=(1,))
+                assert '403' in rejected.stdout+rejected.stderr,(scope,mode,rejected.stdout,rejected.stderr)
+            policy['bridges']={'primary':{'pve0':['vmbr501']}}
+            FakePVE.network_mode='normal'
         change=next(change for change in plan['resource_changes'] if change['address']=='module.peer.proxmox_virtual_environment_container.lxc')
         assert change['change']['before']['cpu'][0]['cores']==2,change
         assert change['change']['after']['cpu'][0]['cores']==3,change
@@ -193,12 +234,19 @@ resource "proxmox_virtual_environment_download_file" "fixture" {
         assert vm['change']['before']['cpu'][0]['cores']==2 and vm['change']['after']['cpu'][0]['cores']==3,vm
         assert 'UNOWNED_VM_CANARY' not in json.dumps(plan)
         assert 'SECRET_CANARY' not in json.dumps(plan)
+        bridge_change=next(change for change in plan['resource_changes'] if change['address']=='proxmox_virtual_environment_network_linux_bridge.fixture_bridge')
+        assert bridge_change['change']['before']['mtu']==1400 and bridge_change['change']['after']['mtu']==1500,bridge_change
+        bridge=next(resource for resource in refreshed['resources'] if resource['type']=='proxmox_virtual_environment_network_linux_bridge')['instances'][0]['attributes']
+        assert bridge['comment']==projection_sentinel('redacted:bridge.comment')
+        assert any('/network' in path for path in FakePVE.reads)
+        assert any('/storage/local/content' in path for path in FakePVE.reads)
+        assert 'UNOWNED_BRIDGE_CANARY' not in json.dumps(plan)
         assert FakePVE.writes==0
         assert any('/lxc/110/config' in path for path in FakePVE.reads)
         # The probe is adapted by HEAD; it must never hit the privileged PVE endpoint.
         assert not any('query-url-metadata' in path for path in FakePVE.reads)
         assert FakePVE.heads>0,'fixed-image HEAD adapter was not exercised'
-        print('PASS: Terraform1.14.4 / bpg0.70.0 VM/LXC refresh predicts CPU 2→3; data list filtered; fixed-image HEAD; upstream writes=0')
+        print('PASS: Terraform1.14.4 / bpg0.70.0 bridge/snippet/VM/LXC refresh predicts CPU 2→3; data list filtered; fixed-image HEAD; upstream writes=0')
         broker.shutdown();upstream.shutdown()
 
 

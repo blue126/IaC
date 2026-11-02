@@ -2218,6 +2218,243 @@
             },
             "description_kind": "plain"
           }
+        },
+        "proxmox_virtual_environment_file": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "content_type": {
+                "type": "string",
+                "description": "The content type",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "datastore_id": {
+                "type": "string",
+                "description": "The datastore id",
+                "description_kind": "plain",
+                "required": true
+              },
+              "file_mode": {
+                "type": "string",
+                "description": "The file mode in octal format, e.g. \"0700\" or \"600\".Note that the prefixes \"0o\" and \"0x\" are not supported!Setting this attribute is also only allowed for \"root@pam\" authenticated user.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "file_modification_date": {
+                "type": "string",
+                "description": "The file modification date",
+                "description_kind": "plain",
+                "computed": true
+              },
+              "file_name": {
+                "type": "string",
+                "description": "The file name",
+                "description_kind": "plain",
+                "computed": true
+              },
+              "file_size": {
+                "type": "number",
+                "description": "The file size in bytes",
+                "description_kind": "plain",
+                "computed": true
+              },
+              "file_tag": {
+                "type": "string",
+                "description": "The file tag",
+                "description_kind": "plain",
+                "computed": true
+              },
+              "id": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "node_name": {
+                "type": "string",
+                "description": "The node name",
+                "description_kind": "plain",
+                "required": true
+              },
+              "overwrite": {
+                "type": "bool",
+                "description": "Whether to overwrite the file if it already exists",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "timeout_upload": {
+                "type": "number",
+                "description": "Timeout for uploading ISO/VSTMPL files in seconds",
+                "description_kind": "plain",
+                "optional": true
+              }
+            },
+            "block_types": {
+              "source_file": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "changed": {
+                      "type": "bool",
+                      "description": "Whether the source file has changed since the last run",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "checksum": {
+                      "type": "string",
+                      "description": "The SHA256 checksum of the source file",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "file_name": {
+                      "type": "string",
+                      "description": "The file name to use instead of the source file name",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "insecure": {
+                      "type": "bool",
+                      "description": "Whether to skip the TLS verification step for HTTPS sources",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "min_tls": {
+                      "type": "string",
+                      "description": "The minimum required TLS version for HTTPS sources.Supported values: `1.0|1.1|1.2|1.3`. Defaults to `1.3`.",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "A path to a local file or a URL",
+                      "description_kind": "plain",
+                      "required": true
+                    }
+                  },
+                  "description": "The source file",
+                  "description_kind": "plain"
+                },
+                "max_items": 1
+              },
+              "source_raw": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "data": {
+                      "type": "string",
+                      "description": "The raw data",
+                      "description_kind": "plain",
+                      "required": true
+                    },
+                    "file_name": {
+                      "type": "string",
+                      "description": "The file name",
+                      "description_kind": "plain",
+                      "required": true
+                    },
+                    "resize": {
+                      "type": "number",
+                      "description": "The number of bytes to resize the file to",
+                      "description_kind": "plain",
+                      "optional": true
+                    }
+                  },
+                  "description": "The raw source",
+                  "description_kind": "plain"
+                },
+                "max_items": 1
+              }
+            },
+            "description_kind": "plain"
+          }
+        },
+        "proxmox_virtual_environment_network_linux_bridge": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "address": {
+                "type": "string",
+                "description": "The interface IPv4/CIDR address.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "address6": {
+                "type": "string",
+                "description": "The interface IPv6/CIDR address.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "autostart": {
+                "type": "bool",
+                "description": "Automatically start interface on boot (defaults to `true`).",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "comment": {
+                "type": "string",
+                "description": "Comment for the interface.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "gateway": {
+                "type": "string",
+                "description": "Default gateway address.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "gateway6": {
+                "type": "string",
+                "description": "Default IPv6 gateway address.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "id": {
+                "type": "string",
+                "description": "A unique identifier with format `<node name>:<iface>`",
+                "description_kind": "plain",
+                "computed": true
+              },
+              "mtu": {
+                "type": "number",
+                "description": "The interface MTU.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "name": {
+                "type": "string",
+                "description": "The interface name. Must be `vmbrN`, where N is a number between 0 and 9999.",
+                "description_kind": "markdown",
+                "required": true
+              },
+              "node_name": {
+                "type": "string",
+                "description": "The name of the node.",
+                "description_kind": "plain",
+                "required": true
+              },
+              "ports": {
+                "type": [
+                  "list",
+                  "string"
+                ],
+                "description": "The interface bridge ports.",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "vlan_aware": {
+                "type": "bool",
+                "description": "Whether the interface bridge is VLAN aware (defaults to `false`).",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              }
+            },
+            "description": "Manages a Linux Bridge network interface in a Proxmox VE node.",
+            "description_kind": "plain"
+          }
         }
       },
       "data_source_schemas": {

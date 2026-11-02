@@ -107,6 +107,32 @@ class SignatureTests(unittest.TestCase):
         (self.directory/'records.json').write_text('tampered')
         with self.assertRaises(control.Refused):maintenance.validate_evidence(envelope,policy,101)
 
+    def test_signed_producer_uses_current_native_source_and_public_state(self):
+        fixture=ProjectionTests();fixture.setUp();raw=fixture.public_state()
+        schema=self.directory/'schema.json';schema.write_bytes((ROOT/'ci/agent-provider-schema.json').read_bytes());schema.chmod(0o600)
+        lock=self.directory/'lock.hcl';lock.write_bytes((ROOT/'terraform/proxmox/.terraform.lock.hcl').read_bytes());lock.chmod(0o600)
+        policy=dict(fixture.policy,enabled=True,provider_schema=str(schema),provider_lock=str(lock),source_sha='a'*40,key_id='current',signing_key=str(self.key))
+        policy['broker']['bridges']={'pve2':{'pve2':['vmbr501']}}
+        hcp=type('HCP',(),{'current':lambda self:{'id':'sv-synthetic'},'state':lambda self,version:raw})()
+        destination=self.directory/'bundle'
+        with patch.object(snapshot,'HCP',return_value=hcp):manifest=snapshot.produce(policy,ROOT,'n'*24,destination)
+        signed=control.verify(json.loads((destination/'manifest.json').read_text()),{'current':self.public},'plan-snapshot')
+        self.assertEqual(signed,manifest);self.assertEqual(manifest['coverage']['status'],'partial')
+        self.assertTrue(manifest['files']);self.assertNotIn('SECRET_CANARY', ''.join(path.read_text() for path in destination.rglob('*') if path.is_file()))
+        for index,scope in enumerate([None,{}, {'pve2':{'pve2':[]}}, {'pve2':{'pve2':['vmbr999']}}]):
+            candidate=copy.deepcopy(policy)
+            if scope is None:candidate['broker'].pop('bridges')
+            else:candidate['broker']['bridges']=scope
+            refused=self.directory/f'refused-scope-{index}'
+            with patch.object(snapshot,'HCP',return_value=hcp):
+                with self.assertRaises(control.Refused):snapshot.produce(candidate,ROOT,'n'*24,refused)
+            self.assertFalse((refused/'manifest.json').exists())
+        raw['outputs']['openbao_testbed_identifiers']['value']['bao']['private']='SECRET_CANARY'
+        refused=self.directory/'refused-bundle'
+        with patch.object(snapshot,'HCP',return_value=hcp):
+            with self.assertRaises(control.Refused):snapshot.produce(policy,ROOT,'n'*24,refused)
+        self.assertFalse((refused/'manifest.json').exists())
+
     def test_snapshot_finalization_marks_updated_state_stale(self):
         now=int(time.time())
         payload={'purpose':'plan-snapshot','nonce':'n'*24,'issued_at':now-1,'expires_at':now+100,
@@ -161,6 +187,67 @@ class ProjectionTests(unittest.TestCase):
         self.assertIn('backend "local"',result)
         self.assertIn('"{ bracket }"',result)
 
+    def public_state(self):
+        raw=self.state()
+        def resource(kind,name,attrs,index=None):
+            definitions=self.schema['provider_schemas']['registry.terraform.io/bpg/proxmox']['resource_schemas']
+            instance={'schema_version':definitions[kind]['version'] if kind in definitions else 0,'attributes':attrs}
+            if index is not None:instance['index_key']=index
+            raw['resources'].append({'mode':'managed','type':kind,'name':name,'provider':'provider["registry.terraform.io/bpg/proxmox"]' if kind!='terraform_data' else 'provider["terraform.io/builtin/terraform"]','instances':[instance]})
+        allocation={'nic_slot':1,'node':'pve2','bridge':'vmbr501','address':'10.0.0.2/30','gateway':'10.0.0.1','mac_address':'02:00:00:00:00:02','gateway_mac':'02:00:00:00:00:01','dns_server':'1.1.1.1'}
+        payload={'value':allocation,'type':['object',projection.ALLOCATION_FIELDS]}
+        resource('terraform_data','employee_slot',{'id':'slot','input':payload,'output':payload,'triggers_replace':None},'pilot')
+        resource('proxmox_virtual_environment_file','hook',{'id':'local:snippets/hook.py','source_raw':[{'data':'SECRET_CANARY_SNIPPET','file_name':'hook.py','resize':0}]})
+        resource('proxmox_virtual_environment_network_linux_bridge','employee',{'id':'pve2:vmbr501','name':'vmbr501','node_name':'pve2','comment':'SECRET_CANARY_COMMENT'})
+        raw['resources'][-1]['provider']='provider["registry.terraform.io/bpg/proxmox"].pve2'
+        raw['resources'][0]['instances'][0]['attributes']['variables'].update(employee_workspace_admin_public_keys_json='["SECRET_CANARY_KEY"]',employee_access_networks_json=json.dumps({'pilot':{'vmid':501,'bridge':'vmbr501'}}))
+        fields={'ip':'string','name':'string','vmid':'number'}
+        raw['outputs']={'openbao_testbed_identifiers':{'sensitive':False,'type':['object',{'bao':['object',fields],'trusted_control':['object',fields]}],'value':{'bao':{'ip':'192.0.2.1','name':'bao','vmid':112},'trusted_control':{'ip':'192.0.2.2','name':'control','vmid':113}}}}
+        return raw
+
+    def test_public_structured_state_redactions_and_types(self):
+        raw=self.public_state();projected,_=projection.project_state(raw,self.schema)
+        self.assertNotIn('SECRET_CANARY',json.dumps(projected))
+        self.assertEqual(projected['resources'][1]['instances'][0]['attributes']['input']['value']['nic_slot'],1)
+        for modify in [lambda s:s['resources'][1]['instances'][0]['attributes']['input']['type'][1].update(nic_slot='string'),
+                       lambda s:s['resources'][0]['instances'][0]['attributes']['variables'].update(employee_access_networks_json='{"pilot":{"private":"CANARY"}}'),
+                       lambda s:s['outputs']['openbao_testbed_identifiers']['value']['bao'].update(private='CANARY'),
+                       lambda s:s['resources'][2]['instances'][0]['attributes'].update(source_file=[{'path':'https://bad'}]),
+                       lambda s:s['resources'][1]['instances'][0].update(private='b3BhcXVl'),
+                       lambda s:s['resources'][2]['instances'][0]['attributes']['source_raw'][0].update(file_name={'nested':'CANARY'})]:
+            candidate=copy.deepcopy(raw);modify(candidate)
+            with self.assertRaises(control.Refused):projection.project_state(candidate,self.schema)
+
+    def test_current_inputs_keep_cardinality_and_source_blocks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            projection.project_source(ROOT/'terraform',directory,self.policy)
+            inputs=json.loads((Path(directory)/'proxmox/projection.auto.tfvars.json').read_text())
+            for key,file in [('employee_workspaces','employee-workspaces'),('oci_hub_workspaces','oci-hub-workspaces')]:
+                original=json.loads((ROOT/'terraform/proxmox'/f'{file}.auto.tfvars.json').read_text())[key]
+                self.assertTrue(original);self.assertEqual(set(inputs[key]),set(original))
+            self.assertEqual(inputs['employee_access']['admin_public_keys'],[])
+            for file in (ROOT/'terraform/proxmox').glob('*.tf'):
+                original=projection.blocks(file.read_text());projected=projection.blocks((Path(directory)/'proxmox'/file.name).read_text())
+                self.assertEqual([(b['kind'],b['labels']) for b in original],[(b['kind'],b['labels']) for b in projected])
+            snippet=(Path(directory)/'proxmox/employee-workspace.tf').read_text()
+            self.assertIn('employee-${each.key}-boundary.py',snippet);self.assertNotIn('templatefile(',snippet)
+            self.assertIn(projection.sentinel('redacted:source_raw.data'),snippet)
+
+    def test_source_input_template_and_link_changes_fail_closed(self):
+        for relative in ['proxmox/employee-boundary-hook.py.tftpl','proxmox/employee-workspaces.auto.tfvars.json','proxmox/main.tf']:
+            with tempfile.TemporaryDirectory() as directory:
+                source=Path(directory)/'source';destination=Path(directory)/'out'
+                for name in self.policy['source_files']:
+                    target=source/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/'terraform'/name,target)
+                (source/relative).write_text((source/relative).read_text()+'\n# UNREVIEWED_CANARY')
+                with self.assertRaises(control.Refused):projection.project_source(source,destination,self.policy)
+                (source/relative).unlink();(source/relative).symlink_to(ROOT/'terraform'/relative)
+                with self.assertRaises(control.Refused):projection.project_source(source,destination,self.policy)
+        with self.assertRaises(control.Refused):projection.project_file('resource "proxmox_virtual_environment_file" "bad" { source_file { path = "/private" } }','bad.tf',self.policy)
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'bad.json';path.write_text('{"employee_workspaces":{},"employee_access":null,"private":"CANARY"}')
+            with self.assertRaises(control.Refused):projection.public_inputs(path,'proxmox/employee-workspaces.auto.tfvars.json')
+
 
 class BrokerTests(unittest.TestCase):
     def setUp(self):
@@ -180,6 +267,7 @@ class BrokerTests(unittest.TestCase):
                      '/primary/api2/json/nodes/pve0/lxc/110/status/start','/primary/api2/json/nodes/pve0/lxc/110/config?x=1',
                      '/primary/api2/json/nodes/pve0/lxc/110/config?x=1&x=2',
                      '/primary/api2/json/nodes/pve0/query-url-metadata?url=https%3A%2F%2Fevil',
+                     '/primary/api2/json/nodes/pve0/network/vmbr999',
                      '/primary/api2/json/nodes/pve0/%2e%2e/access']:
             with self.subTest(path=path),self.assertRaises((control.Refused,ValueError)):gateway.route(path,self.policy)
     def test_redirects_and_response_schema_mismatch_fail(self):

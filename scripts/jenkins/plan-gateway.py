@@ -118,6 +118,14 @@ class Handler(BaseHTTPRequestHandler):
                 if resource.endswith('/qemu'):
                     allowed=self.server.policy['vmids'].get(alias,{}).get(node[1],[])+self.server.policy.get('template_vmids',{}).get(alias,{}).get(node[1],[])
                     decoded['data']=[item for item in decoded['data'] if item.get('vmid') in allowed]
+                if resource.endswith('/network'):
+                    allowed=self.server.policy.get('bridges',{}).get(alias,{}).get(node[1],[])
+                    if not allowed:raise Refused('network Read requires a nonempty reviewed bridge scope')
+                    for name in allowed:
+                        matches=[item for item in decoded['data'] if item.get('iface')==name]
+                        if len(matches)!=1 or matches[0].get('type')!='bridge':
+                            raise Refused('reviewed bridge is missing, duplicated or has changed type')
+                    decoded['data']=[item for item in decoded['data'] if item.get('iface') in allowed]
                 if resource.endswith('/content'):
                     decoded['data']=[item for item in decoded['data'] if item.get('volid') in self.server.policy['file_ids']]
                 projected=filter_value(decoded,adapter['response'])

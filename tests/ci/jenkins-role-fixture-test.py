@@ -30,6 +30,8 @@ class RoleTests(unittest.TestCase):
         self.bin=self.base/'bin';self.bin.mkdir();self.env={key:value for key,value in os.environ.items() if not key.startswith('ANSIBLE_')}
         self.env['PATH']=str(self.bin)+':'+os.environ['PATH'];self.env['ANSIBLE_LOCAL_TEMP']=str(self.base/'ansible-tmp')
         self.env['ANSIBLE_CONFIG']=str(ROOT/'tests/ci/fixtures/ansible.cfg')
+        # Keep the pinned checkout collections visible after stripping deployment settings.
+        self.env['ANSIBLE_COLLECTIONS_PATH']=os.pathsep.join([str(ROOT/'ansible/collections'),str(Path.home()/'.ansible/collections'),'/usr/share/ansible/collections'])
     def tasks(self,path):
         def normalize(value):
             if isinstance(value,list):return [normalize(item) for item in value]

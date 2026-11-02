@@ -20,6 +20,11 @@ def main():
             relative=str(source.relative_to(root/'terraform'))
             adapter.project_file(source.read_text(),relative,policy)
             files[relative]=hashlib.sha256(source.read_bytes()).hexdigest()
+    for relative in sorted(adapter.PUBLIC_FILES|adapter.TEMPLATE_FILES):
+        source=root/'terraform'/relative
+        if source.is_symlink():raise Refused('public closure may not include links')
+        if relative in adapter.PUBLIC_FILES:adapter.public_inputs(source,relative)
+        files[relative]=hashlib.sha256(source.read_bytes()).hexdigest()
     schema=hashlib.sha256((root/'ci/agent-provider-schema.json').read_bytes()).hexdigest()
     if args.check:
         if files!=policy['source_files'] or schema!=policy['schema_sha256']:raise Refused('reviewed projection fingerprint is stale')

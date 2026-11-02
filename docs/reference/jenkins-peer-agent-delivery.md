@@ -1,6 +1,6 @@
 # 首个 Jenkins peer agent 本地交付与范围取舍
 
-2026-10-30 集成状态：原 2026-10-23 基线的 99 项通过记录保留为历史。基于最新主线整理后，七套回归为 98 项通过、1 项错误（当前 Terraform 文件闭包与投影策略不匹配）；真实 provider 假上游 CPU 预测仍通过、写次数 0。当前分支不可合并或启用，必须完成新增资源/模板与 state 的安全适配，保留完整 B 及拒绝未知输入的边界。
+2026-11-02 集成修复：已扩展当前完整原生闭包、moved/heredoc、四份跟踪公开输入、两个已命名 terraform_data 的 cty payload、公开 inventory JSON 和 OpenBao 标识输出。source_raw 内容、桥接 comments 与公钥使用配置/state/refresh 成对脱敏，未知字段、类型、来源和 private 仍拒绝。真实 Terraform 1.14.4 / bpg 0.70.0 经假 HTTPS PVE 与实际 broker 的 bridge/snippet/VM/LXC Read 已通过，CPU 2→3 与桥接 MTU 1400→1500 可预测，上游写次数 0。评审、PR CI、合并由当前任务另记录，生产验收未完成。
 
 整理日期：2026-10-23。结论：本地代码实现与评审完成，生产部署与 CI-only 移交未完成。本记录整理已有证据，不表示重新执行了生产验收或新一轮外部评审。
 
@@ -63,7 +63,7 @@
 
 ## 本地验证证据与复现
 
-以下为实现提交收尾时的实际记录，本次文档整理未重新执行这 98 项：
+以下表格保留原 2026-10-23 实现的历史记录；本轮 2026-11-02 在指定 Sandbox 重跑七套回归的结果见本节末尾。
 
 | 套件（`tests/ci/`） | 通过数 |
 | --- | ---: |
@@ -91,6 +91,10 @@ python3 tests/ci/jenkins-peer-test.py --project-native
 
 原始验证日志仍在任务 Sandbox 的 `/tmp/jenkins-peer-final-*.log` 等任务路径中，属于临时证据，可能随 Sandbox 清理消失；本记录保留版本、结果、覆盖与复现入口，不复制完整日志或巨量源码清单。临时二进制/mirror 不存在时，在已有安装授权范围内重新准备材料；不得用真实凭据或生产写入代替夹具。
 
+2026-11-02 七套回归在指定 Sandbox 共通过 103 项（12、27、5、4、4、42、9）；当前完整原生投影 init/validate 通过，仅既有 CT120 弃用警告。
+
+本轮新增回归验证实际签名 producer、非空 roster 与所有 resource/moved 块保留；新增或变化的来源/template/input、符号链接、未知 cty 类型和嵌套 JSON 均拒绝。源与 schema 指纹继续由既有 updater 生成；四份公开输入不复制到策略作为第二份名册。运行策略必须逐名填写 `bridges[alias][node]`；默认空范围与 disabled broker 保持不启用。snippet 文件 Read 只列 storage content，不授予 source_file、本地/URL 文件或 SSH 读取。
+
 ## 本次资料整理验证
 
 在任务 Sandbox 的临时 Git 快照中执行 `bash scripts/ci/validate-documentation.sh false` 全部通过；快照不含 `_bmad-output/`，因此同时验证了新克隆场景不再依赖被忽略的契约文件。批准意图契约逐字一致，四份文档准确性契约逐字一致；新整理文档的本地 Markdown 链接均有效。Jenkins 实现未变化，因此未重复执行先前通过的 98 项回归。
@@ -105,4 +109,4 @@ python3 tests/ci/jenkins-peer-test.py --project-native
 4. 获批约 10 分钟停服窗口内完成实际备份/演练、故意失败恢复、Gitea 不变及独立自更新验证。
 5. 两次 Ansible 幂等验证及全部移交证据齐全后，单独批准 controller=0，再由正常 Jenkins plan 对账。
 
-旧入口缺 HEAD~1 时跳过构建，以及历史退出码/路径引用问题，本轮未修复；它们未由新 peer 入口引入。投影覆盖仍为 partial，零变化不能作为整个 root 无变化证明。推送、合并和生产部署均未执行。
+旧入口缺 HEAD~1 时跳过构建，以及历史退出码/路径引用问题，本轮未修复；它们未由新 peer 入口引入。投影覆盖仍为 partial，零变化不能作为整个 root 无变化证明。本轮推送和合并状态由 PR189 的最终记录确认；生产部署未执行。

@@ -66,6 +66,17 @@ def produce(policy,source,nonce,destination):
     raw=hcp.state(before)
     schema=json.loads(schema_path.read_text())
     state,state_rewrites=adapter.project_state(raw,schema)
+    for resource in state.get('resources',[]):
+        if resource['type']!='proxmox_virtual_environment_network_linux_bridge':continue
+        provider=re.fullmatch(r'provider\["registry[.]terraform[.]io/bpg/proxmox"\](?:[.]([A-Za-z0-9_]+))?',resource['provider'])
+        alias=(provider[1] or 'default') if provider else None
+        if alias not in policy['provider_aliases']:raise Refused('state bridge has an unaudited provider alias')
+        upstream='pve2' if alias.startswith('pve2') else 'primary'
+        for instance in resource['instances']:
+            attributes=instance['attributes']
+            allowed=policy.get('broker',{}).get('bridges',{}).get(upstream,{}).get(attributes.get('node_name'),[])
+            if not allowed or attributes.get('name') not in allowed:
+                raise Refused('state bridge is outside the broker reviewed bridge scope')
     destination=Path(destination)
     destination.mkdir(mode=0o700)
     rewrites=adapter.project_source(source/'terraform',destination/'terraform',policy)
