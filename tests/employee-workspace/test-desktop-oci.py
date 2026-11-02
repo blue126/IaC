@@ -394,6 +394,8 @@ class ActivationTests(unittest.TestCase):
                 raise RuntimeError('synthetic interruption')
             if '--property=User,Restart' in argv:
                 return 'User=employee\nRestart=no'
+            if '--property=LoadState' in argv:
+                return 'loaded'
             if '--property=UnitFileState' in argv:
                 return 'static'
             return ''
@@ -407,6 +409,18 @@ class ActivationTests(unittest.TestCase):
         self.assertEqual(self.nginx.read_text(), 'old-noVNC-upstream')
         self.assertEqual(json.loads(self.browser.read_text()), self.original_browser)
         self.module.profile_guard.assert_not_called()
+
+    def test_native_mosh_vm_without_login_guide_can_activate(self):
+        original = preparation.run.side_effect
+        def command(argv):
+            if '--property=LoadState' in argv:
+                return 'not-found'
+            return original(argv)
+        preparation.run.side_effect = command
+        preparation.activate()
+        self.assertFalse(self.marker.exists())
+        self.assertNotIn(['systemctl', 'restart', 'employee-login-guide.service'],
+                         [call.args[0] for call in preparation.run.call_args_list])
 
     def test_vm508_interruption_is_bound_to_its_own_vmid(self):
         with patch.object(preparation, 'validate_stage', return_value=(self.module, {'vmid': 508}, {})):

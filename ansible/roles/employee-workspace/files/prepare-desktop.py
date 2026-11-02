@@ -174,7 +174,11 @@ def activate():
             install(STAGE / 'desktop.conf', NGINX, 0o600)
             run(['nginx', '-t'])
             run(['systemctl', 'reload', 'nginx'])
-            run(['systemctl', 'restart', 'employee-login-guide.service'])
+            guide_state = run(['systemctl', 'show', '--property=LoadState', '--value', 'employee-login-guide.service'])
+            if guide_state == 'loaded':
+                run(['systemctl', 'restart', 'employee-login-guide.service'])
+            elif guide_state != 'not-found':
+                raise ValueError('Unexpected login guide metadata')
             MARKER.unlink()
         except BaseException:
             if NGINX.exists():
