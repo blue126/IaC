@@ -135,18 +135,24 @@ def main():
             udp_probe('10.235.0.2','10.234.0.2',60000,False)
             config=copy.deepcopy(m.HUB)
             config['device_sources']=config.pop('ga2_sources')
-            config['pairs'][0]['mosh_ports']=[60000,60009]
-            config['pairs'][1]['mosh_ports']=[60020,60029]
-            config['pairs'].append({'device':'10.235.0.4','workspace':'10.234.0.2','mosh_ports':[60010,60019]})
+            # Every pair gets the whole range; isolation is the exact VM address.
+            config['pairs'][0]['mosh_ports']=[60000,61000]
+            config['pairs'][1]['mosh_ports']=[60000,61000]
+            config['pairs'].append({'device':'10.235.0.4','workspace':'10.234.0.2','mosh_ports':[60000,61000]})
             def apply_hub():
                 policy.write_text(json.dumps(config))
                 run('ip','netns','exec',hub,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'apply','--config',str(policy),'--receipt',str(receipt))
             apply_hub()
             udp_probe('10.235.0.2','10.234.0.2',60000,True)
-            udp_probe('10.235.0.2','10.234.0.2',60010,False)
+            udp_probe('10.235.0.2','10.234.0.2',60010,True)
+            # Two devices of the same employee share the range on that VM.
             udp_probe('10.235.0.4','10.234.0.2',60010,True)
-            udp_probe('10.235.0.4','10.234.0.2',60000,False)
+            udp_probe('10.235.0.4','10.234.0.2',60000,True)
+            # Another employee's devices cannot reach this VM, and vice versa.
+            udp_probe('10.235.0.3','10.234.0.2',60000,False)
+            udp_probe('10.235.0.3','10.234.0.2',60020,False)
             udp_probe('10.235.0.2','10.234.0.3',60020,False)
+            udp_probe('10.235.0.4','10.234.0.3',60020,False)
             udp_probe('10.235.0.3','10.234.0.3',60020,True)
             udp_probe('10.235.0.2','10.235.0.1',60000,False)
             # Preserve the existing UDP conntrack tuple: deleting only its grant
@@ -155,7 +161,7 @@ def main():
             udp_probe('10.235.0.2','10.234.0.2',60000,False)
             udp_probe('10.235.0.4','10.234.0.2',60010,True)
             probe('10.235.0.2','10.234.0.2',22,True)
-            print('PASS: native Mosh UDP replies, cross-device/VM/input denial and revocation with an existing conntrack tuple; SSH remains available')
+            print('PASS: native Mosh UDP replies, shared same-employee range, cross-employee/input denial and revocation with an existing conntrack tuple; SSH remains available')
             run('ip','netns','exec',hub,'nft','delete','table','inet','oci_hub')
             result=subprocess.run(['ip','netns','exec',hub,'python3',str(ROOT/'scripts/oci-hub/boundary.py'),'verify','--config',str(policy),'--receipt',str(receipt)],capture_output=True)
             assert result.returncode!=0,'missing ACL was accepted'

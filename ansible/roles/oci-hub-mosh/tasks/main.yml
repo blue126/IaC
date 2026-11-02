@@ -45,3 +45,57 @@
     owner: root
     group: root
     mode: '0755'
+
+- name: Read the current native Mosh SSH drop-in
+  ansible.builtin.slurp:
+    src: /etc/ssh/sshd_config.d/10-mosh.conf
+  register: oci_hub_mosh_sshd_previous
+  failed_when: false
+
+- name: Configure the system mosh-server timeout for the employee account
+  block:
+    - name: Deploy the native Mosh SSH drop-in
+      ansible.builtin.template:
+        src: sshd-mosh.conf.j2
+        dest: /etc/ssh/sshd_config.d/10-mosh.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload native Mosh SSH
+    - name: Validate the complete SSH configuration with the drop-in
+      ansible.builtin.command: sshd -t
+      changed_when: false
+  rescue:
+    - name: Restore the previous native Mosh SSH drop-in
+      ansible.builtin.copy:
+        content: "{{ oci_hub_mosh_sshd_previous.content | b64decode }}"
+        dest: /etc/ssh/sshd_config.d/10-mosh.conf
+        owner: root
+        group: root
+        mode: '0644'
+      when: oci_hub_mosh_sshd_previous.content is defined
+    - name: Remove the rejected native Mosh SSH drop-in
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/10-mosh.conf
+        state: absent
+      when: oci_hub_mosh_sshd_previous.content is not defined
+    - name: Stop after sshd -t failed with the Mosh drop-in in place
+      ansible.builtin.fail:
+        msg: >-
+          sshd -t failed with /etc/ssh/sshd_config.d/10-mosh.conf in place
+          (stderr: {{ ansible_failed_result.stderr | default(ansible_failed_result.msg | default('')) }});
+          the drop-in was rolled back to its previous state
+
+- name: Read the effective SSH settings for the employee account
+  ansible.builtin.command:
+    argv: [sshd, -T, -C, 'user=employee,host=localhost,addr=127.0.0.1']
+  register: oci_hub_mosh_sshd_effective
+  changed_when: false
+
+- name: Require the system mosh-server timeout in employee SSH sessions
+  ansible.builtin.assert:
+    that:
+      - >-
+        ('setenv MOSH_SERVER_NETWORK_TMOUT=' ~ oci_hub_mosh_network_timeout)
+        in oci_hub_mosh_sshd_effective.stdout_lines
+  when: not ansible_check_mode

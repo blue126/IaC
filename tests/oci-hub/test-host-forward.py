@@ -6,12 +6,12 @@ from unittest.mock import patch
 ROOT=Path(os.environ.get('IAC_TEST_ROOT',Path(__file__).resolve().parents[2]))
 SOURCE=Path(os.environ.get('OCI_HUB_BOUNDARY_PATH',str(ROOT/'scripts/oci-hub/boundary.py')))
 s=importlib.util.spec_from_file_location('b',SOURCE);b=importlib.util.module_from_spec(s);s.loader.exec_module(b)
-C=dict(profile='oci-hub',kind='hub',generation=1,uplink='eth0',interfaces={'wg-users':'10.235.0.1/24','wg-workspaces':'10.234.0.1/24'},device_sources=['192.0.2.2/32'],workspace_sources=['198.51.100.2/32'],pairs=[dict(device='10.235.0.3',workspace='10.234.0.3',mosh_ports=[60040,60049])])
+C=dict(profile='oci-hub',kind='hub',generation=1,uplink='eth0',interfaces={'wg-users':'10.235.0.1/24','wg-workspaces':'10.234.0.1/24'},device_sources=['192.0.2.2/32'],workspace_sources=['198.51.100.2/32'],pairs=[dict(device='10.235.0.3',workspace='10.234.0.3',mosh_ports=[60000,61000])])
 class Rules(unittest.TestCase):
  def test_exact_mapping_and_only_authorized_ports(self):
   rules=b.host_forward_rules(C);self.assertEqual(len(rules),4)
   for r in rules:self.assertIn('-s',r);self.assertIn('-d',r);self.assertIn('--ctdir',r);self.assertTrue(b.owned_forward(r));self.assertIn('ACCEPT',r)
-  self.assertEqual(sum('60040:60049' in r for r in rules),2);self.assertEqual(sum('22,8443' in r for r in rules),2)
+  self.assertEqual(sum('60000:61000' in r for r in rules),2);self.assertEqual(sum('22,8443' in r for r in rules),2)
   self.assertEqual(b.host_forward_rules({**C,'kind':'pve'}),[])
  def test_preserves_foreign_order_and_revokes_stale_grants(self):
   foreign=[['-j','DOCKER-USER'],['-j','REJECT','--reject-with','icmp-host-prohibited']];expected=b.host_forward_rules(C);actual=copy.deepcopy(foreign+expected)
@@ -40,7 +40,7 @@ def network():
   run('ip','netns','exec',hub,'sysctl','-w','net.ipv4.ip_forward=1')
   run('ip','netns','exec',hub,'iptables','-N','FOREIGN-HUB-TEST');run('ip','netns','exec',hub,'iptables','-A','FORWARD','-j','FOREIGN-HUB-TEST');run('ip','netns','exec',hub,'iptables','-A','FORWARD','-j','REJECT')
   foreign=run('ip','netns','exec',hub,'iptables','-S','FORWARD').splitlines()
-  code="import socket,threading,time\ndef tcp(ip):\n s=socket.socket();s.bind((ip,22));s.listen()\n while True:c,a=s.accept();c.close()\ndef udp(p):\n s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('10.234.0.3',p))\n while True:d,a=s.recvfrom(100);s.sendto(d,a)\nfor ip in ['10.234.0.3','10.234.0.4']:threading.Thread(target=tcp,args=(ip,),daemon=True).start()\nfor p in [60049,60050]:threading.Thread(target=udp,args=(p,),daemon=True).start()\ntime.sleep(90)"
+  code="import socket,threading,time\ndef tcp(ip):\n s=socket.socket();s.bind((ip,22));s.listen()\n while True:c,a=s.accept();c.close()\ndef udp(p):\n s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('10.234.0.3',p))\n while True:d,a=s.recvfrom(100);s.sendto(d,a)\nfor ip in ['10.234.0.3','10.234.0.4']:threading.Thread(target=tcp,args=(ip,),daemon=True).start()\nfor p in [61000,61001]:threading.Thread(target=udp,args=(p,),daemon=True).start()\ntime.sleep(90)"
   server=subprocess.Popen(['ip','netns','exec',vm,sys.executable,'-c',code]);time.sleep(.2)
   def probe(target,port,udp=False,source='10.235.0.3'):
    code="import socket,sys\ns=socket.socket(socket.AF_INET,socket.SOCK_DGRAM if sys.argv[3]=='yes' else socket.SOCK_STREAM);s.settimeout(.3);s.bind((sys.argv[4],0))\ntry:\n s.connect((sys.argv[1],int(sys.argv[2])))\n if sys.argv[3]=='yes':s.send(b'x');assert s.recv(10)==b'x'\nexcept OSError:sys.exit(2)"
@@ -49,9 +49,9 @@ def network():
   with tempfile.TemporaryDirectory(prefix='hub-forward-') as temp:
    path=Path(temp)/'policy.json';path.write_text(json.dumps(C));receipt=Path(temp)/'receipt.json'
    def apply():run('ip','netns','exec',hub,sys.executable,str(SOURCE),'apply','--config',str(path),'--receipt',str(receipt))
-   apply();assert probe('10.234.0.3',22);assert probe('10.234.0.3',60049,True);assert not probe('10.234.0.3',60050,True);assert not probe('10.234.0.4',22);assert not probe('10.234.0.3',22,source='10.235.0.4')
+   apply();assert probe('10.234.0.3',22);assert probe('10.234.0.3',61000,True);assert not probe('10.234.0.3',61001,True);assert not probe('10.234.0.4',22);assert not probe('10.234.0.3',22,source='10.235.0.4')
    current=run('ip','netns','exec',hub,'iptables','-S','FORWARD').splitlines();assert [r for r in current if 'oci-hub-forward-' not in r]==foreign
-   path.write_text(json.dumps({**C,'pairs':[]}));apply();assert not probe('10.234.0.3',22);assert not probe('10.234.0.3',60049,True);assert run('ip','netns','exec',hub,'iptables','-S','FORWARD').splitlines()==foreign
+   path.write_text(json.dumps({**C,'pairs':[]}));apply();assert not probe('10.234.0.3',22);assert not probe('10.234.0.3',61000,True);assert run('ip','netns','exec',hub,'iptables','-S','FORWARD').splitlines()==foreign
   print('PASS: legacy rejection reproduced; exact TCP/UDP mappings work; wrong source/target/port and revoked mappings deny; foreign rules unchanged')
  finally:
   if server:server.terminate();server.wait()

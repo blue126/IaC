@@ -52,13 +52,21 @@ bash ./onboard.sh --profile oci-hub apply requests/alice-hub-mosh.json APPROVED_
 
 VM500 例外由原完整 firewall controller 管理；systemd drop-in 在普通基线重载后重加例外，完整 verify 同时检查其字段与位置。清空例外清单可撤销其访问，原 VM 禁用仍生效。逐设备或配额撤销的安全边界是 OCI ACL/peer；不对共享 employee 用户整体 pkill。已失去网络的 Mosh 进程按 7 天网络断连超时回收，不新增另一套进程管理服务。
 
+## 整段端口上线顺序（2026-11-02）
+
+1. 先把含新 `scripts/oci-hub/boundary.py` 的 IaC 部署到执行器的 `iac_root`（Hub 边界 play 从该检出复制 boundary.py）。
+2. 再部署 employee-admin（固定整段分配、`wsctl mosh-ports-migrate`）。
+3. 最后在执行器上运行 `wsctl mosh-ports-migrate --plan-only`，审核每个配对的旧段→`[60000, 61000]` 后用 `--approve <SHA>` 执行。
+
+在第 1 步完成前，旧 boundary.py 的同 VM 重叠检查会拒绝整段：为已有员工开第二台设备和迁移本身都会失败。
+
 ## 设备包、验收和交付
 
 仍为严格 v2 `profile=oci-hub`，终端包使用 `access_mode=mosh` 与 `mosh_ports="START:END"`，允许原 `employee-*` 主机名，不包含 desktop_url/tls_certificate_sha256。旧桌面 v2 和 v1 包按原约定验证；不同模式的字段不能混用。
 
 公开客户端候选代码从包读取 native Mosh 入口 `workspace-mosh`、设备端口和独立 alias。macOS/Linux 的 `bootstrap.sh mosh` 要求本人交互终端；Windows 原生完成 VPN/SSH/SFTP，Mosh 在 WSL 使用同一设备新方案 SSH 配置，禁止第二套 WSL VPN。终端 verify 不探测桌面，但也不冒充 Mosh 人工验收。
 
-候选包只有经过独立批准的真实验收后才能交付。Mosh 模式的验收保留 via_hub、native_ssh、ssh_host_pin、跨员工/管理/横向/工作区主动连接拒绝，另需 native_mosh、mosh_port_isolation、mosh_revocation、old_access_preserved；不要求 TLS/desktop_wss。证据仍绑定真实映射代次、策略、包内外摘要，不能由客户端自报替代。
+候选包只有经过独立批准的真实验收后才能交付。Mosh 模式的验收保留 via_hub、native_ssh、ssh_host_pin、跨员工/管理/横向/工作区主动连接拒绝，另需 native_mosh、mosh_cross_employee_denied（2026-11-02 起替代逐设备端口隔离的 mosh_port_isolation：同一员工的设备共享本人 VM 的 UDP 60000–61000，其他员工设备到该 VM 一律拒绝）、mosh_revocation、old_access_preserved；不要求 TLS/desktop_wss。证据仍绑定真实映射代次、策略、包内外摘要，不能由客户端自报替代。
 
 设备包上传（当时为 Temp.sh，现为 `cc.willfan.me`）和微软通知继续分别按既有交付范围审批；邮件使用终端模式模板，最上方给出含实际链接的加粗 Agent 提示词，明确跳过 Claude 登录。没有实际验收时输出 awaiting_e2e_verification，保持上传/通知阻止。
 

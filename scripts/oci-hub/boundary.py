@@ -115,19 +115,16 @@ def validate(c):
             ipaddress.IPv4Interface(address)
         if len({p['device'] for p in c['pairs']}) != len(c['pairs']):
             raise ValueError('device has multiple workspace targets')
-        mosh_ranges = {}
         for p in c['pairs']:
             ip(p['device']); ip(p['workspace'])
             if 'mosh_ports' in p:
                 ports = p['mosh_ports']
+                # Devices of one employee may share the whole range on their
+                # own VM; isolation comes from the exact device/VM address pair.
                 if (not isinstance(ports, list) or len(ports) != 2 or
                         any(type(port) is not int for port in ports) or
                         not 60000 <= ports[0] <= ports[1] <= 61000):
                     raise ValueError('invalid Mosh port range')
-                allocated = mosh_ranges.setdefault(p['workspace'], [])
-                if any(ports[0] <= end and start <= ports[1] for start, end in allocated):
-                    raise ValueError('overlapping Mosh ports on the same workspace')
-                allocated.append(ports)
         sources = user_sources(c)
         if not isinstance(sources, list) or not isinstance(c['workspace_sources'], list):
             raise ValueError('ingress sources must be lists')

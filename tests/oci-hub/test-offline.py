@@ -89,7 +89,7 @@ class Boundary(unittest.TestCase):
         direct['ga2_sources'] = ['192.0.2.3/32']
         with self.assertRaises(ValueError): b.render(direct)
 
-    def test_mosh_grants_validate_ranges_and_same_workspace_device_conflicts(self):
+    def test_mosh_grants_validate_ranges_and_share_the_range_per_workspace(self):
         config = copy.deepcopy(HUB)
         self.assertNotIn('udp dport 60000', b.render(config))
         config['pairs'][0]['mosh_ports'] = [60000, 60009]
@@ -98,11 +98,21 @@ class Boundary(unittest.TestCase):
         for ports in ([59999, 60000], [60000, 61001], [60002, 60001], [True, 60001], '60000:60009', [60000]):
             bad = copy.deepcopy(config); bad['pairs'][0]['mosh_ports'] = ports
             with self.assertRaises(ValueError): b.render(bad)
-        config['pairs'][1]['workspace'] = config['pairs'][0]['workspace']
-        config['pairs'][1]['mosh_ports'] = [60009, 60020]
-        with self.assertRaisesRegex(ValueError, 'overlapping'): b.render(config)
-        config['pairs'][1]['mosh_ports'] = [60010, 60019]
-        b.render(config)
+        # Full range for every pair: each device reaches only its own VM.
+        config['pairs'][0]['mosh_ports'] = [60000, 61000]
+        config['pairs'][1]['mosh_ports'] = [60000, 61000]
+        rules = b.render(config)
+        self.assertIn('ip saddr 10.235.0.2 ip daddr 10.234.0.2 udp dport 60000-61000', rules)
+        self.assertIn('ip saddr 10.235.0.3 ip daddr 10.234.0.3 udp dport 60000-61000', rules)
+        self.assertNotIn('ip saddr 10.235.0.2 ip daddr 10.234.0.3', rules)
+        self.assertNotIn('ip saddr 10.235.0.3 ip daddr 10.234.0.2', rules)
+        # Two devices of one employee share the range on the same VM, also
+        # alongside a legacy narrow range kept by an old device bundle.
+        config['pairs'].append({'device': '10.235.0.4', 'workspace': '10.234.0.2', 'mosh_ports': [60000, 61000]})
+        config['pairs'].append({'device': '10.235.0.5', 'workspace': '10.234.0.2', 'mosh_ports': [60010, 60019]})
+        rules = b.render(config)
+        self.assertIn('ip saddr 10.235.0.4 ip daddr 10.234.0.2 udp dport 60000-61000', rules)
+        self.assertIn('ip saddr 10.235.0.5 ip daddr 10.234.0.2 udp dport 60010-60019', rules)
 
     def test_invalid_scope_and_overlap_rejected(self):
         c=copy.deepcopy(PVE);c['profile']='existing'
