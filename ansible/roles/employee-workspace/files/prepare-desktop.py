@@ -73,7 +73,8 @@ def validate_frontend(config):
         if not isinstance(pinned, str) or len(pinned) != 64 or any(c not in '0123456789abcdef' for c in pinned):
             raise ValueError('Invalid frontend fingerprint')
         actual = run(['openssl', 'x509', '-in', config['certificate'], '-noout', '-fingerprint', '-sha256']).split('=', 1)[1].replace(':', '').lower()
-        if actual != pinned or config['ca'] != config['certificate']:
+        # The pin binds the leaf; a separate issuing CA (VM502 pilot) is checked by openssl verify above.
+        if actual != pinned:
             raise ValueError('Pinned frontend identity mismatch')
 
     san = run(['openssl', 'x509', '-ext', 'subjectAltName', '-noout', '-in', config['certificate']])
