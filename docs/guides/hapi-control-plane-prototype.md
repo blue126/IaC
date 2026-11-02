@@ -16,7 +16,7 @@
 
 ## 部署输入
 
-仅在已批准的精确inventory中增加`hapi_control_plane`及`hapi_workspaces`组；原型不向生产inventory自动登记。部署仍须单独获批，在专用Sandbox内执行；包安装开关只在获准安装时设为true，默认不安装依赖。
+仅在已批准的精确inventory中增加`hapi_control_plane`及`hapi_workspaces`组；原型不向生产inventory自动登记。部署仍须单独获批，在已授权执行位置执行；包安装开关只在获准安装时设为true，默认不安装依赖。
 
 | 作用域 | 必须输入 |
 |---|---|
@@ -72,7 +72,7 @@ HAPI长期基础令牌由BWS提供并仅供本人Hub及控制面认证进程使�
 
 构建入口及锁定源码见[构建说明](../../scripts/hapi-workspace-web/README.md)。本轮21项相关前端测试、完整类型检查及生产构建通过；Chromium针对真实构建页面的loopback模拟网关回归验证自动进入、账号切换、会话失效／恢复，原`/api/auth`请求数为0。没有使用真实Access或Claude账号。
 
-本轮最终网页包在批准Sandbox的`/tmp/hapi-workspace-web-artifact-r3-20261030/`，SHA256为`785d2192cef097b4dcb4df7cfb2ac06c2f500ce029fdb291b6741754c60721b9`；provenance已核对与当前补丁／overlay一致。Chromium模拟回归截图在`/tmp/hapi-workspace-web-browser-r3-20261030/`，不含真实员工数据。构建有上游Browserslist、字体路径及包体积提示，未为消除提示升级依赖。
+本轮最终网页包在当时批准Sandbox（已退役）的`/tmp/hapi-workspace-web-artifact-r3-20261030/`，SHA256为`785d2192cef097b4dcb4df7cfb2ac06c2f500ce029fdb291b6741754c60721b9`；provenance已核对与当前补丁／overlay一致。Chromium模拟回归截图在`/tmp/hapi-workspace-web-browser-r3-20261030/`，不含真实员工数据。构建有上游Browserslist、字体路径及包体积提示，未为消除提示升级依赖。
 
 ## 集中登录与服务端撤销
 

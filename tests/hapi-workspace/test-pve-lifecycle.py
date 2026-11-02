@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--runtime', required=True, type=Path)
     parser.add_argument('--run-real-pve', action='store_true')
     args = parser.parse_args()
-    assert args.run_real_pve and os.environ.get('SANDBOX_ID'), 'Use the authorized task Sandbox'
+    assert args.run_real_pve, 'Pass --run-real-pve for an authorized live run'
     root = args.runtime
     original = network.load(root / 'manifest.json')
     assert {(w['id'], w['vmid']) for w in original['workspaces']} == {('test-alice', 9101), ('test-bob', 9102)}

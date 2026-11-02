@@ -11,8 +11,6 @@
 - **[cicd-architecture.md](./cicd-architecture.md)** — Jenkins CI/CD 流水线架构。
 - **[ansible-vault-architecture.md](./ansible-vault-architecture.md)** — Ansible Vault 密钥管理设计。
 - **[ansible-role-architecture.md](./ansible-role-architecture.md)** — Ansible Role 架构、边界与依赖。
-- **[docker-sandbox-agent-architecture.md](./docker-sandbox-agent-architecture.md)** — Docker Sandbox Agent 架构。
-- **[docker-sandbox-migration.md](./docker-sandbox-migration.md)** — Docker Sandbox 迁移记录。
 - **[ci-only-execution-architecture.md](./ci-only-execution-architecture.md)** — CI-only 执行架构。
 - **[anki-desktop-role.md](./anki-desktop-role.md)** — Anki Desktop Role 设计。
 - **[gitea-role.md](./gitea-role.md)** — Gitea Role 设计。

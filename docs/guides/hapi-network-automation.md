@@ -64,7 +64,7 @@ python3 scripts/plan-hapi-network.py tests/hapi-workspace/network-fixture.json
 python3 scripts/plan-hapi-network.py tests/hapi-workspace/network-fixture.json \
   --snapshot tests/hapi-workspace/allocation-snapshot-fixture.json
 python3 tests/hapi-workspace/test-network-plan.py
-sudo --preserve-env=SANDBOX_ID python3 tests/hapi-workspace/test-network-kernel.py --run-isolated-netns
+sudo python3 tests/hapi-workspace/test-network-kernel.py --run-isolated-netns
 ```
 
 18项计划／门禁／模拟PVE测试通过，覆盖冲突、可信peer、实际hook绑定、最小化快照、所有权／幂等、pending阻断、恢复、失败不发布及过期基线拒绝。production lint与playbook语法通过；当前模块在隔离root中以固定`bpg/proxmox 0.70.0`完成init／validate。另有授权的独立真实state只管理两台测试VM，不能与离线验证混称。
@@ -72,7 +72,7 @@ sudo --preserve-env=SANDBOX_ID python3 tests/hapi-workspace/test-network-kernel.
 历史Sandbox内核`7.0.12`不支持所需VLAN／bridge conntrack；9项负向检查曾证明缺能力时拒绝部署并保留正式清单。按用户要求，本轮已改用pve2上的两台真实VM，35项通信与11项生命周期测试全部通过；原Sandbox工具不再作为真实验收前置。以下命令仅用于历史缺能力负向回归：
 
 ```bash
-sudo --preserve-env=SANDBOX_ID python3 tests/hapi-workspace/test-network-kernel.py \
+sudo python3 tests/hapi-workspace/test-network-kernel.py \
   --run-isolated-netns --boundary-only --expect-no-bridge-conntrack
 ```
 

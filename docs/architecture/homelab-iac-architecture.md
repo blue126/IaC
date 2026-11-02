@@ -958,19 +958,18 @@ ss -tlnp | grep <port>                # 端口监听
 ### 开发环境
 
 ```
-Docker Sandboxes（隔离 microVM）
-├── .sandbox-kit（Terraform、Python/Ansible）
-├── Codex / Claude Code / OpenCode agent template
-├── SSH agent forwarding（私钥不复制进 sandbox）
-└── MCP Gateway → 宿主可见 Playwright 浏览器
+macOS 宿主（每个 checkout / 任务 worktree 独立）
+├── scripts/setup-dev-env.sh → uv 构建 .venv（requirements.txt）
+├── ansible/collections（ansible/requirements.yml 固定版本）
+├── Terraform（宿主安装）
+└── SSH agent（私钥不进入仓库工作区）
 ```
 
-**启动入口**：Playwright 在宿主全局注册，由默认 dynamic MCP Gateway 按需附加；完整的
-direct/clone mode、OCI 只读挂载和端口发布规则见
-[README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境)。
+**启动入口**：完整的宿主工具链、worktree 与 OCI 预检规则见
+[README 宿主开发环境](../../README.md#1-宿主开发环境)。
 
 ```bash
-sbx run --name iac-codex codex . --kit ./.sandbox-kit
+./scripts/setup-dev-env.sh && source .venv/bin/activate
 ```
 
 ### Terraform Providers

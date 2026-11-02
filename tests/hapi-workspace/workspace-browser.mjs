@@ -7,7 +7,7 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 
 const [distArg, dependencyRoot, evidenceArg] = process.argv.slice(2)
-if (!process.env.SANDBOX_ID || !distArg || !dependencyRoot || !evidenceArg) {
+if (!distArg || !dependencyRoot || !evidenceArg) {
     throw new Error('Use the approved Sandbox: node workspace-browser.mjs DIST UPSTREAM_ROOT EVIDENCE_DIR')
 }
 const dist = path.resolve(distArg)

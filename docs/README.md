@@ -34,8 +34,6 @@ Homelab IaC 文档导航中心。文档按**类型/生命周期**组织：架构
 - **[doc-monitoring-scope.md](./architecture/doc-monitoring-scope.md)** — 文档 AI 监管范围：说明与决策记录。
 - **[ansible-vault-architecture.md](./architecture/ansible-vault-architecture.md)** — Ansible Vault 密钥管理设计。
 - **[ansible-role-architecture.md](./architecture/ansible-role-architecture.md)** — Ansible Role 架构、边界与依赖。
-- **[docker-sandbox-agent-architecture.md](./architecture/docker-sandbox-agent-architecture.md)** — Docker Sandbox Agent 架构。
-- **[docker-sandbox-migration.md](./architecture/docker-sandbox-migration.md)** — Docker Sandbox 迁移记录（原 `2026-08-28-*`）。
 - **[ci-only-execution-architecture.md](./architecture/ci-only-execution-architecture.md)** — CI-only 执行架构（原 `2026-08-30-*`）。
 - **[proxmox-storage-monitoring-spec.md](./architecture/proxmox-storage-monitoring-spec.md)** — 集群 SMART/ZFS scrub/Prometheus/Grafana 存储监控规范。
 - **[anki-desktop-role.md](./architecture/anki-desktop-role.md)** — Anki Desktop Role 设计。

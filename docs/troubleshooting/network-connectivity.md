@@ -331,7 +331,7 @@ UNREACHABLE! => {
 
 #### 方案 A: 使用宿主 SSH agent 认证
 
-不要在 sandbox 内生成密钥，也不要在 `ansible.cfg` 固定私钥文件路径。 在宿主机恢复或使用
+不要在仓库工作区内生成密钥，也不要在 `ansible.cfg` 固定私钥文件路径。 在宿主机恢复或使用
 已批准的 host-managed 私钥后，将它加载到 agent：
 
 ```bash
@@ -340,9 +340,8 @@ ssh-add /path/to/host-managed-key
 ssh-add -L
 ```
 
-启动 sandbox 后，在 sandbox 内再次执行 `ssh-add -L`，确认转发的 public identity 可见。Ansible
-通过转发的 SSH agent 认证，不依赖 sandbox 或仓库工作区中的私钥文件。若没有已批准的宿主密钥，停止并
-请求恢复或提供该密钥；不要在 sandbox 中创建新密钥。
+Ansible 通过宿主 SSH agent 认证，不依赖仓库工作区中的私钥文件。若没有已批准的宿主密钥，停止并
+请求恢复或提供该密钥；不要自行创建新密钥。
 
 #### 方案 B: 使用密码认证
 

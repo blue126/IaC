@@ -26,18 +26,7 @@ docs/               # Deployment guides, technical guides, learning notes
 
 ## Key Commands
 
-**Where these run:** by default on the macOS host, from the checkout or task worktree being worked on, using that checkout's own uv toolchain. Run `./scripts/setup-dev-env.sh` once per checkout (and again after `requirements.txt` or `ansible/requirements.yml` changes); it creates `.venv` from `requirements.txt` and installs the pinned collections into `ansible/collections`. Then `source .venv/bin/activate`. The host's `~/.local/bin/ansible` belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Never use or change it for this repository. Git-ignored per-checkout state is not shared between worktrees: a new worktree needs `terraform init` in each Terraform root it uses, and `ansible/.vault_pass` comes from the main checkout (pass `--vault-password-file` with that path rather than copying it). A Docker Sandbox is optional, for isolated unattended agent runs; detect where you are before assuming:
-
-```bash
-[ -n "$SANDBOX_ID" ] && echo sandbox || echo host
-```
-
-`SANDBOX_ID`, `SANDBOX_NAME` and `SANDBOX_VM_ID` are set in the process environment of every shell in a Sandbox, login or not. Do **not** test for `/.dockerenv` or `/run/.containerenv`: the Sandbox runtime is `io.containerd.nerdbox.v1` and neither file exists there.
-
-To run them in a Sandbox from the host, use `sbx exec <sandbox> bash -lc '...'`. Two things bite:
-
-- `sbx exec` **hangs with no output** while an interactive `sbx` TUI is attached to that sandbox. It is not a timeout, a permission problem, or a stdin problem -- the call never reaches the daemon, so nothing appears in its log either. Close the TUI and retry.
-- A clone-mode Sandbox has **its own copy of the repository**, usually on `main`. It does not see the host working tree, and its clone may carry broken codex checkpoint refs that make `git fetch` fail. Copy what you need in with `sbx cp <dir> <sandbox>:/tmp/<path>/`, then `sudo chown -R "$(id -u):$(id -g)"` the copy -- `.vault_pass` arrives owned by the host uid and Ansible cannot read it.
+**Where these run:** by default on the macOS host, from the checkout or task worktree being worked on, using that checkout's own uv toolchain. Run `./scripts/setup-dev-env.sh` once per checkout (and again after `requirements.txt` or `ansible/requirements.yml` changes); it creates `.venv` from `requirements.txt` and installs the pinned collections into `ansible/collections`. Then `source .venv/bin/activate`. The host's `~/.local/bin/ansible` belongs to another project: it is ansible-core 2.21, outside this repository's `<2.21` pin, and cannot load the `cloud.terraform` dynamic inventory. Never use or change it for this repository. Git-ignored per-checkout state is not shared between worktrees: a new worktree needs `terraform init` in each Terraform root it uses, and `ansible/.vault_pass` comes from the main checkout (pass `--vault-password-file` with that path rather than copying it). Employee lifecycle writes (including onboarding) run only on the `ws-executor` VM, as stated under Ansible Vault.
 
 ```bash
 # Terraform
@@ -119,7 +108,6 @@ When working on specific areas, read the relevant design doc for detailed patter
 - **Ansible Vault details**: `docs/architecture/ansible-vault-architecture.md`
 - **Ansible Role patterns**: `docs/architecture/ansible-role-architecture.md`
 - **CI/CD pipeline design**: `docs/architecture/cicd-architecture.md`
-- **Docker Sandbox agent architecture**: `docs/architecture/docker-sandbox-agent-architecture.md`
 - **Deferred-work ↔ GitHub issue 同步**: `docs/architecture/deferred-work-sync.md`
 
 ## Project-local Employee Provisioning
@@ -143,41 +131,20 @@ When working on specific areas, read the relevant design doc for detailed patter
 - Reply in Chinese; write code comments in English.
 - State reasoning and sources when making judgments, and investigate uncertainty instead of fabricating.
 - Place learning notes in `docs/learningnotes/` using `YYYY-MM-DD-topic.md`; write Chinese Markdown, define key concepts, and include Q&A summaries.
-- Never install packages or system dependencies without explicit user permission. This applies to Docker Sandboxes and the host system.
+- Never install packages or system dependencies without explicit user permission.
 - If Ansible reports "no hosts matched" or a Terraform dynamic inventory parse failure, run `./scripts/refresh-terraform-state.sh` from the repository root. Inventory uses `cloud.terraform.terraform_provider`.
 
 ## Project-Specific Credential Handling
 
-- OCI credential injection is an IaC project requirement, not a Docker Sandbox topology or Agent runtime.
-- Only for tasks that require OCI, run `test -d "${HOME}/.oci"` on the host before launching the Sandbox. If it fails, stop and ask the user to restore or provide approved credentials.
-- After the check succeeds, pass `"${HOME}/.oci:ro"` as an additional read-only workspace. Never create an empty replacement, search alternate private-key locations, or use a writable mount.
+- Only for tasks that require OCI, run `test -d "${HOME}/.oci"` on the host first. If it fails, stop and ask the user to restore or provide approved credentials.
+- Never create an empty replacement, search alternate private-key locations, or modify the contents of `~/.oci`.
 
-## Docker Sandbox Environment
+## Worktrees
 
-- A Sandbox is optional. Development runs on the host with the uv toolchain described under Key Commands; employee lifecycle writes (including onboarding) run only on the `ws-executor` VM, as stated under Ansible Vault. The rules below apply only when a Sandbox is chosen.
-- Use the repository `.sandbox-kit`; do not recreate `.devcontainer/`.
-- Choose the topology before running an entry command. Treat the main checkout as coordination-only; direct-mode commands must run from an assigned host task worktree. Create clone-mode Sandboxes only from the verified main checkout when Git will be managed inside the Sandbox. Never create a clone-mode Sandbox from a host linked worktree.
-- Replace `TASK` with a unique kebab-case task name. Use versioned, task-specific Sandbox names so parallel work and Kit-upgrade testing never reconnect to an unrelated or stale Sandbox.
-- Playwright is registered globally with host `sbx mcp`. Sandboxes use dynamic MCP Gateway mode by default; agents attach the registered `playwright` server when browser automation is needed. Do not add project-local Playwright MCP configuration.
-- Direct mode from an assigned host task worktree:
-  - Codex: `sbx run --name iac-codex-TASK-direct-v130 codex . --kit ./.sandbox-kit`
-  - Claude Code: `sbx run --name iac-claude-TASK-direct-v130 claude . --kit ./.sandbox-kit`
-  - OpenCode: `sbx run --name iac-opencode-TASK-direct-v130 opencode . --kit ./.sandbox-kit`
-- Clone mode from the verified main checkout:
-  - Codex: `sbx run --clone --name iac-codex-TASK-clone-v130 codex . --kit ./.sandbox-kit`
-  - Claude Code: `sbx run --clone --name iac-claude-TASK-clone-v130 claude . --kit ./.sandbox-kit`
-  - OpenCode: `sbx run --clone --name iac-opencode-TASK-clone-v130 opencode . --kit ./.sandbox-kit`
-- OpenCode Desktop must run in a long-lived attached session. Use mode-specific Sandbox names so an old mapping cannot be mistaken for a new mode. Default loopback command: `sbx run --name iac-opencode-desktop-TASK-loopback-v130 --publish 127.0.0.1:4096:4096 opencode . --kit ./.sandbox-kit -- serve --hostname 0.0.0.0 --port 4096`. The only LAN exception is `sbx run --name iac-opencode-desktop-TASK-lan-v130 --publish <LAN_IP>:4096:4096 opencode . --kit ./.sandbox-kit -- serve --hostname 0.0.0.0 --port 4096`, and only when the user explicitly requests access from a trusted, isolated private LAN.
-  - `--publish` is fixed when a Sandbox is created and ignored on reconnect. Before starting either mode, run `sbx ports <name>` for an existing same-name Sandbox and verify the mapping exactly matches the requested mode. If it differs, stop; do not assume `sbx run` changed it.
-  - For LAN mode, `<LAN_IP>` must be a specific private IPv4 assigned to the selected physical LAN interface. Reject public, VPN, bridge, IPv4 wildcard `0.0.0.0`, IPv6 wildcard `::`, or an omitted host address. Verify address ownership and that the selected port is free. If occupied, stop and ask the user; do not choose another port automatically.
-  - Trusted isolated LAN mode is passwordless by default. Authentication is optional: when `OPENCODE_SERVER_PASSWORD` is set, inject it through a runtime channel that is not version controlled and never put the value in repository files, examples, command arguments, or shell history. Plain HTTP is permitted only on that trusted isolated LAN; any other network path requires TLS or a trusted VPN.
-  - After starting LAN mode, verify the host listens only on the selected `<LAN_IP>`. The default passwordless mode must return `200` without credentials; when a password is configured, unauthenticated access must fail and authenticated access must succeed. If any post-check fails, immediately terminate the attached session and confirm the host port is closed.
-  - Never use `--detached`. The Sandbox server still listens on `0.0.0.0:4096`; the restrictions above apply to the host `--publish` address. This exception is only for OpenCode Desktop and must not be generalized to other Sandbox services.
-- Each task must use one independent worktree and one unique branch. When multiple tasks share one clone-mode Sandbox, each task also needs its own agent session and runtime namespace. Use separate, uniquely named Sandboxes when tasks require runtime isolation.
-- Worktrees isolate files and Git state, not Docker, networking, ports, volumes, `/tmp`, or service state. Shared-Sandbox tasks must use distinct Compose project names, ports, volumes, and temporary paths.
+- Treat the main checkout as coordination-only; agents work in an assigned task worktree.
+- Each task must use one independent worktree and one unique branch.
+- Worktrees isolate files and Git state, not Docker, networking, ports, volumes, `/tmp`, or service state. Parallel tasks must use distinct Compose project names, ports, volumes, and temporary paths.
 - Worker agents must not modify another task's worktree or merge other task branches. Local integration is allowed only when explicitly assigned and must use a dedicated integration worktree. No agent may merge or close a pull request without explicit authorization.
-- The Kit installs a managed Sandbox-only instruction block into the global instruction locations for Codex, Claude Code, and OpenCode while preserving existing non-managed content. Repository rules remain authoritative for project policy and external-write boundaries.
-- Recreate a Sandbox after Kit changes unless the change is explicitly supported by `sbx kit add`.
 
 <!-- bmad:context -->
 <!-- Verified 2026-09-05 against e5dd546e965e6878b5edffe093699c81ff1e0dce. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->

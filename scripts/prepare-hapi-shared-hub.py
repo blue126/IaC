@@ -214,8 +214,6 @@ def main():
     parser.add_argument('--source', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
-    if not os.environ.get('SANDBOX_ID'):
-        raise SystemExit('Use the authorized task Sandbox')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     manifest = prepare(args.source.resolve(), args.output.resolve())
     print(json.dumps({'prepared_source': str(args.output), 'patch_sha256': manifest['patch_sha256']}))

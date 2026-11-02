@@ -7,7 +7,6 @@ import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { randomBytes } from 'node:crypto'
 
-assert(process.env.SANDBOX_ID, 'Use the authorized verification Sandbox')
 assert(process.argv[2], 'Supply the prepared pinned Hub source')
 const source = resolve(process.argv[2])
 const scratch = mkdtempSync(join(tmpdir(), 'hapi-tenant-auth-test-'))

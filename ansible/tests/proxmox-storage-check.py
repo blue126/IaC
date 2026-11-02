@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""Exercise ZFS reservation policy on Sandbox localhost with fake commands."""
+"""Exercise ZFS reservation policy on localhost with fake commands."""
 
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
-
-if not os.environ.get("SANDBOX_ID"):
-    raise SystemExit("Run inside the task Docker Sandbox, not on production or the host")
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORK = Path(tempfile.mkdtemp(prefix="proxmox-storage-check-"))
+ANSIBLE_PLAYBOOK = str(Path(sys.executable).with_name("ansible-playbook"))
 BIN = WORK / "bin"
 BIN.mkdir()
 CONFIG = WORK / "ansible.cfg"
@@ -29,10 +28,10 @@ assert policy["proxmox_storage_vm_disk"]["dataset"] == "mainpool/vm-250-disk-0"
 INVENTORY = WORK / "inventory.yml"
 INVENTORY.write_text(yaml.safe_dump({"all": {"hosts": {"pve2": dict(
     policy, ansible_connection="local", ansible_become=False,
-    ansible_python_interpreter="/opt/iac-venv/bin/python",
+    ansible_python_interpreter=sys.executable,
 )}}}, sort_keys=False))
 
-STUB = r'''#!/opt/iac-venv/bin/python
+STUB = "#!" + sys.executable + r'''
 import json, os, sys
 from pathlib import Path
 name, args = Path(sys.argv[0]).name, sys.argv[1:]
@@ -75,7 +74,7 @@ results = []
 def run_case(name, initial, success=True, check=False, writes=None, changed=0, tags=None):
     state_path, log = WORK / f"{name}.state.json", WORK / f"{name}.commands.jsonl"
     state_path.write_text(json.dumps(initial))
-    command = ["ansible-playbook", "-i", str(INVENTORY),
+    command = [ANSIBLE_PLAYBOOK, "-i", str(INVENTORY),
                str(ROOT / "ansible/playbooks/configure-pve2-storage.yml"), "-vv"]
     if check:
         command.append("--check")

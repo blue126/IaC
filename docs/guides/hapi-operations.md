@@ -47,7 +47,7 @@ hapi_health_tls_files:
 
 ## 发布与回退
 
-在获批Sandbox中使用私有、仅含目标与公有路径的inventory运行`deploy-hapi-health.yml`。发布仅增加检查脚本、配置、一个service与timer；不重启Hub、Runner、Tunnel或网络执行服务。验收检查实际配置、检查返回值、timer下一次运行时间及原服务状态。
+在已授权执行位置使用私有、仅含目标与公有路径的inventory运行`deploy-hapi-health.yml`。发布仅增加检查脚本、配置、一个service与timer；不重启Hub、Runner、Tunnel或网络执行服务。验收检查实际配置、检查返回值、timer下一次运行时间及原服务状态。
 
 回退将`hapi_health_enable_timer`设为false并执行相同角色以停用定时器；原服务和网络策略无需回滚。未授权前不删除现网文件。
 

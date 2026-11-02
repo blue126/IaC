@@ -390,9 +390,8 @@ Amelia 标记 → 任务完成 ✅
 ## 2026-02-09 Agent 配置优化记录（历史）
 
 > **历史状态**：本节记录的是 2026-02-09 的 DevContainer 配置。当时的
-> `.devcontainer` 自动化已退役；当前 agent 启动和 Playwright 配置以
-> [README Docker Sandboxes 环境](../../README.md#1-docker-sandboxes-环境) 与
-> `AGENTS.md` 为准。
+> `.devcontainer` 自动化及其后继的 Docker Sandbox 均已退役；当前开发环境以
+> [README 宿主开发环境](../../README.md#1-宿主开发环境) 与 `AGENTS.md` 为准。
 
 ### AGENTS.md 精简（258 → 99 行，减少 62%）
 
@@ -433,8 +432,8 @@ Never refer to yourself as "Claude Code" in any context.
 **历史配置**：当时仅保留 schema 声明，未使用 `instructions` 字段加载大文档，因为
 `instructions` 里的文件也会每次对话注入 system prompt，三个架构文档合计 1800+ 行会严重膨胀 context。
 
-**当前配置**：`opencode.json` 还包含 sandbox-local `playwright` MCP adapter；当前
-agent 启动与 adapter 规则以 README 和 `AGENTS.md` 为准。
+**当前状态**：项目根目录已不再保留 `opencode.json`；agent 运行环境以 README 和
+`AGENTS.md` 为准。
 
 ### Subagent Prompt 去重（378 → 286 行，减少 24%）
 
