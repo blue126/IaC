@@ -17,11 +17,11 @@
 
 export 的 delivery_request 草稿绑定设备/收件人/包路径，默认 notify=false、purpose=onboarding。上传、邮件预览/发信分别 plan 和批准；host_mail_preview 是可在宿主查看的私有HTML。邮件主题与预览正文纳入审批，变化后重新 plan。
 
-uploading/notifying 表示可能已有外部副作用，停止核对，不自动重传或重发。uploaded 表示已取得链接，可重试下载校验而不重新上传。verified 表示可以生成发信预览。completed 重跑复用原回执，不把它当作新邮件。API202仅表示接口接受。HTTP5xx、限次、404/403和传输错误返回不同安全码；404/403本身不证明时间过期。上传5xx仍可能有外部副作用，保留uploading并停止；发信传输异常保留notifying，不重发。
+uploading/notifying 表示可能已有外部副作用，停止核对，不自动重传或重发。uploaded 表示网站已保存设备包（回执记 `site_token`），可重试管理接口校验而不重新上传。verified 表示可以生成发信预览。completed 重跑复用原回执，不把它当作新邮件。API202仅表示接口接受。HTTP5xx、请求限频、404/403和传输错误返回不同安全码。上传5xx仍可能有外部副作用，保留uploading并停止；发信传输异常保留notifying，不重发。
 
 DELIVERY_PURPOSE_REVIEW_REQUIRED 表示历史未发回执没有用途信息：明确purpose后重新plan；已完成的旧回执保持原样。MAIL_PREVIEW_CHANGED_REPLAN_REQUIRED 表示模板/内容改变，重新生成预览和审批。
 
-确需重新交付时先取得该员工/设备的授权，用 `wsctl reissue --device <id>`（计划→同一 SHA 确认）复用原包重新上传并发信，旧链接随即失效；旧的 Temp.sh 回执在新通道下会以 `DELIVERY_IDENTITY_CHANGED` 拒绝，需新的运行目录。过期、下载次数用尽与站点错误分别报告。网站不可用时等待用户决定渠道；附件补发是一次授权，不扩展成普遍默认。
+确需重新交付时先取得该员工/设备的授权，用 `wsctl reissue --device <id>`（计划→同一 SHA 确认）复用原包重新上传并发信，网站上该设备的旧包随即被替换，员工仍登录「我的工作区」下载；旧的 Temp.sh 回执在新通道下会以 `DELIVERY_IDENTITY_CHANGED` 拒绝，需新的运行目录。包已不在网站与站点错误分别报告。网站不可用时等待用户决定渠道；附件补发是一次授权，不扩展成普遍默认。
 
 ## 验收和完成
 
