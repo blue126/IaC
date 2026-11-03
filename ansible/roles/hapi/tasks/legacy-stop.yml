@@ -16,10 +16,16 @@
     label: '{{ item.item }}'
   when: item.stat.exists
 
+# On a VM already running this role, 3006 belongs to the current Hub client, not the pilot Hub.
+- name: Inspect whether the current Hub client already holds the loopback port
+  ansible.builtin.service_facts:
+
 - name: Require the retired pilot Hub to have released the loopback port
   ansible.builtin.wait_for:
     host: 127.0.0.1
     port: 3006
     state: stopped
     timeout: 10
-  when: hapi_legacy_units.results | selectattr('stat.exists') | map(attribute='item') | select('equalto', 'employee-hapi-hub') | list | length > 0
+  when:
+    - hapi_legacy_units.results | selectattr('stat.exists') | map(attribute='item') | select('equalto', 'employee-hapi-hub') | list | length > 0
+    - ansible_facts.services.get('hapi-hub-client.service', {}).get('state') != 'running'
