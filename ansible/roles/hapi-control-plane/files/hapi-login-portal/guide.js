@@ -34,6 +34,7 @@ function dropViewer() {
 // Stock noVNC sends the 6-byte RFB form, which desynchronises KasmVNC and drops the
 // connection on the first mouse or touch input.
 function kasmPointer(RFB) {
+    if (!RFB.messages) return;
     const send = (sock, x, y, mask) => {
         sock.sQpush8(5);
         sock.sQpush16(mask & 0xffff);
@@ -51,6 +52,7 @@ function kasmPointer(RFB) {
 // entry count, then per entry a MIME length, the MIME type, a 32-bit length and the bytes.
 function kasmPaste(client, text) {
     const sock = client._sock;
+    if (!sock?.sQpushBytes) { client.clipboardPasteFrom(text); return; }
     const mime = new TextEncoder().encode('text/plain');
     const data = new TextEncoder().encode(text);
     sock.sQpush8(180);
