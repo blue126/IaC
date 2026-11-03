@@ -182,7 +182,7 @@ class AuthTest(unittest.TestCase):
         with self.assertRaises(auth.Denied):
             self.policy.identity(self.token(sub='subject-bob'))
 
-    def test_binding_persists_and_a_reused_workspace_with_another_email_is_refused(self):
+    def test_binding_persists_and_a_reassigned_workspace_rebinds_for_the_new_email(self):
         self.config['routes'][0]['subject'] = ''
         self.save()
         path = self.root / 'state.sqlite3'
@@ -193,10 +193,22 @@ class AuthTest(unittest.TestCase):
         self.addCleanup(second.database.close)
         with self.assertRaises(auth.Denied):
             second.identity(self.token(sub='other'))
+        # Reassigned to another email: the old binding is released and the new owner binds.
         self.config['routes'][0]['email'] = 'new@example.com'
         self.save()
+        second.identity(self.token(sub='new-owner', email='new@example.com'))
         with self.assertRaises(auth.Denied):
             second.identity(self.token(sub='first-login', email='new@example.com'))
+
+    def test_a_renamed_workspace_releases_its_binding_so_the_subject_binds_again(self):
+        self.config['routes'][0]['subject'] = ''
+        self.save()
+        self.policy.identity(self.token(sub='first-login'))
+        self.config['routes'][0]['workspace_id'] = 'alice2'
+        self.config['routes'][0]['backend_name'] = 'alice2.hapi.internal'
+        self.save()
+        route, _ = self.policy.identity(self.token(sub='first-login'))
+        self.assertEqual(route['workspace_id'], 'alice2')
 
     def test_conflicting_or_unsafe_allocations_fail_before_use(self):
         for key, value in [('backend_address', '127.0.0.1'), ('backend_address', '169.254.169.254'),
