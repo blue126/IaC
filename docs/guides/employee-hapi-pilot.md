@@ -1,5 +1,7 @@
 # VM502 HAPI 单人试点
 
+> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role（`deploy-employee-hapi.yml`）管理，见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
+
 ## 后续多人开户的流程边界
 
 独立HAPI开户候选已于2026-10-31撤回。HAPI和WireGuard是同一员工VM的两种接入方式，不另建VM或第二份Terraform state。员工管理入口为执行器上的`wsctl`，见[当前操作约定](../deployment/oci-hub-native-provisioning.md)；原独立HAPI开户skill已移除，撤回依据见[历史记录](../planning/2026-10-31-hapi-onboarding-withdrawal.md)。

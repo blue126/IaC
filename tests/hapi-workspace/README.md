@@ -51,7 +51,6 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 ## 网络阶段
 
 
-按用户要求，本轮改为pve2两台新VM的真实测试，`test-pve-network.py`通过35项通信检查，`test-pve-lifecycle.py`通过11项停用／漂移／恢复／幂等检查。入口需要已授权的任务Sandbox、独立私有runtime及`--run-real-pve`，限定到本次测试VM的身份与分配，不能指向现有员工VM。结果见[两VM记录](../../docs/planning/2026-10-30-hapi-two-vm-pve2.md)。当前验收为vmbr0端口ACL，不是VLAN／VNet或真实HAPI应用验收。
 
 
 

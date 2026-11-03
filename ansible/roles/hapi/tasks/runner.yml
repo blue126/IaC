@@ -72,19 +72,6 @@
     mode: '0644'
   notify: Restart HAPI Runner
 
-- name: Inspect the retired pilot Runner
-  ansible.builtin.stat:
-    path: /etc/systemd/system/employee-hapi-runner.service
-  register: hapi_legacy_runner
-
-# Two Runners with one token would fight over the same machine registration.
-- name: Stop the retired pilot Runner before the new one starts
-  ansible.builtin.systemd_service:
-    name: employee-hapi-runner
-    state: stopped
-    enabled: false
-  when: hapi_legacy_runner.stat.exists
-
 - name: Enable the Runner
   ansible.builtin.systemd_service:
     name: hapi-runner

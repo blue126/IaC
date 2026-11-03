@@ -11,7 +11,12 @@
       - hapi_api_token is match('^[A-Za-z0-9_-]{32,}$')
       - hapi_web_archive is match('^/')
       - hapi_web_sha256 is match('^[a-f0-9]{64}$')
-    fail_msg: HAPI needs the workspace ID, both VM addresses, the BWS Runner token and the approved frontend.
+      - hapi_internal_http_authorized | bool
+      - ansible_facts.system == 'Linux' and ansible_facts.architecture == 'x86_64'
+      # The login viewer must be this VM's own desktop entry, never another employee's.
+      - oci_hub_spoke_address is not defined or hapi_desktop_address == oci_hub_spoke_address.split('/')[0]
+      - hapi_desktop_address in ansible_facts.all_ipv4_addresses
+    fail_msg: HAPI needs the workspace ID, this VM's own addresses, the BWS Runner token, the approved frontend, an x86_64 Linux VM and the confirmed internal HTTP model.
   no_log: true
 
 - name: Install the HAPI proxy runtime
@@ -20,6 +25,10 @@
     state: present
     install_recommends: false
     policy_rc_d: 101
+
+# The pilot's own Hub held 127.0.0.1:3006 and its Tunnel used it; both stop before anything changes.
+- name: Stop the retired standalone pilot first
+  ansible.builtin.include_tasks: legacy-stop.yml
 
 - name: Connect this VM to the shared Hub on VM500
   ansible.builtin.include_tasks: hub-client.yml
@@ -33,5 +42,5 @@
 - name: Run the fixed Claude login API
   ansible.builtin.include_tasks: login.yml
 
-- name: Remove the retired standalone pilot units
-  ansible.builtin.include_tasks: legacy.yml
+- name: Remove the stopped standalone pilot
+  ansible.builtin.include_tasks: legacy-remove.yml

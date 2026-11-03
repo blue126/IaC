@@ -1,5 +1,7 @@
 # HAPI控制面原型配置契约
 
+> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role（`deploy-employee-hapi.yml`）管理，见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
+
 > **当前维护入口（2026-11-02）。** 现网已完成[内部HTTP切换与PKI退役](hapi-internal-http.md)。本页保留早期原型的mTLS、证书／CRL输入和发布门禁契约，仅供历史追溯，不能作为当前部署指令；当前拓扑见[统一入口](hapi-unified-entry.md)。
 
 > **历史配置契约。** 下文保留早期每VM Hub原型及回归依据。现网已迁至VM500单共享Hub，旧工作区角色不是当前生产拓扑；运维以[统一入口说明](hapi-unified-entry.md)及[内部HTTP说明](hapi-internal-http.md)为准。独立开户候选已撤回，不据本文执行开户。
@@ -76,7 +78,7 @@ HAPI长期基础令牌由BWS提供并仅供本人Hub及控制面认证进程使�
 
 ## 集中登录与服务端撤销
 
-HAPI页面新增同源“Claude 登录”入口；不另开Access应用或域名。VM500只提供页面和noVNC资源，不运行个人Firefox。员工VM的`claude-login-agent`以employee运行固定status／start／code／cancel接口，复用已实现的Flow、真实tmux／PTY及浏览器助手。新共享角色中的来源与派生文件摘要见[源码快照](../../ansible/roles/claude-login-agent/source-provenance.json)，没有修改或合并侧聊工作树，也没有修改原VM502包装。
+HAPI页面新增同源“Claude 登录”入口；不另开Access应用或域名。VM500只提供页面和noVNC资源，不运行个人Firefox。员工VM的`claude-login-agent`以employee运行固定status／start／code／cancel接口，复用已实现的Flow、真实tmux／PTY及浏览器助手。新共享角色中的来源与派生文件摘要曾记录在`claude-login-agent/source-provenance.json`（该角色已于2026-11-03删除），没有修改或合并侧聊工作树，也没有修改原VM502包装。
 
 页面每次读取状态或操作前核验当前身份和分配；失去前台时断开查看，身份变化时清空旧画面／未提交内容，停止向旧VM发送操作。写操作仍要求精确Origin及本次身份／代次的CSRF，授权码只经有界JSON正文和私有stdin／tmux缓冲，不放URL、日志或磁盘队列。8KiB以内请求使用16KiB内存缓冲规范化HTTP framing，不落客户端正文临时文件。WebSocket固定转发，不接受目标参数。
 

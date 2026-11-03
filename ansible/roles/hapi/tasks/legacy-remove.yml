@@ -1,0 +1,20 @@
+---
+# Every unit here was stopped in legacy-stop.yml; only their files remain.
+- name: Remove the retired pilot unit files and drop-ins
+  ansible.builtin.file:
+    path: '/etc/systemd/system/{{ item }}'
+    state: absent
+  loop:
+    - employee-hapi-hub.service
+    - employee-hapi-hub.service.d
+    - employee-hapi-tunnel.service
+    - employee-hapi-runner.service
+    - employee-hapi-runner.service.d
+    - hapi-hub-client-validation.service
+  notify: Reload systemd units
+
+- name: Remove the retired pilot configuration and Tunnel executable
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: absent
+  loop: [/etc/employee-hapi, /opt/employee-hapi, /usr/local/bin/employee-hapi-cloudflared, /usr/local/lib/employee-hapi-verify.py]

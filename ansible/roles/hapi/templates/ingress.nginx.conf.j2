@@ -48,7 +48,8 @@ http {
         }
         location /api/login/ { return 404; }
         # The login page's viewer is the KasmVNC desktop, through this VM's 8443 entry,
-        # which alone holds the desktop credential.
+        # which alone holds the desktop credential. The role asserts the address is this VM's own,
+        # so the upstream TLS hop never leaves the host.
         location = /websockify {
             proxy_pass https://{{ hapi_desktop_address }}:8443/websockify;
             proxy_set_header Host {{ hapi_desktop_address }};
