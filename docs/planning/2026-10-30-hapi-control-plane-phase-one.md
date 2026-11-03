@@ -130,5 +130,5 @@ Hub本机换票据作为后续可选改进；BWS保存与轮换仍保留。当�
 - [VM502试点与BWS运行时说明](../guides/employee-hapi-pilot.md)
 - [VM500 Terraform声明](../../terraform/proxmox/employee-access.tf)
 - [原防火墙模板](../../ansible/roles/employee-access/templates/nftables.conf.j2)
-- [现有HAPI部署入口](../../ansible/playbooks/deploy-employee-hapi.yml)
+- 现有HAPI部署入口：已并入`ansible/playbooks/prepare-employee-desktop.yml`（2026-11-03）
 - 管理员README及已登记inventory／主机公钥仅作本机连接依据，不复制私有申请、设备台账或凭据。

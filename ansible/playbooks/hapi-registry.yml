@@ -1,0 +1,9 @@
+---
+# VM500's per-employee HAPI entries, rendered by the executor from the D1 employee catalog and
+# the BWS Runner tokens on every provision and retire (story 5.24).
+- name: Render the HAPI employee registry on VM500
+  hosts: hapi_control_plane
+  become: true
+  gather_facts: false
+  roles:
+    - hapi-registry

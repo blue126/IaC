@@ -1,0 +1,9 @@
+---
+# VM500 side of HAPI for every employee (story 5.24): the executor renders this from the D1
+# employee catalog (routes, Hub spaces, VM addresses) and the BWS Runner tokens.
+# Entries whose id is listed here (the owner pilot) are kept exactly as they are on VM500.
+hapi_registry_static_ids: [vm502]
+# [{id, email, address, token}] for every employee with HAPI; id is the employee ID and also
+# the route, credential, agent and Hub namespace id.
+hapi_registry_employees: []
+hapi_registry_hub_bind_address: 192.168.1.140
