@@ -50,11 +50,9 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 
 ## 网络阶段
 
-`test-network-plan.py`的18项回归验证冲突、固定网卡／可信peer、实际hook绑定、模拟PVE的所有权／幂等、pending／丢失响应、最小化快照、失败不发布和过期基线拒绝。三个network／allocation／access-bridge JSON夹具均为合成数据，不能部署。
 
 按用户要求，本轮改为pve2两台新VM的真实测试，`test-pve-network.py`通过35项通信检查，`test-pve-lifecycle.py`通过11项停用／漂移／恢复／幂等检查。入口需要已授权的任务Sandbox、独立私有runtime及`--run-real-pve`，限定到本次测试VM的身份与分配，不能指向现有员工VM。结果见[两VM记录](../../docs/planning/2026-10-30-hapi-two-vm-pve2.md)。当前验收为vmbr0端口ACL，不是VLAN／VNet或真实HAPI应用验收。
 
-历史`test-network-kernel.py`仍用于隔离namespace工具验证；当前Sandbox缺VLAN／bridge conntrack，只有9项基线／负向检查通过。它不作为本轮真实PVE验收前置，也不能代替真实结果，详情见[网络自动化说明](../../docs/guides/hapi-network-automation.md)。
 
 
 ## 提交前审核回归
