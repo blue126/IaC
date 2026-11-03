@@ -35,4 +35,15 @@ class Registry(unittest.TestCase):
         self.assertEqual(tokens, {'casey': 'c' * 40})
 
 
+    def test_firewall_has_one_worker_rule_per_agent_and_keeps_the_rest(self):
+        ssh = {'add': {'rule': {'chain': 'input', 'comment': 'hapi-executor-management-ssh', 'expr': []}}}
+        stale = {'add': {'rule': {'chain': 'input', 'comment': 'hapi-shared-hub-worker-10.236.9.9', 'expr': []}}}
+        current = {'nftables': [{'add': {'table': {'family': 'inet', 'name': 'employee_access'}}}, ssh, stale]}
+        agents = {'agents': [{'address': '10.236.2.2'}, {'address': '10.236.9.2'}]}
+        rules = registry.firewall(current, agents, '192.0.2.140')['nftables']
+        self.assertEqual(rules[:2], current['nftables'][:2])
+        self.assertEqual([r['add']['rule']['comment'] for r in rules[2:]], ['hapi-shared-hub-worker-10.236.2.2', 'hapi-shared-hub-worker-10.236.9.2'])
+        self.assertEqual(rules[3]['add']['rule']['expr'][1]['match']['right'], '192.0.2.140')
+        self.assertEqual(rules[3]['add']['rule']['expr'][2]['match']['right'], 9443)
+
 if __name__ == '__main__': unittest.main()

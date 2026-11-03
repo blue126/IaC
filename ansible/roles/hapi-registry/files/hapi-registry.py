@@ -16,6 +16,9 @@ CONFIG = Path('/etc/hapi-control-plane/config.json')
 TOKENS = Path('/etc/hapi-control-plane/tokens')
 CREDENTIALS = Path('/etc/hapi-shared-hub/credentials.json')
 AGENTS = Path('/etc/hapi-shared-hub/agents.json')
+# VM500's host firewall drops 9443 unless a worker rule names the source; this renderer owns those rules.
+FIREWALL = Path('/etc/employee-access.nft')
+WORKER_RULE = 'hapi-shared-hub-worker-'
 
 
 def render(desired, config, credentials, agents):
@@ -31,6 +34,21 @@ def render(desired, config, credentials, agents):
         {'id': e['id'], 'address': e['address'], 'namespace': e['id'], 'credential_id': e['id']} for e in employees]
     tokens = {e['id']: e['token'] for e in employees}
     return {**config, 'routes': routes}, {'version': 1, 'credentials': rows}, {'version': 1, 'agents': workers}, tokens
+
+
+def firewall(current, agents, hub_address):
+    """The host firewall with exactly one 9443 accept per worker address; other rules unchanged."""
+    def worker(item):
+        return item.get('add', {}).get('rule', {}).get('comment', '').startswith(WORKER_RULE)
+    def match(protocol, field, value):
+        return {'match': {'op': '==', 'left': {'payload': {'protocol': protocol, 'field': field}}, 'right': value}}
+    rules = [item for item in current['nftables'] if not worker(item)]
+    for address in sorted({a['address'] for a in agents['agents']}):
+        rules.append({'add': {'rule': {'family': 'inet', 'table': 'employee_access', 'chain': 'input',
+                                       'expr': [match('ip', 'saddr', address), match('ip', 'daddr', hub_address),
+                                                match('tcp', 'dport', 9443), {'accept': None}],
+                                       'comment': WORKER_RULE + address}}})
+    return {**current, 'nftables': rules}
 
 
 def stage(path, value, group, mode):
@@ -55,6 +73,7 @@ def main():
         raise SystemExit('One HAPI route per email')
     config, credentials, agents, tokens = render(desired, json.loads(CONFIG.read_text()),
                                                  json.loads(CREDENTIALS.read_text()), json.loads(AGENTS.read_text()))
+    rules = firewall(json.loads(FIREWALL.read_text()), agents, desired['hub_address'])
     proxy, hub = grp.getgrnam('hapi-proxy').gr_gid, grp.getgrnam('hapi-hub').gr_gid
     auth = pwd.getpwnam('hapi-auth').pw_uid
     staged = []
@@ -62,6 +81,7 @@ def main():
         # Every candidate is written and checked before any live file changes.
         for path, value, group in ((CREDENTIALS, credentials, hub), (AGENTS, agents, hub), (CONFIG, config, proxy)):
             staged.append((path,) + stage(path, value, group, 0o640))
+        staged.append((FIREWALL,) + stage(FIREWALL, rules, 0, 0o600))
         check(['/usr/bin/python3', '/usr/local/lib/hapi-hub-config.py', 'credentials', staged[0][1]])
         check(['/usr/bin/python3', '/usr/local/lib/hapi-hub-config.py', 'agents', staged[1][1]])
         with tempfile.TemporaryDirectory() as bindings:
@@ -70,6 +90,7 @@ def main():
                 copy = Path(bindings, name); copy.write_text(Path(temp).read_text()); copy.chmod(0o600)
             check(['/usr/bin/python3', '/usr/local/lib/hapi-hub-config.py', 'bindings', bindings])
         check(['/usr/bin/python3', '/usr/local/lib/hapi-auth.py', '--check', '--config', staged[2][1]])
+        check(['/usr/sbin/nft', '--check', '--json', '--file', staged[3][1]])
         changed = False
         # Tokens first: a new route must find its token when the snapshot names it.
         for wid, token in tokens.items():
@@ -82,6 +103,9 @@ def main():
         for path, temp, differs in staged:
             if differs:
                 os.replace(temp, path); changed = True
+        # The file is the whole ruleset (delete and re-add the table), so reloading is atomic and idempotent;
+        # it runs every time so a rerun applies a file whose earlier reload failed.
+        check(['/usr/bin/systemctl', 'reload', 'employee-firewall'])
         # A retired employee's token goes last, after no route names it.
         kept = {r['workspace_id'] for r in config['routes']}
         for path in TOKENS.iterdir():
