@@ -35,7 +35,7 @@ description: "编写、更新或评审 RemoteCC 员工网站（cc.willfan.me）/
 ## 绝不出现
 
 - 任何凭据或其片段：私钥、令牌、密码、验证码样例以外的真实码、证书指纹真实值、SHA256 真实值。
-- 员工个人数据：真实邮箱、姓名、员工 ID、主机名、分配的 IP。统一用示例值：员工 ID `alice`、主机名 `alice-vm`、邮箱 `you@example.com`，第一次出现时注明“示例，以「我的工作区」显示为准”。
+- 员工个人数据：真实邮箱、姓名、员工 ID、主机名、分配的 IP。统一用示例值：员工 ID `alice`、主机名 `alice-vm`、邮箱 `you@example.com`，前面写“例如”标明是示例。
 - 管理员侧细节：执行器、Semaphore、BWS、`wsctl`、Portal、`/admin/*` 路由、内网管理地址、Terraform/Ansible。员工需要知道的只是“联系管理员”。
 - 让员工在本机浏览器打开 Claude 授权链接、在本机登录个人 Claude 账号，或绕过 VPN 的做法。
 - 未上线的功能和已撤回的方案。
