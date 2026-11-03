@@ -20,6 +20,9 @@ let revision = 0;
 let actionError = false;
 let viewTrusted = false;
 let foreground = !document.hidden;
+// The remote Firefox needs precise clicks and a keyboard, which phones do not provide;
+// a touch-only device is sent to a computer instead of starting an authorization it cannot finish.
+const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
 function dropViewer() {
     viewTrusted = false;
     viewerWanted = false;
@@ -162,6 +165,14 @@ function render(data) {
     viewerWanted = state === 'running' && data.viewer_ready && viewTrusted;
     $('viewer-section').hidden = !viewerWanted;
     $('code-section').hidden = !viewerWanted;
+    if (touchOnly && ['idle', 'running', 'failed', 'cancelled', 'expired'].includes(state)) {
+        $('status-title').textContent = '请在电脑上完成 Claude 登录';
+        $('status').textContent = 'Claude 授权需要在远程画面里点击和输入，手机上无法完成。请用电脑浏览器打开 HAPI，再点击“Claude 登录”。';
+        $('start').hidden = true;
+        viewerWanted = false;
+        $('viewer-section').hidden = true;
+        $('code-section').hidden = true;
+    }
     if (viewerWanted && !rfb && !connecting) connectViewer();
     else if (!viewerWanted && rfb) {
         rfb.disconnect();
