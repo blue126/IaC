@@ -12,6 +12,19 @@
     label: '{{ item.id }}'
   no_log: true
 
+# The registry writes routes without a pre-bound subject, which only the current authorizer accepts.
+- name: Install the authorizer that binds first-login subjects
+  ansible.builtin.copy:
+    src: '{{ role_path }}/../hapi-control-plane/files/hapi-auth.py'
+    dest: /usr/local/lib/hapi-auth.py
+    owner: root
+    group: root
+    mode: '0755'
+  notify: Restart HAPI control authentication
+
+- name: Run the current authorizer before routes change
+  ansible.builtin.meta: flush_handlers
+
 - name: Deploy the registry renderer
   ansible.builtin.copy:
     src: hapi-registry.py
