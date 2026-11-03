@@ -20,7 +20,7 @@
 | --- | --- |
 | OCI Hub | WG Portal v2.3.1、两个 WG 接口、受控执行器及配额定时器已部署；接口/API/登记/启停已有实测 |
 | Portal 管理页面 | https://wgportal.willfan.me/ 经既有 Caddy HTTPS 访问；后台仍仅监听 loopback，采用已有管理员认证，日常写入继续通过受控管理员入口 |
-| 私钥 | 独立 BWS 项目 EmployeeWorkspace-OCIHub 已创建；Hub、VM、设备及 Portal 凭据分记录保管 |
+| 私钥 | BWS 项目 `remotecc`（2026-11-04 由 EmployeeWorkspace-OCIHub 改名，并入执行器凭据）；Hub、VM、设备及 Portal 凭据分记录保管 |
 | VM509 | pve2、2 核 host、4 GiB、pve2-ssd 50 GiB、q35；已创建并绑定启动 hook，目前运行，已配置 WG Spoke 和安装 Mosh |
 | VM508 一次性接管 | 原盘/2核host/4GiB/自启保留，oh508/10.236.8.0/30，Spoke10.234.0.8；原生终端及原noVNC已恢复，新包已私密上传校验，员工本机更新待执行 |
 | 独立底层 | oh501 / 10.236.1.0/30、oh502 / 10.236.2.0/30、oh509 / 10.236.9.0/30，PVE 纯路由；OpenWrt 聚合回程/WAN NAT 已配置；真实路径不经 VM500 |
@@ -340,7 +340,7 @@ WG Portal 稳定版 v2.3.1 的模型已有用户归属、`Disabled`、`DisabledR
 
 开户、撤销与增额继续复用 onboard.sh 和 OCI 执行器的 profile/对象归属/action_id/锁及回读。Portal 页面负责日常人工状态，执行器负责自动化与配额；两者调用同一个 Portal API。Portal API 不提供跨页面/脚本的事务或 CAS，因此不声称并发编辑是原子操作。
 
-管理员 HTTPS 入口为 https://wgportal.willfan.me/，后台仍监听 loopback，并要求现有管理员认证。API 凭据不交给员工或公开客户端。新员工、VM/地址分配、BWS 凭据和设备包仍由既有开户工作流生成；不通过页面添加未分配 VM/ACL 的未知 peer。旧入口与旧 BWS 项目不受影响。
+管理员 HTTPS 入口为 https://wgportal.willfan.me/，后台仍监听 loopback，并要求现有管理员认证。API 凭据不交给员工或公开客户端。新员工、VM/地址分配、BWS 凭据和设备包仍由既有开户工作流生成；不通过页面添加未分配 VM/ACL 的未知 peer。旧入口已退役，旧 BWS 项目已删除。
 
 ## 9. 费用与来源保护
 
@@ -358,7 +358,7 @@ IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard
 | --- | --- |
 | 私有管理员工程 | 唯一员工/设备/VM 归属、overlay 分配、Portal API 适配、启用/撤销和额度操作编排、分方案开户事务、cc.willfan.me 设备包与邮件交付；配额任务源码也归此工程 |
 | WG Portal（OCI） | 私有台账的用户/设备映射、新方案 OCI 端指定 WireGuard 接口与 peer 的配置、启停和恢复；页面和管理员脚本共用同一 API 与启停状态，唯一写入其范围内的 WireGuard 配置 |
-| BWS 项目 | 现有 `EmployeeWorkspace` 原记录及令牌保持；新方案采用独立项目 `EmployeeWorkspace-OCIHub`（已创建）及只授权该项目的机器账号。新项目分别保存设备、VM Spoke、Hub key 和 Portal API 凭据 |
+| BWS 项目 | `remotecc`（原 `EmployeeWorkspace-OCIHub`，2026-11-04 改名并并入执行器凭据）分别保存设备、VM Spoke、Hub key、Portal API 及工作区 HAPI 凭据；旧 `EmployeeWorkspace` 项目已于 2026-10-30 删除 |
 | 配额组件（OCI） | 采样任务和持锁命令执行器常驻；SQLite 保存唯一月账、基线、审计和待执行动作；接入状态从 Portal 读取，管理员电脑离线仍工作 |
 | IaC 仓库 | Terraform OCI 资源、PVE/VM/SDN VNet/子网定义、Ansible 部署 Portal 与配额任务及路由/隔离规则；包含部署契约/schema/验收/设计。新工作区使用独立变量/module 调用键、经门控扩展的通用 VM module 与 `proxmox.pve2` |
 | 公开 bootstrap | 通用 CLI 接入/下载/验证指引；不含管理员工具、真实配置、私密链接或密钥 |
@@ -383,7 +383,7 @@ IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard
 
 ### BWS 项目与运行端凭据隔离
 
-现有 `bws-store.py` 在原项目中遇到未知记录类型会拒绝加载；因此新方案采用独立 BWS 项目，**不向现有 EmployeeWorkspace 项目加入新方案记录、不放宽原加载器白名单来容纳新项目**。先配置显式 profile→项目 ID/机器账号绑定并做拒绝交叉访问的预检，再写入新方案记录；默认 existing 的项目 ID、令牌和读取路径保持。独立项目及仅对此项目读写的机器账号已创建并验证；具体 ID 和令牌留在私有数据目录。
+现有 `bws-store.py` 在原项目中遇到未知记录类型会拒绝加载；因此新方案采用独立 BWS 项目，**不向现有 EmployeeWorkspace 项目加入新方案记录、不放宽原加载器白名单来容纳新项目**。先配置显式 profile→项目 ID/机器账号绑定并做预检，再写入新方案记录。（2026-11-04 更新：existing 方案已退役，原项目已删除，预检只要求能看到所配置的 `remotecc` 项目。）独立项目及仅对此项目读写的机器账号已创建并验证；具体 ID 和令牌留在私有数据目录。
 
 管理员部署端从新 BWS 项目读取所需值：VM 只收到自己的 Spoke key。用户已确认使用 Portal v2.3.1 标准 v1 API：OCI Portal 保存本方案 Hub key，以及本方案设备/VM Spoke 的 WireGuard 私钥副本；BWS 保持这些凭据的恢复权威，现有方案和员工 SSH 私钥不交付 OCI。OCI 命令执行器只收到单一 Portal API 凭据文件（限制所有者访问）。**OCI 不保存现有或新 BWS 项目的机器账号令牌，也不运行持令牌读取整个项目的定时任务。** Portal/采样任务不访问员工 SSH 私钥；采样只读 WireGuard 统计，实际 API 写入由执行器完成。
 

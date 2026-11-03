@@ -19,7 +19,7 @@
 | 私有源码／运行数据 | 主checkout的独立`remotecc/hapi-admin/`／`remotecc/hapi-data/`，绑定专用Sandbox | 原 employee-admin／employee-data |
 | 台账与恢复 | HAPI 独立登记、计划、检查点、回执 | 原工作区／设备登记与检查点 |
 | 员工交付 | 统一网址及网页登录说明 | 原设备接入包和 bootstrap 说明 |
-| 凭据边界 | HapiWorkspace项目与专用机器授权已建立，服务凭据固定映射namespace | 原EmployeeWorkspace已按用户指定退役；OCI-Hub项目保持独立 |
+| 凭据边界 | （2026-11-04 更新）HapiWorkspace项目已删除；员工HAPI令牌在BWS `remotecc` 项目各工作区记录的 `hapi_token`，共享Hub重建材料同在该项目 | 原EmployeeWorkspace已按用户指定退役；OCI-Hub项目保持独立 |
 
 主checkout的私有`hapi-admin/hapi-entry.py`已正式绑定独立数据目录、IaC任务工作树及专用Sandbox，支持doctor／request／plan-infra／apply-infra／status，见[管理员运行绑定](../guides/hapi-admin-runtime.md)。17项合成执行器、5项绑定回归及正式doctor／挂载检查通过，生成Terraform的init-backend-false／validate已通过；未用它新增真实员工或执行实际apply。它只标记基础设施就绪，不发布服务／身份／邮件；私有源码有独立本地Git，没有私有Git远端。公开IaC仅保存技能、通用基础设施代码和说明；真实邮箱、分配、计划、状态与凭据保存在私有运行区。
 

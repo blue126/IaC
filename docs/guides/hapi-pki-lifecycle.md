@@ -25,7 +25,7 @@ CRL有效期不再限制叶证书只有90天；两者分别维护。首次发布
 
 2026-10-31现场核对确认上述路径和身份；VM502使用`hapi-ingress-proxy`，不部署旧的每VM Hub／workspace角色。自动续期发布前的叶证书／CRL最早到期日为2027-01-28，该批材料已由首轮签发替换。首轮签发验收记录：四张叶证书到2027-10-31 12:43:15 UTC，两套CA到2031-10-30 12:43:15 UTC，CRL到2027-04-29 12:43:15 UTC。此处是验收快照；后续实际到期日以现网材料及控制器状态为准。
 
-Hub CA签发密钥已有HapiWorkspace BWS记录；入口CA签发密钥目前保存在既有加密运行Vault。两者均已在管理员环境按公钥摘要匹配现网CA，未打印私钥。本轮保持既有来源，不迁移BWS项目或机器授权。部署通过加密runtime Vault向VM500的root-only凭据目录提供这两把签发密钥，再由systemd `LoadCredential`交给专用`hapi-pki`用户；VM500不取得BWS管理员token。叶私钥仍留原VM，不经网络分发。
+Hub CA签发密钥曾有HapiWorkspace BWS记录（2026-11-04 随HapiWorkspace项目删除，PKI已退役不再回退）；入口CA签发密钥目前保存在既有加密运行Vault。两者均已在管理员环境按公钥摘要匹配现网CA，未打印私钥。本轮保持既有来源，不迁移BWS项目或机器授权。部署通过加密runtime Vault向VM500的root-only凭据目录提供这两把签发密钥，再由systemd `LoadCredential`交给专用`hapi-pki`用户；VM500不取得BWS管理员token。叶私钥仍留原VM，不经网络分发。
 
 ## 自动化路径
 

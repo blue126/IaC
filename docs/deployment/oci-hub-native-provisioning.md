@@ -80,7 +80,7 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 2026-10-30 已部署 **https://wgportal.willfan.me/**，无需本地 SSH 转发或员工 VPN。Cloudflare DNS 的 A 记录直接指向 OCI，现有 Caddy 负责公网 HTTPS/证书，反代到 `127.0.0.1:8888`；Portal 后端端口仍不公开。Portal 使用已有管理员认证，未另外新增 Access 应用。
 
-账号为 `admin@wgportal.local`，密码在 BWS 项目 `EmployeeWorkspace-OCIHub` 的 `OCI_HUB_PORTAL_ADMIN_V1` 记录 `secrets.admin_password`；不要将密码或 API token 贴入文档、聊天或 URL。界面可查看接口、设备及流量；启用/停用可以直接在 Portal 操作；开户、VM/地址分配及增额继续使用管理员入口，两者共用 Portal 接入状态。
+账号为 `admin@wgportal.local`，密码在 BWS 项目 `remotecc`（原名 EmployeeWorkspace-OCIHub）的 `OCI_HUB_PORTAL_ADMIN_V1` 记录 `secrets.admin_password`；不要将密码或 API token 贴入文档、聊天或 URL。界面可查看接口、设备及流量；启用/停用可以直接在 Portal 操作；开户、VM/地址分配及增额继续使用管理员入口，两者共用 Portal 接入状态。
 
 维护使用 `ansible/playbooks/configure-oci-hub-portal-public.yml`，只配置既有 Caddy/Portal，不安装软件；`oci_hub_portal_external_url` 在 OCI 主机变量中持久化，完整 Portal 模板也使用此变量。运行前使用已批准的 OCI 管理 inventory 与严格主机公钥校验，按仓库约定在 Sandbox 执行。
 
