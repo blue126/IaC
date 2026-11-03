@@ -1,0 +1,33 @@
+pid /run/hapi-hub-client/nginx.pid;
+error_log /dev/null;
+worker_processes 1;
+events { worker_connections 1024; }
+http {
+    access_log off;
+    client_body_temp_path /run/hapi-hub-client/body;
+    proxy_temp_path /run/hapi-hub-client/proxy;
+    fastcgi_temp_path /run/hapi-hub-client/fastcgi;
+    uwsgi_temp_path /run/hapi-hub-client/uwsgi;
+    scgi_temp_path /run/hapi-hub-client/scgi;
+    server_tokens off;
+    map $http_upgrade $hapi_connection { default close; websocket upgrade; }
+    server {
+        listen 127.0.0.1:3006;
+        server_name localhost;
+        client_max_body_size 64m;
+        proxy_set_header Host hapi-hub.internal;
+        proxy_set_header X-Hapi-Expected-Namespace "";
+        proxy_set_header X-Hapi-Expected-Credential "";
+        proxy_set_header Cf-Access-Jwt-Assertion "";
+        proxy_set_header Cookie "";
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $hapi_connection;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_next_upstream off;
+        proxy_redirect off;
+        proxy_read_timeout 60s;
+        location / { proxy_pass http://{{ hapi_control_address }}:9443; }
+    }
+}

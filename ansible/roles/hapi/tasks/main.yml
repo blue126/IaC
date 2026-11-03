@@ -1,0 +1,46 @@
+---
+- name: Validate this VM's HAPI identity and addresses
+  ansible.builtin.assert:
+    that:
+      - hapi_workspace_id is match('^[a-z][a-z0-9-]{0,31}$')
+      - hapi_bind_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_desktop_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_control_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_control_address not in [hapi_bind_address, hapi_desktop_address]
+      - hapi_origin is match('^https://[a-z0-9.-]+$')
+      - hapi_api_token is match('^[A-Za-z0-9_-]{32,}$')
+      - hapi_web_archive is match('^/')
+      - hapi_web_sha256 is match('^[a-f0-9]{64}$')
+      - hapi_internal_http_authorized | bool
+      - ansible_facts.system == 'Linux' and ansible_facts.architecture == 'x86_64'
+      # The login viewer must be this VM's own desktop entry, never another employee's.
+      - oci_hub_spoke_address is not defined or hapi_desktop_address == oci_hub_spoke_address.split('/')[0]
+      - hapi_desktop_address in ansible_facts.all_ipv4_addresses
+    fail_msg: HAPI needs the workspace ID, this VM's own addresses, the BWS Runner token, the approved frontend, an x86_64 Linux VM and the confirmed internal HTTP model.
+  no_log: true
+
+- name: Install the HAPI proxy runtime
+  ansible.builtin.apt:
+    name: [nginx]
+    state: present
+    install_recommends: false
+    policy_rc_d: 101
+
+# The pilot's own Hub held 127.0.0.1:3006 and its Tunnel used it; both stop before anything changes.
+- name: Stop the retired standalone pilot first
+  ansible.builtin.include_tasks: legacy-stop.yml
+
+- name: Connect this VM to the shared Hub on VM500
+  ansible.builtin.include_tasks: hub-client.yml
+
+- name: Install and run the HAPI Runner
+  ansible.builtin.include_tasks: runner.yml
+
+- name: Serve the private ingress VM500 uses
+  ansible.builtin.include_tasks: ingress.yml
+
+- name: Run the fixed Claude login API
+  ansible.builtin.include_tasks: login.yml
+
+- name: Remove the stopped standalone pilot
+  ansible.builtin.include_tasks: legacy-remove.yml

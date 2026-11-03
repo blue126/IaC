@@ -1,7 +1,0 @@
----
-- name: Reload HAPI Hub client
-  ansible.builtin.systemd_service:
-    name: hapi-hub-client
-    daemon_reload: true
-    state: reloaded
-  when: hapi_hub_client_activate | bool

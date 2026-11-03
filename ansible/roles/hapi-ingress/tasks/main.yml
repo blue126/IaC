@@ -1,10 +1,10 @@
 ---
-- name: Validate the explicitly approved pilot ingress targets
+# VM500 only: the Cloudflare Tunnel connector. Employee VMs' private ingress is in the hapi role.
+- name: Validate the VM500 connector target
   ansible.builtin.assert:
     that:
-      - hapi_ingress_mode in ['gateway', 'backend']
-      - (hapi_ingress_mode == 'gateway' and hapi_ingress_vmid | int == 500) or (hapi_ingress_mode == 'backend' and hapi_ingress_vmid | int == 502)
-      - hapi_ingress_backend_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_ingress_mode == 'gateway'
+      - hapi_ingress_vmid | int == 500
       - hapi_ingress_origin == 'https://hapi.willfan.me'
 
 - name: Check the existing proxy runtime
@@ -31,10 +31,6 @@
     owner: root
     group: hapi-ingress
     mode: '0750'
-
-- name: Configure only the private backend on the existing pilot VM
-  ansible.builtin.include_tasks: backend.yml
-  when: hapi_ingress_mode == 'backend'
 
 - name: Stage the existing pilot connector on VM500
   when: hapi_ingress_mode == 'gateway'

@@ -1,0 +1,34 @@
+---
+# The login browser, its viewer and workspace-login come with the KasmVNC desktop
+# (employee-workspace); this only adds the fixed API the VM500 login page calls.
+- name: Require the desktop login helper this API drives
+  ansible.builtin.stat:
+    path: /usr/local/bin/workspace-login
+  register: hapi_workspace_login
+  failed_when: not hapi_workspace_login.stat.exists
+
+- name: Install the VM-local login flow and fixed execution API
+  ansible.builtin.copy:
+    src: '{{ item }}.py'
+    dest: '/usr/local/lib/{{ item }}.py'
+    owner: root
+    group: root
+    mode: '0755'
+  loop: [claude-login-flow, claude-login-agent]
+  notify: Restart Claude login agent
+
+- name: Deploy the login API service
+  ansible.builtin.template:
+    src: login-agent.service.j2
+    dest: /etc/systemd/system/claude-login-agent.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Claude login agent
+
+- name: Enable the login API
+  ansible.builtin.systemd_service:
+    name: claude-login-agent
+    daemon_reload: true
+    enabled: true
+    state: started

@@ -1,3 +1,0 @@
----
-claude_login_agent_origin: '{{ hapi_workspace_origin }}'
-claude_login_agent_install_dependencies: false

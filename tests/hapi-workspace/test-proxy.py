@@ -33,7 +33,7 @@ helpers = importlib.util.module_from_spec(spec); spec.loader.exec_module(helpers
 auth, ROOT = helpers.auth, helpers.ROOT
 spec = importlib.util.spec_from_file_location('stream_guard', ROOT/'ansible/roles/hapi-control-plane/files/hapi-stream-guard.py')
 stream_guard = importlib.util.module_from_spec(spec); spec.loader.exec_module(stream_guard)
-spec = importlib.util.spec_from_file_location('login_agent', ROOT/'ansible/roles/claude-login-agent/files/claude-login-agent.py')
+spec = importlib.util.spec_from_file_location('login_agent', ROOT/'ansible/roles/hapi/files/claude-login-agent.py')
 agent = importlib.util.module_from_spec(spec); spec.loader.exec_module(agent)
 
 
@@ -200,10 +200,11 @@ class ProxyTest(unittest.TestCase):
                 else: raise AssertionError('Synthetic websockify did not start')
             directory = cls.root/wid; directory.mkdir()
             port = available_port(); cls.backends[wid] = port
-            config = render(ROOT/'ansible/roles/hapi-ingress/templates/nginx.conf.j2', {
-                'hapi_ingress_control_address': '127.0.0.1', 'hapi_ingress_backend_address': '127.0.0.1', 'hapi_ingress_id': wid,
-                'hapi_ingress_origin': helpers.ORIGIN, 'hapi_ingress_web_sha256': 'a'*64})
-            config = config.replace('127.0.0.1:6082', f'127.0.0.1:{login.server_port}').replace('127.0.0.1:6081', f'127.0.0.1:{viewer_port}')
+            config = render(ROOT/'ansible/roles/hapi/templates/ingress.nginx.conf.j2', {
+                'hapi_control_address': '127.0.0.1', 'hapi_bind_address': '127.0.0.1', 'hapi_workspace_id': wid,
+                'hapi_origin': helpers.ORIGIN, 'hapi_web_sha256': 'a'*64, 'hapi_desktop_address': '127.0.0.1'})
+            # The viewer is the VM's KasmVNC entry on 8443; the synthetic one is plain websockify.
+            config = config.replace('127.0.0.1:6082', f'127.0.0.1:{login.server_port}').replace('https://127.0.0.1:8443/websockify', f'http://127.0.0.1:{viewer_port}/websockify')
             config = config.replace('127.0.0.1:9443', f'127.0.0.1:{port}').replace('127.0.0.1:3006', f'127.0.0.1:{hub.server_port}')
             config = config.replace('/etc/hapi-ingress', str(directory)).replace('/run/hapi-ingress', str(directory))
             web = directory/'web'; web.mkdir()
@@ -301,7 +302,7 @@ class ProxyTest(unittest.TestCase):
         config = config.replace('/run/hapi-hub-transport', str(directory)).replace('127.0.0.1:3006', f'127.0.0.1:{hub.server_port}').replace('127.0.0.1:9443', f'127.0.0.1:{port}')
         self.start_nginx(directory, config, port)
         client = self.root/'client-http';client.mkdir();client_port = available_port()
-        candidate = render(ROOT/'ansible/roles/hapi-hub-client/templates/nginx.conf.j2', {'hapi_hub_client_address': '127.0.0.1'})
+        candidate = render(ROOT/'ansible/roles/hapi/templates/hub-client.nginx.conf.j2', {'hapi_control_address': '127.0.0.1'})
         candidate = candidate.replace('/run/hapi-hub-client', str(client)).replace('127.0.0.1:3006', f'127.0.0.1:{client_port}').replace('127.0.0.1:9443', f'127.0.0.1:{port}')
         self.start_nginx(client, candidate, client_port)
         for endpoint in [port, client_port]:

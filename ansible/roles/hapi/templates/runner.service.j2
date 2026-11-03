@@ -1,0 +1,23 @@
+[Unit]
+Description=HAPI supervised Runner for this employee workspace
+Wants=network-online.target hapi-hub-client.service
+After=network-online.target hapi-hub-client.service
+
+[Service]
+Type=simple
+User=employee
+Group=employee
+WorkingDirectory=/home/employee
+Environment=HOME=/home/employee
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=HAPI_RUNNER_SUPERVISED=1
+EnvironmentFile=/etc/hapi/runner.env
+ExecStart=/usr/local/bin/hapi runner start-sync --workspace-root /home/employee
+Restart=always
+RestartSec=5
+UMask=0077
+StandardOutput=append:/home/employee/.hapi/logs/runner-service.log
+StandardError=append:/home/employee/.hapi/logs/runner-service.log
+
+[Install]
+WantedBy=multi-user.target

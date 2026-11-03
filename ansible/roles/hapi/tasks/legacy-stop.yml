@@ -1,0 +1,25 @@
+---
+- name: Find the retired pilot units on this VM
+  ansible.builtin.stat:
+    path: '/etc/systemd/system/{{ item }}.service'
+  loop: [employee-hapi-tunnel, employee-hapi-runner, employee-hapi-hub, hapi-hub-client-validation]
+  register: hapi_legacy_units
+
+# A unit that exists must stop; a failure ends the deployment before any file is removed.
+- name: Stop and disable each retired pilot unit that exists
+  ansible.builtin.systemd_service:
+    name: '{{ item.item }}'
+    state: stopped
+    enabled: false
+  loop: '{{ hapi_legacy_units.results }}'
+  loop_control:
+    label: '{{ item.item }}'
+  when: item.stat.exists
+
+- name: Require the retired pilot Hub to have released the loopback port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 3006
+    state: stopped
+    timeout: 10
+  when: hapi_legacy_units.results | selectattr('stat.exists') | map(attribute='item') | select('equalto', 'employee-hapi-hub') | list | length > 0

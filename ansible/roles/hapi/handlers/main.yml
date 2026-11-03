@@ -1,0 +1,28 @@
+---
+- name: Restart HAPI Runner
+  ansible.builtin.systemd_service:
+    name: hapi-runner
+    daemon_reload: true
+    state: restarted
+
+- name: Reload HAPI Hub client
+  ansible.builtin.systemd_service:
+    name: hapi-hub-client
+    daemon_reload: true
+    state: reloaded
+
+- name: Reload HAPI ingress proxy
+  ansible.builtin.systemd_service:
+    name: hapi-ingress-proxy
+    daemon_reload: true
+    state: reloaded
+
+- name: Restart Claude login agent
+  ansible.builtin.systemd_service:
+    name: claude-login-agent
+    daemon_reload: true
+    state: restarted
+
+- name: Reload systemd units
+  ansible.builtin.systemd_service:
+    daemon_reload: true

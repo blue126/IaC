@@ -1,0 +1,69 @@
+---
+- name: Create the dedicated Hub client account
+  ansible.builtin.user:
+    name: hapi-hub-client
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create the private Hub client configuration directory
+  ansible.builtin.file:
+    path: /etc/hapi-hub-client
+    state: directory
+    owner: root
+    group: hapi-hub-client
+    mode: '0750'
+
+- name: Prepare the isolated client proxy runtime for configuration checks
+  ansible.builtin.file:
+    path: '/run/hapi-hub-client/{{ item }}'
+    state: directory
+    owner: hapi-hub-client
+    group: hapi-hub-client
+    mode: '0700'
+  loop: ['', body, proxy, fastcgi, uwsgi, scgi]
+
+- name: Deploy the loopback endpoint that forwards to the shared Hub
+  ansible.builtin.template:
+    src: hub-client.nginx.conf.j2
+    dest: /etc/hapi-hub-client/nginx.conf
+    owner: root
+    group: hapi-hub-client
+    mode: '0640'
+    validate: /usr/sbin/nginx -t -c %s -p /run/hapi-hub-client/
+  notify: Reload HAPI Hub client
+
+- name: Deploy the Hub client service
+  ansible.builtin.template:
+    src: hub-client.service.j2
+    dest: /etc/systemd/system/hapi-hub-client.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload HAPI Hub client
+
+- name: Inspect the PID file left by configuration checks
+  ansible.builtin.stat:
+    path: /run/hapi-hub-client/nginx.pid
+    follow: false
+  register: hapi_hub_client_pid
+
+- name: Require a regular Hub client PID file
+  ansible.builtin.assert:
+    that: not hapi_hub_client_pid.stat.exists or hapi_hub_client_pid.stat.isreg
+
+- name: Keep the PID file writable by the Hub client account
+  ansible.builtin.file:
+    path: /run/hapi-hub-client/nginx.pid
+    owner: hapi-hub-client
+    group: hapi-hub-client
+    mode: '0600'
+    follow: false
+  when: hapi_hub_client_pid.stat.exists
+
+- name: Enable the Hub client
+  ansible.builtin.systemd_service:
+    name: hapi-hub-client
+    daemon_reload: true
+    enabled: true
+    state: started
