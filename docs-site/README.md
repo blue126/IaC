@@ -8,16 +8,17 @@ This removable presentation layer mounts the repository `docs/` directory withou
 
 Required versions / 固定版本：
 
-- Hugo Extended `v0.165.0`
-- Go `1.25.0`
-- OINK `v0.7.0` (pinned in `go.mod`)
+- Hugo Extended `v0.169.0`
+- Go `1.27.3`
+- OINK `v1.4.0` (pinned in `go.mod`)
 
 ```bash
 hugo version && go version && hugo mod graph
 python3 docs-site/scripts/prepare-content.py
 hugo --cleanDestinationDir --gc --minify --environment production \
-  --printPathWarnings --panicOnWarning \
+  --printPathWarnings \
   --baseURL 'https://blue126.github.io/IaC/'
+# The only accepted warning is Hugo's LibSass deprecation; OINK asks consumers not to use --panicOnWarning.
 BASE_URL='https://blue126.github.io/IaC/'
 test -s public/index.html
 test -s public/index.md
@@ -50,9 +51,9 @@ For an interactive preview / 交互式预览：
 hugo server --baseURL http://localhost:1313/IaC/ --appendPort=false
 ```
 
-If `hugo version` does not contain both `v0.165.0` and `+extended`, install the matching Extended release from [Hugo releases](https://github.com/gohugoio/hugo/releases/tag/v0.165.0). Install Go `1.25.0` from [go.dev](https://go.dev/dl/). The checks intentionally fail instead of accepting another toolchain.
+If `hugo version` does not contain both `v0.169.0` and `+extended`, install the matching Extended release from [Hugo releases](https://github.com/gohugoio/hugo/releases/tag/v0.169.0). Install Go `1.27.3` from [go.dev](https://go.dev/dl/). The checks intentionally fail instead of accepting another toolchain.
 
-如果 `hugo version` 未同时包含 `v0.165.0` 与 `+extended`，请从上述 Hugo release 安装匹配的 Extended 包；Go 必须为 `1.25.0`。检查会主动拒绝其他工具链。
+如果 `hugo version` 未同时包含 `v0.169.0` 与 `+extended`，请从上述 Hugo release 安装匹配的 Extended 包；Go 必须为 `1.27.3`。检查会主动拒绝其他工具链。
 
 ## Upgrade / 升级
 

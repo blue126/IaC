@@ -45,15 +45,24 @@ done
 hugo_version="$("${HUGO_BIN}" version)"
 go_version="$("${GO_BIN}" version)"
 module_graph="$("${HUGO_BIN}" mod graph)"
-[[ "${hugo_version}" == *"v0.165.0"* && "${hugo_version}" == *"+extended"* ]]
-[[ "${go_version}" == *"go1.25.0"* ]]
-[[ "${module_graph}" == *"github.com/pgsty/oink@v0.7.0"* ]]
+[[ "${hugo_version}" == *"v0.169.0"* && "${hugo_version}" == *"+extended"* ]]
+[[ "${go_version}" == *"go1.27.3"* ]]
+[[ "${module_graph}" == *"github.com/pgsty/oink@v1.4.0"* ]]
 
 "${PYTHON_BIN}" docs-site/scripts/prepare-content.py
 
 base_url="${BASE_URL:-https://blue126.github.io/IaC/}"
+# OINK uses Hugo Extended's built-in LibSass and asks consumers not to use --panicOnWarning,
+# because Hugo always reports LibSass as deprecated. Fail on any other warning instead.
+build_log="$(mktemp)"
 "${HUGO_BIN}" --cleanDestinationDir --gc --minify --environment production \
-  --printPathWarnings --panicOnWarning --baseURL "${base_url}"
+  --printPathWarnings --baseURL "${base_url}" 2>&1 | tee "${build_log}"
+if grep -E '^(WARN|ERROR)' "${build_log}" | grep -Fv 'deprecated: css.Sass: libsass was deprecated'; then
+  echo "Hugo reported unexpected warnings" >&2
+  rm -f "${build_log}"
+  exit 1
+fi
+rm -f "${build_log}"
 
 test -s public/index.html
 test -s public/index.md
