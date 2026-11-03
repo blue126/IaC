@@ -22,7 +22,17 @@
     mode: '0755'
   notify: Restart HAPI control authentication
 
-- name: Run the current authorizer before routes change
+# The registry reloads the transport after each change, which needs the unit's ExecReload.
+- name: Install the reloadable shared Hub transport unit
+  ansible.builtin.template:
+    src: '{{ role_path }}/../hapi-shared-hub/templates/hapi-hub-transport.service.j2'
+    dest: /etc/systemd/system/hapi-hub-transport.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Load changed HAPI units
+
+- name: Apply the authorizer and unit changes before routes change
   ansible.builtin.meta: flush_handlers
 
 - name: Deploy the registry renderer
