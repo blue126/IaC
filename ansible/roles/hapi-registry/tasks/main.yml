@@ -68,7 +68,6 @@
     hapi_control_plane_routes: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).routes }}'
     hapi_control_plane_origin: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).origin }}'
     hapi_control_plane_shared_hub: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).shared_hub }}'
-  notify: Reload HAPI control proxy
 
 - name: Render the shared Hub transport for every worker
   ansible.builtin.template:
@@ -82,4 +81,12 @@
     hapi_shared_hub_agents: '{{ (hapi_registry_rendered.results[1].content | b64decode | from_json).agents }}'
     hapi_shared_hub_bind_address: '{{ hapi_registry_hub_bind_address }}'
     hapi_shared_hub_origin: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).origin }}'
-  notify: Reload shared HAPI transport
+
+# Reloaded on every run, not only on change: a run whose reload failed leaves the file already
+# written, and the next run must still load it. nginx reloads gracefully.
+- name: Load the current routes and workers into both proxies
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    state: reloaded
+  loop: [hapi-control-proxy, hapi-hub-transport]
+  changed_when: false
