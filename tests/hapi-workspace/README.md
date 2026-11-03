@@ -15,8 +15,8 @@ python3 tests/hapi-workspace/test-login-agent.py
 export ANSIBLE_CONFIG="$PWD/tests/ci/fixtures/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$PWD/ansible/roles"
 ansible-playbook -i tests/hapi-workspace/inventory.yml ansible/playbooks/deploy-hapi-control-plane.yml --syntax-check
-ansible-playbook -i tests/hapi-workspace/inventory.yml ansible/playbooks/deploy-employee-hapi.yml --syntax-check
-ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.yml ansible/playbooks/deploy-employee-hapi.yml ansible/roles/hapi-control-plane ansible/roles/hapi
+ansible-playbook -i tests/hapi-workspace/inventory.yml ansible/playbooks/prepare-employee-desktop.yml --syntax-check
+ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.yml ansible/playbooks/prepare-employee-desktop.yml ansible/roles/hapi-control-plane ansible/roles/hapi
 ```
 
 `test-auth.py`使用cryptography签发真实RSA测试JWT，经Unix HTTP接口验证issuer／AUD／时间／签名、邮箱与subject联合归属、停用、冲突分配、CSRF、错误Origin、伪造路由头和票据交换后再次停用检查。

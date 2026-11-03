@@ -1,6 +1,6 @@
 # VM502 HAPI 单人试点
 
-> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role（`deploy-employee-hapi.yml`）管理，见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
+> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role管理（默认随`prepare-employee-desktop.yml`的provision／update阶段部署），见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
 
 ## 后续多人开户的流程边界
 

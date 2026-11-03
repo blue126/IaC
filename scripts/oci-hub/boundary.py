@@ -393,7 +393,13 @@ def load_service_egress(c, path=Path('/etc/oci-hub/service-egress.json')):
     grants = json.loads(path.read_text())
     if not set(grants) <= {'cloudflare_tunnel_vmids', 'hapi_ingress_grants', 'hapi_hub_grants'}:
         raise ValueError('unexpected service egress fields')
-    return validate({**c, **grants})
+    # The executor now writes HAPI grants into the policy itself; the hand-kept file
+    # only adds to them (union) until it is retired, never replaces them.
+    merged = dict(c)
+    for key, value in grants.items():
+        current = list(c.get(key, []))
+        merged[key] = current + [item for item in value if item not in current]
+    return validate(merged)
 
 
 def main():

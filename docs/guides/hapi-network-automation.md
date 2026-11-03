@@ -1,6 +1,6 @@
 # HAPI 网络开户自动化
 
-> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role（`deploy-employee-hapi.yml`）管理，见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
+> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role管理（默认随`prepare-employee-desktop.yml`的provision／update阶段部署），见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
 
 > **保留的网络能力与历史原型。** 独立HAPI开户候选已撤回；本页不提供当前员工开户入口。QA VM9101／9102和关联定时巡检已[回收](../planning/2026-10-31-hapi-qa-retirement.md)，网络代码与验收证据保留。当前员工操作约定见[wsctl流程](../deployment/oci-hub-native-provisioning.md)。
 

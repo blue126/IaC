@@ -1,6 +1,6 @@
 # HAPI 受控内网 HTTP 简化
 
-> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role（`deploy-employee-hapi.yml`）管理，见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
+> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role管理（默认随`prepare-employee-desktop.yml`的provision／update阶段部署），见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
 
 状态：2026-11-02已按用户授权部署[PR #210](https://github.com/blue126/IaC/pull/210)合并版本，VM500／VM502内部HTTP切换及playbook现场验收通过，旧PKI和证书巡检服务已退役。详见[发布记录](../planning/2026-11-02-hapi-internal-http-rollout.md)。本方案接受VM500到员工VM这一段明文传输，不新增VPN或SSH隧道。
 
