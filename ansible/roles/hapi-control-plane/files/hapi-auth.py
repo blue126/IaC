@@ -270,10 +270,16 @@ class Policy:
         if route['subject']:
             return route['subject']
         with self.database_lock:
-            row = self.database.execute('SELECT email, subject FROM bindings WHERE workspace = ?', (route['workspace_id'],)).fetchone()
+            # A binding is valid only while its workspace is still routed to the same email; a
+            # retired, renamed or reassigned workspace releases it, so the subject can bind again.
+            current = {(r['workspace_id'], r['email']) for r in config['routes']}
+            for workspace, email in self.database.execute('SELECT workspace, email FROM bindings').fetchall():
+                if (workspace, email) not in current:
+                    self.database.execute('DELETE FROM bindings WHERE workspace = ?', (workspace,))
+            self.database.commit()
+            row = self.database.execute('SELECT subject FROM bindings WHERE workspace = ?', (route['workspace_id'],)).fetchone()
             if row:
-                # A reused workspace ID with another email needs the administrator to clear it.
-                return row[1] if row[0] == route['email'] else None
+                return row[0]
             # A subject already fixed or bound for another workspace is never bound again.
             if any(other['subject'] == claims['sub'] for other in config['routes']):
                 return None
