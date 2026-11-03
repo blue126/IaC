@@ -66,7 +66,7 @@ def main():
         check(['/usr/bin/python3', '/usr/local/lib/hapi-hub-config.py', 'agents', staged[1][1]])
         with tempfile.TemporaryDirectory() as bindings:
             for name, (_, temp, _) in zip(('credentials.json', 'agents.json'), staged[:2]):
-                # The validator rejects world-readable files, so the copies keep the candidates' mode.
+                # The validator rejects world-readable files; these root-only copies are 0600.
                 copy = Path(bindings, name); copy.write_text(Path(temp).read_text()); copy.chmod(0o600)
             check(['/usr/bin/python3', '/usr/local/lib/hapi-hub-config.py', 'bindings', bindings])
         check(['/usr/bin/python3', '/usr/local/lib/hapi-auth.py', '--check', '--config', staged[2][1]])
