@@ -22,6 +22,16 @@
     mode: '0755'
   notify: Restart HAPI control authentication
 
+# The login page's viewer must match the employee desktops it connects to.
+- name: Install the current login page assets
+  ansible.builtin.copy:
+    src: '{{ role_path }}/../hapi-control-plane/files/hapi-login-portal/'
+    dest: /usr/local/lib/hapi-login-portal/
+    owner: root
+    group: root
+    mode: '0644'
+    directory_mode: '0755'
+
 # The registry reloads the transport after each change, which needs the unit's ExecReload.
 - name: Install the reloadable shared Hub transport unit
   ansible.builtin.template:
