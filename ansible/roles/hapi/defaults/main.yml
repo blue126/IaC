@@ -1,0 +1,13 @@
+---
+# Employee VM side of HAPI: Runner, the loopback link to the shared Hub on VM500,
+# the private 9443 ingress VM500 uses, and the fixed Claude login API.
+hapi_workspace_id: ''            # route/credential id on VM500, e.g. the employee ID (vm502 for the owner VM)
+hapi_bind_address: ''            # this VM's private /30 address that VM500 reaches on 9443
+hapi_desktop_address: ''         # this VM's overlay address serving the KasmVNC entry on 8443
+hapi_control_address: 192.168.1.140
+hapi_origin: https://hapi.willfan.me
+hapi_api_token: "{{ vault_hapi_api_token | default('') }}"
+hapi_web_archive: ''             # controller path of the approved automatic-login frontend
+hapi_web_sha256: ''
+hapi_version: v0.33.2
+hapi_release_sha256: 45d843d700e656cf3a9db4b0df7c4c1b174fd334fe8194ea73b3bbc78c564290

@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-FILES = ROOT/'ansible/roles/claude-login-agent/files'
+FILES = ROOT/'ansible/roles/hapi/files'
 
 
 def load(name, path):
@@ -23,7 +23,7 @@ def load(name, path):
 
 AGENT = load('agent', FILES/'claude-login-agent.py')
 FIXTURE = load('existing_login_fixture', ROOT/'tests/employee-workspace/test-login.py')
-FIXTURE.SOURCE = FILES
+FIXTURE.SOURCE = ROOT/'ansible/roles/employee-workspace/files'
 
 
 class AgentBoundary(unittest.TestCase):

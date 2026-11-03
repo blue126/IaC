@@ -1,0 +1,37 @@
+---
+- name: Validate this VM's HAPI identity and addresses
+  ansible.builtin.assert:
+    that:
+      - hapi_workspace_id is match('^[a-z][a-z0-9-]{0,31}$')
+      - hapi_bind_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_desktop_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_control_address is match('^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+$')
+      - hapi_control_address not in [hapi_bind_address, hapi_desktop_address]
+      - hapi_origin is match('^https://[a-z0-9.-]+$')
+      - hapi_api_token is match('^[A-Za-z0-9_-]{32,}$')
+      - hapi_web_archive is match('^/')
+      - hapi_web_sha256 is match('^[a-f0-9]{64}$')
+    fail_msg: HAPI needs the workspace ID, both VM addresses, the BWS Runner token and the approved frontend.
+  no_log: true
+
+- name: Install the HAPI proxy runtime
+  ansible.builtin.apt:
+    name: [nginx]
+    state: present
+    install_recommends: false
+    policy_rc_d: 101
+
+- name: Connect this VM to the shared Hub on VM500
+  ansible.builtin.include_tasks: hub-client.yml
+
+- name: Install and run the HAPI Runner
+  ansible.builtin.include_tasks: runner.yml
+
+- name: Serve the private ingress VM500 uses
+  ansible.builtin.include_tasks: ingress.yml
+
+- name: Run the fixed Claude login API
+  ansible.builtin.include_tasks: login.yml
+
+- name: Remove the retired standalone pilot units
+  ansible.builtin.include_tasks: legacy.yml

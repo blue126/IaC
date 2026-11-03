@@ -33,7 +33,7 @@ helpers = importlib.util.module_from_spec(spec); spec.loader.exec_module(helpers
 auth, ROOT = helpers.auth, helpers.ROOT
 spec = importlib.util.spec_from_file_location('stream_guard', ROOT/'ansible/roles/hapi-control-plane/files/hapi-stream-guard.py')
 stream_guard = importlib.util.module_from_spec(spec); spec.loader.exec_module(stream_guard)
-spec = importlib.util.spec_from_file_location('login_agent', ROOT/'ansible/roles/claude-login-agent/files/claude-login-agent.py')
+spec = importlib.util.spec_from_file_location('login_agent', ROOT/'ansible/roles/hapi/files/claude-login-agent.py')
 agent = importlib.util.module_from_spec(spec); spec.loader.exec_module(agent)
 
 

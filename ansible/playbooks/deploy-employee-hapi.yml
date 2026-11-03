@@ -1,17 +1,20 @@
 ---
-- name: Deploy the VM502 employee HAPI pilot
-  hosts: employee-control
+# HAPI on one employee VM: Runner, the link to the shared Hub on VM500, the private
+# ingress VM500 uses (the login viewer is the VM's KasmVNC desktop) and the login API.
+# wsctl provision runs it after the desktop step with this VM's identity and BWS token.
+- name: Deploy HAPI on the employee VM
+  hosts: oci_hub_terminal_vm
   become: true
   roles:
-    - employee-hapi
+    - hapi
 
-- name: Verify the VM502 employee HAPI pilot
-  hosts: employee-control
+- name: Verify HAPI on the employee VM
+  hosts: oci_hub_terminal_vm
   become: true
   gather_facts: false
   tags: [verify]
   tasks:
-    - name: Verify the dedicated HAPI deployment
+    - name: Verify the HAPI services
       ansible.builtin.include_role:
-        name: employee-hapi
+        name: hapi
         tasks_from: verify

@@ -1,0 +1,26 @@
+---
+- name: Inspect the HAPI services
+  ansible.builtin.service_facts:
+
+- name: Require every HAPI service to be running
+  ansible.builtin.assert:
+    that: ansible_facts.services.get(item + '.service', {}).get('state') == 'running'
+    fail_msg: '{{ item }} is not running'
+  loop: [hapi-hub-client, hapi-runner, hapi-ingress-proxy, claude-login-agent]
+
+- name: Require the retired pilot units to be gone
+  ansible.builtin.assert:
+    that: (item + '.service') not in ansible_facts.services
+  loop: [employee-hapi-hub, employee-hapi-tunnel, employee-hapi-runner]
+
+- name: Check the shared Hub through this VM's Hub client
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3006/health
+    status_code: 200
+    use_proxy: false
+
+- name: Check that the private ingress listens for VM500
+  ansible.builtin.wait_for:
+    host: '{{ hapi_bind_address }}'
+    port: 9443
+    timeout: 10
