@@ -46,7 +46,7 @@
 - name: Render the route, token, credential and transport registries
   ansible.builtin.command:
     argv: [/usr/bin/python3, /usr/local/lib/hapi-registry.py]
-    stdin: '{{ {"static_ids": hapi_registry_static_ids, "employees": hapi_registry_employees} | to_json }}'
+    stdin: '{{ {"static_ids": hapi_registry_static_ids, "employees": hapi_registry_employees, "hub_address": hapi_registry_hub_bind_address} | to_json }}'
   register: hapi_registry_render
   changed_when: (hapi_registry_render.stdout | from_json).changed
   no_log: true
