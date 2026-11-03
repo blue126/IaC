@@ -24,7 +24,7 @@ HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员�
 - 默认只需要邮箱，用 `provision --email EMAIL` 生成合法 JSON 申请和计划；不要手写缺 profile 的 recipient-only 请求。邮箱 @ 前部分作为默认员工/设备 ID，仅全数字时加 `user`，其余不加 ed-。已有登记保留原 ID；非法名字或碰撞明确报错，不猜新名字。
 - 同员工复用 VM，同设备复用身份和密钥。明确新增电脑时传 `--device NEWID`；同邮箱对应多个工作区时用 `--employee-id ID` 指定已有归属。已知上下文不要重复询问；无法判断是否新增设备时只澄清必要的设备信息。
 - 新 VM 可选 `--cores N --memory-mib N --disk-gib N`；默认规格取现有资源池（当前2核 host、8GiB、50GiB、pve2）。已有 VM 规格不同会拒绝隐式调整，改规格另做精确计划，不重新开户。
-- 新方案凭据使用独立 BWS 项目 EmployeeWorkspace-OCIHub 和专用机器账号，按接口/用户/工作区/设备角色保存；旧 EmployeeWorkspace 仅保留历史。项目绑定以受保护配置为准，不硬编码旧机器账号名。SSH 私钥/BWS 令牌不放 OCI、公开源码或聊天；批准操作物化临时加密 Vault，退出清理。
+- 凭据统一在 BWS 项目 `remotecc`（原名 EmployeeWorkspace-OCIHub），由专用机器账号按接口/用户/工作区/设备角色保存，执行器凭据为同一项目的 `executor/*`；旧 EmployeeWorkspace、HapiWorkspace 项目已退役。项目绑定以受保护配置为准，不硬编码旧机器账号名。SSH 私钥/BWS 令牌不放 OCI、公开源码或聊天；批准操作物化临时加密 Vault，退出清理。
 
 ## 从申请到交付
 
