@@ -53,11 +53,11 @@ wsctl export --device alice
 {"profile":"oci-hub","device_id":"alice","recipient":"alice@example.com","bundle_dir":"EXPORT返回的directory","run_dir":"EXPORT草稿提供的run_dir","notify":false,"purpose":"onboarding"}
 ```
 
-先执行 `wsctl deliver DELIVERY.json --plan-only`，核对后以 `wsctl deliver DELIVERY.json --approve SHA256` 执行。工具建立回执目录、上传并下载校验，返回verified。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。
+先执行 `wsctl deliver DELIVERY.json --plan-only`，核对后以 `wsctl deliver DELIVERY.json --approve SHA256` 执行。工具建立回执目录、上传并经管理接口校验（SHA-256 一致且网站仍保存该包），返回verified。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。
 
-随后仅把notify改为true，重新plan。它要求已有verified上传，不会在没有实际链接和预览时直接发信。展示返回的收件人、mail_subject及可在宿主打开的host_mail_preview；再次批准后deliver才发邮件。主题和正文纳入审批摘要，变化后重新plan。
+随后仅把notify改为true，重新plan。它要求已有verified上传，不会在没有已校验的上传和预览时直接发信。展示返回的收件人、mail_subject及可在宿主打开的host_mail_preview；再次批准后deliver才发邮件。主题和正文纳入审批摘要，变化后重新plan。
 
-设备包上传到 `cc.willfan.me`（D1 存储），员工邮件含一次性链接：3 天内有效、最多下载 3 次，每次下载前须用发到员工邮箱的 6 位验证码（`POST <链接>/code` 取码，再 `POST -d code=<码> <链接>` 下载），下载满或过期后包内容删除；微软 Mail.Send 是通知通道。上传后执行器经管理接口核对 SHA-256 与"未被下载"，不消耗下载次数。Temp.sh 已退役。上传或发信结果不明时不自动重试；上传成功但下载校验失败可恢复原校验，不重新上传。平台5xx、次数限制和时间过期分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
+设备包上传到 `cc.willfan.me`（D1 存储），员工登录「我的工作区」下载，不限次数；包保存到员工退役或被同设备的新包替换为止，不按时间过期。开通邮件不带下载链接；微软 Mail.Send 是通知通道。上传后执行器经管理接口核对 SHA-256 与"网站仍保存该包"，不计下载。Temp.sh 已退役。上传或发信结果不明时不自动重试；上传成功但校验失败可恢复原校验，不重新上传。平台5xx、请求限频和包已不在网站分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
 
 确需重新交付时，取得该员工/设备的新授权，复用原包并使用新的回执子目录重新plan，不覆盖旧回执、不重新开户。completed只表示API已接受原通知，重跑不会重复发送；员工是否收到与bootstrap成功要另行确认。
 

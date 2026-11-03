@@ -99,7 +99,7 @@ OCI 终止的是两段 WireGuard 加密，不终止里面的 SSH/TLS。Hub 在�
 | PVE | 每员工独立 VNet/子网、三层网关和路由；在虚拟交换网络及其转发边界统一隔离，不依赖客户机或逐 VM 网卡防火墙 |
 | OpenWrt | 一条员工聚合网段回程路由经 PVE；现有 WAN NAT/转发覆盖该网段，不承担逐员工隔离 |
 | VM500 | 保留 HAPI 控制面、管理 SSH 和自身主机防护；旧员工接入、转发/NAT 与隔离职责已退役，新路径无依赖 |
-| 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、cc.willfan.me 一次性链接交付和分方案配额/维护操作 |
+| 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、cc.willfan.me 交付（员工登录「我的工作区」下载，包保存到退役或被替换）和分方案配额/维护操作 |
 
 OCI 上原有管理 SSH、Docker、Tailscale 和其他应用不属于员工服务。员工接口本机 input 默认拒绝，诊断/管理只走独立受管通道；不把它改成大家可登录的 SSH 跳板机。
 
@@ -352,7 +352,7 @@ OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口�
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me 一次性链接）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
+IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |
