@@ -166,10 +166,42 @@ class AuthTest(unittest.TestCase):
             self.policy.identity(self.token())
         self.policy.identity(self.token('bob'))
 
+    def test_unbound_route_binds_the_first_verified_login_once(self):
+        self.config['routes'][0]['subject'] = ''
+        self.save()
+        route, identity = self.policy.identity(self.token(sub='first-login'))
+        self.assertEqual(route['workspace_id'], 'alice')
+        # The same email from another Access identity is refused after binding.
+        with self.assertRaises(auth.Denied):
+            self.policy.identity(self.token(sub='second-identity'))
+        self.policy.identity(self.token(sub='first-login'))
+        # Bob's fixed subject can never be bound to Alice's open route.
+        self.config['routes'][0]['workspace_id'] = 'carol'
+        self.config['routes'][0]['backend_name'] = 'carol.hapi.internal'
+        self.save()
+        with self.assertRaises(auth.Denied):
+            self.policy.identity(self.token(sub='subject-bob'))
+
+    def test_binding_persists_and_a_reused_workspace_with_another_email_is_refused(self):
+        self.config['routes'][0]['subject'] = ''
+        self.save()
+        path = self.root / 'state.sqlite3'
+        first = auth.Policy(self.config_file, self.verifier, revocations=path)
+        first.identity(self.token(sub='first-login'))
+        first.database.close()
+        second = auth.Policy(self.config_file, self.verifier, revocations=path)
+        self.addCleanup(second.database.close)
+        with self.assertRaises(auth.Denied):
+            second.identity(self.token(sub='other'))
+        self.config['routes'][0]['email'] = 'new@example.com'
+        self.save()
+        with self.assertRaises(auth.Denied):
+            second.identity(self.token(sub='first-login', email='new@example.com'))
+
     def test_conflicting_or_unsafe_allocations_fail_before_use(self):
         for key, value in [('backend_address', '127.0.0.1'), ('backend_address', '169.254.169.254'),
                            ('backend_name', 'attacker.example.com'), ('workspace_id', '../bob'),
-                           ('generation', True), ('subject', ''), ('namespace', '../bob'),
+                           ('generation', True), ('subject', 7), ('subject', 'x' * 257), ('namespace', '../bob'),
                            ('namespace', 'bob\r\nX-Injected: yes')]:
             candidate = copy.deepcopy(self.config)
             candidate['routes'][0][key] = value

@@ -161,8 +161,9 @@ def load_config(path):
             raise ValueError('Invalid Hub namespace')
         if route['email'] != route['email'].lower() or not re.fullmatch(r'[^\s@]+@[^\s@]+', route['email']):
             raise ValueError('Invalid registered email')
-        if not isinstance(route['subject'], str) or not route['subject'] or len(route['subject']) > 256:
-            raise ValueError('Pre-bound Access subject required')
+        # An empty subject is bound once, at the first verified Access login with this email.
+        if not isinstance(route['subject'], str) or len(route['subject']) > 256:
+            raise ValueError('Invalid Access subject')
         address = ipaddress.IPv4Address(route['backend_address'])
         if not any(address in ipaddress.ip_network(cidr) for cidr in ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']):
             raise ValueError('Expected a private backend IPv4 address')
@@ -172,6 +173,8 @@ def load_config(path):
             raise ValueError('Invalid route generation or state')
         for key in seen:
             value = route.get('namespace', 'default') if key == 'namespace' else route[key]
+            if key == 'subject' and not value:
+                continue
             if value in seen[key]:
                 raise ValueError('Duplicate workspace allocation')
             seen[key].add(value)
@@ -194,6 +197,9 @@ class Policy:
         self.database_lock = threading.Lock()
         self.database = sqlite3.connect(str(revocations) if revocations else ':memory:', check_same_thread=False)
         self.database.execute('CREATE TABLE IF NOT EXISTS revoked (sid TEXT PRIMARY KEY, expires REAL NOT NULL)')
+        # First-login bindings for routes registered without a subject; never rewritten.
+        self.database.execute('CREATE TABLE IF NOT EXISTS bindings (workspace TEXT PRIMARY KEY, email TEXT NOT NULL, '
+                              'subject TEXT NOT NULL UNIQUE, bound REAL NOT NULL)')
         self.database.commit()
 
     def current_config(self):
@@ -254,10 +260,28 @@ class Policy:
             raise Denied()
         claims = self.verifier.verify(token)
         for route in config['routes']:
-            if route['enabled'] and claims['email'].lower() == route['email'] and claims['sub'] == route['subject']:
+            if route['enabled'] and claims['email'].lower() == route['email'] and claims['sub'] == self.subject(route, claims, config):
                 identity = hashlib.sha256((self.issuer + '\0' + claims['sub']).encode()).hexdigest()
                 return route, {'workspace_id': route['workspace_id'], 'generation': route['generation'], 'identity': identity}
         raise Denied()
+
+    def subject(self, route, claims, config):
+        """The route's Access subject: fixed in the configuration, or bound at the first login."""
+        if route['subject']:
+            return route['subject']
+        with self.database_lock:
+            row = self.database.execute('SELECT email, subject FROM bindings WHERE workspace = ?', (route['workspace_id'],)).fetchone()
+            if row:
+                # A reused workspace ID with another email needs the administrator to clear it.
+                return row[1] if row[0] == route['email'] else None
+            # A subject already fixed or bound for another workspace is never bound again.
+            if any(other['subject'] == claims['sub'] for other in config['routes']):
+                return None
+            if self.database.execute('SELECT 1 FROM bindings WHERE subject = ?', (claims['sub'],)).fetchone():
+                return None
+            self.database.execute('INSERT INTO bindings VALUES (?, ?, ?, ?)', (route['workspace_id'], route['email'], claims['sub'], time.time()))
+            self.database.commit()
+            return claims['sub']
 
     def csrf(self, token, workspace):
         message = json.dumps([token, workspace], sort_keys=True, separators=(',', ':')).encode()
