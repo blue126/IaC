@@ -30,6 +30,38 @@ function dropViewer() {
     $('code-section').hidden = true;
 }
 
+// The viewer is KasmVNC, whose PointerEvent is 11 bytes (16-bit mask, x, y, scroll x, scroll y).
+// Stock noVNC sends the 6-byte RFB form, which desynchronises KasmVNC and drops the
+// connection on the first mouse or touch input.
+function kasmPointer(RFB) {
+    const send = (sock, x, y, mask) => {
+        sock.sQpush8(5);
+        sock.sQpush16(mask & 0xffff);
+        sock.sQpush16(x);
+        sock.sQpush16(y);
+        sock.sQpush16(0);
+        sock.sQpush16(0);
+        sock.flush();
+    };
+    RFB.messages.pointerEvent = send;
+    RFB.messages.extendedPointerEvent = send;
+}
+
+// KasmVNC ignores RFB ClientCutText; it takes its binary clipboard message (type 180):
+// entry count, then per entry a MIME length, the MIME type, a 32-bit length and the bytes.
+function kasmPaste(client, text) {
+    const sock = client._sock;
+    const mime = new TextEncoder().encode('text/plain');
+    const data = new TextEncoder().encode(text);
+    sock.sQpush8(180);
+    sock.sQpush8(1);
+    sock.sQpush8(mime.length);
+    sock.sQpushBytes(mime);
+    sock.sQpush32(data.length);
+    sock.sQpushBytes(data);
+    sock.flush();
+}
+
 function guardViewerInput(client, screen) {
     const modifiers = [
         ['shiftKey', 0xffe1, 'ShiftLeft'], ['shiftKey', 0xffe2, 'ShiftRight'],
@@ -96,6 +128,7 @@ async function connectViewer() {
     connecting = true;
     try {
         const {default: RFB} = await import(`${prefix}/core/rfb.js`);
+        kasmPointer(RFB);
         if (!viewerWanted || !viewTrusted) return;
         $('viewer-status').textContent = '正在连接远程浏览器…';
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -183,7 +216,7 @@ $('paste').addEventListener('click', () => {
     const text = $('clipboard').value;
     $('clipboard').value = '';
     if (!rfb || !text) return;
-    rfb.clipboardPasteFrom(text);
+    kasmPaste(rfb, text);
     rfb.sendKey(0xffe3, 'ControlLeft', true);
     rfb.sendKey(0x0076, 'KeyV', true);
     rfb.sendKey(0x0076, 'KeyV', false);
