@@ -155,6 +155,32 @@ class Boundary(unittest.TestCase):
                 self.assertTrue(installed.ensure('/cluster/sdn/vnets','vnet','ohalice',{'zone':'ocihub'}))
                 self.assertEqual(api.call_args.args,('create','/cluster/sdn/vnets'))
 
+    def sdn_with(self,vnets,configs):
+        spec=importlib.util.spec_from_file_location('sdn_prune',ROOT/'scripts/oci-hub/pve-sdn.py')
+        sdn=importlib.util.module_from_spec(spec);spec.loader.exec_module(sdn)
+        calls=[]
+        def api(method,path,**fields):
+            calls.append((method,path))
+            if method=='get' and path=='/cluster/sdn/vnets':return [{'vnet':v,'zone':z} for v,z in vnets]
+            if method=='get' and path=='/cluster/resources':return [{'type':'qemu','node':'pve2','vmid':vmid} for vmid in configs]
+            if method=='get' and path.startswith('/nodes/'):return configs[int(path.split('/')[4])]
+            if method=='get' and path.endswith('/subnets'):return [{'subnet':'ocihub-10.236.%s.0-30'%path.split('/')[4][-1]}]
+            return None
+        return sdn,api,calls
+
+    def test_prune_removes_only_unlisted_unused_ocihub_vnets(self):
+        listed=PVE['workspaces'][0]['vnet']
+        sdn,api,calls=self.sdn_with([(listed,'ocihub'),('oh501','ocihub'),('oh509','ocihub'),('oh777','other'),('vmbr9','ocihub')],
+                                    {509:{'net0':'virtio=AA:BB:CC:DD:EE:FF,bridge=oh509'}})
+        with patch.object(sdn,'api',side_effect=api):self.assertEqual(sdn.prune(copy.deepcopy(PVE)),['oh501'])
+        deletes=[path for method,path in calls if method=='delete']
+        self.assertEqual(deletes,['/cluster/sdn/vnets/oh501/subnets/ocihub-10.236.1.0-30','/cluster/sdn/vnets/oh501'])
+
+    def test_prune_reads_no_vm_configs_when_nothing_is_stale(self):
+        sdn,api,calls=self.sdn_with([(PVE['workspaces'][0]['vnet'],'ocihub')],{})
+        with patch.object(sdn,'api',side_effect=api):self.assertEqual(sdn.prune(copy.deepcopy(PVE)),[])
+        self.assertEqual([c for c in calls if c[0]!='get' or c[1]!='/cluster/sdn/vnets'],[])
+
     def test_forwarding_and_actual_routes_are_required_for_readiness(self):
         with patch.object(b,'run',return_value='0'):
             with self.assertRaises(ValueError):b.verify_forwarding()

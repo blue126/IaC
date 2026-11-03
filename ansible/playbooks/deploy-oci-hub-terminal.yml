@@ -43,6 +43,19 @@
     - name: Verify actual boundary rules routes and forwarding
       ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
       changed_when: false
+    - name: Deploy the SDN reconciler beside the PVE boundary
+      ansible.builtin.copy:
+        src: '{{ playbook_dir }}/../../scripts/oci-hub/pve-sdn.py'
+        dest: /usr/local/lib/oci-hub-pve-sdn.py
+        owner: root
+        group: root
+        mode: '0755'
+      when: oci_hub_terminal_policy.kind == 'pve'
+    - name: Remove ocihub VNets the policy no longer lists and no VM uses
+      ansible.builtin.command: /usr/local/lib/oci-hub-pve-sdn.py /etc/oci-hub/boundary.json --prune
+      register: oci_hub_terminal_sdn_prune
+      changed_when: "'removed=' in oci_hub_terminal_sdn_prune.stdout"
+      when: oci_hub_terminal_policy.kind == 'pve'
 
 - name: Configure the native employee Mosh endpoint on its assigned VM
   hosts: oci_hub_terminal_vm
