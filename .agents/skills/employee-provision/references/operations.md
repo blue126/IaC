@@ -17,7 +17,7 @@
 
 export 的 delivery_request 草稿绑定设备/收件人/包路径，默认 notify=false、purpose=onboarding。上传、邮件预览/发信分别 plan 和批准；host_mail_preview 是可在宿主查看的私有HTML。邮件主题与预览正文纳入审批，变化后重新 plan。
 
-uploading/notifying 表示可能已有外部副作用，停止核对，不自动重传或重发。uploaded 表示网站已保存设备包（回执记 `site_token`），可重试管理接口校验而不重新上传。verified 表示可以生成发信预览。completed 重跑复用原回执，不把它当作新邮件。API202仅表示接口接受。HTTP5xx、请求限频、404/403和传输错误返回不同安全码；404/403 表示网站已不保存该包或授权失败。上传5xx仍可能有外部副作用，保留uploading并停止；发信传输异常保留notifying，不重发。
+uploading/notifying 表示可能已有外部副作用，停止核对，不自动重传或重发。uploaded 表示网站已保存设备包（回执记 `site_token`），可重试管理接口校验而不重新上传。verified 表示可以生成发信预览。completed 重跑复用原回执，不把它当作新邮件。API202仅表示接口接受。HTTP5xx、请求限频、404/403和传输错误返回不同安全码。上传5xx仍可能有外部副作用，保留uploading并停止；发信传输异常保留notifying，不重发。
 
 DELIVERY_PURPOSE_REVIEW_REQUIRED 表示历史未发回执没有用途信息：明确purpose后重新plan；已完成的旧回执保持原样。MAIL_PREVIEW_CHANGED_REPLAN_REQUIRED 表示模板/内容改变，重新生成预览和审批。
 
