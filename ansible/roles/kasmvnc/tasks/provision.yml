@@ -68,7 +68,7 @@
         (kasmvnc_provision_marker.stat.exists and
          (kasmvnc_provision_marker_content.content | b64decode | from_json) ==
          {'generation': kasmvnc_update.generation, 'frontend_sha256': kasmvnc_update.frontend_sha256})
-    fail_msg: This VM already has a VM browser entry; switch it with the regular desktop update, which keeps its certificate.
+    fail_msg: This VM already has a VM browser entry from another provisioning generation.
 
 - name: Create the maintenance marker directory
   ansible.builtin.file:
@@ -99,7 +99,7 @@
     that:
       - not kasmvnc_frontend_existing.stat.islnk
       - (kasmvnc_frontend_existing_pin.stdout.split('=', 1)[1] | replace(':', '') | lower) == kasmvnc_update.frontend_sha256
-    fail_msg: A different frontend certificate is installed; use the desktop update instead.
+    fail_msg: A different frontend certificate is installed on this VM.
   when: kasmvnc_frontend_existing.stat.exists
 
 - name: Install this VM frontend TLS identity only where it is absent

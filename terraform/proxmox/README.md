@@ -4,7 +4,7 @@ Terraform configurations for managing Proxmox VE cluster resources.
 
 ## Purpose
 
-- Provision VMs on Proxmox cluster (pve0, pve1)
+- Provision internal homelab VMs on the Proxmox cluster (pve0, pve1); RemoteCC VMs live in `../remotecc/`
 - Manage storage, networking, and compute resources
 - Call reusable modules from `../modules/`
 

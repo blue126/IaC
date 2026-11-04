@@ -1,5 +1,7 @@
 # VM508 中国侧桌面更新部署范围
 
+> **历史记录（2026-11-05）**：`wsctl desktop-update` 及 `prepare-employee-desktop.yml` 的 update 阶段已删除，全部员工 VM 默认使用 KasmVNC。下文命令不再可用，仅保留当时的部署记录。
+
 本次仅更新已有员工／设备 `suixiaoyou` 的 VM508（`oci-hub-suixiaoyou`，收件邮箱为既有登记 `suxiaoyo@gmail.com`）。用户已明确批准源码提交、执行器发布及本次VM508更新；2026-11-02已通过wsctl完成配置。员工的 Mac／Linux 具体系统及是否已用新包接入仍待本人确认。
 
 ## 2026-11-02 只读事实

@@ -2,10 +2,11 @@
 
 主检出`~/Projects/IaC/remotecc/`保留管理员源码及本机私有材料，公开IaC的Git忽略整个目录。员工工作区写操作和权威运行数据已迁至ws-executor：源码位于`/srv/remotecc/employee-admin`，数据位于`/srv/remotecc/employee-data`；Mac上的员工运行副本只读且可能过期。HAPI的`hapi-data`仍保存独立服务运维材料，不因员工执行器迁移而自动搬运或合并。
 
-员工当前操作以[执行器上的wsctl约定](../deployment/oci-hub-native-provisioning.md)为准。独立HAPI开户方案已撤回，`hapi-admin`早期原型及`hapi-data`运维材料继续保留，历史绑定见[HAPI管理员运行绑定](../guides/hapi-admin-runtime.md)。HAPI与WireGuard面向同一员工VM；旧独立执行器不能重新用于开户。现有服务部署不等于新员工完整交付已验收。
+员工当前操作以[执行器上的wsctl约定](../deployment/oci-hub-native-provisioning.md)为准。HAPI 已随开户默认开通；早期独立开户方案已撤回，`hapi-admin`原型及`hapi-data`运维材料继续保留，历史绑定见[HAPI管理员运行绑定](../guides/hapi-admin-runtime.md)。HAPI与WireGuard面向同一员工VM；旧独立执行器不能重新用于开户。现有服务部署不等于新员工完整交付已验收。
 
 ```text
 IaC/remotecc/
+├── apply-site/       # 独立私有 Git：员工网站（Cloudflare Worker + D1），部署见 wsctl apply-site
 ├── employee-admin/   # 独立私有 Git：管理员源码开发副本
 ├── employee-data/    # Mac 员工运行副本：只读、可能过期
 ├── hapi-admin/       # 撤回的独立 HAPI 开户原型：历史源码

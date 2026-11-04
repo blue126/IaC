@@ -16,6 +16,7 @@
 相关文件：
 
 - Terraform：`terraform/remotecc/ws-executor.tf`
+- 网站：`/srv/git/apply-site.git` 检出到 `/srv/remotecc/apply-site`，由 `wsctl apply-site` 经 Cloudflare API 部署（执行器没有 Node）
 - 主机变量：`ansible/inventory/host_vars/ws-executor.yml`
 - Playbook：`ansible/playbooks/deploy-ws-executor.yml`
 - 防火墙角色：`ansible/roles/host-firewall/`

@@ -6,7 +6,7 @@
   roles:
     - kasmvnc
 
-# HAPI is on by default: every provisioned or updated desktop also gets the employee side of
+# HAPI is on by default: every provisioned desktop also gets the employee side of
 # HAPI (Runner, link to the shared Hub, VM500 ingress whose viewer is this desktop, login API).
 - name: Deploy HAPI on the employee VM after its desktop
   hosts: "{{ employee_desktop_target | default('kasmvnc_no_target_selected') }}"
@@ -16,7 +16,7 @@
     - name: Install HAPI with the desktop it depends on
       ansible.builtin.include_role:
         name: hapi
-      when: employee_desktop_phase in ['provision', 'update']
+      when: employee_desktop_phase == 'provision'
 
 - name: Verify the selected employee presentation phase without starting a session
   hosts: "{{ employee_desktop_target | default('kasmvnc_no_target_selected') }}"
@@ -41,7 +41,7 @@
           - /usr/local/lib/employee-workspace/presentation/desktop.json
       changed_when: false
       no_log: true
-      when: employee_desktop_phase in ['prepare', 'activate', 'update', 'provision']
+      when: employee_desktop_phase in ['prepare', 'activate', 'provision']
 
     - name: Validate the active nginx configuration
       ansible.builtin.command: nginx -t
@@ -55,10 +55,10 @@
       become: true
       changed_when: false
       no_log: true
-      when: employee_desktop_phase in ['activate', 'update', 'provision']
+      when: employee_desktop_phase in ['activate', 'provision']
 
     - name: Verify HAPI on the employee VM
       ansible.builtin.include_role:
         name: hapi
         tasks_from: verify
-      when: employee_desktop_phase in ['provision', 'update']
+      when: employee_desktop_phase == 'provision'
