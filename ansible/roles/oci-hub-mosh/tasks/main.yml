@@ -79,11 +79,11 @@
         path: /etc/ssh/sshd_config.d/10-mosh.conf
         state: absent
       when: oci_hub_mosh_sshd_previous.content is not defined
-    - name: Stop after sshd -t failed with the Mosh drop-in in place
+    - name: Stop after the Mosh drop-in could not be applied
       ansible.builtin.fail:
         msg: >-
-          sshd -t failed with /etc/ssh/sshd_config.d/10-mosh.conf in place
-          (stderr: {{ ansible_failed_result.stderr | default(ansible_failed_result.msg | default('')) }});
+          "{{ ansible_failed_task.name }}" failed for /etc/ssh/sshd_config.d/10-mosh.conf
+          ({{ ansible_failed_result.stderr | default(ansible_failed_result.msg | default('')) }});
           the drop-in was rolled back to its previous state
 
 - name: Read the effective SSH settings for the employee account
