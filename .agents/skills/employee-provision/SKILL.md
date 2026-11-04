@@ -9,11 +9,11 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 ## HAPI 历史候选边界
 
-HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。独立HAPI开户候选及其专用skill已撤回，不恢复历史独立执行器，也不将其接入`wsctl`或兼容`onboard.sh`；保留当前生产HAPI服务及主分支现有员工流程。
+HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。独立HAPI开户候选及其专用skill已撤回，不恢复历史独立执行器，也不将其接入`wsctl`；保留当前生产HAPI服务及主分支现有员工流程。
 
 ## 规范入口和边界
 
-管理员入口是私有 `remotecc/employee-admin/wsctl`（`onboard.sh` 只剩旧共享授权与过渡转发），先读其 README。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；`employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git；权威副本在执行器 `/srv/remotecc/employee-data`，Mac 上的副本只读、可能过期。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。
+管理员入口是私有 `remotecc/employee-admin/wsctl`（旧 `onboard.sh` 已于 2026-11-04 删除），先读其 README 与 `docs/admin-handbook.md`。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；`employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git；权威副本在执行器 `/srv/remotecc/employee-data`，Mac 上的副本只读、可能过期。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。
 
 写操作（provision、apply、export、bundle、deliver、access）只在执行器 ws-executor（192.168.1.116，pve0）上运行：经 Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/employee-admin/wsctl ...`。代码经 `git push ws-executor` 部署（私有仓库与 IaC 各一个远程）。Mac 设置了 `write_executor`，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`，不得绕过；Mac 不再在员工 VM 管理放行内。执行器凭据按仓库 AGENTS.md 核对。网络未放行或依赖缺失时停止并取得相应授权，不换路绕过。API/同步失败不是员工离线。
 
@@ -34,7 +34,7 @@ HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员�
 4. `wsctl export --device DEVICE_ID` 复用原身份导出。输出的 `delivery_request` 是交付草稿，含绑定收件人、包目录与回执目录；不包含上传/发送授权。
 5. 验收未完成时，用 `acceptance ACCEPTANCE.json` 获取绑定包和身份的检查清单、pending 模板及现有记录校验结果。独立验收必须来自另行批准的验证与证据，模板和服务检查不算通过。已有特定设备的受保护豁免保留，结果为 acceptance_waived；新设备须独立验收或单独获准豁免，不能推广历史豁免或虚构检查通过。
 6. 交付按两阶段进行：`notify:false` 的 JSON 经 plan/批准后上传并校验；再改 `notify:true` 重新 plan，展示收件人、主题和实际 `host_mail_preview`，单独批准后发送。`purpose` 明确为 onboarding、trial 或 migration；Mosh 不等于试点。具体 JSON 与命令见[原生开户](../../../docs/deployment/oci-hub-native-provisioning.md)。
-7. 设备包上传到 `cc.willfan.me`（D1 存储），员工登录「我的工作区」下载，不限次数；包保存到员工退役或被同设备的新包替换为止，不按时间过期。开通邮件不带下载链接；微软 Mail.Send 是通知通道。上传后执行器经管理接口核对 SHA-256 与"网站仍保存该包"，不计下载。站点 HTTP 错误与包已不在网站分别报告。结果不明时不重传、不重发。渠道故障时保留原包和身份，请用户决定；单次获准附件补发不代表后续默认授权，不自行更换平台。
+7. 设备包上传到 `cc.willfan.me`（D1 存储），员工登录「我的工作区」下载，不限次数；包保存到员工退役或被同设备的新包替换为止，不按时间过期。开通邮件不带下载链接；通知邮件经网站 `/admin/mail`（Resend，发件人 hello@willfan.me）发出。上传后执行器经管理接口核对 SHA-256 与"网站仍保存该包"，不计下载。站点 HTTP 错误与包已不在网站分别报告。结果不明时不重传、不重发。渠道故障时保留原包和身份，请用户决定；单次获准附件补发不代表后续默认授权，不自行更换平台。
 
 ## 完成条件与员工交接
 
@@ -48,7 +48,7 @@ HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员�
 
 Portal 的 Disabled/DisabledReason 是接入启停权威；SQLite 保存每用户5GB双向月用量、额度、采样和审计，不恢复旧 reasons 镜像。触额仍阻断，增额/跨月仅清配额原因；普通计数重置不自动封禁。不要在调试结束时擅自停用用户要求保持启用的设备。
 
-`onboard.sh recover` 只用于旧共享授权/历史登记同步日志，不是 Hub 恢复命令。Hub 按原 JSON 重新 plan/apply，使用固定动作和独立检查点；错误码和安全停止规则见 [运行与恢复](references/operations.md)。源码/范围变化使旧审批失效，不能强行重放旧二进制计划。
+Hub 按原 JSON 重新 plan/apply，使用固定动作和独立检查点；错误码和安全停止规则见 [运行与恢复](references/operations.md)。源码/范围变化使旧审批失效，不能强行重放旧二进制计划。
 
 开户会修改受 Git 跟踪的 VM roster。收尾必须展示这些定义与文档的差异，另行取得提交、PR、合并授权，使源码与共享 state 保持一致；未获授权时明确标记“Git待收尾”，不自动提交、不归档仍被配置引用的工作树。运行数据、私钥、包和真实回执留在 employee-data。
 

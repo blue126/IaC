@@ -1,5 +1,7 @@
 # OCI 员工 VPN Hub-and-Spoke 设计
 
+> **2026-11-04 更新：** 文中的 `onboard.sh --profile oci-hub` 入口已由执行器上的 `wsctl` 取代，`onboard.sh` 与 `existing` 流程已删除；当前操作见私有仓库 `remotecc/employee-admin/docs/admin-handbook.md`。
+
 状态：独立 OCI Hub 已部署；VM504–508 已迁移并交付，VM501 demo 与 VM502 本人测试也已迁移；VM500 旧员工入口已退役，实例及管理防火墙保留。创建：2026-10-28；更新：2026-10-31。
 
 2026-10-30 补充：本轮[新建 VM509 的 Mosh 试点](../deployment/mosh-oci-hub-vm509.md)不使用 GA2。新路径从首次验收起使用独立 PVE 网络/路由，该试点当时不改造 VM502；后续 VM502 已另获批准原盘迁移。当前不接受经 VM500 出网的过渡例外。VM503 旧退役槽位/隔离保留，已明确改用 VM509；此前 VM502 过渡申请撤回。
@@ -26,7 +28,7 @@
 | 独立底层 | oh501 / 10.236.1.0/30、oh502 / 10.236.2.0/30、oh509 / 10.236.9.0/30，PVE 纯路由；OpenWrt 聚合回程/WAN NAT 已配置；真实路径不经 VM500 |
 | 网络实测 | 中国海南电信 → OCI → VM509；成功 UDP 回显中位约335ms，TCP建连中位约336ms；UDP 4/60超时，TCP最高约1.37秒 |
 | 测试收尾 | 中国临时接口/路由/私钥已移除，测试 peer 停用、回显服务停止；这不代表正式员工接入已交付 |
-| 正式编排 | 新 profile 已使用独立 VM Spoke、原生 SSH/Mosh、BWS/Portal 登记和本地包；邮箱/规格、查询、导出与独立审批交付复用 onboard.sh。公开客户端 PR #1 已合并至 main，三平台 CI 通过 |
+| 正式编排 | 新 profile 已使用独立 VM Spoke、原生 SSH/Mosh、BWS/Portal 登记和本地包；邮箱/规格、查询、导出与独立审批交付由执行器上的 `wsctl` 承担。公开客户端 PR #1 已合并至 main，三平台 CI 通过 |
 | 旧后端 | 用户确认无人使用后，VM500 六个旧入口服务已停用并屏蔽；主机、管理 SSH 和防火墙保留，旧 role/组合入口已移除，旧写入口直接拒绝 |
 | 专项验收 | 用户明确跳过本次第4项专项验收；VM509 正式设备包标记 acceptance_waived，不能记作通过。无人测试时没有活动 Mosh 会话属于正常状态 |
 
@@ -338,7 +340,7 @@ WG Portal 稳定版 v2.3.1 的模型已有用户归属、`Disabled`、`DisabledR
 
 普通启停、Portal 重启、计数器归零或超过10秒的采样缺口保留累计用量，按可观测差值或新计数基线继续累计；不能确认的区间留下原始证据与估算说明，不产生 accounting_review 接入封锁。跨月缺口的可观测增量估算记入观察月份；历史月账不清空，不将估算说成精确数据。
 
-开户、撤销与增额继续复用 onboard.sh 和 OCI 执行器的 profile/对象归属/action_id/锁及回读。Portal 页面负责日常人工状态，执行器负责自动化与配额；两者调用同一个 Portal API。Portal API 不提供跨页面/脚本的事务或 CAS，因此不声称并发编辑是原子操作。
+开户、撤销与增额经执行器上的 `wsctl` 和 OCI 执行器的 profile/对象归属/action_id/锁及回读。Portal 页面负责日常人工状态，执行器负责自动化与配额；两者调用同一个 Portal API。Portal API 不提供跨页面/脚本的事务或 CAS，因此不声称并发编辑是原子操作。
 
 管理员 HTTPS 入口为 https://wgportal.willfan.me/，后台仍监听 loopback，并要求现有管理员认证。API 凭据不交给员工或公开客户端。新员工、VM/地址分配、BWS 凭据和设备包仍由既有开户工作流生成；不通过页面添加未分配 VM/ACL 的未知 peer。旧入口已退役，旧 BWS 项目已删除。
 
@@ -352,7 +354,7 @@ OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口�
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库保留 `onboard.sh` 统一入口，相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
+IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库提供统一入口 `wsctl`（在 ws-executor 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |
@@ -408,13 +410,13 @@ VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对
 → 上传到 cc.willfan.me、管理接口核对 SHA-256、按既有审批范围发邮件（员工登录「我的工作区」下载，邮件不带链接）
 ```
 
-员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作显式使用 `onboard.sh --profile oci-hub`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-native-provisioning.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
+员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作使用执行器上的 `wsctl`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-native-provisioning.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
 
 bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；Mosh 终端包不要求桌面 TLS 字段；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用交付/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
 
 ### 在线查询与维护
 
-活动查询使用 `onboard.sh --profile oci-hub online`，读取 Portal/OCI 与目标工作区的观察结果；旧网关 online 后端已退役，不再作为查询或回退入口。按方案分别报告 VPN 最近活动、设备停用原因、VM 归属和当前周期用量。VPN 最近握手不等于正在使用 SSH；SSH 会话如需展示须另取目标 VM 的实际会话数据。查询失败返回未知/错误，不能当作无人在线，也不能据此关闭宿主机。
+活动查询使用 `wsctl status`，读取 Portal/OCI 与目标工作区的观察结果；旧网关 online 后端已退役，不再作为查询或回退入口。按方案分别报告 VPN 最近活动、设备停用原因、VM 归属和当前周期用量。VPN 最近握手不等于正在使用 SSH；SSH 会话如需展示须另取目标 VM 的实际会话数据。查询失败返回未知/错误，不能当作无人在线，也不能据此关闭宿主机。
 
 增额、封禁和撤销仍从管理员工程进入，经受限管理通道提交给 OCI 执行器，在锁内更新原因/账本并调用 Portal API；新方案月用量从 OCI 读取，管理员本机不维护可覆盖 OCI 的第二份可写月账；命令的 profile、目标对象与回执须一致，撤销一套不影响另一套。开户停止、邮件发完或管理员电脑关机都不影响 OCI 配额服务。
 

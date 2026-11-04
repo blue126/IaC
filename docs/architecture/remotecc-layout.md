@@ -24,26 +24,17 @@ IaC/remotecc/
 
 从主检出创建新 worktree 时，可以按 `.worktreeinclude` 携带管理员源文件。Codex 跳过源符号链接，因此配置、密钥和运行数据的兼容链接不会作为文件副本复制。历史HAPI工作树曾使用迁移时建立的共享`remotecc`链接；该记录不表示新的HAPI独立绑定已复用WireGuard运行区。
 
-源文件可用不代表该worktree已配置成独立的provisioning环境。执行器源码、权威运行数据、IaC代码根、工具链和授权须按当前入口绑定；旧Sandbox同步锁与journal仅属于下文退役的existing流程，不能作为Mac执行员工写操作的入口。员工写操作在ws-executor执行，IaC工作目录约定为`/srv/iac`；具体绑定由执行器上的受保护配置决定，不因Mac所在目录改变而切换。HAPI历史独立绑定不自动改指向当前员工入口。复制源码不代表已取得运行绑定或操作授权。
+源文件可用不代表该worktree已配置成独立的provisioning环境。执行器源码、权威运行数据、IaC代码根、工具链和授权须按当前入口绑定；旧Sandbox同步锁与journal随已删除的existing流程一并退役。员工写操作在ws-executor执行，IaC工作目录约定为`/srv/iac`；具体绑定由执行器上的受保护配置决定，不因Mac所在目录改变而切换。HAPI历史独立绑定不自动改指向当前员工入口。复制源码不代表已取得运行绑定或操作授权。
 
 ## 入口与兼容路径
 
-正式员工入口是执行器上的`/srv/remotecc/employee-admin/wsctl`，经Semaphore模板或已批准的执行器管理通道运行；部署布局见[ws-executor说明](../deployment/2026-10-31-ws-executor.md)。Mac源码中的`onboard.sh`仅保留旧共享授权及过渡转发，旧`~/Projects/employee-workspace-admin`仍是兼容链接。
+正式员工入口是执行器上的`/srv/remotecc/employee-admin/wsctl`，经Semaphore模板或已批准的执行器管理通道运行；部署布局见[ws-executor说明](../deployment/2026-10-31-ws-executor.md)。旧的`onboard.sh`、`onboard-host.py`及`existing`入口已于2026-11-04删除。
 
 代码目录中保留受控的数据链接，因此已有的 `settings.json`、`state/`、`runs/`、`requests/` 等路径仍可使用。`runtime-layout.py` 按 `remotecc-layout.json` 补齐缺失链接；遇到已有普通文件或错误链接时停止，不覆盖数据。
 
-Mac已配置`write_executor`，写命令返回`WSCTL_WRITES_ON_EXECUTOR`，不得改为在宿主执行`onboard.sh --profile oci-hub`来绕过。员工与IaC代码可经各自的`ws-executor` Git远端送入执行器；推送是部署写入，需单独授权。员工、设备、密钥和交付身份不因代码目录变化而重建；下一次实际写操作仍须核对源码、计划及审批。
+Mac已配置`write_executor`，写命令返回`WSCTL_WRITES_ON_EXECUTOR`，不得在Mac上绕过`wsctl`、直接运行私有仓库中`wsctl`背后的实现（`remotecc/employee-admin/oci-hub-admin.py`）来执行写操作。员工与IaC代码可经各自的`ws-executor` Git远端送入执行器；推送是部署写入，需单独授权。员工、设备、密钥和交付身份不因代码目录变化而重建；下一次实际写操作仍须核对源码、计划及审批。
 
-## Sandbox 同步与恢复（仅已退役的 existing 入口）
-
-`onboard.sh` 的 `login`、`auth-status`、`registry`、`recover` 仍经 `onboard-host.py`：
-
-1. 取得原有管理员锁，并核对同步 journal，未回收状态继续阻止新操作。
-2. 代码只从宿主发送到 Sandbox，发送时排除代码仓库的 `.git/`。
-3. 运行数据独立同步；命令成功、失败或中断后只回收数据，不从 Sandbox 回写管理员源码。
-4. 回收排除宿主锁和模板源码链接，并验证归档路径与数据指纹；异常时保留 pending 状态供 `onboard.sh recover` 处理。
-
-外层锁和同步 journal 是 RemoteCC 根目录下的本机控制信息，不进入 Git。历史诊断材料位于数据目录的 `deployment/`；模板 state 留在数据目录的 `template-build/`，模板 Terraform 源码单独保存在代码目录的 `template-build-source/`。
+历史诊断材料位于数据目录的 `deployment/`；模板 state 留在数据目录的 `template-build/`，模板 Terraform 源码单独保存在代码目录的 `template-build-source/`。
 
 ## 验证与保留
 
