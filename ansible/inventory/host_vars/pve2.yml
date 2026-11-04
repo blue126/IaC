@@ -3,7 +3,7 @@
 # The encrypted value stays in group_vars/all/vault.yml.
 ansible_ssh_pass: "{{ vault_proxmox_password }}"
 
-# The 400 GiB virtual disk remains managed by terraform/proxmox/pnetlab.tf.
+# The 400 GiB virtual disk remains managed by the former PNetLab VM (now a template outside Terraform).
 # Release its ZFS reservation so existing guests share the pool's free space.
 proxmox_storage_vm_disk:
   vmid: 250

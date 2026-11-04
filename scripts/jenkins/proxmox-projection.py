@@ -14,16 +14,13 @@ SECRET_VARIABLES={'pm_api_token_id','pm_api_token_secret','pm_api_token_id_pve2'
 SECRET_FIELDS={'password','cipassword','ansible_ssh_pass','ansible_password','ansible_become_password'}
 MODULES={'proxmox-lxc','proxmox-vm','proxmox-cloud-image-vm'}
 ALLOWED_DATA={'proxmox_virtual_environment_vms'}
-PUBLIC_FILES={'proxmox/terraform.auto.tfvars','proxmox/employee-access.auto.tfvars.json','proxmox/provisioning.auto.tfvars.json'}
+PUBLIC_FILES={'proxmox/terraform.auto.tfvars','proxmox/provisioning.auto.tfvars.json'}
 TEMPLATE_FILES=set()
-# The OCI Hub roster is executor runtime state outside Git; the policy projects it as {}.
-RUNTIME_FILES={'secrets.auto.tfvars','oci-hub-workspaces.auto.tfvars.json'}
+RUNTIME_FILES={'secrets.auto.tfvars'}
 # Legacy employee fields remain only to validate pre-retirement state inventory values.
 EMPLOYEE_FIELDS=dict.fromkeys('bridge address gateway mac_address gateway_mac disk_size baseline_id bootstrap_file'.split(),'string')
 EMPLOYEE_FIELDS.update(dict.fromkeys('nic_slot vmid cores memory template_id'.split(),'number'))
 EMPLOYEE_FIELDS.update(dict.fromkeys('disabled retired oci_hub_managed start_ready hook_bound'.split(),'bool'))
-ACCESS_FIELDS=dict.fromkeys('node pve_inventory_host storage_pool uplink_bridge uplink_address uplink_gateway uplink_mac dns_server snippet_datastore'.split(),'string')
-ACCESS_FIELDS.update(dict.fromkeys('vmid template_id'.split(),'number'));ACCESS_FIELDS.update(boundary_ready='bool',legacy_gateway_retired='bool',admin_public_keys=['list','string'])
 ALLOCATION_FIELDS=dict.fromkeys('node bridge address gateway mac_address gateway_mac dns_server'.split(),'string');ALLOCATION_FIELDS['nic_slot']='number'
 
 
@@ -57,14 +54,11 @@ def public_inputs(path,relative):
             try:values[key]=json.loads(raw)
             except Exception as error:raise Refused('nonliteral public native input') from error
             i+=3
-    kinds={'pm_api_url':'string','pm_api_url_pve2':'string','target_node':'string','storage_pool':'string','pnetlab_ip_allocation_confirmed':'bool',
-           'employee_access':ACCESS_FIELDS,
+    kinds={'pm_api_url':'string','pm_api_url_pve2':'string','target_node':'string','storage_pool':'string',
            'netbox_provisioned_vms':['list',{'name':'string','target_node':'string','template':'string','cores':'number','memory':'number','disk_size':'string','ip_address':'string','vmid':'number','cloudinit_slot':'string'}]}
-    expected={'proxmox/terraform.auto.tfvars':{'pm_api_url','pm_api_url_pve2','target_node','storage_pool','pnetlab_ip_allocation_confirmed'},'proxmox/employee-access.auto.tfvars.json':{'employee_access'},'proxmox/provisioning.auto.tfvars.json':{'netbox_provisioned_vms'}}[relative]
+    expected={'proxmox/terraform.auto.tfvars':{'pm_api_url','pm_api_url_pve2','target_node','storage_pool'},'proxmox/provisioning.auto.tfvars.json':{'netbox_provisioned_vms'}}[relative]
     if set(values)!=expected:raise Refused('public input keys changed')
     values=checked(values,kinds)
-    # Public key equality is deliberately outside the predictive contract.
-    if values.get('employee_access'):values['employee_access']['admin_public_keys']=[]
     return values
 
 
@@ -302,7 +296,7 @@ def project_state(state,schema):
             definition=data_schemas.get(kind)
         else:definition=resource_schemas.get(kind)
         if kind=='terraform_data':
-            if resource['name'] not in {'employee_slot','employee_retirement','openbao_testbed_authorization','pnetlab_allocation'}:raise Refused('unknown terraform_data resource')
+            if resource['name'] not in {'employee_slot','employee_retirement','openbao_testbed_authorization'}:raise Refused('unknown terraform_data resource')
             fields={'employee_slot':ALLOCATION_FIELDS,'employee_retirement':{'employee_id':'string','vmid':'number'}}.get(resource['name'])
             for instance in resource['instances']:
                 if set(instance)-{'schema_version','attributes','sensitive_attributes','dependencies','index_key'} or instance.get('schema_version')!=0:raise Refused('unknown terraform_data envelope')

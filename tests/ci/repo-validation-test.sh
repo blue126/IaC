@@ -76,7 +76,7 @@ base_sha="${head_sha}"
 commit_fixture "terraform/modules/proxmox-vm/main.tf" "variable \"name\" {}"
 head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
 output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
-assert_output "${output}" "terraform_roots=terraform/proxmox,terraform/oci,terraform/netbox-integration"
+assert_output "${output}" "terraform_roots=terraform/proxmox,terraform/remotecc,terraform/oci,terraform/netbox-integration"
 
 for retired_path in terraform/esxi/main.tf terraform/modules/esxi-vm/main.tf; do
   base_sha="${head_sha}"

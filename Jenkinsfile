@@ -378,7 +378,7 @@ pipeline {
         always {
             // Cleanup sensitive files
             sh 'rm -f $ANSIBLE_VAULT_PASSWORD_FILE'
-            sh 'rm -f terraform/proxmox/secrets.auto.tfvars'
+            sh 'rm -f terraform/proxmox/secrets.auto.tfvars terraform/remotecc/secrets.auto.tfvars'
             sh 'rm -f terraform/oci/secrets.auto.tfvars'
         }
         success {

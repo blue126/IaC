@@ -15,7 +15,7 @@
 
 相关文件：
 
-- Terraform：`terraform/proxmox/ws-executor.tf`
+- Terraform：`terraform/remotecc/ws-executor.tf`
 - 主机变量：`ansible/inventory/host_vars/ws-executor.yml`
 - Playbook：`ansible/playbooks/deploy-ws-executor.yml`
 - 防火墙角色：`ansible/roles/host-firewall/`
@@ -25,7 +25,7 @@
 `terraform apply`、Tailscale 授权（真实运行 playbook 会用 vault 中的 auth key 加入 tailnet）均需用户分别授权。
 
 ```bash
-# 1. 在 terraform/proxmox/ 中先看真实 plan，确认只新增 ws-executor 的 VM 与 ansible_host
+# 1. 在 terraform/remotecc/ 中先看真实 plan，确认只新增 ws-executor 的 VM 与 ansible_host
 terraform plan
 terraform apply            # 获批后
 
