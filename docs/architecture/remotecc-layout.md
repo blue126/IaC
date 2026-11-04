@@ -32,7 +32,7 @@ IaC/remotecc/
 
 代码目录中保留受控的数据链接，因此已有的 `settings.json`、`state/`、`runs/`、`requests/` 等路径仍可使用。`runtime-layout.py` 按 `remotecc-layout.json` 补齐缺失链接；遇到已有普通文件或错误链接时停止，不覆盖数据。
 
-Mac已配置`write_executor`，写命令返回`WSCTL_WRITES_ON_EXECUTOR`，不得在宿主直接运行`oci-hub-admin.py`来绕过。员工与IaC代码可经各自的`ws-executor` Git远端送入执行器；推送是部署写入，需单独授权。员工、设备、密钥和交付身份不因代码目录变化而重建；下一次实际写操作仍须核对源码、计划及审批。
+Mac已配置`write_executor`，写命令返回`WSCTL_WRITES_ON_EXECUTOR`，不得在Mac上绕过`wsctl`、直接运行私有仓库中`wsctl`背后的实现（`remotecc/employee-admin/oci-hub-admin.py`）来执行写操作。员工与IaC代码可经各自的`ws-executor` Git远端送入执行器；推送是部署写入，需单独授权。员工、设备、密钥和交付身份不因代码目录变化而重建；下一次实际写操作仍须核对源码、计划及审批。
 
 历史诊断材料位于数据目录的 `deployment/`；模板 state 留在数据目录的 `template-build/`，模板 Terraform 源码单独保存在代码目录的 `template-build-source/`。
 
