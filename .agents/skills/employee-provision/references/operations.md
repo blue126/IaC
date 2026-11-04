@@ -31,4 +31,4 @@ acceptance REQUEST.json 仅输出绑定包的必要检查、pending记录模板�
 
 ## 历史共享同步
 
-不带profile的login/auth-status用于微软Mail.Send授权；registry是旧台账历史；recover仅回收旧共享同步日志。它们不是OCI业务恢复入口，不从旧同步副本覆盖Hub账本，不恢复旧VM500接入或已删除角色。
+旧 `onboard.sh` 的 login/auth-status（微软邮件授权）、registry、recover 已随 existing 流程于 2026-11-04 删除；发信改走网站 `/admin/mail`。不要从旧同步副本覆盖 Hub 账本，也不恢复旧 VM500 接入或已删除角色。
