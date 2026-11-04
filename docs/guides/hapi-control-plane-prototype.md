@@ -1,6 +1,6 @@
 # HAPI控制面原型配置契约
 
-> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role管理（默认随`prepare-employee-desktop.yml`的provision／update阶段部署），见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
+> **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role管理（默认随`prepare-employee-desktop.yml`的provision阶段部署），见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
 
 > **当前维护入口（2026-11-02）。** 现网已完成[内部HTTP切换与PKI退役](hapi-internal-http.md)。本页保留早期原型的mTLS、证书／CRL输入和发布门禁契约，仅供历史追溯，不能作为当前部署指令；当前拓扑见[统一入口](hapi-unified-entry.md)。
 

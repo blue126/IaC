@@ -1,7 +1,7 @@
 ---
 - name: Require an explicit desktop operation
   ansible.builtin.assert:
-    that: employee_desktop_phase in ['packages', 'trust', 'prepare', 'activate', 'update', 'provision']
+    that: employee_desktop_phase in ['packages', 'trust', 'prepare', 'activate', 'provision']
 
 - name: Install the pinned desktop packages
   ansible.builtin.import_tasks: packages.yml
@@ -10,10 +10,6 @@
 - name: Prepare the explicitly selected KasmVNC presentation
   ansible.builtin.import_tasks: presentation.yml
   when: employee_desktop_phase in ['trust', 'prepare', 'activate']
-
-- name: Update the approved existing employee desktop
-  ansible.builtin.include_tasks: update.yml
-  when: employee_desktop_phase == 'update'
 
 - name: Install the desktop and its frontend identity on a new employee VM
   ansible.builtin.include_tasks: provision.yml

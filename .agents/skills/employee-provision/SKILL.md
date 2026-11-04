@@ -7,9 +7,9 @@ description: "本 IaC 项目的员工工作区开户/provisioning、员工 VM �
 
 本 skill 仅在所属 IaC 项目内自动匹配员工开户、新设备、设备包交付和相关流程维护；不用于一般基础设施 VM 或员工电脑 bootstrap。讨论和代码审阅只加载上下文，不自动读取凭据或执行真实操作。显式 BMad 工作流保持原有顺序。
 
-## HAPI 历史候选边界
+## HAPI
 
-HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。独立HAPI开户候选及其专用skill已撤回，不恢复历史独立执行器，也不将其接入`wsctl`；保留当前生产HAPI服务及主分支现有员工流程。
+HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员工VM或第二份Terraform state。开户默认开通：`wsctl provision` 随桌面安装 `hapi` role，`provision`/`retire` 结束时自动运行 `wsctl hapi-sync`（VM500 路由与防火墙、PVE 9443 放行、Cloudflare Access），以 D1 `employees` 表为准。历史独立HAPI开户候选及其专用skill已撤回，不恢复。
 
 ## 规范入口和边界
 

@@ -23,6 +23,12 @@ wsctl export --device alice
 
 已开始但未完成的请求必须先恢复，之后再执行其他员工的开户。此约束包括意图已本地持久化、尚未送到OCI的窗口；错误返回需恢复的run_dir。部分创建可多次重新plan，持续保留同一VM及原创建证明。尚未执行的错设备草案可由新计划替代，旧审批失效。
 
+## 台账、Terraform 与 HAPI
+
+员工台账以网站 D1 的 `employees` 表为准（凭据除外），执行器保存本地快照；D1 不可读时写操作停止。员工 VM、VM500、员工模板和 ws-executor 的 Terraform 在 `terraform/remotecc`（HCP 工作区 `iac-remotecc`），不在 Jenkins 管理的 `terraform/proxmox`。
+
+开户默认开通 HAPI：桌面之后安装 `hapi` role，结束时运行 `wsctl hapi-sync`。失败只报告，不撤销开户，之后手动重跑 `wsctl hapi-sync` 即可。已有 VM 升级 HAPI 目前没有专用命令，需要时再加。
+
 ## 查询、验收与交付
 
 `wsctl registry` / `verify` 查询服务端状态，`status` 额外观察握手和 SSH/Mosh 连接。查询失败显示未知；这些观察不是员工本人已完成bootstrap的证明。`configured`只表示配置完成，交付还要核对bundle.verification状态。
