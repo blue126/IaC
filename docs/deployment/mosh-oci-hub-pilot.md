@@ -1,5 +1,7 @@
 # 现有 VM 的 OCI Hub Mosh 试点
 
+> **2026-11-04 更新：** 本文为试点期记录。当前统一设备包同时包含终端 Mosh 与 VM 浏览器入口（`desktop_url`、`tls_certificate_sha256`），管理入口为执行器上的 `wsctl`。
+
 本文件已被[新建 VM509 的独立试点](mosh-oci-hub-vm509.md)替代，只保留历史审计；不要执行这里的旧申请。
 
 2026-10-30 已完成独立 BWS 项目及 OCI Hub 首次初始化。用户撤回“经 VM500 出网”的过渡安排，要求新路径从首次验收起独立。当前 `attach-mosh` 代码及其已生成审批仍依赖 VM500，不能继续执行；须先按[修订设计](../architecture/mosh-oci-hub-transition.md)补齐独立 PVE 网络、原 VM 第二网卡、路由及联合 hook，再生成新计划。VM502 未完成接入，端到端验收未通过。
