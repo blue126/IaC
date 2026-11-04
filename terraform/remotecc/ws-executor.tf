@@ -7,7 +7,9 @@ module "ws_executor" {
   cores       = 2
   memory      = 4096
   disk_size   = "32G"
-  ip_address  = "192.168.1.116/24"
+  # Matches the running disk; changing it is an in-place update with no benefit here.
+  disk_discard = "ignore"
+  ip_address   = "192.168.1.116/24"
 
   storage_pool = var.storage_pool
   sshkeys      = var.sshkeys

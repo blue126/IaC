@@ -44,6 +44,9 @@ ansible-playbook -i localhost, -e @"$VAULT_FILE" /dev/stdin << PLAYBOOK
           sshkeys = [{% set keys = vault_sshkeys.strip().splitlines() | select | list %}{% for key in keys %}"{{ key.strip() }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 PLAYBOOK
 
+# The remotecc root uses the same Proxmox credentials.
+cp -p "$PROJECT_ROOT/terraform/proxmox/secrets.auto.tfvars" "$PROJECT_ROOT/terraform/remotecc/secrets.auto.tfvars"
+
 # 2. Generate OCI Secrets
 echo "Writing terraform/oci/secrets.auto.tfvars..."
 

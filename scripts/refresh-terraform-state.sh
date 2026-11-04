@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ALL_WORKSPACES=(proxmox oci)
+ALL_WORKSPACES=(proxmox remotecc oci)
 STATE_FILE="terraform.tfstate"
 
 if ! command -v terraform &> /dev/null; then

@@ -99,4 +99,4 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 VM500 现仅保留 net0；旧 gateway 网卡/路由/NAT已清理，其防火墙只保护 HAPI 主机本身。维护勿再使用旧 gateway controller 的 --routing 模式，见 [VM500 清理](2026-10-30-vm500-legacy-nic-cleanup.md)。
 
-旧 employee-access role、六个组合入口和 parallel 授权分支已移除。仍使用的管理员公钥维护由 admin-ssh-keys 提供。旧员工模型（`employee_workspaces` 表、`employee_slot` 永久分配、`employee_retirement` 墓碑、vmbr501-508 与 `employee-*-boundary.py` hook）及 pve2 上丢弃 `tap503i0` 的退役 guard 已拆除：Terraform 以 `removed` 遗忘两类 `terraform_data`，销毁旧网桥与 hook 文件；guard 由一次性剧本 `ansible/playbooks/remove-retired-workspace-boundary.yml` 删除。VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`；共享 snippets 不删除。
+旧 employee-access role、六个组合入口和 parallel 授权分支已移除。仍使用的管理员公钥维护由 admin-ssh-keys 提供。旧员工模型（`employee_workspaces` 表、`employee_slot` 永久分配、`employee_retirement` 墓碑、vmbr501-508 与 `employee-*-boundary.py` hook）及 pve2 上丢弃 `tap503i0` 的退役 guard 已拆除：Terraform 以 `removed` 遗忘两类 `terraform_data`，销毁旧网桥与 hook 文件；guard 由一次性剧本 `ansible/playbooks/remove-retired-workspace-boundary.yml` 删除。VM500 配置在 `terraform/remotecc/employee-access.auto.tfvars.json`；共享 snippets 不删除。

@@ -10,7 +10,8 @@ This is a **homelab Infrastructure as Code** repository managing VM/LXC provisio
 
 ```
 terraform/
-  proxmox/          # Primary - Proxmox VMs/LXCs (bpg/proxmox provider)
+  proxmox/          # Primary - internal homelab Proxmox VMs/LXCs (bpg/proxmox provider)
+  remotecc/         # Outward-facing RemoteCC VMs: employee workspaces, VM500, template, ws-executor
   esxi/             # ESXi host management (vmware/vsphere provider)
   oci/              # Oracle Cloud Infrastructure
   netbox-integration/ # Netbox resource management
@@ -54,7 +55,7 @@ PR validation is `.github/workflows/repo-validation.yml`: it classifies the chan
 - **Module structure**: `main.tf`, `variables.tf`, `outputs.tf` (3-file standard)
 - **Sensitive variables**: Always mark `sensitive = true`
 - **Backend**: HCP Terraform Cloud (`cloud { organization = "homelab-roseville" }`), **Local execution mode** — plan/apply run on this machine, HCP only stores state
-- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/`, `iac-oci` → `terraform/oci/`. The retired `iac-esxi-lab` workspace was backed up and deleted with user approval on 2026-09-21; `terraform/esxi/` is historical and has no cloud binding. Do not recreate it during init. `terraform/netbox-integration/` intentionally has no `cloud` block and keeps local state; do not add a backend. Read active `cloud` blocks rather than assuming workspace names.
+- **Workspaces**: `iac-proxmox-lab` → `terraform/proxmox/` (internal homelab), `iac-remotecc` → `terraform/remotecc/` (employee workspaces, VM500, employee template, ws-executor; driven by `wsctl`, not Jenkins), `iac-oci` → `terraform/oci/`. The retired `iac-esxi-lab` workspace was backed up and deleted with user approval on 2026-09-21; `terraform/esxi/` is historical and has no cloud binding. Do not recreate it during init. `terraform/netbox-integration/` intentionally has no `cloud` block and keeps local state; do not add a backend. Read active `cloud` blocks rather than assuming workspace names.
 - **Lifecycle blocks**: Use `ignore_changes` for clone, full_clone, efidisk, ostemplate, description
 
 ### Ansible

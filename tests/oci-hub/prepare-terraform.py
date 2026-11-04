@@ -8,7 +8,7 @@ root=Path(__file__).resolve().parents[2]
 fixture=Path(tempfile.mkdtemp(prefix='oci-hub-terraform-'))
 (fixture/'proxmox/tests').mkdir(parents=True)
 shutil.copytree(root/'terraform/modules/proxmox-vm',fixture/'modules/proxmox-vm',ignore=shutil.ignore_patterns('.terraform','*.tfstate*','*.tfvars*'))
-shutil.copy2(root/'terraform/proxmox/oci-hub-workspace.tf',fixture/'proxmox/oci-hub-workspace.tf')
+shutil.copy2(root/'terraform/remotecc/oci-hub-workspace.tf',fixture/'proxmox/oci-hub-workspace.tf')
 shutil.copy2(Path(__file__).with_name('startup.tftest.hcl'),fixture/'proxmox/tests/startup.tftest.hcl')
 (fixture/'proxmox/versions.tf').write_text('''terraform {
   required_providers {
