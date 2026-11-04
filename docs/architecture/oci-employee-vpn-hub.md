@@ -167,7 +167,7 @@ OCI 在 `oci-hub` profile 内维护受管映射：设备公钥 → 固定设备 
 
 ### Mosh（本轮终端模式）
 
-系统 mosh-server 运行在员工VM（超时由 sshd `SetEnv` 给 employee 用户提供，workspace-mosh 只为旧客户端保留）；设备先经同一VPN路径SSH到本人VM启动会话，再使用 UDP 60000–61000。OCI只转发并按设备地址/本人VM地址放行整段端口，不承担Mosh终点或第二跳SSH。终端v2包声明access_mode=mosh与mosh_ports，不要求桌面TLS字段。
+系统 mosh-server 运行在员工VM（超时由 sshd `SetEnv` 给 employee 用户提供，workspace-mosh 只为旧客户端保留）；设备先经同一VPN路径SSH到本人VM启动会话，再使用 UDP 60000–61000。OCI只转发并按设备地址/本人VM地址放行整段端口，不承担Mosh终点或第二跳SSH。终端v2包声明access_mode=mosh与mosh_ports；自统一设备包（story 5.25）起同时带VM浏览器入口的desktop_url与tls_certificate_sha256。
 
 VM509 已配置原生员工授权及 workspace-mosh，正式试点本地包已生成；公开 bootstrap v2 已由 PR #1 合并至 main。没有活动会话在无人测试时是正常状态；已完成的UDP回显与TCP建连不代替真实Mosh验收。
 
@@ -354,7 +354,7 @@ OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口�
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库提供统一入口 `wsctl`（在 ws-executor 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传/Mail.Send 仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
+IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库提供统一入口 `wsctl`（在 ws-executor 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传与通知邮件（经网站 `/admin/mail` 发出）仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |
@@ -369,7 +369,7 @@ IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库提供统一入
 
 ### 台账关联与唯一写入者
 
-私有台账增加以下关联字段，设备 roster、生成的 registry/WORKSPACES 继续由既有流程生成，不手工各维护一份：
+私有台账增加以下关联字段（2026-11-04 起员工台账以网站 D1 `employees` 表为唯一来源；旧的 registry/WORKSPACES 生成已随 existing 流程删除，查询用 `wsctl registry` / `wsctl status`），不手工各维护一份：
 
 | 层级 | 关联数据 |
 | --- | --- |
@@ -412,7 +412,7 @@ VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对
 
 员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作使用执行器上的 `wsctl`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-native-provisioning.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
 
-bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；Mosh 终端包不要求桌面 TLS 字段；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用交付/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
+bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；当前统一设备包同时包含终端 Mosh 与 VM 浏览器入口，manifest 必须带 `desktop_url` 和 `tls_certificate_sha256`（证书 pin）；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用交付/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
 
 ### 在线查询与维护
 
