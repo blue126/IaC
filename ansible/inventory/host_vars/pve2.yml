@@ -3,15 +3,6 @@
 # The encrypted value stays in group_vars/all/vault.yml.
 ansible_ssh_pass: "{{ vault_proxmox_password }}"
 
-# The 400 GiB virtual disk remains managed by the former PNetLab VM (now a template outside Terraform).
-# Release its ZFS reservation so existing guests share the pool's free space.
-proxmox_storage_vm_disk:
-  vmid: 250
-  name: pnetlab
-  disk: scsi0
-  volume: mainpool:vm-250-disk-0
-  dataset: mainpool/vm-250-disk-0
-
 # Standalone local SSD storage kept separate from the main ZFS mirror.
 pve2_local_ssd_storage:
   device: /dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_BTWL404609D8800RGN

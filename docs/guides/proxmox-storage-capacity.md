@@ -2,14 +2,7 @@
 
 Terraform records guest disk capacity and protects existing guests from unintended replacement. Ansible manages host storage properties that the active Terraform provider does not expose, such as a ZFS volume reservation.
 
-The storage role checks the configured guest, disk, and dataset identities before changing a property. It skips work when the target already meets policy and fails when the observed identities do not match inventory.
-
-## Change procedure
-
-1. Confirm the target host, guest, disk, and dataset from approved inventory and the current host configuration.
-2. Run the playbook syntax check and a check-mode preview. Confirm the preview contains only the intended storage-property change.
-3. Obtain deployment authorization before running the playbook without check mode.
-4. Run the verify tag and confirm the target property has the expected value.
+No role manages a guest disk property at present: the only target was VM 250's former disk, and that role was removed on 2026-11-04 after VM 250 became a template outside Terraform. If one is added, it should check the guest, disk and dataset identities before changing a property, skip work when the target already meets policy, and support a check-mode preview and a verify tag.
 
 For Terraform-managed guest disks, review the provider behavior before changing capacity. If a provider version forces replacement for a size change, expand the existing disk using the platform procedure first, update the declared capacity, and inspect the plan. Do not apply a plan that replaces or destroys the guest.
 
@@ -26,7 +19,6 @@ After import, verify the state identity and disk capacity, then review a read-on
 ## Offline checks
 
 ```bash
-python3 ansible/tests/proxmox-storage-check.py
 python3 terraform/proxmox/tests/ct120-storage-check.py --provider /path/to/existing/terraform-provider-proxmox_v0.70.0
 ```
 
