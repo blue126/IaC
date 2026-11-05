@@ -62,6 +62,16 @@
     - {dir: "uv-{{ remotecc_ops_uv_version }}", binary: uv}
     - {dir: "bws-{{ remotecc_ops_bws_version }}", binary: bws}
 
+# A host deployed before the rename keeps its work tree and history by moving them.
+- name: Move the former source tree and bare repository to their new names
+  ansible.builtin.command:
+    argv: [mv, "{{ item.from }}", "{{ item.to }}"]
+    creates: "{{ item.to }}"
+    removes: "{{ item.from }}"
+  loop:
+    - {from: "{{ remotecc_ops_remotecc_root }}/employee-admin", to: "{{ remotecc_ops_remotecc_root }}/wsctl"}
+    - {from: "{{ remotecc_ops_git_root }}/employee-admin.git", to: "{{ remotecc_ops_git_root }}/wsctl.git"}
+
 - name: Create runtime directories
   ansible.builtin.file:
     path: "{{ item.path }}"
