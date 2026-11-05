@@ -46,10 +46,10 @@ flowchart LR
 
 标准noVNC不识别KasmVNC的253／254消息（用户加入／离开共享会话），第二路viewer或旧连接离开时就会断开，页面每3秒重连后两路互相踢下线。登录页因此改用KasmVNC自带的网页客户端。
 
-- **托管位置：** 客户端由VM500从校验过sha256的KasmVNC 1.5.0安装包解出，不由员工VM提供。同源iframe能读取登录页和授权码，所以这些页面不能来自VM。
+- **托管位置：** `wsctl hapi-sync`运行`hapi-registry`时，VM500从校验过sha256的KasmVNC 1.5.0安装包解出客户端，不由员工VM提供。同源iframe能读取登录页和授权码，所以这些页面不能来自VM。
 - **连接路径：** WebSocket仍走`/_workspace/login/websockify`，Access鉴权和stream lease不变，员工VM无需改动。
-- **切换方式：** `hapi_control_plane_kasm_viewer_workspaces`列出的工作区使用Kasm客户端，其余仍用noVNC。全部切换并验收后再移除noVNC。
-- **版本约束：** 升级KasmVNC时要同步修改`hapi-control-plane`里的安装包地址、校验值、解压路径、资源文件名和内联脚本CSP摘要。
+- **切换方式：** `hapi-registry`的`hapi_registry_kasm_viewer_workspaces`列出的工作区使用Kasm客户端，其余仍用noVNC。全部切换并验收后再移除noVNC。
+- **版本约束：** 升级KasmVNC时要同步修改`hapi-registry`里的安装包地址、校验值、解压路径和资源文件名，以及`hapi-control-plane`的Nginx模板里的解压路径和内联脚本CSP摘要。
 
 使用`hapi-control-plane`管理VM500身份与路由，`hapi-shared-hub`管理共享Hub，`hapi-ingress`只管理VM500的Tunnel连接器。员工VM一侧统一由`hapi` role管理，默认随开户（`prepare-employee-desktop.yml`的provision阶段）部署，不另设playbook（story 5.24）：固定版本的Runner、经本机127.0.0.1:3006连接VM500共享Hub的通道、供VM500访问的9443私有入口，以及固定的Claude登录API；登录页的远程画面是该VM的KasmVNC桌面（9443的`/websockify`经本机8443入口转发，桌面凭据只在8443入口）。旧试点`employee-hapi`、独立工作区`hapi-workspace`／`hapi-workspace-baseline`、`hapi-hub-client`、`claude-login-agent`、`hapi-network`与一次性的`hapi-internal-http`迁移已于2026-11-03删除；`hapi` role部署时会停用并清除VM上残留的旧试点服务。
 

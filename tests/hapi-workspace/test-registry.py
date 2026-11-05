@@ -21,13 +21,14 @@ AGENTS = {'version': 1, 'agents': [{'id': 'vm502', 'address': '10.236.2.2', 'nam
 
 class Registry(unittest.TestCase):
     def test_owner_kept_retired_dropped_employees_added_with_unbound_subjects(self):
-        desired = {'static_ids': ['vm502'], 'employees': [{'id': 'casey', 'email': 'casey@example.test', 'address': '10.236.9.2', 'token': 'c' * 40}]}
+        desired = {'static_ids': ['vm502'], 'kasm_viewer_workspaces': ['vm502'], 'employees': [{'id': 'casey', 'email': 'casey@example.test', 'address': '10.236.9.2', 'token': 'c' * 40}]}
         config, credentials, agents, tokens = registry.render(desired, CONFIG, CREDENTIALS, AGENTS)
         self.assertEqual([r['workspace_id'] for r in config['routes']], ['vm502', 'casey'])
         self.assertEqual(config['routes'][0], OWNER_ROUTE)
         self.assertEqual(config['routes'][1], {'workspace_id': 'casey', 'email': 'casey@example.test', 'subject': '', 'enabled': True,
                                                'generation': 1, 'backend_address': '10.236.9.2', 'backend_name': 'casey.hapi.internal', 'namespace': 'casey'})
         self.assertEqual({k: config[k] for k in ('origin', 'issuer', 'audience', 'shared_hub')}, {k: CONFIG[k] for k in ('origin', 'issuer', 'audience', 'shared_hub')})
+        self.assertEqual(config['kasm_viewer_workspaces'], ['vm502'])
         self.assertEqual([r['id'] for r in credentials['credentials']], ['vm502', 'casey'])
         self.assertEqual([r['namespace'] for r in credentials['credentials']], ['default', 'casey'])
         self.assertEqual(credentials['credentials'][0]['token'], 'o' * 40)
