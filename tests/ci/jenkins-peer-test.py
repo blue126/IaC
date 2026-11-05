@@ -222,7 +222,7 @@ class ProjectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             projection.project_source(ROOT/'terraform',directory,self.policy)
             inputs=json.loads((Path(directory)/'proxmox/projection.auto.tfvars.json').read_text())
-            # Employee workspaces, VM500 and ws-executor live in terraform/remotecc, which Jenkins never reads.
+            # Employee workspaces, VM500 and remotecc-ops live in terraform/remotecc, which Jenkins never reads.
             for name in ('oci_hub_workspaces','employee_workspaces','employee_access'):self.assertNotIn(name,inputs)
             self.assertFalse((Path(directory)/'proxmox/oci-hub-workspace.tf').exists())
             for file in (ROOT/'terraform/proxmox').glob('*.tf'):

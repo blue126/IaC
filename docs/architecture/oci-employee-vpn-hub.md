@@ -1,6 +1,6 @@
 # OCI 员工 VPN Hub-and-Spoke 设计
 
-> **2026-11-04 更新：** 文中的 `onboard.sh --profile oci-hub` 入口已由执行器上的 `wsctl` 取代，`onboard.sh` 与 `existing` 流程已删除；当前操作见私有仓库 `remotecc/employee-admin/docs/admin-handbook.md`。
+> **2026-11-04 更新：** 文中的 `onboard.sh --profile oci-hub` 入口已由执行器上的 `wsctl` 取代，`onboard.sh` 与 `existing` 流程已删除；当前操作见私有仓库 `remotecc/wsctl/docs/admin-handbook.md`。
 
 状态：独立 OCI Hub 已部署；VM504–508 已迁移并交付，VM501 demo 与 VM502 本人测试也已迁移；VM500 旧员工入口已退役，实例及管理防火墙保留。创建：2026-10-28；更新：2026-10-31。
 
@@ -354,7 +354,7 @@ OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口�
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/employee-admin` 独立私有仓库提供统一入口 `wsctl`（在 ws-executor 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传与通知邮件（经网站 `/admin/mail` 发出）仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
+IaC 主 checkout 的 `remotecc/wsctl` 独立私有仓库提供统一入口 `wsctl`（在 remotecc-ops 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传与通知邮件（经网站 `/admin/mail` 发出）仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |

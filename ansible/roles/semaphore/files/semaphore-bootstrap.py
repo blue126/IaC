@@ -11,7 +11,7 @@ BASE='http://127.0.0.1:3000/api'
 PROJECT='employee-lifecycle'
 # A filesystem path is used in place by Semaphore, so tasks run the deployed
 # work tree that git push keeps current.
-REPOSITORY={'name':'employee-admin','git_url':'/srv/remotecc/employee-admin','git_branch':'main'}
+REPOSITORY={'name':'wsctl','git_url':'/srv/remotecc/wsctl','git_branch':'main'}
 SCRIPT='semaphore/wsctl.sh'
 APPROVE={'name':'WSCTL_APPROVE','title':'approval_sha256 (empty = plan only)','required':False,'type':''}
 # name -> (arguments, survey variables, allow overriding arguments per task)

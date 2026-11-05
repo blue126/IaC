@@ -1,7 +1,7 @@
-module "ws_executor" {
+module "remotecc_ops" {
   source = "../modules/proxmox-vm"
 
-  vm_name     = "ws-executor"
+  vm_name     = "remotecc-ops"
   target_node = "pve0"
   vmid        = 116
   cores       = 2
@@ -15,15 +15,25 @@ module "ws_executor" {
   sshkeys      = var.sshkeys
 }
 
-output "ws_executor_ip" {
-  value = module.ws_executor.default_ip
+output "remotecc_ops_ip" {
+  value = module.remotecc_ops.default_ip
 }
 
-resource "ansible_host" "ws_executor" {
-  name   = "ws-executor"
+resource "ansible_host" "remotecc_ops" {
+  name   = "remotecc-ops"
   groups = ["pve_vms"]
   variables = {
     ansible_user = "ubuntu"
     ansible_host = "192.168.1.116"
   }
+}
+
+moved {
+  from = module.ws_executor
+  to   = module.remotecc_ops
+}
+
+moved {
+  from = ansible_host.ws_executor
+  to   = ansible_host.remotecc_ops
 }

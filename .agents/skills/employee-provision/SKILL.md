@@ -13,9 +13,9 @@ HAPI与WireGuard是同一员工工作区VM的两种接入方式，不另建员�
 
 ## 规范入口和边界
 
-管理员入口是私有 `remotecc/employee-admin/wsctl`（旧 `onboard.sh` 已于 2026-11-04 删除），先读其 README 与 `docs/admin-handbook.md`。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；`employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git；权威副本在执行器 `/srv/remotecc/employee-data`，Mac 上的副本只读、可能过期。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。
+管理员入口是私有 `remotecc/wsctl/wsctl`（旧 `onboard.sh` 已于 2026-11-04 删除），先读其 README 与 `docs/admin-handbook.md`。临时 worktree 中没有该目录时，用 `git worktree list --porcelain` 定位同一仓库的主 checkout，不创建第二份管理员工程。源码属于独立私有 Git；`employee-data` 保存配置、申请、状态、设备包和回执，不进入源码 Git；权威副本在执行器 `/srv/remotecc/employee-data`，Mac 上的副本只读、可能过期。旧 `~/Projects/employee-workspace-admin` 只是兼容链接。公开 IaC 保存基础设施和本 skill；公开 workspace-onboarding 保存员工客户端，均不存放私有包或管理员源码。
 
-写操作（provision、apply、export、bundle、deliver、access）只在执行器 ws-executor（192.168.1.116，pve0）上运行：经 Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/employee-admin/wsctl ...`。代码经 `git push ws-executor` 部署（私有仓库与 IaC 各一个远程）。Mac 设置了 `write_executor`，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`，不得绕过；Mac 不再在员工 VM 管理放行内。执行器凭据按仓库 AGENTS.md 核对。网络未放行或依赖缺失时停止并取得相应授权，不换路绕过。API/同步失败不是员工离线。
+写操作（provision、apply、export、bundle、deliver、access）只在执行器 remotecc-ops（192.168.1.116，pve0）上运行：经 Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/wsctl/wsctl ...`。代码经 `git push remotecc-ops` 部署（私有仓库与 IaC 各一个远程）。Mac 设置了 `write_executor`，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`，不得绕过；Mac 不再在员工 VM 管理放行内。执行器凭据按仓库 AGENTS.md 核对。网络未放行或依赖缺失时停止并取得相应授权，不换路绕过。API/同步失败不是员工离线。
 
 加载 skill 不代表授权 apply、安装包、改网络、写凭据、上传、发信或 Git 操作。审批按具体计划和阶段执行，已有明确授权不重复询问。后端缺少某步骤时报告缺口，不另建开户引擎或使用临时旁路。
 

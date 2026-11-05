@@ -1,6 +1,6 @@
 # Mosh 经 OCI Hub 接入现有工作区
 
-> **2026-11-04 更新：** 文中的 `onboard.sh --profile oci-hub` 入口已由执行器上的 `wsctl` 取代，`onboard.sh` 与 `existing` 流程已删除；当前操作见私有仓库 `remotecc/employee-admin/docs/admin-handbook.md`。
+> **2026-11-04 更新：** 文中的 `onboard.sh --profile oci-hub` 入口已由执行器上的 `wsctl` 取代，`onboard.sh` 与 `existing` 流程已删除；当前操作见私有仓库 `remotecc/wsctl/docs/admin-handbook.md`。
 
 当前状态：VM501/502/504–508 已接入新 Hub，VM509 底层已改为 10.236.9.0/30，VM500 旧员工入口已退役。见 [当前迁移记录](../deployment/2026-10-30-demo-test-hub-retirement.md)。以下为被替代的历史方案，不是当前运行状态。
 
