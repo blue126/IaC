@@ -48,7 +48,7 @@ flowchart LR
 
 - **托管位置：** 发布包里带着从校验过sha256的KasmVNC 1.5.0安装包解出的客户端，放在VM500的`current/kasm/`，不由员工VM提供。同源iframe能读取登录页和授权码，所以这些页面不能来自VM。
 - **连接路径：** WebSocket仍走`/_workspace/login/websockify`，Access鉴权和stream lease不变，员工VM无需改动。
-- **切换方式：** 所有工作区一次切换，没有按工作区的开关。登录页不再加载noVNC；Nginx的旧noVNC路由和VM500上的`novnc`软件包只为切换时已打开的旧页面保留，验收后一起移除。
+- **切换方式：** 所有工作区一次切换，没有按工作区的开关。旧noVNC路由和VM500上的`novnc`软件包已于2026-11-06移除。
 - **发布：** 页面、客户端和Nginx由`hapi-ctl activate`切换，相邻版本必须能共存。已打开的旧页面刷新后才会用上新客户端。
 - **版本约束：** 升级KasmVNC时修改私有`hapi-control/`里的`kasm.json`和Nginx模板中的内联脚本CSP摘要。
 
