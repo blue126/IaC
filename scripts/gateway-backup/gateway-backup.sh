@@ -23,6 +23,10 @@ case "${business}" in
     xiaozhi|hermes|open-webui|codex-proxy|cn-proxy|youtube-mcp|qnetd-witness) businesses=("${business}");;
     *) die "Unknown business: ${business}";;
 esac
+# Set only by the all batch for each business it runs; the child reuses the batch lock.
+batch_child="${GATEWAY_BACKUP_BATCH_CHILD:-}"
+unset GATEWAY_BACKUP_BATCH_CHILD
+[[ -z "${batch_child}" || "${business}" != all ]] || die 'A batch child must run a single business'
 unset DOCKER_CONTEXT
 export DOCKER_HOST=unix:///var/run/docker.sock
 [[ -n "${PBS_REPOSITORY:-}" ]] || die 'PBS_REPOSITORY is required'
@@ -30,8 +34,13 @@ export DOCKER_HOST=unix:///var/run/docker.sock
 [[ "${stop_timeout}" =~ ^[1-9][0-9]*$ ]] || die 'stop_timeout must be a positive number of seconds'
 for tool in docker flock xargs "${client_bin}"; do command -v "${tool}" >/dev/null || die "Missing existing tool: ${tool}"; done
 # Keep the native lock open through EXIT cleanup; never unlink its shared inode.
-exec 9>"${lock_dir}/gateway-backup.lock"
-flock -n 9 || die 'Another business backup is active'
+if [[ -n "${batch_child}" ]]; then
+    # Re-locking the inherited descriptor succeeds only while it carries the batch lock.
+    flock -n 9 || die 'A batch child must inherit the active batch lock'
+else
+    exec 9>"${lock_dir}/gateway-backup.lock"
+    flock -n 9 || die 'Another business backup is active'
+fi
 
 cleanup() {
     local rc="$1" container
@@ -56,7 +65,7 @@ cleanup() {
     if (( rc == 0 )); then
         printf 'Backup completed: host/gateway-%s. Original running containers received start requests; verify application health separately.\n' "${business}"
     else
-        printf 'ERROR: Backup failed or cancelled: host/gateway-%s (exit %s); no later business will run.\n' "${business}" "${rc}" >&2
+        printf 'ERROR: Backup failed or cancelled: host/gateway-%s (exit %s).\n' "${business}" "${rc}" >&2
     fi
     if (( rc == 0 )); then
         trap 'exit 130' INT
@@ -76,10 +85,59 @@ cancel_backup() {
 if [[ "${business}" == all ]]; then
     printf 'Batch order: xiaozhi -> hermes -> open-webui -> codex-proxy -> cn-proxy -> youtube-mcp.\n'
     printf 'qnetd-witness is excluded from all; invoke it separately after approved quorum maintenance shutdown.\n'
+    printf 'A failed business does not stop the batch; INT/TERM cancels the current business and stops the batch.\n'
+    # Each business runs as its own single-business invocation, so a failure there
+    # (including set -e exits) completes that business's cleanup without ending the batch.
+    child_pid=""; batch_signal=""; batch_cancel=0; batch_rc=0; succeeded=0; failed=()
+    forward_signal() {
+        if (( batch_cancel == 0 )); then batch_signal="$1"; batch_cancel="$2"; fi
+        if [[ -n "${child_pid}" ]]; then kill -s "$1" "${child_pid}" 2>/dev/null || true; fi
+    }
+    trap 'forward_signal INT 130' INT
+    trap 'forward_signal TERM 143' TERM
+    business_index=0
+    for item in "${businesses[@]}"; do
+        (( batch_cancel == 0 )) || break
+        business_index=$((business_index + 1))
+        printf 'Backup progress %s/%s: %s\n' "${business_index}" "${#businesses[@]}" "${item}"
+        child_rc=0
+        # Job control keeps INT deliverable to the child, which owns its own cancellation cleanup.
+        set -m
+        GATEWAY_BACKUP_BATCH_CHILD=1 "${BASH}" "${BASH_SOURCE[0]}" backup "${item}" </dev/null &
+        child_pid=$!
+        set +m
+        # Replay cancellation received between fork and PID registration.
+        if [[ -n "${batch_signal}" ]]; then forward_signal "${batch_signal}" "${batch_cancel}"; fi
+        wait "${child_pid}" || child_rc=$?
+        # A still-present (unreaped) child means a forwarded signal interrupted the wait.
+        if kill -0 "${child_pid}" 2>/dev/null; then
+            trap '' INT TERM
+            child_rc=0
+            wait "${child_pid}" || child_rc=$?
+        fi
+        child_pid=""
+        if (( child_rc == 0 )); then
+            succeeded=$((succeeded + 1))
+            continue
+        fi
+        failed+=("${item}(exit ${child_rc})")
+        if (( batch_rc == 0 )); then batch_rc="${child_rc}"; fi
+        # A business that exits 130/143 was cancelled directly; stop like a batch cancellation.
+        if (( batch_cancel == 0 && (child_rc == 130 || child_rc == 143) )); then batch_cancel="${child_rc}"; fi
+    done
+    if (( batch_cancel )); then
+        remaining="${businesses[*]:${business_index}}"
+        printf 'ERROR: Batch cancelled (exit %s); not run: %s\n' "${batch_cancel}" "${remaining:-none}" >&2
+        exit "${batch_cancel}"
+    fi
+    if (( ${#failed[@]} )); then
+        printf 'ERROR: Batch finished with failures: %s/%s completed; failed: %s\n' "${succeeded}" "${#businesses[@]}" "${failed[*]}" >&2
+        exit "${batch_rc}"
+    fi
+    printf 'Batch completed: %s/%s businesses backed up.\n' "${succeeded}" "${#businesses[@]}"
+    exit 0
 fi
-business_index=0
 for business in "${businesses[@]}"; do
-    business_index=$((business_index + 1))
     containers=(); sources=(); clean_exit=(); volume_mount=(); backup_options=()
     require_stopped=false
     running=(); stopping=0; metadata_dir=""
@@ -87,7 +145,6 @@ for business in "${businesses[@]}"; do
     trap 'cleanup "$?"' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
-    printf 'Backup progress %s/%s: %s\n' "${business_index}" "${#businesses[@]}" "${business}"
     # Containers are in start order; stop in reverse order.
     case "${business}" in
         xiaozhi)
@@ -168,6 +225,7 @@ for business in "${businesses[@]}"; do
     set -m
     "${client_bin}" backup "${sources[@]}" "metadata.pxar:${metadata_dir}" \
         --backup-type host --backup-id "gateway-${business}" --crypt-mode none \
+        --change-detection-mode=metadata \
         "${backup_options[@]}" </dev/null &
     backup_pid=$!
     set +m
