@@ -8,6 +8,7 @@ umask 077
 export PBS_REPOSITORY="${PBS_REPOSITORY:-}"
 # Export PBS_FINGERPRINT when the server certificate needs explicit trust.
 # The controller supplies the secret in PBS_PASSWORD; never store it in this file.
+# Absolute path: controller SSH sessions do not have /mnt/data on PATH.
 client_bin=/mnt/data/gateway-backup/bin/proxmox-backup-client
 stop_timeout=60
 lock_dir=/var/lock
@@ -19,8 +20,8 @@ if [[ $# != 2 || "$1" != backup ]]; then
 fi
 business="$2"
 case "${business}" in
-    all) businesses=(xiaozhi hermes open-webui codex-proxy cn-proxy youtube-mcp);;
-    xiaozhi|hermes|open-webui|codex-proxy|cn-proxy|youtube-mcp|qnetd-witness) businesses=("${business}");;
+    all) businesses=(xiaozhi hermes open-webui codex-proxy cn-proxy);;
+    xiaozhi|hermes|open-webui|codex-proxy|cn-proxy|qnetd-witness) businesses=("${business}");;
     *) die "Unknown business: ${business}";;
 esac
 # Set only by the all batch for each business it runs; the child reuses the batch lock.
@@ -83,7 +84,7 @@ cancel_backup() {
 }
 
 if [[ "${business}" == all ]]; then
-    printf 'Batch order: xiaozhi -> hermes -> open-webui -> codex-proxy -> cn-proxy -> youtube-mcp.\n'
+    printf 'Batch order: xiaozhi -> hermes -> open-webui -> codex-proxy -> cn-proxy.\n'
     printf 'qnetd-witness is excluded from all; invoke it separately after approved quorum maintenance shutdown.\n'
     printf 'A failed business does not stop the batch; INT/TERM cancels the current business and stops the batch.\n'
     # Each business runs as its own single-business invocation, so a failure there
@@ -170,10 +171,6 @@ for business in "${businesses[@]}"; do
         cn-proxy)
             containers=(cn-proxy)
             sources=(cn-proxy.pxar:/etc/sing-box)
-            ;;
-        youtube-mcp)
-            containers=(youtube-mcp-youtube-mcp-1)
-            sources=(youtube-mcp.pxar:/mnt/data/xiaozhi/youtube-mcp)
             ;;
         qnetd-witness)
             containers=(qnetd-witness)
