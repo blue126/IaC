@@ -3,6 +3,10 @@
 set -euo pipefail
 while read -r _old new ref; do
   if [[ "${ref}" == "refs/heads/{{ item.branch }}" ]]; then
+{% if item.run_lock is defined %}
+    exec 8>>"{{ item.run_lock }}"
+    flock --wait 600 8 || { echo "wsctl is still running; {{ item.name }} was not checked out" >&2; exit 1; }
+{% endif %}
     git --git-dir="{{ remotecc_ops_git_root }}/{{ item.name }}.git" --work-tree="{{ item.work_tree }}" checkout -f "{{ item.branch }}"
     echo "deployed {{ item.name }} ${new}"
   fi

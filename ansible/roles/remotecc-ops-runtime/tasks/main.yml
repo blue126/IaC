@@ -18,6 +18,7 @@
     - "terraform-{{ remotecc_ops_terraform_version }}"
     - "uv-{{ remotecc_ops_uv_version }}"
     - "bws-{{ remotecc_ops_bws_version }}"
+    - "hugo-{{ remotecc_ops_hugo_version }}"
 
 # Each archive is verified against its pinned checksum before it is unpacked.
 - name: Download pinned tool archives
@@ -38,6 +39,9 @@
     - url: "https://github.com/bitwarden/sdk-sm/releases/download/bws-v{{ remotecc_ops_bws_version }}/bws-x86_64-unknown-linux-gnu-{{ remotecc_ops_bws_version }}.zip"
       archive: "bws-{{ remotecc_ops_bws_version }}.zip"
       sha256: "{{ remotecc_ops_bws_sha256 }}"
+    - url: "https://github.com/gohugoio/hugo/releases/download/v{{ remotecc_ops_hugo_version }}/hugo_extended_{{ remotecc_ops_hugo_version }}_linux-amd64.tar.gz"
+      archive: "hugo-{{ remotecc_ops_hugo_version }}.tar.gz"
+      sha256: "{{ remotecc_ops_hugo_sha256 }}"
 
 - name: Unpack pinned tools
   ansible.builtin.unarchive:
@@ -46,10 +50,13 @@
     remote_src: true
     extra_opts: "{{ item.extra_opts }}"
     creates: "/usr/local/lib/ws-executor/{{ item.dir }}/{{ item.binary }}"
+  # A check run does not create the directory of a newly pinned version.
+  ignore_errors: "{{ ansible_check_mode }}"
   loop:
     - {archive: "terraform-{{ remotecc_ops_terraform_version }}.zip", dir: "terraform-{{ remotecc_ops_terraform_version }}", binary: terraform, extra_opts: []}
     - {archive: "uv-{{ remotecc_ops_uv_version }}.tar.gz", dir: "uv-{{ remotecc_ops_uv_version }}", binary: uv, extra_opts: [--strip-components=1]}
     - {archive: "bws-{{ remotecc_ops_bws_version }}.zip", dir: "bws-{{ remotecc_ops_bws_version }}", binary: bws, extra_opts: []}
+    - {archive: "hugo-{{ remotecc_ops_hugo_version }}.tar.gz", dir: "hugo-{{ remotecc_ops_hugo_version }}", binary: hugo, extra_opts: []}
 
 - name: Link pinned tools onto PATH
   ansible.builtin.file:
@@ -61,6 +68,7 @@
     - {dir: "terraform-{{ remotecc_ops_terraform_version }}", binary: terraform}
     - {dir: "uv-{{ remotecc_ops_uv_version }}", binary: uv}
     - {dir: "bws-{{ remotecc_ops_bws_version }}", binary: bws}
+    - {dir: "hugo-{{ remotecc_ops_hugo_version }}", binary: hugo}
 
 # A host deployed before the rename keeps its work tree and history by moving them.
 - name: Move the former source tree and bare repository to their new names
@@ -109,6 +117,34 @@
     group: root
     mode: "0700"
   loop: "{{ remotecc_ops_repositories }}"
+
+- name: Deploy pre-receive run-lock hooks
+  ansible.builtin.template:
+    src: pre-receive.j2
+    dest: "{{ remotecc_ops_git_root }}/{{ item.name }}.git/hooks/pre-receive"
+    owner: root
+    group: root
+    mode: "0700"
+  loop: "{{ remotecc_ops_repositories | selectattr('run_lock', 'defined') }}"
+
+# The per-component bare repositories stay as history; a push there is refused, not silently dropped.
+- name: Remove checkout hooks of the former repositories
+  ansible.builtin.file:
+    path: "{{ remotecc_ops_git_root }}/{{ item }}.git/hooks/post-receive"
+    state: absent
+  loop: [wsctl, apply-site]
+
+- name: Refuse pushes to the former repositories
+  ansible.builtin.copy:
+    dest: "{{ remotecc_ops_git_root }}/{{ item }}.git/hooks/pre-receive"
+    content: |
+      #!/bin/bash
+      echo "{{ item }}.git is retired; push to {{ remotecc_ops_git_root }}/remotecc.git" >&2
+      exit 1
+    owner: root
+    group: root
+    mode: "0700"
+  loop: [wsctl, apply-site]
 
 - name: Check whether the IaC checkout has been pushed
   ansible.builtin.stat:

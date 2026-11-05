@@ -5,17 +5,19 @@
 员工当前操作以[执行器上的wsctl约定](../deployment/oci-hub-native-provisioning.md)为准。HAPI 已随开户默认开通；早期独立开户方案已撤回，`hapi-admin`原型及`hapi-data`运维材料继续保留，历史绑定见[HAPI管理员运行绑定](../guides/hapi-admin-runtime.md)。HAPI与WireGuard面向同一员工VM；旧独立执行器不能重新用于开户。现有服务部署不等于新员工完整交付已验收。
 
 ```text
-IaC/remotecc/
-├── apply-site/       # 独立私有 Git：员工网站（Cloudflare Worker + D1），部署见 wsctl apply-site
-├── wsctl/   # 独立私有 Git：管理员源码开发副本
-├── employee-data/    # Mac 员工运行副本：只读、可能过期
-├── hapi-admin/       # 撤回的独立 HAPI 开户原型：历史源码
-└── hapi-data/        # 不入 Git：HAPI 服务运维材料与回执
+IaC/remotecc/             # 一个私有 Git 仓库，下面的组件都不是独立仓库
+├── apply-site/           # 员工网站（Cloudflare Worker + D1），部署见 wsctl apply-site
+├── design/               # 网站和文档共用的文案、配色和字体
+├── docs/                 # 员工文档站（Hugo），发布到 cc.willfan.me/docs/
+├── employee-miniprogram/ # 员工小程序
+├── wsctl/                # 管理员工具
+├── employee-data/        # 不入 Git：Mac 员工运行副本，只读、可能过期
+└── hapi-data/            # 不入 Git：HAPI 服务运维材料与回执
 ```
 
 ## 版本与 main 的关系
 
-- 私有代码使用独立的本地 Git；当前没有 GitHub 远端。它的提交和分支与公开 IaC 无关。
+- 私有代码是一个 Git 仓库，根目录就是 `remotecc/`，唯一远端是执行器的 `/srv/git/remotecc.git`，没有 GitHub 远端。它的提交和分支与公开 IaC 无关。一次推送更新全部组件，检出到执行器的 `/srv/remotecc`，运行数据和被忽略的文件不受影响。
 - `employee-data/` 不进入任何 Git，继续使用私有备份。设备密钥的权威来源仍是 BWS；本地机器令牌和加密授权缓存保留在数据目录。
 - 公开 IaC 只提交忽略规则、接口约定和本说明。这些文件通过正常 PR 合入 `main`。
 - 私有文件无需“合并回 IaC main”：实体已经位于主检出下，切换或清理 linked worktree 不会移动它。不得为同步私有内容而临时提交到公开分支。

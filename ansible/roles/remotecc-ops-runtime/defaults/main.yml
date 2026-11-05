@@ -6,6 +6,8 @@ remotecc_ops_uv_version: "0.12.23"
 remotecc_ops_uv_sha256: 9167d72b3319674b6303c4cbe071854bba13ebdf3d76b1a7cbdc175471fb66d6
 remotecc_ops_bws_version: "2.1.0"
 remotecc_ops_bws_sha256: ba8233c3a4aee5d43e3c73bbd04d99e9bc5aba13bbbfd06d89b073abe732b860
+remotecc_ops_hugo_version: "0.169.0"
+remotecc_ops_hugo_sha256: c41672a0725d307758a132bc94a962e59760eb33f9ba08c991b81f9881d6fa7d
 
 # Runtime layout on the executor VM.
 remotecc_ops_git_root: /srv/git
@@ -15,9 +17,11 @@ remotecc_ops_iac_root: /srv/iac
 # Bare repositories pushed from the administrator's machine and the
 # work tree each one checks out on push.
 remotecc_ops_repositories:
-  - name: wsctl
-    work_tree: /srv/remotecc/wsctl
+  - name: remotecc
+    work_tree: /srv/remotecc
     branch: main
+    # A push is refused while wsctl runs, so it cannot swap its code mid-run.
+    run_lock: /run/wsctl.lock
   - name: iac
     work_tree: /srv/iac
     branch: main
