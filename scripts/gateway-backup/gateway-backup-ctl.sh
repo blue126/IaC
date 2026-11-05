@@ -1,11 +1,11 @@
 #!/bin/bash
 # Controller entry for the gateway batch backup: start it detached, report it, cancel it.
 # Install as a Dropbear forced command so the controller key can do nothing else:
-#   command="/opt/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
+#   command="/mnt/data/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
 set -eo pipefail
 umask 077
 
-backup_dir=/opt/gateway-backup
+backup_dir=/mnt/data/gateway-backup
 backup_script="${backup_dir}/gateway-backup.sh"
 runs_dir="${backup_dir}/runs"
 # Must be the lock file used by gateway-backup.sh (its lock_dir plus gateway-backup.lock).

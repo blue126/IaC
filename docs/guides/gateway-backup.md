@@ -2,15 +2,22 @@
 
 `scripts/gateway-backup/gateway-backup.sh backup all` 由脚本顺序执行六项常规业务，外部控制器只需调用一次。每项记录原运行状态，按依赖顺序停服，直接调用官方 `proxmox-backup-client backup`，最后尝试启动原先运行的容器并清理临时元数据。某项失败时，该项仍完成自己的启动尝试和清理，批次随后继续下一项；收到 INT/TERM 时取消当前项并停止整批。保留 `backup <business>` 单业务入口。按用户要求，业务数据生成未加密的原生 pxar 归档，明确使用 `--crypt-mode none`；停机时间包含整个上传过程。PBS 登录认证和 HTTPS 传输保留。
 
-**当前状态（2026-10-09）：脚本和官方静态 PBS 客户端 4.2.6 已部署到网关；小智真实备份已验证成功，用户随后反馈已完成一次全部容器备份。恢复演练按用户决定暂缓，尚未验证恢复后的应用可用性。** 后续人工执行真实停服前仍需先通知用户业务影响和恢复安排。
+**当前状态（2026-11-05 只读核对网关）：脚本、控制器和官方静态 PBS 客户端（2026-10-09 记录版本 4.2.6）都部署在 `/mnt/data/gateway-backup/`，备份由 Home Assistant 经 Dropbear 强制命令触发。小智真实备份已验证成功，用户随后反馈已完成一次全部容器备份。恢复演练按用户决定暂缓，尚未验证恢复后的应用可用性。** 后续人工执行真实停服前仍需先通知用户业务影响和恢复安排。
 
-**待部署的变更：** 本文描述的失败后继续、metadata 变更检测和[控制器接口](#控制器接口)只完成了离线验证，尚未部署。在重新部署前，网关上运行的仍是 2026-10-09 的版本：任一业务失败即停止队列，每次完整读取全部文件，也没有 `gateway-backup-ctl.sh`。部署需用户另行授权。
+**线上与仓库的差异：** 本文描述的是仓库版本，线上版本的情况如下。把仓库版本部署到网关需用户另行授权。
+
+| 项目 | 线上情况（2026-11-05） |
+| --- | --- |
+| `gateway-backup.sh` | 2026-10-12 更新，sha256 为 `60c267ac586be7b72ae0f0b4f7ba5adbd767563ca3a33af715fdb3528204bf13`；与仓库提交 `9690427`、`bf84c26` 的版本都不同，把 `client_bin` 换成线上路径后仍不同 |
+| metadata 变更检测 | 2026-10 已上线，线上脚本已使用 `--change-detection-mode=metadata` |
+| [控制器](#控制器接口) `gateway-backup-ctl.sh` | 2026-10 已上线，线上文件日期为 2026-10-06；仓库版本 2026-11-05 才提交，两者内容是否一致待核对 |
+| 失败后继续 | **待核对**：线上脚本与仓库版本不同，不能从仓库推断，需在网关上比对 |
 
 2026-10-06 小智实测生成快照 `host/gateway-xiaozhi/2026-10-06T01:15:46Z`，四份业务/元数据归档的 `crypt-mode` 均为 `none`。全流程约 129 秒，客户端上传约 1.83 秒；结束后五个容器均运行，MySQL/Redis 健康，Web 返回 HTTP 200，其他业务保持运行。MQTT 网关停止超时后被 Docker 强制结束，退出慢的问题暂未修改。2026-10-09 用户反馈的全业务结果尚未逐项独立复核；`backup all` 仍按下文规则排除 qnetd。
 
-实际仓库为 `backup@pbs!automation@192.168.1.249:backup`。2026-10-06 已将该账号和 Token 的原有三条 ACL 从 `/datastore/backup-storage` 迁移到 `/datastore/backup`，保留原角色和继承设置，认证与真实备份均成功。Token 仍保存在 Ansible Vault 的 `vault_pbs_api_token_value`，运行时通过 `PBS_PASSWORD` 注入。控制器定时调用、失败通知及 PBS 保留/校验任务是否已配置，本次收尾未核验。
+实际仓库为 `backup@pbs!automation@192.168.1.249:backup`。2026-10-06 已将该账号和 Token 的原有三条 ACL 从 `/datastore/backup-storage` 迁移到 `/datastore/backup`，保留原角色和继承设置，认证与真实备份均成功。Token 仍保存在 Ansible Vault 的 `vault_pbs_api_token_value`，运行时通过 `PBS_PASSWORD` 注入。控制器的定时计划、失败通知及 PBS 保留/校验任务是否已配置，尚未核验。
 
-网关已部署脚本 `/opt/gateway-backup/gateway-backup.sh`，客户端位于 `/usr/bin/proxmox-backup-client`；公共参数和业务清单都在脚本内，PBS Token 由控制器运行时注入。当前脚本覆盖下面列出的 Docker 业务，**尚未包含 OpenWrt 系统配置、固件和额外安装的软件包**。
+网关已部署脚本 `/mnt/data/gateway-backup/gateway-backup.sh`，客户端位于 `/mnt/data/gateway-backup/bin/proxmox-backup-client`。以下描述仓库版本，线上脚本与它不同，业务范围和 Token 注入方式待核对：公共参数和业务清单都在脚本内，PBS Token 由控制器运行时注入；脚本覆盖下面列出的 Docker 业务，**尚未包含 OpenWrt 系统配置、固件和额外安装的软件包**。
 
 ## OpenWrt 备份是否覆盖容器
 
@@ -105,7 +112,7 @@ CN Proxy 的 Tailscale 身份位于 `/etc/sing-box/ts-state`，依据见 [CN 出
 
 在数据所在的 Linux 网关运行，使用其本地 Docker daemon、已有 Bash、Docker、flock、xargs 和官方 PBS 客户端。脚本清除 `DOCKER_CONTEXT`，固定 `DOCKER_HOST=unix:///var/run/docker.sock`，确保容器与数据来自同一主机。以能读取全部业务文件和 Docker 卷的 root 身份执行。依赖安装和凭证下发需先获授权。
 
-[脚本](../../scripts/gateway-backup/gateway-backup.sh) 顶部集中放置客户端路径、停服等待时间、共享锁目录和 PBS 仓库参数；业务容器和来源目录在同一文件的 `case` 中维护。客户端默认从 PATH 查找，也可将 `client_bin` 改为实际安装路径。只允许可信管理员修改脚本。
+[脚本](../../scripts/gateway-backup/gateway-backup.sh) 顶部集中放置客户端路径、停服等待时间、共享锁目录和 PBS 仓库参数；业务容器和来源目录在同一文件的 `case` 中维护。`client_bin` 固定为网关上的实际路径 `/mnt/data/gateway-backup/bin/proxmox-backup-client`，该客户端不在 PATH 中；客户端换位置时同步修改这一行。只允许可信管理员修改脚本。
 
 外部控制器在运行时导出 `PBS_REPOSITORY`（格式 `user@realm!token@server:datastore`）和 `PBS_PASSWORD`（PBS 登录 Token）；服务器证书需要显式信任时，再导出 `PBS_FINGERPRINT`。仓库地址也可直接写入脚本顶部。Token 从 [Ansible Vault](../architecture/ansible-vault-architecture.md) 取得，通过进程环境注入，无需落地配置或凭据文件，也不要写入脚本或命令历史。每次备份明确使用 `--crypt-mode none`，无需加密密钥或密钥口令。
 
@@ -119,7 +126,7 @@ CN Proxy 的 Tailscale 身份位于 `/etc/sing-box/ts-state`，依据见 [CN 出
 
 操作者还需核对各来源目录中的原生 `.pxarexclude` 规则和内部挂载点。必要的内部挂载点应显式加入脚本对应业务的 `sources`，或通过原生 `--include-dev` 纳入。保留小智的 `--exclude /youtube-mcp` 隔离边界，逐项核对排除和重新包含规则，避免用宽泛规则改变独立业务的备份范围。
 
-以下为交给外部控制器的调用（仓库内示例路径；网关使用 `/opt/gateway-backup/gateway-backup.sh`）：
+以下为交给外部控制器的调用（仓库内示例路径；网关使用 `/mnt/data/gateway-backup/gateway-backup.sh`）：
 
 ```bash
 bash scripts/gateway-backup/gateway-backup.sh backup all
@@ -150,7 +157,7 @@ Home Assistant 等外部控制器不直接执行 `gateway-backup.sh`，而是经
 | `cancel <run_id>` | 向批次进程发送 TERM：当前业务中止上传、恢复原容器，随后整批退出（`143`） | `cancelling`；这一轮已结束时输出同 `status` |
 
 - run_id 为 1–64 位字母、数字、`.`、`_`、`-`，以字母或数字开头。每轮使用新的 run_id，不可复用。
-- 每轮记录写入 `/opt/gateway-backup/runs/<run_id>/`（目录权限 `700`）：`runner.pid`、`pid`（批次进程）、`started`、`finished`、`exit` 和 `log`。token 只经环境变量传给批次，不写入这些文件，也不出现在任何进程的命令行。脚本不清理旧记录。
+- 每轮记录写入 `/mnt/data/gateway-backup/runs/<run_id>/`（目录权限 `700`）：`runner.pid`、`pid`（批次进程）、`started`、`finished`、`exit` 和 `log`。token 只经环境变量传给批次，不写入这些文件，也不出现在任何进程的命令行。脚本不清理旧记录。
 - 一轮的所有进程都持有 `runs/.active.lock`，直到最后一个进程退出；这期间新的 `start` 会被拒绝。手动运行持有脚本自身的批次锁时，`start` 同样会被拒绝。
 - `unknown` 表示既没有存活进程，也没有记录退出码，例如网关在备份中途重启。控制器应按失败处理，并人工核对各业务容器的状态。
 - 退出码：`0` 成功，`2` 用法或输入错误（含空 token），`3` 忙碌或 run_id 已用过，`1` 其他错误。
@@ -159,29 +166,29 @@ Home Assistant 等外部控制器不直接执行 `gateway-backup.sh`，而是经
 
 ### 网关部署
 
-**控制器尚未部署。下面每一步都会改动网关或 Home Assistant，必须先逐条取得用户授权。** 目录沿用已记录的部署位置，部署前需核对网关实际路径：
+**控制器 2026-10 已上线，下面的目录是 2026-11-05 只读核对到的实际布局。再次改动网关或 Home Assistant，都必须先逐条取得用户授权。** `/mnt/data` 是独立的 ext4 分区 `/dev/nvme0n1p4`（230G）：
 
 ```text
-/opt/gateway-backup/
+/mnt/data/gateway-backup/
 ├── gateway-backup.sh
 ├── gateway-backup-ctl.sh       # 需可执行：forced command 直接运行它
+├── bin/proxmox-backup-client   # 不在 PATH 中，由 client_bin 指定
 └── runs/                       # 每轮记录，由 ctl 脚本创建
-/usr/bin/proxmox-backup-client  # Dropbear 会话的 PATH 需包含 /usr/bin
 ```
 
-ctl 脚本依赖 `/bin/bash`（4.4 及以上，用到 `mapfile -d`）、`setsid`、`flock` 和 `/proc`。网关上的 `setsid` 和 Bash 版本尚未核对。
+ctl 脚本依赖 `/bin/bash`（4.4 及以上，用到 `mapfile -d`）、`setsid`、`flock` 和 `/proc`。2026-11-05 核对：网关 Bash 为 5.2.37，`setsid` 和 `flock` 由 BusyBox 提供（`/usr/bin/setsid`、`/usr/bin/flock`），因此 Dropbear 会话的 PATH 需包含 `/usr/bin`。
 
-OpenWrt 的 root 授权公钥在 `/etc/dropbear/authorized_keys`。为控制器单独生成一把密钥，在该文件中加入下面一整行，这把密钥就只能执行上述三个动作：
+OpenWrt 的 root 授权公钥在 `/etc/dropbear/authorized_keys`。仓库版本的设计是为控制器单独使用一把密钥，在该文件中对应下面一整行，这把密钥就只能执行上述三个动作。线上这一行的实际内容、密钥是否专用待核对：
 
 ```text
-command="/opt/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
+command="/mnt/data/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
 ```
 
-Dropbear 把客户端请求的命令放在 `SSH_ORIGINAL_COMMAND` 中；ctl 脚本只接受 `<动作> <run_id>` 形式，拒绝 shell 语法、多余参数和内部动作。`/etc/dropbear` 位于 overlay，系统升级后应核对这一行仍在；`/opt/gateway-backup` 和客户端是否保留同样需要核对，它们不在 `/mnt/data` 上。
+Dropbear 把客户端请求的命令放在 `SSH_ORIGINAL_COMMAND` 中；ctl 脚本只接受 `<动作> <run_id>` 形式，拒绝 shell 语法、多余参数和内部动作。`/etc/dropbear` 位于 overlay，系统升级后应核对这一行仍在。脚本、客户端和运行记录都在 `/mnt/data` 上，不在 overlay 上；这个目录不属于任何业务归档，也不在 2026-10-03 核对的 sysupgrade 清单内，上述两种备份都不覆盖它。
 
 ### Home Assistant 侧
 
-[`ha-gateway-backup.sh`](../../scripts/gateway-backup/ha-gateway-backup.sh) 放在 HA 的 `/config/scripts/`。HA 的 `shell_command` 一旦使用模板就不经过 shell，无法重定向，所以由这个辅助脚本把 token 文件接到 SSH 的标准输入。它在调用 SSH 前校验动作和 run_id，并固定使用 `BatchMode` 和 `StrictHostKeyChecking=yes`。
+下面描述仓库中的 HA 辅助脚本；线上 HA 实际使用的脚本和文件布局待核对。[`ha-gateway-backup.sh`](../../scripts/gateway-backup/ha-gateway-backup.sh) 放在 HA 的 `/config/scripts/`。HA 的 `shell_command` 一旦使用模板就不经过 shell，无法重定向，所以由这个辅助脚本把 token 文件接到 SSH 的标准输入。它在调用 SSH 前校验动作和 run_id，并固定使用 `BatchMode` 和 `StrictHostKeyChecking=yes`。
 
 | 文件 | 内容 |
 | --- | --- |
@@ -189,7 +196,7 @@ Dropbear 把客户端请求的命令放在 `SSH_ORIGINAL_COMMAND` 中；ctl 脚�
 | `/config/.ssh/gateway_backup_known_hosts` | 网关主机公钥；首次用 `ssh-keyscan` 获取后人工核对指纹 |
 | `/config/.secrets/gateway_backup_pbs_token` | PBS API token 的 secret，单独一行，权限 `600` |
 
-这条路线会在 HA 磁盘上保留一份 Vault 中 PBS token 的明文副本，这两个文件也可能进入 HA 自身的备份。网关上 token 仍不落盘。采用前需由用户确认接受，并核对 HA 备份的存放位置。
+这条路线会在 HA 磁盘上保留一份 Vault 中 PBS token 的明文副本，这两个文件也可能进入 HA 自身的备份。网关上 token 仍不落盘。线上是否采用这条路线待核对；如已采用，需由用户确认接受，并核对 HA 备份的存放位置。
 
 ```yaml
 shell_command:

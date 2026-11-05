@@ -177,7 +177,6 @@ PY
 chmod +x "${BACKUP_TEST_ROOT}/bin/fixture-command"
 ln -s fixture-command "${BACKUP_TEST_ROOT}/bin/docker"
 ln -s fixture-command "${BACKUP_TEST_ROOT}/bin/flock"
-ln -s fixture-command "${BACKUP_TEST_ROOT}/bin/proxmox-backup-client"
 ln -s fixture-command "${BACKUP_TEST_ROOT}/bin/rm"
 
 python3 - <<'PY'
@@ -195,6 +194,7 @@ businesses = {
     'youtube-mcp': (['youtube-mcp-youtube-mcp-1'], [('youtube-mcp', '/mnt/data/xiaozhi/youtube-mcp')]),
 }
 batch = ['xiaozhi', 'hermes', 'open-webui', 'codex-proxy', 'cn-proxy', 'youtube-mcp']
+client_path = '/mnt/data/gateway-backup/bin/proxmox-backup-client'
 cases = 0
 
 def rebase(r, path):
@@ -211,11 +211,16 @@ def fixture(business, stopped=()):
     for volume in ('redis-volume-data', 'hermes-volume-data'): (r / volume).mkdir()
     script = (repo / 'scripts/gateway-backup/gateway-backup.sh').read_text()
     assert script.count('lock_dir=/var/lock\n') == 1
+    # The client is deliberately absent from PATH: only the configured absolute path may reach it.
+    assert script.count(f'client_bin={client_path}\n') == 1
     script = script.replace('lock_dir=/var/lock\n', f'lock_dir={shlex.quote(str(r / "locks"))}\n')
     (r / 'cli/gateway-backup.sh').write_text(rebase(r, script))
     assert {p.name for p in (r / 'cli').iterdir()} == {'gateway-backup.sh'}
     for _, paths in businesses.values():
         for _, path in paths: pathlib.Path(rebase(r, path)).mkdir(parents=True, exist_ok=True)
+    client = pathlib.Path(rebase(r, client_path))
+    client.parent.mkdir(parents=True)
+    client.symlink_to(root / 'bin/fixture-command')
     (r / 'sing-box/ts-state').mkdir()
     (r / 'sing-box/ts-state/identity').write_text('fictional identity')
     (r / 'data/xiaozhi/youtube-mcp/independent-data').write_text('fictional youtube data')

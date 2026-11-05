@@ -8,7 +8,7 @@ umask 077
 export PBS_REPOSITORY="${PBS_REPOSITORY:-}"
 # Export PBS_FINGERPRINT when the server certificate needs explicit trust.
 # The controller supplies the secret in PBS_PASSWORD; never store it in this file.
-client_bin=proxmox-backup-client
+client_bin=/mnt/data/gateway-backup/bin/proxmox-backup-client
 stop_timeout=60
 lock_dir=/var/lock
 
