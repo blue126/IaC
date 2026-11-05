@@ -176,11 +176,11 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 | `POST /_workspace/login/api/login/start` | 验证本人会话、同源和CSRF后转发 | `POST /api/login/start` |
 | `POST /_workspace/login/api/login/code` | 有界JSON正文，仅瞬时转发 | `POST /api/login/code` |
 | `POST /_workspace/login/api/login/cancel` | 取消本人在途流程 | `POST /api/login/cancel` |
-| `WSS /_workspace/login/websockify` | 验证身份和Origin，绑定本人VM及路由代次 | 经执行服务的`/websockify`到本机6081 |
+| `WSS /_workspace/login/websockify` | 验证身份和Origin，绑定本人VM及路由代次 | 经VM的9443入口到本机KasmVNC |
 
 控制面到VM走第5节受限TLS服务入口，核验VM服务器身份，由VM验证控制面客户端身份。目标只来自受控登记，不信任请求中的主机名／VMID。员工VM仅接收固定接口及控制通道，不获得其他员工路由或管理员权限。内部后端连接的固定Host／Origin及服务认证规则必须在拆分时明确配置和验证，不能靠关闭校验使其工作。
 
-公共边界保留精确Host、Origin、与当前身份会话绑定的CSRF校验、CSP和WebSocket校验；当前单进程页面随机码不是统一多用户会话机制，不能直接共享为所有员工的授权依据。noVNC导入、API及WebSocket地址使用统一`/_workspace/login`前缀；返回HAPI地址由受控配置指定。页面不接受任意返回站点或后端地址。
+公共边界保留精确Host、Origin、与当前身份会话绑定的CSRF校验、CSP和WebSocket校验；当前单进程页面随机码不是统一多用户会话机制，不能直接共享为所有员工的授权依据。Kasm客户端、API及WebSocket地址使用统一`/_workspace/login`前缀；返回HAPI地址由受控配置指定。页面不接受任意返回站点或后端地址。
 
 控制面会短暂处理授权码和转发浏览器画面，因此属于受信任的敏感服务；授权码不进入日志、跟踪、错误正文、持久化队列或自动重试缓冲，相关动态响应禁缓存。长期个人凭据仍仅留本人VM。账号切换、暂停或路由代次变更时关闭旧控制连接；共享静态资源不携带个人状态。
 
@@ -204,7 +204,7 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 
 ### 6.4 接入时必须补的验证
 
-既有32项本地回归和VM502部署证据只证明原组合组件，本轮未重跑这些测试。推广前须验证拆分后的内部接口认证、TLS身份、控制面重启及请求结果不明的恢复、授权码不落日志／缓存、base path、noVNC模块路径、VM502旧组合部署兼容、精确Host／Origin／CSRF／CSP、真实RFB及两员工间的start／code／cancel／控制连接归属。还须验证员工VM不能访问控制面管理能力或其他VM；控制面失效时已有VM任务继续运行，个人授权流程由VM超时收敛，恢复后重新核验身份再接续。最终以新VM无个人认证、无既存Claude会话的真实首次授权验证闭环，保留手工码、取消和超时证据，不用VM502已有登录状态代替。
+既有32项本地回归和VM502部署证据只证明原组合组件，本轮未重跑这些测试。推广前须验证拆分后的内部接口认证、TLS身份、控制面重启及请求结果不明的恢复、授权码不落日志／缓存、base path、Kasm客户端路径、VM502旧组合部署兼容、精确Host／Origin／CSRF／CSP、真实RFB及两员工间的start／code／cancel／控制连接归属。还须验证员工VM不能访问控制面管理能力或其他VM；控制面失效时已有VM任务继续运行，个人授权流程由VM超时收敛，恢复后重新核验身份再接续。最终以新VM无个人认证、无既存Claude会话的真实首次授权验证闭环，保留手工码、取消和超时证据，不用VM502已有登录状态代替。
 
 接入交接应包含：实际源提交或快照摘要、逐组件文件及校验和、支持的路径／origin配置、依赖基线、状态接口、停止／回退方式及测试记录。源码集成、参数化实现、部署和Cloudflare切换按各自获批范围执行；设计更新不等于已将侧聊源码合入当前分支。
 

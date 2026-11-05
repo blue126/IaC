@@ -22,16 +22,6 @@
     mode: '0755'
   notify: Restart HAPI control authentication
 
-# The login page's viewer must match the employee desktops it connects to.
-- name: Install the current login page assets
-  ansible.builtin.copy:
-    src: '{{ role_path }}/../hapi-control-plane/files/hapi-login-portal/'
-    dest: /usr/local/lib/hapi-login-portal/
-    owner: root
-    group: root
-    mode: '0644'
-    directory_mode: '0755'
-
 - name: Download the verified KasmVNC package for its web client
   ansible.builtin.get_url:
     url: https://github.com/kasmtech/KasmVNC/releases/download/v1.5.0/kasmvncserver_noble_1.5.0_amd64.deb
@@ -102,6 +92,13 @@
     hapi_control_plane_origin: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).origin }}'
     hapi_control_plane_shared_hub: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).shared_hub }}'
 
+# A reload with a bad file keeps the old routes and still reports success. Tested as the proxy
+# user: nginx run as root would hand its temp paths under /run to the default nginx user.
+- name: Test the control proxy configuration
+  ansible.builtin.command:
+    argv: [/usr/sbin/runuser, -u, hapi-proxy, --, /usr/sbin/nginx, -t, -c, /etc/hapi-control-plane/nginx.conf, -p, /run/hapi-control-proxy/]
+  changed_when: false
+
 - name: Render the shared Hub transport for every worker
   ansible.builtin.template:
     src: '{{ role_path }}/../hapi-shared-hub/templates/nginx.conf.j2'
@@ -123,3 +120,14 @@
     state: reloaded
   loop: [hapi-control-proxy, hapi-hub-transport]
   changed_when: false
+
+# Last: the page needs the client and the route above, so a run that fails earlier leaves the
+# previous page and route working together.
+- name: Install the current login page assets
+  ansible.builtin.copy:
+    src: '{{ role_path }}/../hapi-control-plane/files/hapi-login-portal/'
+    dest: /usr/local/lib/hapi-login-portal/
+    owner: root
+    group: root
+    mode: '0644'
+    directory_mode: '0755'

@@ -48,9 +48,9 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 
 `probe-live-shared-hub.mjs <private-application-plan>`在任务Sandbox经两个真实worker路径对编译的隔离Hub执行7项回归：实际资源隔离、Runner WS／HTTP polling、终端、跨租户RPC覆盖及既有Runner／终端／SSE撤销，保留另一worker。临时测试不使用生产数据，结束恢复原登记并关闭本次连接；最终迁移另有20项真实历史数据、网关／Runner及签名隔离检查，不能将隔离测试报告当作已切换的证据。
 
-浏览器模拟回归还打开集中登录页面、提交模拟码并返回HAPI，验证身份变化后旧画面清理。浏览器RFB模块是测试替身，不能代替真实Firefox图形操作；协议套件的websockify是真实进程，RFB端点仍为合成服务。
+浏览器模拟回归还打开集中登录页面、提交模拟码并返回HAPI，验证身份变化后旧画面清理。浏览器里的Kasm客户端是测试替身，不能代替真实Firefox图形操作；协议套件的websockify是真实进程，RFB端点仍为合成服务。
 
-角色验证不会自动开始个人授权；新VM须有经批准的Firefox／Claude基线和浏览器管理权限。noVNC资源仅在控制面，VM的websockify不再提供静态目录；不将个人OAuth或浏览器profile复制到模板。
+角色验证不会自动开始个人授权；新VM须有经批准的Firefox／Claude基线和浏览器管理权限。Kasm网页客户端仅在控制面，VM的websockify不再提供静态目录；不将个人OAuth或浏览器profile复制到模板。
 
 ## 网络阶段
 
