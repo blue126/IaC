@@ -1,0 +1,5 @@
+#!/bin/bash
+# Refuse a push while wsctl runs: only this hook can still reject it, and a checkout must not swap running code.
+set -euo pipefail
+exec 8>>"{{ item.run_lock }}"
+flock --wait 60 8 || { echo "wsctl is running; push again when it finishes" >&2; exit 1; }

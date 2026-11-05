@@ -18,7 +18,7 @@
 相关文件：
 
 - Terraform：`terraform/remotecc/remotecc-ops.tf`
-- 网站：`/srv/git/apply-site.git` 检出到 `/srv/remotecc/apply-site`，由 `wsctl apply-site` 经 Cloudflare API 部署（执行器没有 Node）
+- 网站：随 `/srv/git/remotecc.git` 检出到 `/srv/remotecc/apply-site`，由 `wsctl apply-site` 经 Cloudflare API 部署（执行器没有 Node）
 - 主机变量：`ansible/inventory/host_vars/remotecc-ops.yml`
 - Playbook：`ansible/playbooks/deploy-remotecc-ops.yml`
 - 防火墙角色：`ansible/roles/host-firewall/`
@@ -83,17 +83,17 @@ Deploy play 依次：等待 SSH 与 cloud-init 完成、确认 Ubuntu 24.04 虚�
 
 ## 执行器运行环境（story 1.5）
 
-`remotecc-ops-runtime` 角色在 VM 上安装钉住版本与校验和的 Terraform、uv、bws，并建立运行目录与两个裸仓库：
+`remotecc-ops-runtime` 角色在 VM 上安装钉住版本与校验和的 Terraform、uv、bws、Hugo，并建立运行目录与两个裸仓库：
 
 | 裸仓库 | 推送后检出到 | 分支 |
 | --- | --- | --- |
-| `/srv/git/wsctl.git` | `/srv/remotecc/wsctl` | `main` |
+| `/srv/git/remotecc.git` | `/srv/remotecc` | `main` |
 | `/srv/git/iac.git` | `/srv/iac` | `main` |
 
 部署代码就是 `git push`。Mac 侧远程配置（`ubuntu` 用户经 sudo 写 root 拥有的仓库）：
 
 ```bash
-git remote add remotecc-ops ssh://ubuntu@192.168.1.116/srv/git/wsctl.git   # 或 iac.git
+git remote add remotecc-ops ssh://ubuntu@192.168.1.116/srv/git/remotecc.git   # 或 iac.git
 git config remote.remotecc-ops.receivepack "sudo git-receive-pack"
 git config remote.remotecc-ops.uploadpack "sudo git-upload-pack"
 git push remotecc-ops HEAD:main
