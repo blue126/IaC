@@ -510,8 +510,6 @@ class ProxyTest(unittest.TestCase):
         self.assertIn('/_workspace/login/guide.js', page)
         self.assertNotIn('VM502', page)
         paths = ['/guide.js', '/guide.css']
-        if Path('/usr/share/novnc/core/rfb.js').is_file():
-            paths.append('/core/rfb.js')
         for path in paths:
             connection, response = self.request('/_workspace/login'+path)
             self.assertEqual(response.status, 200, path); response.read(); connection.close()
@@ -557,49 +555,22 @@ class ProxyTest(unittest.TestCase):
         self.assertIn('proxy_pass http://127.0.0.1:3006;', bridge[0])
         self.assertIn(f"proxy_pass http://{self.routes[0]['backend_address']}:9443;", bridge[1].split('}', 1)[0])
         self.assertIn('location = /_workspace/login/websockify {', config)
+        self.assertNotIn('novnc', config)
 
-    def test_parallel_novnc_modules_do_not_overflow_the_auth_socket(self):
-        if not Path('/usr/share/novnc/core/rfb.js').is_file():
-            self.skipTest('noVNC assets are not installed in this native test environment')
+    def test_parallel_client_assets_do_not_overflow_the_auth_socket(self):
         from concurrent.futures import ThreadPoolExecutor
         count = 64
         barrier = threading.Barrier(count)
         token = self.token()
         def request_module(index):
             barrier.wait(timeout=10)
-            connection, response = self.request('/_workspace/login/core/rfb.js',
+            connection, response = self.request('/_workspace/login/kasm/assets/ui.js',
                 extra={'Cf-Access-Jwt-Assertion': token})
             response.read(); connection.close()
             return response.status
         with ThreadPoolExecutor(max_workers=count) as pool:
             statuses = list(pool.map(request_module, range(count)))
         self.assertEqual(statuses, [200] * count)
-
-    def test_real_novnc_import_graph_is_served_as_javascript(self):
-        import re
-        root = Path('/usr/share/novnc').resolve()
-        if not (root/'core/rfb.js').is_file():
-            self.skipTest('Requires the already installed noVNC client package')
-        pending, seen = [root/'core/rfb.js'], set()
-        while pending:
-            path = pending.pop()
-            if path in seen:
-                continue
-            seen.add(path)
-            relative = path.relative_to(root).as_posix()
-            connection, response = self.request('/_workspace/login/' + relative)
-            raw = response.read(); connection.close()
-            self.assertEqual(response.status, 200, relative)
-            self.assertIn(response.getheader('Content-Type', '').split(';')[0],
-                          ['application/javascript', 'text/javascript'], relative)
-            self.assertEqual(raw, path.read_bytes(), relative)
-            for name in re.findall(r"(?:from\s+|import\s*\(?\s*)['\"]([^'\"]+)['\"]", raw.decode()):
-                if name.startswith('.'):
-                    target = (path.parent/name).resolve()
-                    if target.is_relative_to(root):
-                        self.assertTrue(target.is_file(), str(target))
-                        pending.append(target)
-        self.assertGreater(len(seen), 20)
 
     def test_login_viewer_returns_real_websocket_rfb_banner_through_owner_route(self):
         if not shutil.which('websockify'):

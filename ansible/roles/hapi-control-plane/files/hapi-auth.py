@@ -149,9 +149,6 @@ def load_config(path):
         raise ValueError('Expected an HTTPS origin')
     if type(config.get('shared_hub', False)) is not bool:
         raise ValueError('Invalid shared Hub mode')
-    kasm_viewers = config.get('kasm_viewer_workspaces', [])
-    if not isinstance(kasm_viewers, list) or not all(isinstance(wid, str) for wid in kasm_viewers):
-        raise ValueError('Invalid Kasm viewer workspaces')
     seen = {k: set() for k in ['workspace_id', 'email', 'subject', 'backend_address', 'backend_name']}
     if config.get('shared_hub', False):
         seen['namespace'] = set()
@@ -265,9 +262,7 @@ class Policy:
         for route in config['routes']:
             if route['enabled'] and claims['email'].lower() == route['email'] and claims['sub'] == self.subject(route, claims, config):
                 identity = hashlib.sha256((self.issuer + '\0' + claims['sub']).encode()).hexdigest()
-                viewer = 'kasm' if route['workspace_id'] in config.get('kasm_viewer_workspaces', []) else 'novnc'
-                return route, {'workspace_id': route['workspace_id'], 'generation': route['generation'], 'identity': identity,
-                               'viewer': viewer}
+                return route, {'workspace_id': route['workspace_id'], 'generation': route['generation'], 'identity': identity}
         raise Denied()
 
     def subject(self, route, claims, config):

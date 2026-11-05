@@ -7,5 +7,3 @@ hapi_registry_static_ids: [vm502]
 # the route, credential, agent and Hub namespace id.
 hapi_registry_employees: []
 hapi_registry_hub_bind_address: 192.168.1.140
-# Workspaces whose login page uses the Kasm web client instead of noVNC.
-hapi_registry_kasm_viewer_workspaces: [vm502]

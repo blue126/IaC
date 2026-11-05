@@ -28,9 +28,9 @@
       <p id="viewer-status" role="status">正在连接远程浏览器…</p>
       <div id="screen" aria-label="本人 VM 远程 Firefox"></div>
       <details><summary>需要粘贴文本到远程浏览器？</summary>
-        <p>先在远程画面中选中目标输入框，再粘贴下方文本。文本仅用于远程粘贴，发送后清空输入框。</p>
+        <p>文本会发送到远程剪贴板，然后在远程输入框中按 Ctrl+V 粘贴。发送后清空输入框。</p>
         <textarea id="clipboard" rows="2" autocomplete="off" spellcheck="false" aria-label="粘贴到远程浏览器的文本"></textarea>
-        <button id="paste" class="secondary">粘贴到远程输入框</button>
+        <button id="paste" class="secondary">发送到远程剪贴板</button>
       </details>
       <div id="remote-copy" hidden><label for="remote-text">远程浏览器中复制的文本</label>
         <textarea id="remote-text" rows="2" readonly spellcheck="false"></textarea></div>

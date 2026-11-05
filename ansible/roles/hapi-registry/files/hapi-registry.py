@@ -33,7 +33,7 @@ def render(desired, config, credentials, agents):
     workers = [a for a in agents['agents'] if a['id'] in static] + [
         {'id': e['id'], 'address': e['address'], 'namespace': e['id'], 'credential_id': e['id']} for e in employees]
     tokens = {e['id']: e['token'] for e in employees}
-    return {**config, 'routes': routes, 'kasm_viewer_workspaces': desired['kasm_viewer_workspaces']}, {'version': 1, 'credentials': rows}, {'version': 1, 'agents': workers}, tokens
+    return {**config, 'routes': routes}, {'version': 1, 'credentials': rows}, {'version': 1, 'agents': workers}, tokens
 
 
 def firewall(current, agents, hub_address):

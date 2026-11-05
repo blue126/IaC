@@ -30,11 +30,11 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 
 锁定源码、补丁、overlay和构建器在[scripts/hapi-workspace-web](../../scripts/hapi-workspace-web/README.md)。当前21项前端测试与完整类型检查、生产构建通过；`workspace-browser.mjs`使用真实编译页面与Chromium，通过loopback模拟网关验证自动进入、账号切换及会话失效恢复。它不调用真实Cloudflare或Claude账号，不代表现网验收。
 
-当前身份套件22项，包括撤销持久化、Unix权限及共享Hub固定namespace票据交换；真实代理套件21项，包括既有SSE／WebSocket撤销、分配指纹不一致拒绝、登记损坏拒绝、2MiB响应完整转发、真实websockify到合成RFB端点、真实noVNC模块依赖与64路并发认证，以及共享Hub的证书／源地址联合绑定和namespace头覆盖。执行服务套件6项，使用已有隔离CLI夹具和实际tmux／PTY验证手工码、取消、超时与浏览器保留；并未使用真实Claude账号。
+当前身份套件21项，包括撤销持久化、Unix权限及共享Hub固定namespace票据交换；真实代理套件20项，包括既有SSE／WebSocket撤销、分配指纹不一致拒绝、登记损坏拒绝、2MiB响应完整转发、真实websockify到合成RFB端点、客户端资源64路并发认证，以及共享Hub的证书／源地址联合绑定和namespace头覆盖。执行服务套件6项，使用已有隔离CLI夹具和实际tmux／PTY验证手工码、取消、超时与浏览器保留；并未使用真实Claude账号。
 
 ## Kasm网页客户端
 
-`test-auth.py`验证按工作区选择viewer；`test-proxy.py`验证客户端静态资源经Access鉴权、响应头和共享Hub下的bridge路由。这些测试使用合成客户端文件，不覆盖真实KasmVNC；真实客户端的连接、253／254消息和画面须在VM502上验收。本目录不在PR校验内，上线前须在本机手工运行。
+`test-proxy.py`验证客户端静态资源经Access鉴权、响应头和共享Hub下的bridge路由。这些测试使用合成客户端文件，不覆盖真实KasmVNC；真实客户端的连接、253／254消息和画面须在线上验收。本目录不在PR校验内，上线前须在本机手工运行。
 
 ## 共享 Hub 与数据迁移
 
