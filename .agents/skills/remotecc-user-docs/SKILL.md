@@ -7,23 +7,23 @@ description: "编写、更新或评审 RemoteCC 员工网站（cc.willfan.me）/
 
 为 `cc.willfan.me/docs` 写面向员工的文档。读者会 Linux 基本操作，没有任何内部背景，通常是遇到问题才来看。每页只回答一类问题，读完能做成一件事或弄懂一件事。
 
-站点源文件在 `remotecc/docs/`（独立私有 Git）。页面清单、分组和各页分工以该目录的 `ARCHITECTURE.md` 为准，本 skill 不重复。
+站点源文件在 `remotecc/apply-site/docs/`。页面清单、分组和各页分工以该目录的 `ARCHITECTURE.md` 为准，本 skill 不重复。
 
 加载本 skill 不代表授权修改 Worker、部署、提交或推送；这些边界按仓库 AGENTS.md 另行确认。
 
 ## 工作流程
 
-1. **定位页面**：在 `remotecc/docs/ARCHITECTURE.md` 找到目标页和它的职责。新增、合并或移动页面时，先改 `ARCHITECTURE.md`，说明它和现有页的分工。
+1. **定位页面**：在 `remotecc/apply-site/docs/ARCHITECTURE.md` 找到目标页和它的职责。新增、合并或移动页面时，先改 `ARCHITECTURE.md`，说明它和现有页的分工。
 2. **收集事实**：按下面的事实来源逐条核对，草稿里每条行为性事实（数值、时限、按钮名、命令、步骤顺序）都要能指回来源。来源冲突或查不到时停下来报告，不猜。
-3. **按写法起草**：用[页面写法](references/page-templates.md)中对应的结构；术语与 `design/text.json` 一致。
+3. **按写法起草**：用[页面写法](references/page-templates.md)中对应的结构；术语与 `apply-site/design/text.json` 一致。
 4. **安全检查**：逐条过下面的“绝不出现”清单。
 5. **读者测试**：按[读者测试](references/reader-test.md)执行，修完发现的缺口再交付。
-6. **交付**：页面写在 `ARCHITECTURE.md` 规定的路径；在 `remotecc/docs` 运行 `hugo --gc`，除 LibSass 弃用警告外不得有其他 WARN 或 ERROR。写文档不改 Worker。给出改动文件、每条事实的来源清单、读者测试结果和未解决的问题。
+6. **交付**：页面写在 `ARCHITECTURE.md` 规定的路径；在 `remotecc/apply-site/docs` 运行 `hugo --gc`，除 LibSass 弃用警告外不得有其他 WARN 或 ERROR。写文档不改 Worker。给出改动文件、每条事实的来源清单、读者测试结果和未解决的问题。
 
 ## 事实来源（优先级从高到低）
 
 1. `remotecc/apply-site/worker.js`：网站实际行为，包括路由、登录时效、下载规则、错误码。
-2. `remotecc/design/text.json`：员工在页面上看到的原文，按钮名、提示语和公开规格以此为准。
+2. `remotecc/apply-site/design/text.json`：员工在页面上看到的原文，按钮名、提示语和公开规格以此为准。
 3. `remotecc/wsctl/docs/admin-handbook.md` 与 `wsctl` README：开户、续期、设备、流量额度的后台规则。只取员工可感知的结果，不搬运管理员操作。
 4. 公开仓库 [workspace-onboarding](https://github.com/blue126/workspace-onboarding)：员工电脑上 AI 助手实际执行的接入步骤。
 5. IaC `docs/guides/employee-*.md`：可能停留在旧流程，只作背景，事实必须回到 1–4 核实。

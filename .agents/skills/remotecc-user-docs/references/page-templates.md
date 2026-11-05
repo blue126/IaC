@@ -1,6 +1,6 @@
 # 页面写法
 
-按读者来看这一页时想做什么，分三种写法。一页只用一种；写着写着需要另一种内容时，拆开或链接过去。链接路径以 `remotecc/docs/ARCHITECTURE.md` 为准。
+按读者来看这一页时想做什么，分三种写法。一页只用一种；写着写着需要另一种内容时，拆开或链接过去。链接路径以 `remotecc/apply-site/docs/ARCHITECTURE.md` 为准。
 
 ## 首页与分组页（`_index.md`）
 
