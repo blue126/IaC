@@ -6,3 +6,14 @@
   gather_facts: true
   roles:
     - hapi
+
+- name: Verify HAPI on the employee VM
+  hosts: "{{ employee_desktop_target | default('hapi_no_target_selected') }}"
+  become: true
+  gather_facts: false
+  tags: [verify]
+  tasks:
+    - name: Verify the HAPI services
+      ansible.builtin.include_role:
+        name: hapi
+        tasks_from: verify
