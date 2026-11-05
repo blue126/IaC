@@ -1,29 +1,39 @@
 #!/usr/bin/env python3
-"""Create the employee-lifecycle project and wsctl templates in Semaphore.
+"""Create the remotecc project and wsctl templates in Semaphore.
 
-Idempotent: objects are matched by name and created only when missing.
+Idempotent: objects are matched by name and created only when missing; a
+template whose description or form changed is updated in place.
 Prints one JSON line: {"changed": bool, "project_id": int}.
 """
 import http.cookiejar,json,sys,urllib.request
 from pathlib import Path
 
 BASE='http://127.0.0.1:3000/api'
-PROJECT='employee-lifecycle'
+PROJECT='remotecc'
 # A filesystem path is used in place by Semaphore, so tasks run the deployed
 # work tree that git push keeps current.
 REPOSITORY={'name':'wsctl','git_url':'/srv/remotecc/wsctl','git_branch':'main'}
 SCRIPT='semaphore/wsctl.sh'
-APPROVE={'name':'WSCTL_APPROVE','title':'approval_sha256 (empty = plan only)','required':False,'type':''}
-# name -> (arguments, survey variables, allow overriding arguments per task)
+def field(name,title,description):
+    return {'name':name,'title':title,'description':description,'required':False,'type':''}
+APPROVE=field('WSCTL_APPROVE','批准码','留空只出计划，不改任何东西。把计划输出里的 approval_sha256 填到这里再运行一次才会执行。')
+DEVICE=field('WSCTL_DEVICE','设备 ID','开户结果里的 device_id。')
+# name -> (arguments, survey variables, allow overriding arguments per task, description)
 TEMPLATES={
-    'wsctl status':(['status'],[],False),
-    'wsctl deliver':(['deliver'],[APPROVE],True),
-    'wsctl provision':(['provision'],[APPROVE],True),
-    'wsctl access':(['access'],[APPROVE],False),
-    'wsctl enforce':(['enforce'],[],False),
-    'wsctl reissue':(['reissue'],[APPROVE],True),
-    'wsctl remind':(['remind'],[],False),
-    'wsctl publish-status':(['publish-status'],[],False),
+    'wsctl status':(['status'],[],False,'只读。查看所有工作区的实时状态。每 30 分钟自动运行。'),
+    'wsctl request':(['request'],[],False,'把网站上的新申请拉到执行器。输出里的 pulled 是申请编号，开户时填。'),
+    'wsctl provision':(['provision'],[
+        field('WSCTL_APPLICATION','申请编号','wsctl request 输出的编号。和邮箱二选一。'),
+        field('WSCTL_EMAIL','邮箱','不走申请时直接填员工邮箱。和申请编号二选一。'),APPROVE],True,
+        '开户。先留空批准码运行，看计划；再填批准码运行。结果是 workspace_created_stopped 时，用同样内容再做一遍，直到 configured。开户不发信，之后运行 wsctl deliver。'),
+    'wsctl deliver':(['deliver'],[DEVICE,
+        field('WSCTL_NOTIFY','发邮件','留空：把设备包上传到网站。上传完成后填 yes：发开通邮件。'),APPROVE],False,
+        '开户后发包，分两步，每步都是先计划再批准：先留空“发邮件”上传设备包，再填 yes 发开通邮件。'),
+    'wsctl reissue':(['reissue'],[DEVICE,APPROVE],False,'用原包重新上传并重发通知邮件。不换密钥，不重新开户。'),
+    'wsctl access':(['access'],[APPROVE],False,'管理来源变化后重新下发 PVE 边界的 SSH 授权。'),
+    'wsctl enforce':(['enforce'],[],False,'到期断开。每 5 分钟自动运行，一般不用手动点。'),
+    'wsctl remind':(['remind'],[],False,'到期提醒。每小时整点自动运行，一般不用手动点。'),
+    'wsctl publish-status':(['publish-status'],[],False,'把状态推到网站。每小时第 15 分自动运行，一般不用手动点。'),
 }
 SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *','wsctl remind':'0 * * * *','wsctl publish-status':'15 * * * *'}
 
@@ -55,11 +65,14 @@ def main():
         call('PUT',p+f'/repositories/{repo}',{**current,**REPOSITORY});changed=True
     env,c=ensure(p+'/environment','default',{'name':'default','project_id':project,'json':'{}','env':'{}'});changed|=c
     inv,c=ensure(p+'/inventory','none',{'name':'none','project_id':project,'type':'static','inventory':'','ssh_key_id':key});changed|=c
-    for name,(arguments,survey,override) in TEMPLATES.items():
+    for name,(arguments,survey,override,description) in TEMPLATES.items():
+        wanted={'description':description,'survey_vars':survey,'allow_override_args_in_task':override}
         tid,c=ensure(p+'/templates',name,{'name':name,'project_id':project,'app':'bash','playbook':SCRIPT,
-            'repository_id':repo,'environment_id':env,'inventory_id':inv,'arguments':json.dumps(arguments),
-            'allow_override_args_in_task':override,'survey_vars':survey,'type':''})
+            'repository_id':repo,'environment_id':env,'inventory_id':inv,'arguments':json.dumps(arguments),'type':'',**wanted})
         changed|=c
+        current=call('GET',p+f'/templates/{tid}')
+        if any(current.get(k)!=v for k,v in wanted.items()):
+            call('PUT',p+f'/templates/{tid}',{**current,**wanted});changed=True
         if name in SCHEDULES:
             _,c=ensure(p+'/schedules',name,{'name':name,'project_id':project,'template_id':tid,'cron_format':SCHEDULES[name],'active':True});changed|=c
     print(json.dumps({'changed':changed,'project_id':project}))
