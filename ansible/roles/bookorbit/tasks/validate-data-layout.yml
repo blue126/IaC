@@ -1,0 +1,17 @@
+---
+- name: Check for initialized BookOrbit data in the previous PostgreSQL layout
+  ansible.builtin.stat:
+    path: "{{ bookorbit_base_dir }}/data/postgres/pgdata/PG_VERSION"
+    get_checksum: false
+    get_mime: false
+    get_attributes: false
+  register: bookorbit_legacy_postgres_data
+
+- name: Refuse to replace an initialized PostgreSQL layout implicitly
+  ansible.builtin.assert:
+    that:
+      - not bookorbit_legacy_postgres_data.stat.exists
+    fail_msg: >-
+      An initialized database exists at {{ bookorbit_base_dir }}/data/postgres/pgdata.
+      Preserve it and plan an explicit migration before using the PostgreSQL 18 layout.
+      Deployment stopped before changing configuration or starting a different database.

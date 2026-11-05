@@ -10,6 +10,7 @@
 - **[immich-upgrade-mop.md](./immich-upgrade-mop.md)** — 面向 agent 的 Homelab 六步升级流程，包含整机备份、基本验证和恢复边界。
 - **[n8n-upgrade-mop.md](./n8n-upgrade-mop.md)** — 面向 npm + systemd LXC 部署的六步升级流程，包含 workflow 保持未发布、SQLite 异常排障和恢复边界。
 - **[n8n-docker-migration.md](./n8n-docker-migration.md)** — 基于现有 LXC IaC 的 npm/systemd → Docker Compose 迁移、回滚和验收。
+- **[bookorbit-oci-deployment.md](./bookorbit-oci-deployment.md)** — 在现有 OCI 主机上用 Docker Compose 和 Caddy 部署 BookOrbit 书库，含验收、备份恢复与回退。
 
 ## 实操指南（How-to）
 

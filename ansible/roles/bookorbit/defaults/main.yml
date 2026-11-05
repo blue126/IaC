@@ -1,0 +1,11 @@
+---
+bookorbit_base_dir: /opt/bookorbit
+bookorbit_public_domain: ""
+bookorbit_uid: 1000
+bookorbit_gid: 1000
+bookorbit_timezone: Australia/Sydney
+bookorbit_db_password: "{{ vault_bookorbit_db_password }}"
+bookorbit_jwt_secret: "{{ vault_bookorbit_jwt_secret }}"
+bookorbit_podcast_encryption_key: "{{ vault_bookorbit_podcast_encryption_key }}"
+bookorbit_setup_bootstrap_token: "{{ vault_bookorbit_setup_bootstrap_token }}"
+bookorbit_bootstrap_token_file: "{{ playbook_dir }}/../credentials/bookorbit-bootstrap-token"

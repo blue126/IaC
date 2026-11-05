@@ -1,0 +1,30 @@
+---
+- name: Validate BookOrbit configuration
+  ansible.builtin.assert:
+    that:
+      - bookorbit_public_domain is regex('^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$', match_type='fullmatch')
+      - bookorbit_base_dir is regex('^/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+$', match_type='fullmatch')
+      - bookorbit_uid is integer
+      - bookorbit_uid > 0
+      - bookorbit_gid is integer
+      - bookorbit_gid > 0
+      - bookorbit_timezone is match('^[A-Za-z0-9_+/-]+$')
+      - bookorbit_bootstrap_token_file is match('^/.+')
+    fail_msg: >-
+      Set a valid BookOrbit domain, timezone and absolute token path.
+      bookorbit_base_dir must be a canonical non-root absolute path without repeated
+      or trailing slashes, whitespace or dot segments. UID/GID must be positive integers.
+
+- name: Validate independent BookOrbit Vault secrets
+  ansible.builtin.assert:
+    that:
+      - bookorbit_db_password is regex('^[0-9a-f]{64}$', match_type='fullmatch')
+      - bookorbit_jwt_secret is regex('^[0-9a-f]{64}$', match_type='fullmatch')
+      - bookorbit_podcast_encryption_key is regex('^[0-9a-f]{64}$', match_type='fullmatch')
+      - bookorbit_setup_bootstrap_token is regex('^[0-9a-f]{64}$', match_type='fullmatch')
+      - >-
+        [bookorbit_db_password, bookorbit_jwt_secret,
+         bookorbit_podcast_encryption_key, bookorbit_setup_bootstrap_token]
+        | unique | length == 4
+    fail_msg: "Set four independent BookOrbit Vault secrets, each generated from 32 random bytes as lowercase hex"
+  no_log: true
