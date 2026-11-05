@@ -45,7 +45,7 @@ docs/agent/multica-team.md                   本文件：Profile / Squad / 模�
 
 ## T1. 成员、具体模型、推理档位与权限
 
-以下是本项目已确定的**默认配置目标**，不留空继承 CLI 全局默认。六个 Multica Profile 均绑定 Codex runtime；Claude/Gemini 是内部审核调用，不是第七个 Profile。
+以下是本项目已确定的**默认配置目标**，不留空继承 CLI 全局默认。六个 Multica Profile 均绑定 Codex runtime；PAL reviewer 是内部审核调用，不是第七个 Profile。
 
 | 执行身份 | Runtime／调用方式 | 具体模型 ID | 推理档位 | 配置位置 |
 |---|---|---|---|---|
@@ -55,7 +55,7 @@ docs/agent/multica-team.md                   本文件：Profile / Squad / 模�
 | Winston · Architect | Codex | `gpt-6-astra` | `high` | 同上 |
 | Sally · UX Designer | Codex | `gpt-5.6-sol` | `high` | 同上 |
 | Amelia · Developer（包括 QA 任务） | Codex | `gpt-5.6-terra` | `medium` | 同上；QA 不另建 Profile |
-| 内部 reviewer（每个有效 layer／lens） | PAL clink → 已批准 CLI | Claude 默认 `claude-opus-5-5`；Gemini 待选定验证 | 按 provider 配置 | reviewer-selection.json + client JSON |
+| 内部 reviewer（每个有效 layer／lens） | PAL clink → 探测通过的 CLI | 优先异于宿主；模型见 client JSON | 按 provider 配置 | reviewer-selection.json + reviewer-probe.json |
 
 五个 BMAD persona 仍对应 Mary=`bmad-agent-analyst`、John=`bmad-agent-pm`、Winston=`bmad-agent-architect`、Sally=`bmad-agent-ux-designer`、Amelia=`bmad-agent-dev`；Coordinator 只做调度。创建后将 Amelia 的 Concurrency 设为 6，其余五个设为 1。一个 Amelia Profile 可运行多个独立子 Issue，每项有自己的任务上下文与隔离工作目录。实际并发还受机器总容量限制；有 6 个槽位不代表必须同时启动 6 项。[O8] 创建页的 Speed 显式选 Standard，Thinking 不留在 Follow CLI config。这些是本项目默认设置，不是模型能力排名。
 

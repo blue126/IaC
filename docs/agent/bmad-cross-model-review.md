@@ -12,17 +12,16 @@ BMAD 仍决定审核时机、方法、原生条件、同步点、分诊、修复
 ## X2. Runtime 接入
 用户已批准固定采用 PAL PR #481 commit 9bb12126e3a0b8032446ad1dfd0e808f8dc1715a（未合并 PR，不是 upstream release）及 MCP SDK 1.30.0。
 先按上游安装独立服务，再在实际宿主注册 MCP，仅启用所需 clink；不让 agent 临场修改 PAL 源码。
-配置模板位于 bootstrap 的 runtime/pal-review/（claude、agy、codebuddy、dsh；旧 gemini 仅 API/企业候选）；它不是自动安装到项目的 payload。
+配置模板位于 bootstrap 的 runtime/pal-review/（claude、codex、agy、codebuddy、dsh）；它不是自动安装到项目的 payload。
 Claude 模板：claude-opus-5-5，effort high，单次 max-budget-usd=2.00，timeout_seconds=900。
-Gemini 模板：具体模型必须先获批准并填写，不继承 auto；不套用 Claude 的 effort 或美元预算参数。
 这些值写入对应 PAL client JSON，不再从 BMAD_REVIEW_* 读取；2 USD 是每进程限制，不是四层合计限制。
 
 CLI-only 启动的占位 provider 必须与目标 CLI 认证无关。#481 在已发现本机 CLI 时可直接以 CLI-only 模式启动；本次 agy/codebuddy/dsh 测试不需要占位 key。仅调用 clink，不调用 API 工具。
-不要再给 Gemini 子进程传 GEMINI_API_KEY=FAKE_KEY，也不向 Anthropic 注入占位 key。
-Claude 使用自己的订阅登录。旧 Gemini CLI 自 2026-06-18 不再支持个人免费/Pro/Ultra；仅在明确批准 API/企业认证时验证此候选。个人 Google 订阅须使用 Antigravity CLI (agy)，已批准的 #481 支持它，但文件审核权限尚未通过，保持备用禁用。
+不向 Anthropic 注入占位 key。
+Claude 使用自己的订阅登录。旧 Gemini CLI 已不再服务个人账号，已移除；启动器用无效占位盖掉 PAL 自带的 gemini client。个人 Google 订阅使用 Antigravity CLI (agy)。
 占位配置仅满足 PAL 启动检查，不提供真实模型能力。订阅下费用字段只是标价估算，不是额外扣费证据。
 
-CLI_CLIENTS_CONFIG_PATH 指向本 Run 的已渲染客户端 JSON。
+CLI_CLIENTS_CONFIG_PATH 指向本 Run 的已渲染客户端目录。启动器为每个 provider 渲染同一边界：读源码和本层输入，禁止读别层输入和 results，禁止写入。Run 目录放在 ~/.local/share/bmad-pal/runs/，不放临时目录，因为部分 CLI 默认可读临时目录。
 支持本地 stdio MCP 的宿主使用 bootstrap tools/launch_pal.py 绑定当前 Git checkout，参数为固定 --pal-root 和 --templates；解释器来自已安装 PAL 的专用 venv。它只生成 Run 配置并 exec PAL，不调度模型。
 这不是 Multica 专用接口：Claude Code、Codex CLI、Cursor 等在各自 MCP 配置中注册相同 command/args，并把服务 cwd 设为当前 Git checkout；终端或 CI 可用标准 MCP client 调用。Multica 通过工作区 MCP 注册并分配给实际审核成员。各宿主都须能准备获准输入、等待工具返回和读取完整结果；不支持这些能力时明确报告不可用，不伪装原生接入或静默换通道。
 在 Git checkout 启动时，通过 git rev-parse --git-path bmad-review-runtime.json 取得描述文件；在 Multica 非 Git Run 容器启动时，读取容器根的 .bmad-review-runtime.json（也就是仓库尚未 materialize 时的宿主工作目录）。启动器识别 `.multica` 配合 Codex 的 `.agent_context` 或 CodeBuddy 的 `.codebuddy` 目录；服务必须在本 Run 根目录启动。不搜索其他 Run 或项目。
@@ -71,7 +70,7 @@ Blind Hunter 隔离的是额外提供的意图材料，不是清洗源码本身�
 
 ## X4. PAL 调用
 执行本项目当前安装版本的原生 reviewer 子任务，以 clink 代替原来的 reviewer spawn：
-cli_name=本 Run reviewer-selection.json 中批准且验证通过的 reviewer-selection.json client；role=对应 X3 角色；prompt=展开路径后的完整原生任务。
+cli_name=本 Run reviewer-probe.json 的 order 第一个 provider；role=对应 X3 角色；prompt=展开路径后的完整原生任务。
 不要使用通用 codereviewer 方法，不传宿主完整聊天，不跨独立层使用 continuation_id。
 不得把已下线的 diff_output 或新版 diff_file 硬编码在适配层；使用当前原生任务真实定义的变量。
 原生独立组全部启动后等待全部终止再 triage；依赖组按原生 after 顺序。
@@ -81,8 +80,8 @@ PAL 管理进程；宿主只调用工具、等待、接回结果。保留每层�
 ## X5. 接收与失败
 检查实际 return_code、is_error、permission_denials 和完整正文；外层 success/continuation_available 不代表审核成功。
 语法及字段要求以原生方法为准。零发现必须是原生方法的有效结果，不是空 stdout、权限失败或摘要。
-PAL 当前对超过 20,000 字符的 content 截断/摘要化；若有该标记，检查同一响应 Claude 的 metadata.raw.result 或 Gemini 的 metadata.raw.response。
-Gemini 还要检查 raw.error、empty_response、rate_limit_status 以及 stats.models 中的错误，不把 parser 生成的失败说明当 findings。
+PAL 当前对超过 20,000 字符的 content 截断/摘要化；若有该标记，检查同一响应 Claude 的 metadata.raw.result。
+不把 parser 生成的失败说明当 findings。
 只有原始正文完整、无截断且符合原生格式时才可交给 triage；原文缺失或宿主响应也被截断则该层未完成。
 不要通过“再总结一次”替代丢失 findings。报告已完成层，按原生失败处理继续可做部分，不伪造全层通过。
 必需审核未完成时不宣称完成或进入验收；不无限重试或自动重跑已成功层。
@@ -106,14 +105,14 @@ python3 tools/run_preflight.py --project-root /actual/run/checkout
 4. 核对长输出原文恢复与失败可见性。
 5. 两个 Run/worktree 并行，无 cwd 或输入混用。
 6. 真实工作流验证：Build 默认原生/显式 opt-in；Code Review no-spec/full；
-   Architecture 两层 Claude、技术核验原生；Review 的条件/after 原样保留。
+   Architecture 两层走 PAL、技术核验原生；Review 的条件/after 原样保留。
 临时测试客户端不是 Codex 原生 MCP 自主调用或 Multica 验收。未完成项目保持未验证，不能自动发布切换。
 
 ## X8. 回报
 记录：输入版本、层/角色、CLI、请求模型、返回模型（缺失写“未报告”）、退出状态、完整 findings 路径、可用的用量和未完成项。
-Claude 记录 modelUsage；Gemini 记录 stats.models 中全部模型，不用自报“我是 Claude”充当证据。未知费用写未知。
-请求模型来自已批准的明确配置，不等于已证实的实际返回模型。仅缺少返回模型或费用字段不阻塞审核，不新增模型白名单、证明协议或费用账本。
-若返回字段明确与批准模型不一致，保留 findings 和证据，报告差异并交用户决定；不静默换模型或冒称满足指定模型要求。
+Claude 记录 modelUsage；其他 provider 记录返回里实际有的模型字段，不用模型自报充当证据。未知费用写未知。
+请求模型来自明确配置，不等于已证实的实际返回模型。仅缺少返回模型或费用字段不阻塞审核，不新增模型白名单、证明协议或费用账本。
+若返回字段明确与配置模型不一致，保留 findings 和证据，报告差异并交用户决定；不静默换模型或冒称满足指定模型要求。
 不再要求 CR-1 摘要行，不用标价估算断言实际账户扣款。
 
 ## X9. 升级与恢复
@@ -124,12 +123,12 @@ Claude 记录 modelUsage；Gemini 记录 stats.models 中全部模型，不用�
 回滚需恢复同一套文件与 runtime 配置，不保留新旧规则混用。
 
 ## X10. Provider 选择与额度回退
-Run 启动时由宿主读取已批准的 reviewer-selection.json（模板位于 runtime/pal-review），配置位置必须由 runtime/任务明确提供；缺失就暂停选定审核。
-这是人和宿主解释的选择合同，不是 PAL 自带自动 fallback。未填写/未启用/未验证的 provider 不可使用。
-CLI 和具体模型分别选择，角色对应原生 reviewer；请求模型必须与已批准的 client JSON 或显式 profile 模型配置一致，不继承未知默认值。返回模型缺失只标未报告。
-默认保留 Claude 主选；旧 Gemini 仅明确批准的 API/企业路径可候选，并须通过认证、只读、输入边界和原生方法测试。个人订阅的 agy 已配置为候选，但正式审核验证未完成。
-自动回退默认关闭。仅明确批准的备用顺序、模型、数据外发与费用范围均满足时，才可对已确认结束的 quota/rate-limit 失败层切换一次。
+Run 启动时，宿主用 PAL 专用 venv 运行 ~/.local/share/bmad-pal/pal-runtime/tools/probe_reviewers.py --host <宿主 CLI>。它用合成文件实测每个 provider，把结果写入本 Run bundle 的 reviewer-probe.json。缺少该文件或没有 provider 通过时，暂停选定审核。
+通过标准：能读源码和本层输入；读别层输入、读 results、写入都被拒。未通过的 provider 本 Run 不可用，报告里写明原因。不再逐模型人工批准。
+reviewer-probe.json 的 order 按 reviewer-selection.json 的 order 排列，宿主排最后，第一个就是本 Run 的 reviewer。只有宿主通过时不算跨模型，须告知用户并取得同意后才可继续，不静默降级。
+provider 的模型由 client JSON 或 dsh patch 固定，不继承未知默认值。从 reviewer-selection.json 删除 provider，就不再把数据发给该服务商。返回模型缺失只标未报告。
+自动回退默认关闭。仅 reviewer-selection.json 开启 automaticFallback 时，才可对已确认结束的 quota/rate-limit 失败层切换一次，切到 order 的下一个 provider。
 成功层不重跑；pending 不回退；网络/权限/方法缺失/无效格式不是额度失败，不靠换模型绕过。
 先保留失败记录与输入版本，再在备用 provider 中开新会话执行同一个完整原生子任务，不续用旧 session 或拼接半份结果。
-备用失败即暂停，不轮转重试。报告逐层原 provider/失败原因/替代 provider/实际模型，不能把 Gemini 写成 Claude。
-CodeBuddy（本机 codebuddy，不等同已验证 WorkBuddy 桌面账号）与 DeepSeek Harness dsh 使用 #481 的通用配置接口，不伪装成 Claude。两者仅完成内联通道测试，文件权限未验证，默认禁用；dsh 还须固定获准的 profile 模型。返回模型证据缺失本身不是禁用理由。
+备用失败即暂停，不轮转重试。报告逐层原 provider/失败原因/替代 provider/实际模型，不把一个模型写成另一个。
+CodeBuddy（本机 codebuddy，不等同 WorkBuddy 桌面账号）与 dsh 使用 #481 的通用配置接口，不伪装成 Claude。返回模型证据缺失本身不是禁用理由。

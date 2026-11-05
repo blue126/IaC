@@ -4,7 +4,7 @@
 ## R0. 选择表
 | 原生入口 | 路由 |
 |---|---|
-| Architecture rubric walker / 架构一致性 adversarial | PAL 已批准 reviewer provider，分别使用 architecture-rubric / architecture-consistency |
+| Architecture rubric walker / 架构一致性 adversarial | PAL 探测通过的 reviewer provider，分别使用 architecture-rubric / architecture-consistency |
 | Architecture 技术现实和版本核验 | 保留原生联网研究 |
 | Build review_layers / oneshot_review_layers | 默认原生；仅明确要求跨模型审核时走 PAL 对应角色 |
 | Build Auto 原生启用层 | PAL 同名角色；不新增层 |
@@ -42,5 +42,5 @@ Code Review 的 no-spec/full、Build 的 opt-in/one-shot、Architecture 的选�
 属于服务配置，不由项目安装器自动写入全局目录。
 跨模型包与团队包须同步迁移引用和 manifest；不修改派工行为。
 ## R6. 多 provider
-选择与限额回退按核心文档 X10。当前配置候选为 Claude/agy/CodeBuddy/dsh（旧 Gemini 仅 API/企业），不自动启用未验证备用。
+选择与限额回退按核心文档 X10。候选为 Claude/Codex/agy/CodeBuddy/dsh，每个 Run 运行时探测，优先选和宿主不同的 provider。
 模型选择不会改变上述哪些 reviewer 要跨模型、何时执行或原生方法；也不改变 Coordinator 派工。
