@@ -12,6 +12,7 @@ const messages = {
     blocked: ['需要检查当前认证配置', '当前使用其他认证来源，请联系管理员核对。']
 };
 let rfb = null;
+let frame = null;
 let busy = false;
 let polling = false;
 let viewerWanted = false;
@@ -23,12 +24,20 @@ let foreground = !document.hidden;
 // The remote Firefox needs precise clicks and a keyboard, which phones do not provide;
 // a touch-only device is sent to a computer instead of starting an authorization it cannot finish.
 const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+function stopViewer() {
+    rfb?.disconnect();
+    rfb = null;
+    frame?.remove();
+    frame = null;
+}
+
 function dropViewer() {
     viewTrusted = false;
     viewerWanted = false;
-    rfb?.disconnect();
-    rfb = null;
+    stopViewer();
     $('screen').replaceChildren();
+    $('remote-text').value = '';
+    $('remote-copy').hidden = true;
     $('viewer-section').hidden = true;
     $('code-section').hidden = true;
 }
@@ -125,11 +134,53 @@ async function api(action, data) {
     }
     const response = await fetch(`${prefix}/api/login/${action}`, options);
     const result = await response.json();
-    if (!response.ok) { if (response.status === 403) { viewerWanted = false; rfb?.disconnect(); } throw new Error(result.error || '操作未完成，请稍后重试。'); }
+    if (!response.ok) { if (response.status === 403) { viewerWanted = false; stopViewer(); } throw new Error(result.error || '操作未完成，请稍后重试。'); }
     return result;
 }
 
+// The Kasm client speaks the server's own protocol. Embedded without show_control_bar it hides its
+// control bar and clipboard, so the clipboard is enabled here; state comes back by postMessage.
+function connectKasm() {
+    const settings = new URLSearchParams({
+        autoconnect: '1', path: `${prefix.slice(1)}/websockify`, resize: 'scale',
+        clipboard_up: 'true', clipboard_down: 'true', clipboard_seamless: 'true'
+    });
+    $('viewer-status').textContent = '正在连接远程浏览器…';
+    frame = document.createElement('iframe');
+    frame.title = '本人 VM 远程 Firefox';
+    frame.src = `${prefix}/kasm/index.html?${settings}`;
+    // Focus inside the frame blurs only the frame's window once it leaves the browser.
+    frame.addEventListener('load', event => event.target.contentWindow.addEventListener('blur', checkForeground));
+    $('screen').replaceChildren(frame);
+}
+
+function kasmMessage(event) {
+    if (!frame || event.source !== frame.contentWindow || event.origin !== location.origin) return;
+    const {action, value} = event.data ?? {};
+    if (action === 'connection_state' && value === 'connected') $('viewer-status').textContent = '已连接 VM 内的 Firefox，请在画面中操作。';
+    // Only Chromium lets the client write the local clipboard itself; elsewhere the text ends here.
+    if (action === 'clipboardrx' && typeof value === 'string') {
+        $('remote-text').value = value;
+        $('remote-copy').hidden = !value;
+    }
+    // On idle timeout the client leaves for disconnected.html without reporting a state change.
+    if (action === 'idle_session_timeout' || (action === 'connection_state' && value === 'disconnected')) {
+        stopViewer();
+        $('viewer-status').textContent = '画面连接已断开，正在等待重连；授权状态会继续检查。';
+    }
+}
+
+// Moving focus into the frame blurs this window too; only a page without focus has lost it.
+function checkForeground() {
+    setTimeout(() => {
+        if (document.hasFocus()) return;
+        foreground = false;
+        dropViewer();
+    });
+}
+
 async function connectViewer() {
+    if (expectedWorkspace.viewer === 'kasm') { connectKasm(); return; }
     connecting = true;
     try {
         const {default: RFB} = await import(`${prefix}/core/rfb.js`);
@@ -173,11 +224,8 @@ function render(data) {
         $('viewer-section').hidden = true;
         $('code-section').hidden = true;
     }
-    if (viewerWanted && !rfb && !connecting) connectViewer();
-    else if (!viewerWanted && rfb) {
-        rfb.disconnect();
-        rfb = null;
-    }
+    if (viewerWanted && !rfb && !frame && !connecting) connectViewer();
+    else if (!viewerWanted) stopViewer();
 }
 
 async function refresh() {
@@ -228,6 +276,12 @@ $('fullscreen').addEventListener('click', () => {$('screen').requestFullscreen()
 $('paste').addEventListener('click', () => {
     const text = $('clipboard').value;
     $('clipboard').value = '';
+    if (frame && text) {
+        frame.contentWindow.postMessage({action: 'clipboardsnd', value: text}, location.origin);
+        frame.focus();
+        $('viewer-status').textContent = '文本已发送到远程剪贴板，请在远程输入框中按 Ctrl+V 粘贴。';
+        return;
+    }
     if (!rfb || !text) return;
     kasmPaste(rfb, text);
     rfb.sendKey(0xffe3, 'ControlLeft', true);
@@ -236,7 +290,8 @@ $('paste').addEventListener('click', () => {
     rfb.sendKey(0xffe3, 'ControlLeft', false);
     rfb.focus();
 });
-window.addEventListener('blur', () => { foreground = false; dropViewer(); });
+window.addEventListener('message', kasmMessage);
+window.addEventListener('blur', checkForeground);
 window.addEventListener('focus', () => { foreground = true; refresh(); });
 document.addEventListener('visibilitychange', () => {
     foreground = !document.hidden;

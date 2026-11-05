@@ -130,6 +130,17 @@ http {
             alias /usr/share/novnc/$1/$2;
             limit_except GET { deny all; }
         }
+        # The pinned client runs on this origin. Its one inline script is hashed, its panels use
+        # style attributes, and its QOI decoder is WebAssembly; codec probes fetch data: URLs.
+        location ~ ^/_workspace/login/kasm/(.*)$ {
+            include /etc/hapi-control-plane/authorize.inc;
+            alias /usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www/$1;
+            limit_except GET { deny all; }
+            add_header Cache-Control "no-store" always;
+            add_header X-Content-Type-Options nosniff always;
+            add_header Referrer-Policy no-referrer always;
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-+w4uuxDuaRJ0kH5I4sifAwedyfxg1il+lsKFqslG+L0='; style-src 'self' 'unsafe-inline'; connect-src 'self' {{ hapi_control_plane_origin | replace('https:', 'wss:') }} data:; img-src 'self' data: blob:; media-src 'self' data:; object-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'" always;
+        }
         location ~ ^/_workspace/login/api/login/(status|start|code|cancel)$ {
             set $hapi_login_action $1;
             include /etc/hapi-control-plane/authorize.inc;

@@ -127,6 +127,15 @@ class AuthTest(unittest.TestCase):
             self.assertEqual(identity['workspace_id'], wid)
         self.assertEqual(self.loads, 1)
 
+    def test_kasm_viewer_is_selected_per_workspace(self):
+        self.assertEqual(self.policy.identity(self.token())[1]['viewer'], 'novnc')
+        self.config['kasm_viewer_workspaces'] = ['alice']; self.save()
+        self.assertEqual(self.policy.identity(self.token())[1]['viewer'], 'kasm')
+        self.assertEqual(self.policy.identity(self.token('bob'))[1]['viewer'], 'novnc')
+        self.config['kasm_viewer_workspaces'] = 'alice'; self.save()
+        with self.assertRaises(ValueError):
+            auth.load_config(self.config_file)
+
     def test_forged_signature_and_algorithm_confusion_are_denied(self):
         good = self.token()
         first, payload, signature = good.split('.')

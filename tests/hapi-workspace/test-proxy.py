@@ -227,6 +227,10 @@ class ProxyTest(unittest.TestCase):
         config = config.replace('/run/hapi-control-proxy', str(directory)).replace('/etc/hapi-control-plane', str(cls.root))
         (cls.root/'authorize.inc').write_text((ROOT/'ansible/roles/hapi-control-plane/templates/authorize.inc.j2').read_text())
         config = config.replace('/usr/local/lib/hapi-login-portal', str(ROOT/'ansible/roles/hapi-control-plane/files/hapi-login-portal'))
+        kasm = cls.root/'kasm'; (kasm/'assets').mkdir(parents=True)
+        (kasm/'index.html').write_text('<html>synthetic Kasm client</html>')
+        (kasm/'assets/ui.js').write_text('window.syntheticKasm = true;')
+        config = config.replace('/usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www', str(kasm))
         cls.start_nginx(directory, config, cls.port)
 
     @classmethod
@@ -526,6 +530,33 @@ class ProxyTest(unittest.TestCase):
         connection, response = self.request('/_workspace/login/api/login/cancel', 'bob', 'POST', extra={
             'Origin': helpers.ORIGIN, 'X-Hapi-CSRF': identity['csrf'], 'Content-Type': 'application/json'})
         self.assertEqual(response.status, 403); response.read(); connection.close()
+
+    def test_kasm_client_is_served_from_the_control_plane_behind_access(self):
+        connection, response = self.request('/_workspace/login/kasm/index.html')
+        body = response.read().decode(); connection.close()
+        self.assertEqual(response.status, 200)
+        self.assertIn('synthetic Kasm client', body)
+        policy = response.getheader('Content-Security-Policy')
+        self.assertIn("frame-ancestors 'self'", policy)
+        self.assertIn('wss://hapi.example.com', policy)
+        self.assertEqual(response.getheader('Cache-Control'), 'no-store')
+        self.assertEqual(response.getheader('X-Content-Type-Options'), 'nosniff')
+        connection, response = self.request('/_workspace/login/kasm/assets/ui.js')
+        self.assertEqual(response.status, 200); self.assertIn('javascript', response.getheader('Content-Type'))
+        response.read(); connection.close()
+        connection, response = self.request('/_workspace/login/kasm/index.html', extra={'Cf-Access-Jwt-Assertion': 'forged'})
+        self.assertIn(response.status, (401, 403)); response.read(); connection.close()
+        connection, response = self.request('/_workspace/login/kasm/index.html', method='POST')
+        self.assertEqual(response.status, 403); response.read(); connection.close()
+
+    def test_shared_hub_bridge_keeps_the_viewer_on_the_workspace(self):
+        config = render(ROOT/'ansible/roles/hapi-control-plane/templates/nginx.conf.j2', {
+            'hapi_control_plane_origin': helpers.ORIGIN, 'hapi_control_plane_routes': self.routes,
+            'hapi_control_plane_shared_hub': True})
+        bridge = config.split('location = /websockify {', 1)
+        self.assertIn('proxy_pass http://127.0.0.1:3006;', bridge[0])
+        self.assertIn(f"proxy_pass http://{self.routes[0]['backend_address']}:9443;", bridge[1].split('}', 1)[0])
+        self.assertIn('location = /_workspace/login/websockify {', config)
 
     def test_parallel_novnc_modules_do_not_overflow_the_auth_socket(self):
         if not Path('/usr/share/novnc/core/rfb.js').is_file():

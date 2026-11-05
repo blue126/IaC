@@ -131,6 +131,29 @@
   register: hapi_control_plane_novnc
   failed_when: not hapi_control_plane_novnc.stat.exists
 
+- name: Download the verified KasmVNC package for its web client
+  ansible.builtin.get_url:
+    url: https://github.com/kasmtech/KasmVNC/releases/download/v1.5.0/kasmvncserver_noble_1.5.0_amd64.deb
+    checksum: sha256:f599fe02e2175b9817b6165f74a5d2bebdc73118dde9181ba3410963bed7ae1e
+    dest: /var/cache/kasmvncserver-1.5.0-amd64.deb
+    owner: root
+    group: root
+    mode: '0644'
+
+# Unpacked, not installed: VM500 serves only the static client, never the server. The page runs
+# on the login origin, so it comes from this pinned package and not from an employee VM.
+- name: Unpack the pinned Kasm web client
+  ansible.builtin.command:
+    argv: [dpkg-deb, -x, /var/cache/kasmvncserver-1.5.0-amd64.deb, /usr/local/lib/hapi-kasm-client-1.5.0]
+    creates: /usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www/index.html
+
+- name: Require the pinned Kasm web client
+  ansible.builtin.stat:
+    path: /usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www/assets/ui-BOjwDkC7.js
+  register: hapi_control_plane_kasm_client
+  # A first check-mode run downloads and unpacks nothing.
+  failed_when: not hapi_control_plane_kasm_client.stat.exists and not ansible_check_mode
+
 - name: Deploy the internal authorization fragment
   ansible.builtin.template:
     src: authorize.inc.j2

@@ -3,5 +3,6 @@
   'issuer': hapi_control_plane_issuer,
   'audience': hapi_control_plane_audience,
   'routes': hapi_control_plane_routes,
-  'shared_hub': hapi_control_plane_shared_hub | default(false)
+  'shared_hub': hapi_control_plane_shared_hub | default(false),
+  'kasm_viewer_workspaces': hapi_control_plane_kasm_viewer_workspaces | default([])
 } | to_nice_json }}
