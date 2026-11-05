@@ -29,6 +29,12 @@
     use_proxy: false
   when: hapi_shared_hub_activate | bool
 
+- name: Read a live worker namespace
+  ansible.builtin.slurp:
+    src: /etc/hapi-shared-hub/agents.json
+  register: hapi_shared_hub_live_agents
+  when: hapi_shared_hub_activate | bool
+
 - name: Reject the old unrestricted service token authentication path
   ansible.builtin.uri:
     url: http://127.0.0.1:3006/api/auth
@@ -36,7 +42,7 @@
     body_format: json
     body: {accessToken: '{{ hapi_shared_hub_bootstrap_token }}'}
     headers:
-      X-Hapi-Expected-Namespace: '{{ hapi_shared_hub_agents[0].namespace }}'
+      X-Hapi-Expected-Namespace: "{{ (hapi_shared_hub_live_agents.content | b64decode | from_json).agents[0].namespace }}"
     status_code: [401, 403]
     use_proxy: false
   no_log: true

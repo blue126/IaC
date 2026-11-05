@@ -1,18 +1,5 @@
 ---
-- name: Restart HAPI control authentication
+# Units change without a restart: a running service moves to new code at the next activate.
+- name: Reload HAPI control units
   ansible.builtin.systemd_service:
-    name: hapi-control-auth
-    state: restarted
     daemon_reload: true
-  listen: Restart HAPI control auth
-
-- name: Restart HAPI control proxy
-  ansible.builtin.systemd_service:
-    name: hapi-control-proxy
-    state: restarted
-    daemon_reload: true
-
-- name: Reload HAPI control proxy
-  ansible.builtin.systemd_service:
-    name: hapi-control-proxy
-    state: reloaded

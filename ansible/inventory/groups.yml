@@ -18,4 +18,7 @@ all:
 
     pve_lxc:
     pve_vms:
+    hapi_control_plane:
+      children:
+        employee_access:
 

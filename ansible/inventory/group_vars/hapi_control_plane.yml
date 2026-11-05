@@ -1,0 +1,11 @@
+---
+# VM500's non-secret HAPI identity; the Access audience is a public claim in every token.
+hapi_internal_http_authorized: true
+hapi_control_plane_vmid: 500
+hapi_control_plane_public_entry: true
+hapi_control_plane_migration_authorized: true
+hapi_control_plane_issuer: https://fanweiblue.cloudflareaccess.com
+hapi_control_plane_audience: 2d8d76e1fc7cd013f2844e83141cec2cf81b44427c3e7f7c6d0b7b2b7bef1c46
+hapi_control_plane_hub_address: 192.168.1.140
+hapi_shared_hub_vmid: 500
+hapi_shared_hub_bind_address: 192.168.1.140

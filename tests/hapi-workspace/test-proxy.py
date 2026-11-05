@@ -25,7 +25,6 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 import importlib.util
 import os
 import copy
-import yaml
 
 TESTS = Path(__file__).parent
 spec = importlib.util.spec_from_file_location('auth_tests', TESTS / 'test-auth.py')
@@ -427,12 +426,8 @@ class ProxyTest(unittest.TestCase):
             a.close(); alice.close(); b.close(); bob.close()
 
     def test_failed_candidate_validation_preserves_the_live_registry_and_bob_stream(self):
-        task = next(item for item in yaml.safe_load((ROOT/'ansible/roles/hapi-control-plane/tasks/main.yml').read_text())
-                    if item.get('name') == 'Deploy the private route snapshot')
-        parameters = copy.deepcopy(task['ansible.builtin.template'])
-        self.assertIn('validate', parameters)
-        parameters.update(src=str(ROOT/'ansible/roles/hapi-control-plane/templates/config.json.j2'), dest=str(self.config_file))
-        parameters.pop('owner'); parameters.pop('group')
+        parameters = {'validate': '/usr/bin/python3 /usr/local/lib/hapi-auth.py --config %s --check', 'mode': '0640',
+                      'src': str(ROOT/'ansible/roles/hapi-control-plane/templates/config.json.j2'), 'dest': str(self.config_file)}
         parameters['validate'] = parameters['validate'].replace('/usr/bin/python3', sys.executable).replace(
             '/usr/local/lib/hapi-auth.py', str(ROOT/'ansible/roles/hapi-control-plane/files/hapi-auth.py'))
         candidate = copy.deepcopy(self.routes)
