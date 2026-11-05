@@ -1,6 +1,6 @@
 # OCI Hub 原生 Mosh 开户
 
-本入口是私有 `remotecc/wsctl/wsctl`，写操作只在执行器 remotecc-ops 上运行（Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/wsctl/wsctl ...`）；Mac 只读，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`。新方案使用独立 BWS 项目、Portal 账本和 PVE VNet；不经过 VM500。SSH、SFTP 与 Mosh 会话在员工 VM 内终止。
+本入口是私有 `remotecc/wsctl/wsctl`，写操作只在执行器 remotecc-ops 上运行（Semaphore 项目 remotecc 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/wsctl/wsctl ...`）；Mac 只读，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`。新方案使用独立 BWS 项目、Portal 账本和 PVE VNet；不经过 VM500。SSH、SFTP 与 Mosh 会话在员工 VM 内终止。
 
 ## 管理员操作
 
