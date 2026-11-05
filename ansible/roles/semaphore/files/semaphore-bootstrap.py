@@ -33,9 +33,10 @@ TEMPLATES={
     'wsctl access':(['access'],[APPROVE],False,'管理来源变化后重新下发 PVE 边界的 SSH 授权。'),
     'wsctl enforce':(['enforce'],[],False,'到期断开。每 5 分钟自动运行，一般不用手动点。'),
     'wsctl remind':(['remind'],[],False,'到期提醒。每小时整点自动运行，一般不用手动点。'),
+    'wsctl hapi-sync':(['hapi-sync'],[],False,'让 VM500、PVE 9443 授权和 Access 策略与员工名单一致，清理退役残留。每天自动运行，一般不用手动点。'),
     'wsctl publish-status':(['publish-status'],[],False,'把状态推到网站。每小时第 15 分自动运行，一般不用手动点。'),
 }
-SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *','wsctl remind':'0 * * * *','wsctl publish-status':'15 * * * *'}
+SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *','wsctl remind':'0 * * * *','wsctl publish-status':'15 * * * *','wsctl hapi-sync':'45 3 * * *'}
 
 jar=http.cookiejar.CookieJar()
 opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
