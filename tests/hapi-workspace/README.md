@@ -30,7 +30,11 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 
 锁定源码、补丁、overlay和构建器在[scripts/hapi-workspace-web](../../scripts/hapi-workspace-web/README.md)。当前21项前端测试与完整类型检查、生产构建通过；`workspace-browser.mjs`使用真实编译页面与Chromium，通过loopback模拟网关验证自动进入、账号切换及会话失效恢复。它不调用真实Cloudflare或Claude账号，不代表现网验收。
 
-当前身份套件17项，包括撤销持久化、Unix权限及共享Hub固定namespace票据交换；真实代理套件19项，包括既有SSE／WebSocket撤销、分配指纹不一致拒绝、登记损坏拒绝、2MiB响应完整转发、真实websockify到合成RFB端点、真实noVNC模块依赖与64路并发认证，以及共享Hub的证书／源地址联合绑定和namespace头覆盖。执行服务套件6项，使用已有隔离CLI夹具和实际tmux／PTY验证手工码、取消、超时与浏览器保留；并未使用真实Claude账号。
+当前身份套件21项，包括撤销持久化、Unix权限及共享Hub固定namespace票据交换；真实代理套件20项，包括既有SSE／WebSocket撤销、分配指纹不一致拒绝、登记损坏拒绝、2MiB响应完整转发、真实websockify到合成RFB端点、客户端资源64路并发认证，以及共享Hub的证书／源地址联合绑定和namespace头覆盖。执行服务套件6项，使用已有隔离CLI夹具和实际tmux／PTY验证手工码、取消、超时与浏览器保留；并未使用真实Claude账号。
+
+## Kasm网页客户端
+
+`test-proxy.py`验证客户端静态资源经Access鉴权、响应头和共享Hub下的bridge路由。这些测试使用合成客户端文件，不覆盖真实KasmVNC；真实客户端的连接、253／254消息和画面须在线上验收。本目录不在PR校验内，上线前须在本机手工运行。
 
 ## 共享 Hub 与数据迁移
 
@@ -44,9 +48,9 @@ ansible-lint --profile production ansible/playbooks/deploy-hapi-control-plane.ym
 
 `probe-live-shared-hub.mjs <private-application-plan>`在任务Sandbox经两个真实worker路径对编译的隔离Hub执行7项回归：实际资源隔离、Runner WS／HTTP polling、终端、跨租户RPC覆盖及既有Runner／终端／SSE撤销，保留另一worker。临时测试不使用生产数据，结束恢复原登记并关闭本次连接；最终迁移另有20项真实历史数据、网关／Runner及签名隔离检查，不能将隔离测试报告当作已切换的证据。
 
-浏览器模拟回归还打开集中登录页面、提交模拟码并返回HAPI，验证身份变化后旧画面清理。浏览器RFB模块是测试替身，不能代替真实Firefox图形操作；协议套件的websockify是真实进程，RFB端点仍为合成服务。
+浏览器模拟回归还打开集中登录页面、提交模拟码并返回HAPI，验证身份变化后旧画面清理。浏览器里的Kasm客户端是测试替身，不能代替真实Firefox图形操作；协议套件的websockify是真实进程，RFB端点仍为合成服务。
 
-角色验证不会自动开始个人授权；新VM须有经批准的Firefox／Claude基线和浏览器管理权限。noVNC资源仅在控制面，VM的websockify不再提供静态目录；不将个人OAuth或浏览器profile复制到模板。
+角色验证不会自动开始个人授权；新VM须有经批准的Firefox／Claude基线和浏览器管理权限。Kasm网页客户端仅在控制面，VM的websockify不再提供静态目录；不将个人OAuth或浏览器profile复制到模板。
 
 ## 网络阶段
 

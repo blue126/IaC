@@ -154,7 +154,7 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 
 | 层 | 部署位置 | 职责与边界 |
 |---|---|---|
-| 登录引导与编排 | VM500上的HAPI控制面 | 提供页面、JS／CSS和noVNC客户端；验证身份、查询本人状态、转发固定操作及控制连接；不运行员工Claude或Firefox |
+| 登录引导与编排 | VM500上的HAPI控制面 | 提供页面、JS／CSS和固定版本的Kasm网页客户端；验证身份、查询本人状态、转发固定操作及控制连接；不运行员工Claude或Firefox |
 | 登录执行服务 | 每台员工VM，`employee`身份、loopback拟沿用`6082` | 调用本机`workspace-login`，管理单一在途tmux／PTY流程，接收有界授权码、查询状态、取消及固定RFB转发；不承担公共页面或员工登记 |
 | 个人运行环境 | 每台员工VM | Claude CLI、`workspace-browser`、Firefox profile、RFB及个人凭据 |
 | 开户管理工具 | 独立管理员环境 | 安装并登记员工VM，验证服务和发布路由；其PVE／BWS管理权限不交给公开控制面进程 |
@@ -170,16 +170,17 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 | 对外路径 | 控制面处理 | 员工VM内部目标 |
 |---|---|---|
 | `GET /_workspace/login/` | 返回集中引导页及本人会话校验码 | 无 |
-| `/_workspace/login/guide.js`、`guide.css`及固定noVNC资源 | 返回固定版本的静态资源 | 无 |
+| `/_workspace/login/guide.js`、`guide.css` | 返回固定版本的静态资源 | 无 |
+| `/_workspace/login/kasm/` | 返回从固定KasmVNC 1.5.0安装包解出的网页客户端，同源iframe内嵌 | 无 |
 | `GET /_workspace/login/api/login/status` | 验证身份后查询本人状态，响应不缓存 | `GET /api/login/status` |
 | `POST /_workspace/login/api/login/start` | 验证本人会话、同源和CSRF后转发 | `POST /api/login/start` |
 | `POST /_workspace/login/api/login/code` | 有界JSON正文，仅瞬时转发 | `POST /api/login/code` |
 | `POST /_workspace/login/api/login/cancel` | 取消本人在途流程 | `POST /api/login/cancel` |
-| `WSS /_workspace/login/websockify` | 验证身份和Origin，绑定本人VM及路由代次 | 经执行服务的`/websockify`到本机6081 |
+| `WSS /_workspace/login/websockify` | 验证身份和Origin，绑定本人VM及路由代次 | 经VM的9443入口到本机KasmVNC |
 
 控制面到VM走第5节受限TLS服务入口，核验VM服务器身份，由VM验证控制面客户端身份。目标只来自受控登记，不信任请求中的主机名／VMID。员工VM仅接收固定接口及控制通道，不获得其他员工路由或管理员权限。内部后端连接的固定Host／Origin及服务认证规则必须在拆分时明确配置和验证，不能靠关闭校验使其工作。
 
-公共边界保留精确Host、Origin、与当前身份会话绑定的CSRF校验、CSP和WebSocket校验；当前单进程页面随机码不是统一多用户会话机制，不能直接共享为所有员工的授权依据。noVNC导入、API及WebSocket地址使用统一`/_workspace/login`前缀；返回HAPI地址由受控配置指定。页面不接受任意返回站点或后端地址。
+公共边界保留精确Host、Origin、与当前身份会话绑定的CSRF校验、CSP和WebSocket校验；当前单进程页面随机码不是统一多用户会话机制，不能直接共享为所有员工的授权依据。Kasm客户端、API及WebSocket地址使用统一`/_workspace/login`前缀；返回HAPI地址由受控配置指定。页面不接受任意返回站点或后端地址。
 
 控制面会短暂处理授权码和转发浏览器画面，因此属于受信任的敏感服务；授权码不进入日志、跟踪、错误正文、持久化队列或自动重试缓冲，相关动态响应禁缓存。长期个人凭据仍仅留本人VM。账号切换、暂停或路由代次变更时关闭旧控制连接；共享静态资源不携带个人状态。
 
@@ -192,7 +193,7 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 1. 员工通过统一入口认证；网关可先建立 HAPI 应用会话，尚未登录 Claude 不应阻止显示开户完成／登录引导页面。
 2. 页面显示“Claude 尚未登录”，提供“开始 Claude 授权”。状态只读取本人 VM，不发起模型调用。
 3. 控制面转发固定开始操作，执行服务以本人 VM 内 `employee` 身份启动现有助手，使用真实 tmux／PTY，不另做 OAuth，不要求管理员临时 SSH 转发。
-4. 同页用 noVNC RFB 客户端控制本人 VM Firefox；需要时在页面提交手工授权码。授权码使用有界请求体及私有 stdin／tmux 缓冲区，不进入 URL、命令参数或日志。
+4. 同页用内嵌的Kasm网页客户端控制本人 VM Firefox；需要时在页面提交手工授权码。授权码使用有界请求体及私有 stdin／tmux 缓冲区，不进入 URL、命令参数或日志。
 5. 后端读取现有助手的认证判断，确认实际个人 Claude 授权成功后显示“进入 HAPI”。其他认证来源不能被静默覆盖或切换计费方式。
 
 保留已登录短路、单一在途流程、取消、30分钟超时与失败可重试行为，以及日常 Firefox／profile 生命周期。网页不返回原始 OAuth URL、完整 CLI 输出或账号详情。不得为测试而自动登出已有个人认证；首次完整验收使用新建专用测试 VM 或本人自然过期的授权流程。
@@ -203,7 +204,7 @@ VM502现有`employee-login-guide`把引导页面、API、调用本机`workspace-
 
 ### 6.4 接入时必须补的验证
 
-既有32项本地回归和VM502部署证据只证明原组合组件，本轮未重跑这些测试。推广前须验证拆分后的内部接口认证、TLS身份、控制面重启及请求结果不明的恢复、授权码不落日志／缓存、base path、noVNC模块路径、VM502旧组合部署兼容、精确Host／Origin／CSRF／CSP、真实RFB及两员工间的start／code／cancel／控制连接归属。还须验证员工VM不能访问控制面管理能力或其他VM；控制面失效时已有VM任务继续运行，个人授权流程由VM超时收敛，恢复后重新核验身份再接续。最终以新VM无个人认证、无既存Claude会话的真实首次授权验证闭环，保留手工码、取消和超时证据，不用VM502已有登录状态代替。
+既有32项本地回归和VM502部署证据只证明原组合组件，本轮未重跑这些测试。推广前须验证拆分后的内部接口认证、TLS身份、控制面重启及请求结果不明的恢复、授权码不落日志／缓存、base path、Kasm客户端路径、VM502旧组合部署兼容、精确Host／Origin／CSRF／CSP、真实RFB及两员工间的start／code／cancel／控制连接归属。还须验证员工VM不能访问控制面管理能力或其他VM；控制面失效时已有VM任务继续运行，个人授权流程由VM超时收敛，恢复后重新核验身份再接续。最终以新VM无个人认证、无既存Claude会话的真实首次授权验证闭环，保留手工码、取消和超时证据，不用VM502已有登录状态代替。
 
 接入交接应包含：实际源提交或快照摘要、逐组件文件及校验和、支持的路径／origin配置、依赖基线、状态接口、停止／回退方式及测试记录。源码集成、参数化实现、部署和Cloudflare切换按各自获批范围执行；设计更新不等于已将侧聊源码合入当前分支。
 

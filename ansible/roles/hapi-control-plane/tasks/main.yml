@@ -17,7 +17,7 @@
 
 - name: Install explicitly approved prototype dependencies
   ansible.builtin.apt:
-    name: [nginx-core, python3, python3-cryptography, novnc]
+    name: [nginx-core, python3, python3-cryptography]
     state: present
     policy_rc_d: 101
   when: hapi_control_plane_install_dependencies | bool
@@ -124,12 +124,6 @@
     group: root
     mode: '0644'
     directory_mode: '0755'
-
-- name: Require the centralized noVNC client runtime
-  ansible.builtin.stat:
-    path: /usr/share/novnc/core/rfb.js
-  register: hapi_control_plane_novnc
-  failed_when: not hapi_control_plane_novnc.stat.exists
 
 - name: Deploy the internal authorization fragment
   ansible.builtin.template:

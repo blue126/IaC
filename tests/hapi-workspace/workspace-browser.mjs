@@ -46,14 +46,9 @@ const server = http.createServer(async (request, response) => {
             response.writeHead(200, { 'Content-Type': url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css' })
             return response.end(await readFile(file))
         }
-        if (url.pathname === '/_workspace/login/core/rfb.js') {
-            response.writeHead(200, { 'Content-Type': 'text/javascript' })
-            return response.end(`export default class RFB extends EventTarget {
-                constructor(element, url) { super(); window.fixtureViewerUrl = url; element.textContent = 'synthetic-private-screen';
-                    queueMicrotask(() => this.dispatchEvent(new Event('connect'))); }
-                disconnect() { window.fixtureDisconnects = (window.fixtureDisconnects || 0) + 1; this.dispatchEvent(new Event('disconnect')); }
-                sendKey() {} focus() {} clipboardPasteFrom() {}
-            }`)
+        if (url.pathname === '/_workspace/login/kasm/index.html') {
+            response.writeHead(200, { 'Content-Type': 'text/html' })
+            return response.end('<!doctype html><title>synthetic Kasm client</title>')
         }
         if (url.pathname.startsWith('/_workspace/login/api/login/')) {
             const state = flow()
@@ -151,8 +146,9 @@ try {
     await page.getByRole('link', { name: 'Claude 登录', exact: true }).click()
     await page.getByRole('button', { name: '开始 Claude 授权', exact: true }).click()
     await page.locator('#viewer-section').waitFor({ state: 'visible' })
-    await page.waitForFunction(() => typeof window.fixtureViewerUrl === 'string')
-    assert.equal(new URL(await page.evaluate(() => window.fixtureViewerUrl)).pathname, '/_workspace/login/websockify')
+    const viewerUrl = new URL(await page.locator('#screen iframe').getAttribute('src'), 'http://localhost')
+    assert.equal(viewerUrl.pathname, '/_workspace/login/kasm/index.html')
+    assert.equal(viewerUrl.searchParams.get('path'), '_workspace/login/websockify')
     await page.locator('#code').fill('synthetic-code')
     await page.getByRole('button', { name: '提交授权码', exact: true }).click()
     await page.getByRole('link', { name: '进入 HAPI', exact: true }).click()
@@ -169,7 +165,7 @@ try {
     await page.locator('#error').filter({ hasText: '身份已变化' }).waitFor()
     assert.equal(await page.locator('#viewer-section').isVisible(), false)
     assert.equal(await page.locator('#screen').textContent(), '')
-    assert.ok(await page.evaluate(() => window.fixtureDisconnects >= 1))
+    assert.equal(await page.locator('#screen iframe').count(), 0)
     assert.deepEqual(bobFlow.codes, ['synthetic-code'])
     assert.equal(flows.get('alice')?.codes.length ?? 0, 0)
     assert.equal(errors.length, 0, errors.join('\n'))

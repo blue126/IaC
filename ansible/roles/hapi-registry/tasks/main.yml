@@ -22,15 +22,28 @@
     mode: '0755'
   notify: Restart HAPI control authentication
 
-# The login page's viewer must match the employee desktops it connects to.
-- name: Install the current login page assets
-  ansible.builtin.copy:
-    src: '{{ role_path }}/../hapi-control-plane/files/hapi-login-portal/'
-    dest: /usr/local/lib/hapi-login-portal/
+- name: Download the verified KasmVNC package for its web client
+  ansible.builtin.get_url:
+    url: https://github.com/kasmtech/KasmVNC/releases/download/v1.5.0/kasmvncserver_noble_1.5.0_amd64.deb
+    checksum: sha256:f599fe02e2175b9817b6165f74a5d2bebdc73118dde9181ba3410963bed7ae1e
+    dest: /var/cache/kasmvncserver-1.5.0-amd64.deb
     owner: root
     group: root
     mode: '0644'
-    directory_mode: '0755'
+
+# Unpacked, not installed: VM500 serves only the static client, never the server. The page runs
+# on the login origin, so it comes from this pinned package and not from an employee VM.
+- name: Unpack the pinned Kasm web client
+  ansible.builtin.command:
+    argv: [dpkg-deb, -x, /var/cache/kasmvncserver-1.5.0-amd64.deb, /usr/local/lib/hapi-kasm-client-1.5.0]
+    creates: /usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www/index.html
+
+- name: Require the pinned Kasm web client
+  ansible.builtin.stat:
+    path: /usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www/assets/ui-BOjwDkC7.js
+  register: hapi_registry_kasm_client
+  # A first check-mode run downloads and unpacks nothing.
+  failed_when: not hapi_registry_kasm_client.stat.exists and not ansible_check_mode
 
 # The registry reloads the transport after each change, which needs the unit's ExecReload.
 - name: Install the reloadable shared Hub transport unit
@@ -79,6 +92,13 @@
     hapi_control_plane_origin: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).origin }}'
     hapi_control_plane_shared_hub: '{{ (hapi_registry_rendered.results[0].content | b64decode | from_json).shared_hub }}'
 
+# A reload with a bad file keeps the old routes and still reports success. Tested as the proxy
+# user: nginx run as root would hand its temp paths under /run to the default nginx user.
+- name: Test the control proxy configuration
+  ansible.builtin.command:
+    argv: [/usr/sbin/runuser, -u, hapi-proxy, --, /usr/sbin/nginx, -t, -c, /etc/hapi-control-plane/nginx.conf, -p, /run/hapi-control-proxy/]
+  changed_when: false
+
 - name: Render the shared Hub transport for every worker
   ansible.builtin.template:
     src: '{{ role_path }}/../hapi-shared-hub/templates/nginx.conf.j2'
@@ -100,3 +120,14 @@
     state: reloaded
   loop: [hapi-control-proxy, hapi-hub-transport]
   changed_when: false
+
+# Last: the page needs the client and the route above. The proxy still serves the old page's
+# route, so a run that fails at any step leaves a page and routes that work together.
+- name: Install the current login page assets
+  ansible.builtin.copy:
+    src: '{{ role_path }}/../hapi-control-plane/files/hapi-login-portal/'
+    dest: /usr/local/lib/hapi-login-portal/
+    owner: root
+    group: root
+    mode: '0644'
+    directory_mode: '0755'

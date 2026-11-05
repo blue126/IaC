@@ -11,11 +11,10 @@ const messages = {
     unknown: ['暂时无法确认登录状态', '请稍后刷新；持续失败时联系管理员。'],
     blocked: ['需要检查当前认证配置', '当前使用其他认证来源，请联系管理员核对。']
 };
-let rfb = null;
+let frame = null;
 let busy = false;
 let polling = false;
 let viewerWanted = false;
-let connecting = false;
 let revision = 0;
 let actionError = false;
 let viewTrusted = false;
@@ -23,87 +22,20 @@ let foreground = !document.hidden;
 // The remote Firefox needs precise clicks and a keyboard, which phones do not provide;
 // a touch-only device is sent to a computer instead of starting an authorization it cannot finish.
 const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+function stopViewer() {
+    frame?.remove();
+    frame = null;
+}
+
 function dropViewer() {
     viewTrusted = false;
     viewerWanted = false;
-    rfb?.disconnect();
-    rfb = null;
+    stopViewer();
     $('screen').replaceChildren();
+    $('remote-text').value = '';
+    $('remote-copy').hidden = true;
     $('viewer-section').hidden = true;
     $('code-section').hidden = true;
-}
-
-// The viewer is KasmVNC, whose PointerEvent is 11 bytes (16-bit mask, x, y, scroll x, scroll y).
-// Stock noVNC sends the 6-byte RFB form, which desynchronises KasmVNC and drops the
-// connection on the first mouse or touch input.
-function kasmPointer(RFB) {
-    if (!RFB.messages) return;
-    const send = (sock, x, y, mask) => {
-        sock.sQpush8(5);
-        sock.sQpush16(mask & 0xffff);
-        sock.sQpush16(x);
-        sock.sQpush16(y);
-        sock.sQpush16(0);
-        sock.sQpush16(0);
-        sock.flush();
-    };
-    RFB.messages.pointerEvent = send;
-    RFB.messages.extendedPointerEvent = send;
-}
-
-// KasmVNC ignores RFB ClientCutText; it takes its binary clipboard message (type 180):
-// entry count, then per entry a MIME length, the MIME type, a 32-bit length and the bytes.
-function kasmPaste(client, text) {
-    const sock = client._sock;
-    if (!sock?.sQpushBytes) { client.clipboardPasteFrom(text); return; }
-    const mime = new TextEncoder().encode('text/plain');
-    const data = new TextEncoder().encode(text);
-    sock.sQpush8(180);
-    sock.sQpush8(1);
-    sock.sQpush8(mime.length);
-    sock.sQpushBytes(mime);
-    sock.sQpush32(data.length);
-    sock.sQpushBytes(data);
-    sock.flush();
-}
-
-function guardViewerInput(client, screen) {
-    const modifiers = [
-        ['shiftKey', 0xffe1, 'ShiftLeft'], ['shiftKey', 0xffe2, 'ShiftRight'],
-        ['ctrlKey', 0xffe3, 'ControlLeft'], ['ctrlKey', 0xffe4, 'ControlRight'],
-        ['altKey', 0xffe9, 'AltLeft'], ['altKey', 0xffea, 'AltRight'],
-        ['metaKey', 0xffeb, 'MetaLeft'], ['metaKey', 0xffec, 'MetaRight']
-    ];
-    let connected = false;
-    const release = event => {
-        if (!connected) return;
-        const altGraph = event?.getModifierState?.('AltGraph');
-        for (const [flag, keysym, code] of modifiers) {
-            // A lost key-up must not turn scrolling into history navigation,
-            // zoom, or a WM shortcut. Preserve explicitly held shortcuts/AltGr.
-            if (event?.[flag] || (altGraph && ['altKey', 'ctrlKey'].includes(flag))) continue;
-            client.sendKey(keysym, code, false);
-        }
-    };
-    const reset = () => release();
-    const visibility = () => { if (document.hidden) reset(); };
-    const connect = () => { connected = true; reset(); };
-    const cleanup = () => {
-        connected = false;
-        screen.removeEventListener('wheel', release, true);
-        screen.removeEventListener('mousedown', release, true);
-        window.removeEventListener('blur', reset);
-        document.removeEventListener('visibilitychange', visibility);
-        client.removeEventListener('connect', connect);
-        client.removeEventListener('disconnect', cleanup);
-    };
-    // Capture before noVNC emits the corresponding pointer/wheel packet.
-    screen.addEventListener('wheel', release, {capture: true, passive: true});
-    screen.addEventListener('mousedown', release, true);
-    window.addEventListener('blur', reset);
-    document.addEventListener('visibilitychange', visibility);
-    client.addEventListener('connect', connect);
-    client.addEventListener('disconnect', cleanup);
 }
 
 async function api(action, data) {
@@ -125,32 +57,49 @@ async function api(action, data) {
     }
     const response = await fetch(`${prefix}/api/login/${action}`, options);
     const result = await response.json();
-    if (!response.ok) { if (response.status === 403) { viewerWanted = false; rfb?.disconnect(); } throw new Error(result.error || '操作未完成，请稍后重试。'); }
+    if (!response.ok) { if (response.status === 403) { viewerWanted = false; stopViewer(); } throw new Error(result.error || '操作未完成，请稍后重试。'); }
     return result;
 }
 
-async function connectViewer() {
-    connecting = true;
-    try {
-        const {default: RFB} = await import(`${prefix}/core/rfb.js`);
-        kasmPointer(RFB);
-        if (!viewerWanted || !viewTrusted) return;
-        $('viewer-status').textContent = '正在连接远程浏览器…';
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const client = new RFB($('screen'), `${protocol}//${location.host}${prefix}/websockify`, {wsProtocols: ['binary']});
-        rfb = client;
-        client.scaleViewport = true;
-        guardViewerInput(client, $('screen'));
-        client.addEventListener('connect', () => {$('viewer-status').textContent = '已连接 VM 内的 Firefox，请在画面中操作。';});
-        client.addEventListener('disconnect', () => {
-            if (rfb === client) rfb = null;
-            $('viewer-status').textContent = '画面连接已断开，正在等待重连；授权状态会继续检查。';
-        });
-    } catch (error) {
-        const detail = typeof error?.message === 'string' ? error.message.split('?')[0].slice(0, 240) : '初始化失败';
-        console.error('HAPI viewer initialization failed:', detail);
-        $('viewer-status').textContent = `远程画面暂时无法加载：${detail}。请刷新页面重试。`;
-    } finally {connecting = false;}
+// The Kasm client speaks the server's own protocol. Embedded without show_control_bar it hides its
+// control bar and clipboard, so the clipboard is enabled here; state comes back by postMessage.
+function connectViewer() {
+    const settings = new URLSearchParams({
+        autoconnect: '1', path: `${prefix.slice(1)}/websockify`, resize: 'scale',
+        clipboard_up: 'true', clipboard_down: 'true', clipboard_seamless: 'true'
+    });
+    $('viewer-status').textContent = '正在连接远程浏览器…';
+    frame = document.createElement('iframe');
+    frame.title = '本人 VM 远程 Firefox';
+    frame.src = `${prefix}/kasm/index.html?${settings}`;
+    // Focus inside the frame blurs only the frame's window once it leaves the browser.
+    frame.addEventListener('load', event => event.target.contentWindow.addEventListener('blur', checkForeground));
+    $('screen').replaceChildren(frame);
+}
+
+function kasmMessage(event) {
+    if (!frame || event.source !== frame.contentWindow || event.origin !== location.origin) return;
+    const {action, value} = event.data ?? {};
+    if (action === 'connection_state' && value === 'connected') $('viewer-status').textContent = '已连接 VM 内的 Firefox，请在画面中操作。';
+    // Only Chromium lets the client write the local clipboard itself; elsewhere the text ends here.
+    if (action === 'clipboardrx' && typeof value === 'string') {
+        $('remote-text').value = value;
+        $('remote-copy').hidden = !value;
+    }
+    // On idle timeout the client leaves for disconnected.html without reporting a state change.
+    if (action === 'idle_session_timeout' || (action === 'connection_state' && value === 'disconnected')) {
+        stopViewer();
+        $('viewer-status').textContent = '画面连接已断开，正在等待重连；授权状态会继续检查。';
+    }
+}
+
+// Moving focus into the frame blurs this window too; only a page without focus has lost it.
+function checkForeground() {
+    setTimeout(() => {
+        if (document.hasFocus()) return;
+        foreground = false;
+        dropViewer();
+    });
 }
 
 function render(data) {
@@ -173,11 +122,8 @@ function render(data) {
         $('viewer-section').hidden = true;
         $('code-section').hidden = true;
     }
-    if (viewerWanted && !rfb && !connecting) connectViewer();
-    else if (!viewerWanted && rfb) {
-        rfb.disconnect();
-        rfb = null;
-    }
+    if (viewerWanted && !frame) connectViewer();
+    else if (!viewerWanted) stopViewer();
 }
 
 async function refresh() {
@@ -228,15 +174,13 @@ $('fullscreen').addEventListener('click', () => {$('screen').requestFullscreen()
 $('paste').addEventListener('click', () => {
     const text = $('clipboard').value;
     $('clipboard').value = '';
-    if (!rfb || !text) return;
-    kasmPaste(rfb, text);
-    rfb.sendKey(0xffe3, 'ControlLeft', true);
-    rfb.sendKey(0x0076, 'KeyV', true);
-    rfb.sendKey(0x0076, 'KeyV', false);
-    rfb.sendKey(0xffe3, 'ControlLeft', false);
-    rfb.focus();
+    if (!frame || !text) return;
+    frame.contentWindow.postMessage({action: 'clipboardsnd', value: text}, location.origin);
+    frame.focus();
+    $('viewer-status').textContent = '文本已发送到远程剪贴板，请在远程输入框中按 Ctrl+V 粘贴。';
 });
-window.addEventListener('blur', () => { foreground = false; dropViewer(); });
+window.addEventListener('message', kasmMessage);
+window.addEventListener('blur', checkForeground);
 window.addEventListener('focus', () => { foreground = true; refresh(); });
 document.addEventListener('visibilitychange', () => {
     foreground = !document.hidden;

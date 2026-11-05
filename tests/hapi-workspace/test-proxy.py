@@ -227,6 +227,10 @@ class ProxyTest(unittest.TestCase):
         config = config.replace('/run/hapi-control-proxy', str(directory)).replace('/etc/hapi-control-plane', str(cls.root))
         (cls.root/'authorize.inc').write_text((ROOT/'ansible/roles/hapi-control-plane/templates/authorize.inc.j2').read_text())
         config = config.replace('/usr/local/lib/hapi-login-portal', str(ROOT/'ansible/roles/hapi-control-plane/files/hapi-login-portal'))
+        kasm = cls.root/'kasm'; (kasm/'assets').mkdir(parents=True)
+        (kasm/'index.html').write_text('<html>synthetic Kasm client</html>')
+        (kasm/'assets/ui.js').write_text('window.syntheticKasm = true;')
+        config = config.replace('/usr/local/lib/hapi-kasm-client-1.5.0/usr/share/kasmvnc/www', str(kasm))
         cls.start_nginx(directory, config, cls.port)
 
     @classmethod
@@ -506,8 +510,6 @@ class ProxyTest(unittest.TestCase):
         self.assertIn('/_workspace/login/guide.js', page)
         self.assertNotIn('VM502', page)
         paths = ['/guide.js', '/guide.css']
-        if Path('/usr/share/novnc/core/rfb.js').is_file():
-            paths.append('/core/rfb.js')
         for path in paths:
             connection, response = self.request('/_workspace/login'+path)
             self.assertEqual(response.status, 200, path); response.read(); connection.close()
@@ -527,48 +529,47 @@ class ProxyTest(unittest.TestCase):
             'Origin': helpers.ORIGIN, 'X-Hapi-CSRF': identity['csrf'], 'Content-Type': 'application/json'})
         self.assertEqual(response.status, 403); response.read(); connection.close()
 
-    def test_parallel_novnc_modules_do_not_overflow_the_auth_socket(self):
-        if not Path('/usr/share/novnc/core/rfb.js').is_file():
-            self.skipTest('noVNC assets are not installed in this native test environment')
+    def test_kasm_client_is_served_from_the_control_plane_behind_access(self):
+        connection, response = self.request('/_workspace/login/kasm/index.html')
+        body = response.read().decode(); connection.close()
+        self.assertEqual(response.status, 200)
+        self.assertIn('synthetic Kasm client', body)
+        policy = response.getheader('Content-Security-Policy')
+        self.assertIn("frame-ancestors 'self'", policy)
+        self.assertIn('wss://hapi.example.com', policy)
+        self.assertEqual(response.getheader('Cache-Control'), 'no-store')
+        self.assertEqual(response.getheader('X-Content-Type-Options'), 'nosniff')
+        connection, response = self.request('/_workspace/login/kasm/assets/ui.js')
+        self.assertEqual(response.status, 200); self.assertIn('javascript', response.getheader('Content-Type'))
+        response.read(); connection.close()
+        connection, response = self.request('/_workspace/login/kasm/index.html', extra={'Cf-Access-Jwt-Assertion': 'forged'})
+        self.assertIn(response.status, (401, 403)); response.read(); connection.close()
+        connection, response = self.request('/_workspace/login/kasm/index.html', method='POST')
+        self.assertEqual(response.status, 403); response.read(); connection.close()
+
+    def test_shared_hub_bridge_keeps_the_viewer_on_the_workspace(self):
+        config = render(ROOT/'ansible/roles/hapi-control-plane/templates/nginx.conf.j2', {
+            'hapi_control_plane_origin': helpers.ORIGIN, 'hapi_control_plane_routes': self.routes,
+            'hapi_control_plane_shared_hub': True})
+        bridge = config.split('location = /websockify {', 1)
+        self.assertIn('proxy_pass http://127.0.0.1:3006;', bridge[0])
+        self.assertIn(f"proxy_pass http://{self.routes[0]['backend_address']}:9443;", bridge[1].split('}', 1)[0])
+        self.assertIn('location = /_workspace/login/websockify {', config)
+
+    def test_parallel_client_assets_do_not_overflow_the_auth_socket(self):
         from concurrent.futures import ThreadPoolExecutor
         count = 64
         barrier = threading.Barrier(count)
         token = self.token()
         def request_module(index):
             barrier.wait(timeout=10)
-            connection, response = self.request('/_workspace/login/core/rfb.js',
+            connection, response = self.request('/_workspace/login/kasm/assets/ui.js',
                 extra={'Cf-Access-Jwt-Assertion': token})
             response.read(); connection.close()
             return response.status
         with ThreadPoolExecutor(max_workers=count) as pool:
             statuses = list(pool.map(request_module, range(count)))
         self.assertEqual(statuses, [200] * count)
-
-    def test_real_novnc_import_graph_is_served_as_javascript(self):
-        import re
-        root = Path('/usr/share/novnc').resolve()
-        if not (root/'core/rfb.js').is_file():
-            self.skipTest('Requires the already installed noVNC client package')
-        pending, seen = [root/'core/rfb.js'], set()
-        while pending:
-            path = pending.pop()
-            if path in seen:
-                continue
-            seen.add(path)
-            relative = path.relative_to(root).as_posix()
-            connection, response = self.request('/_workspace/login/' + relative)
-            raw = response.read(); connection.close()
-            self.assertEqual(response.status, 200, relative)
-            self.assertIn(response.getheader('Content-Type', '').split(';')[0],
-                          ['application/javascript', 'text/javascript'], relative)
-            self.assertEqual(raw, path.read_bytes(), relative)
-            for name in re.findall(r"(?:from\s+|import\s*\(?\s*)['\"]([^'\"]+)['\"]", raw.decode()):
-                if name.startswith('.'):
-                    target = (path.parent/name).resolve()
-                    if target.is_relative_to(root):
-                        self.assertTrue(target.is_file(), str(target))
-                        pending.append(target)
-        self.assertGreater(len(seen), 20)
 
     def test_login_viewer_returns_real_websocket_rfb_banner_through_owner_route(self):
         if not shutil.which('websockify'):
