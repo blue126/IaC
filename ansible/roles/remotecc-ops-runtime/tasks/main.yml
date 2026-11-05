@@ -50,6 +50,8 @@
     remote_src: true
     extra_opts: "{{ item.extra_opts }}"
     creates: "/usr/local/lib/ws-executor/{{ item.dir }}/{{ item.binary }}"
+  # A check run does not create the directory of a newly pinned version.
+  ignore_errors: "{{ ansible_check_mode }}"
   loop:
     - {archive: "terraform-{{ remotecc_ops_terraform_version }}.zip", dir: "terraform-{{ remotecc_ops_terraform_version }}", binary: terraform, extra_opts: []}
     - {archive: "uv-{{ remotecc_ops_uv_version }}.tar.gz", dir: "uv-{{ remotecc_ops_uv_version }}", binary: uv, extra_opts: [--strip-components=1]}
