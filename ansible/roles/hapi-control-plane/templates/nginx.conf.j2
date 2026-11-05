@@ -125,6 +125,12 @@ http {
             alias /usr/local/lib/hapi-login-portal/$1;
             limit_except GET { deny all; }
         }
+        # Only pages opened before the switch use this route; it leaves with the novnc package.
+        location ~ ^/_workspace/login/(core|vendor|app|include)/(.*)$ {
+            include /etc/hapi-control-plane/authorize.inc;
+            alias /usr/share/novnc/$1/$2;
+            limit_except GET { deny all; }
+        }
         # The pinned client runs on this origin. Its one inline script is hashed, its panels use
         # style attributes, and its QOI decoder is WebAssembly; codec probes fetch data: URLs.
         location ~ ^/_workspace/login/kasm/(.*)$ {

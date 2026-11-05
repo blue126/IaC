@@ -121,8 +121,8 @@
   loop: [hapi-control-proxy, hapi-hub-transport]
   changed_when: false
 
-# Last: the page needs the client and the route above, so a run that fails earlier leaves the
-# previous page and route working together.
+# Last: the page needs the client and the route above. The proxy still serves the old page's
+# route, so a run that fails at any step leaves a page and routes that work together.
 - name: Install the current login page assets
   ansible.builtin.copy:
     src: '{{ role_path }}/../hapi-control-plane/files/hapi-login-portal/'

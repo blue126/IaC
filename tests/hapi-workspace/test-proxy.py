@@ -555,7 +555,6 @@ class ProxyTest(unittest.TestCase):
         self.assertIn('proxy_pass http://127.0.0.1:3006;', bridge[0])
         self.assertIn(f"proxy_pass http://{self.routes[0]['backend_address']}:9443;", bridge[1].split('}', 1)[0])
         self.assertIn('location = /_workspace/login/websockify {', config)
-        self.assertNotIn('novnc', config)
 
     def test_parallel_client_assets_do_not_overflow_the_auth_socket(self):
         from concurrent.futures import ThreadPoolExecutor
