@@ -52,6 +52,13 @@ def ensure(path,name,body):
         if item.get('name')==name:return item['id'],False
     return call('POST',path,body)['id'],True
 
+def same(current,wanted):
+    # The API leaves out empty fields, so compare what remains.
+    shape=lambda rows:[{k:v for k,v in row.items() if v} for row in rows or []]
+    return (current.get('description')==wanted['description'] and
+            shape(current.get('survey_vars'))==shape(wanted['survey_vars']) and
+            bool(current.get('allow_override_args_in_task'))==wanted['allow_override_args_in_task'])
+
 def main():
     password=Path(sys.argv[1]).read_text().strip()
     call('POST','/auth/login',{'auth':sys.argv[2],'password':password})
@@ -71,7 +78,7 @@ def main():
             'repository_id':repo,'environment_id':env,'inventory_id':inv,'arguments':json.dumps(arguments),'type':'',**wanted})
         changed|=c
         current=call('GET',p+f'/templates/{tid}')
-        if any(current.get(k)!=v for k,v in wanted.items()):
+        if not same(current,wanted):
             call('PUT',p+f'/templates/{tid}',{**current,**wanted});changed=True
         if name in SCHEDULES:
             _,c=ensure(p+'/schedules',name,{'name':name,'project_id':project,'template_id':tid,'cron_format':SCHEDULES[name],'active':True});changed|=c
