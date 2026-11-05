@@ -1,0 +1,101 @@
+---
+- name: Validate BookOrbit deployment inputs
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Guard existing BookOrbit PostgreSQL data before changing layout
+  ansible.builtin.import_tasks: validate-data-layout.yml
+
+- name: Check existing Docker Compose installation
+  ansible.builtin.command:
+    argv: [docker, compose, version]
+  changed_when: false
+
+- name: Create BookOrbit configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ bookorbit_base_dir }}"
+    - "{{ bookorbit_base_dir }}/data"
+
+- name: Create BookOrbit library and application directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ bookorbit_uid }}"
+    group: "{{ bookorbit_gid }}"
+    mode: "0750"
+  loop:
+    - "{{ bookorbit_base_dir }}/books"
+    - "{{ bookorbit_base_dir }}/data/app"
+
+# PG18 mounts its parent directory, then initializes the private 18/docker child.
+# The postgres user must traverse this parent after the entrypoint drops root.
+- name: Create BookOrbit PostgreSQL directory
+  ansible.builtin.file:
+    path: "{{ bookorbit_base_dir }}/data/postgres"
+    state: directory
+    mode: "0755"
+
+- name: Deploy protected BookOrbit environment
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ bookorbit_base_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  diff: false
+
+- name: Deploy BookOrbit Compose configuration
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ bookorbit_base_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create protected local BookOrbit credential directory
+  ansible.builtin.file:
+    path: "{{ bookorbit_bootstrap_token_file | dirname }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Deliver BookOrbit bootstrap token to a local file
+  ansible.builtin.copy:
+    content: "{{ bookorbit_setup_bootstrap_token }}\n"
+    dest: "{{ bookorbit_bootstrap_token_file }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  diff: false
+
+- name: Start BookOrbit containers and wait for health
+  community.docker.docker_compose_v2:
+    project_src: "{{ bookorbit_base_dir }}"
+    project_name: bookorbit
+    state: present
+    pull: missing
+    recreate: auto
+    wait: true
+    wait_timeout: 180
+  no_log: true
+
+- name: Wait for BookOrbit database health through the application
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3000/api/v1/health
+    status_code: 200
+    return_content: true
+  register: bookorbit_local_health
+  retries: 12
+  delay: 5
+  until:
+    - bookorbit_local_health.status | default(0) == 200
+    - (bookorbit_local_health.json | default({})).get('status') == 'ok'
+    - (bookorbit_local_health.json | default({})).get('details', {}).get('database', {}).get('status') == 'up'

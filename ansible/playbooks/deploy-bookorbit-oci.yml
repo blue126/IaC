@@ -1,0 +1,43 @@
+---
+- name: Deploy BookOrbit on the existing OCI host
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  become: true
+  roles:
+    - bookorbit
+
+- name: Configure BookOrbit reverse proxy using the existing Caddy installation
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  become: true
+  tags: [config]
+  tasks:
+    - name: Validate BookOrbit domain before configuring Caddy
+      ansible.builtin.assert:
+        that:
+          - bookorbit_public_domain is regex('^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$', match_type='fullmatch')
+        fail_msg: "BookOrbit public domain must be a single valid DNS hostname"
+
+    - name: Configure BookOrbit Caddy site
+      ansible.builtin.include_role:
+        name: caddy
+        tasks_from: reverse-proxy
+        apply:
+          tags: [config]
+      vars:
+        caddy_reverse_proxy_name: bookorbit
+        caddy_reverse_proxy_domain: "{{ bookorbit_public_domain }}"
+        caddy_reverse_proxy_upstream: 127.0.0.1:3000
+
+- name: Verify BookOrbit and existing services
+  hosts: oracle-cloud-ubuntu2404
+  gather_facts: false
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify BookOrbit deployment without changing service state
+      ansible.builtin.include_role:
+        name: bookorbit
+        tasks_from: verify
+        apply:
+          tags: [verify]

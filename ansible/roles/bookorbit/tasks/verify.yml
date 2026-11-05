@@ -1,0 +1,163 @@
+---
+- name: Inspect BookOrbit containers without logging environment secrets
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop:
+    - bookorbit-app
+    - bookorbit-db
+  register: bookorbit_containers
+  no_log: true
+
+- name: Assert both BookOrbit containers are healthy
+  ansible.builtin.assert:
+    that:
+      - item.exists
+      - item.container.State.Running
+      - item.container.State.Health.Status == 'healthy'
+    fail_msg: "Both BookOrbit containers must be running and healthy"
+  loop: "{{ bookorbit_containers.results }}"
+  no_log: true
+
+- name: Assert PostgreSQL uses the persistent PG18 parent mount
+  ansible.builtin.assert:
+    that:
+      - bookorbit_containers.results[1].container.Mounts | length == 1
+      - bookorbit_containers.results[1].container.Mounts[0].Type == 'bind'
+      - bookorbit_containers.results[1].container.Mounts[0].Source == bookorbit_base_dir + '/data/postgres'
+      - bookorbit_containers.results[1].container.Mounts[0].Destination == '/var/lib/postgresql'
+      - "'PGDATA=/var/lib/postgresql/18/docker' in bookorbit_containers.results[1].container.Config.Env"
+    fail_msg: "PostgreSQL must persist its PG18 layout under one parent bind mount without an anonymous parent volume"
+  no_log: true
+
+- name: Assert BookOrbit containers use the approved image digests
+  ansible.builtin.assert:
+    that:
+      - >-
+        bookorbit_containers.results[0].container.Config.Image ==
+        'ghcr.io/bookorbit/bookorbit:3.3.0@sha256:4c2a1b957a3c8aeb9f59bb27a7d8efb18fa42c758afed3dcfc62620c5bcd1831'
+      - >-
+        bookorbit_containers.results[1].container.Config.Image ==
+        'pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11'
+    fail_msg: "BookOrbit containers must use the approved tag@digest image references"
+  no_log: true
+
+- name: Assert BookOrbit application data uses the persistent bind mounts
+  ansible.builtin.assert:
+    that:
+      - >-
+        bookorbit_containers.results[0].container.Mounts
+        | selectattr('Destination', 'equalto', '/books')
+        | selectattr('Type', 'equalto', 'bind')
+        | map(attribute='Source') | list == [bookorbit_base_dir + '/books']
+      - >-
+        bookorbit_containers.results[0].container.Mounts
+        | selectattr('Destination', 'equalto', '/data')
+        | selectattr('Type', 'equalto', 'bind')
+        | map(attribute='Source') | list == [bookorbit_base_dir + '/data/app']
+    fail_msg: "BookOrbit /books and /data must bind their corresponding persistent host directories"
+  no_log: true
+
+- name: Check PostgreSQL data directory permissions
+  ansible.builtin.stat:
+    path: "{{ bookorbit_base_dir }}/data/postgres/18/docker"
+    get_checksum: false
+    get_mime: false
+    get_attributes: false
+  register: bookorbit_postgres_data_stat
+
+- name: Assert PostgreSQL data remains private after initialization
+  ansible.builtin.assert:
+    that:
+      - bookorbit_postgres_data_stat.stat.isdir
+      - bookorbit_postgres_data_stat.stat.mode == '0700'
+      - bookorbit_postgres_data_stat.stat.uid == 999
+    fail_msg: "The pinned PostgreSQL image must own its actual PGDATA as UID 999 with mode 0700"
+
+- name: Assert loopback application binding and unpublished database
+  ansible.builtin.assert:
+    that:
+      - >-
+        bookorbit_containers.results[0].container.HostConfig.PortBindings ==
+        {'3000/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '3000'}]}
+      - not (bookorbit_containers.results[1].container.HostConfig.PortBindings | default({}, true))
+      - >-
+        bookorbit_containers.results[0].container.Config.Env
+        | select('match', '^SETUP_BOOTSTRAP_TOKEN=[0-9a-f]{64}$') | list | length == 1
+    fail_msg: "BookOrbit must use loopback only, keep PostgreSQL unpublished and configure the setup token"
+  no_log: true
+
+- name: Check BookOrbit environment file permissions
+  ansible.builtin.stat:
+    path: "{{ bookorbit_base_dir }}/.env"
+  register: bookorbit_env_stat
+
+- name: Assert BookOrbit environment file is protected
+  ansible.builtin.assert:
+    that:
+      - bookorbit_env_stat.stat.isreg
+      - bookorbit_env_stat.stat.mode == '0600'
+      - bookorbit_env_stat.stat.uid == 0
+      - bookorbit_env_stat.stat.gid == 0
+
+- name: Check public BookOrbit HTTPS health
+  ansible.builtin.uri:
+    url: "https://{{ bookorbit_public_domain }}/api/v1/health"
+    status_code: 200
+    validate_certs: true
+    return_content: true
+    timeout: 15
+  register: bookorbit_public_health
+  delegate_to: localhost
+  become: false
+  retries: 12
+  delay: 10
+  until:
+    - bookorbit_public_health.status | default(0) == 200
+    - (bookorbit_public_health.json | default({})).get('status') == 'ok'
+    - (bookorbit_public_health.json | default({})).get('details', {}).get('database', {}).get('status') == 'up'
+
+- name: Check BookOrbit setup status without creating an account
+  ansible.builtin.uri:
+    url: "https://{{ bookorbit_public_domain }}/api/v1/auth/setup-status"
+    status_code: 200
+    validate_certs: true
+    return_content: true
+  register: bookorbit_setup_status
+  delegate_to: localhost
+  become: false
+
+- name: Assert BookOrbit setup status is valid on fresh and initialized installations
+  ansible.builtin.assert:
+    that:
+      - bookorbit_setup_status.json.needsSetup is boolean
+      - bookorbit_setup_status.json.allowRegistration is boolean
+
+- name: Check BookOrbit setup page is available
+  ansible.builtin.uri:
+    url: "https://{{ bookorbit_public_domain }}/setup"
+    status_code: 200
+    validate_certs: true
+  delegate_to: localhost
+  become: false
+
+- name: Verify existing Anki Writer and Proxy HTTPS health endpoints
+  ansible.builtin.uri:
+    url: "https://{{ item }}/health"
+    status_code: 200
+    validate_certs: true
+    timeout: 15
+  loop:
+    - "{{ anki_writer_public_domain }}"
+    - "{{ proxy_domain }}"
+  register: bookorbit_existing_health
+  delegate_to: localhost
+  become: false
+  retries: 6
+  delay: 5
+  until: bookorbit_existing_health.status | default(0) == 200
+
+- name: Report BookOrbit verification result
+  ansible.builtin.debug:
+    msg: >-
+      BookOrbit HTTPS and database are healthy; ports are private; existing services are healthy.
+      Initial administrator setup required: {{ bookorbit_setup_status.json.needsSetup }}.
