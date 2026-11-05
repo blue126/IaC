@@ -29,9 +29,9 @@
 
 ## 管理员入口
 
-规范入口位于 IaC 主 checkout 的 `remotecc/employee-admin/onboard.sh`，源码属于独立私有 Git。相邻 `remotecc/employee-data/` 保存实际配置、申请、检查点、设备包和回执，不进入任一源码仓库；旧 `~/Projects/employee-workspace-admin` 只保留兼容链接。临时 IaC worktree 不应复制或另建一份管理员运行数据。
+当前入口是执行器上的 `wsctl`（源码在主 checkout 的 `remotecc/wsctl/`，属于独立私有 Git）；当时的 `onboard.sh` 已于 2026-11-04 删除。相邻 `remotecc/employee-data/` 保存实际配置、申请、检查点、设备包和回执，不进入任一源码仓库；旧 `~/Projects/employee-workspace-admin` 只保留兼容链接。临时 IaC worktree 不应复制或另建一份管理员运行数据。
 
-历史原型曾以 existing 为缺省并通过 `settings.oci_hub.onboarding[employee_id]` 显式提供分配。当前 existing 员工接入及写操作已退役；活动入口固定使用 `onboard.sh --profile oci-hub`，从资源池/台账分配并复用员工身份。当前命令及 JSON 参数以[原生开户说明](oci-hub-native-provisioning.md)为准，不重放本节的旧配置。
+历史原型曾以 existing 为缺省并通过 `settings.oci_hub.onboarding[employee_id]` 显式提供分配。当前 existing 员工接入及写操作已退役；当前入口 `wsctl` 从资源池/台账分配并复用员工身份。当前命令及 JSON 参数以[原生开户说明](oci-hub-native-provisioning.md)为准，不重放本节的旧配置。
 
 该配置另提供 `terraform_roster`、inventory、PVE/router 精确 host、bundle 目录、Vault 密码文件路径与独立 BWS 绑定。host 入口仅传白名单源码，使用 `sandbox_name`、`sandbox_admin_root=/tmp/oci-hub-admin-<task>`、`runtime_settings` 指向已批准的独立运行环境；不复制真实 settings 或完整私有工程，不自动挂载凭据或安装工具。
 
