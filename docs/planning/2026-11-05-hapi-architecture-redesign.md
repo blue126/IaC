@@ -75,12 +75,12 @@ Cloudflare 目前没有 Terraform 资源，Access 应用和 Tunnel 是手工配�
 
 ```text
 /opt/hapi-control/
-  releases/<git短哈希>/   # hapi-auth.py、hapi-stream-guard.py、hapi-reconcile.py、hapi-ctl、
+  releases/<内容哈希>/   # hapi-auth.py、hapi-stream-guard.py、hapi-reconcile.py、hapi-ctl、
                           # hapi-login-portal/、kasm/、templates/、manifest.json（文件 sha256、支持的 schema）
-  current -> releases/<git短哈希>
+  current -> releases/<内容哈希>
 ```
 
-- 版本号就是 Git 提交，不另设语义版本。这和 Hub 现有的 `/opt/hapi-shared-hub/<sha256>/` 做法一致。
+- 版本号是发布内容的 sha256 前 16 位，不另设语义版本，因为执行器的工作树没有 Git 元数据。这和 Hub 现有的 `/opt/hapi-shared-hub/<sha256>/` 做法一致。
 - Kasm 客户端打包时从固定地址下载、校验 sha256、解出静态文件。现在升级要同时改角色和 Nginx 模板里的多处，之后收拢到一处。
 - 不做 deb 包或容器：一台机器、几个文件，压缩包足够，也不用装新东西。
 
