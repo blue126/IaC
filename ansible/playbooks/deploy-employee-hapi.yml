@@ -1,0 +1,8 @@
+---
+# The employee VM side of HAPI alone, for a VM that already has its desktop.
+- name: Deploy HAPI on one employee VM
+  hosts: "{{ employee_desktop_target | default('hapi_no_target_selected') }}"
+  become: true
+  gather_facts: true
+  roles:
+    - hapi
