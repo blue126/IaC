@@ -7,8 +7,8 @@
 ```text
 IaC/remotecc/             # 一个私有 Git 仓库，下面的组件都不是独立仓库
 ├── apply-site/           # 员工网站（Cloudflare Worker + D1），部署见 wsctl apply-site
-├── design/               # 网站和文档共用的文案、配色和字体
-├── docs/                 # 员工文档站（Hugo），发布到 cc.willfan.me/docs/
+│   ├── design/           # 网站和文档共用的文案、配色和字体
+│   └── docs/             # 员工文档站（Hugo），发布到 cc.willfan.me/docs/
 ├── employee-miniprogram/ # 员工小程序
 ├── wsctl/                # 管理员工具
 ├── employee-data/        # 不入 Git：Mac 员工运行副本，只读、可能过期
@@ -35,7 +35,7 @@ IaC/remotecc/             # 一个私有 Git 仓库，下面的组件都不是�
 
 代码目录中保留受控的数据链接，因此已有的 `settings.json`、`state/`、`runs/`、`requests/` 等路径仍可使用。`runtime-layout.py` 按 `remotecc-layout.json` 补齐缺失链接；遇到已有普通文件或错误链接时停止，不覆盖数据。
 
-Mac已配置`write_executor`，写命令返回`WSCTL_WRITES_ON_EXECUTOR`，不得在Mac上绕过`wsctl`、直接运行私有仓库中`wsctl`背后的实现（`remotecc/wsctl/oci-hub-admin.py`）来执行写操作。员工与IaC代码可经各自的`remotecc-ops` Git远端送入执行器；推送是部署写入，需单独授权。员工、设备、密钥和交付身份不因代码目录变化而重建；下一次实际写操作仍须核对源码、计划及审批。
+Mac已配置`write_executor`，写命令返回`WSCTL_WRITES_ON_EXECUTOR`（唯一例外是`wsctl apply-site`：它推送私有仓库后在执行器上运行同一命令，写操作仍在执行器上），不得在Mac上绕过`wsctl`、直接运行私有仓库中`wsctl`背后的实现（`remotecc/wsctl/oci-hub-admin.py`）来执行写操作。员工与IaC代码可经各自的`remotecc-ops` Git远端送入执行器；推送是部署写入，需单独授权。员工、设备、密钥和交付身份不因代码目录变化而重建；下一次实际写操作仍须核对源码、计划及审批。
 
 历史诊断材料位于数据目录的 `deployment/`；模板 state 留在数据目录的 `template-build/`，模板 Terraform 源码单独保存在代码目录的 `template-build-source/`。
 
