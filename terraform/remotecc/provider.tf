@@ -1,4 +1,4 @@
-# ws-executor runs on the primary cluster; employee workspaces and VM500 run on pve2.
+# remotecc-ops runs on the primary cluster; employee workspaces and VM500 run on pve2.
 provider "proxmox" {
   endpoint = var.pm_api_url
   # Format: USER@REALM!TOKENID=UUID

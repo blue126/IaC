@@ -24,7 +24,7 @@ description: "编写、更新或评审 RemoteCC 员工网站（cc.willfan.me）/
 
 1. `remotecc/apply-site/worker.js`：网站实际行为，包括路由、登录时效、下载规则、错误码。
 2. `remotecc/design/text.json`：员工在页面上看到的原文，按钮名、提示语和公开规格以此为准。
-3. `remotecc/employee-admin/docs/admin-handbook.md` 与 `wsctl` README：开户、续期、设备、流量额度的后台规则。只取员工可感知的结果，不搬运管理员操作。
+3. `remotecc/wsctl/docs/admin-handbook.md` 与 `wsctl` README：开户、续期、设备、流量额度的后台规则。只取员工可感知的结果，不搬运管理员操作。
 4. 公开仓库 [workspace-onboarding](https://github.com/blue126/workspace-onboarding)：员工电脑上 AI 助手实际执行的接入步骤。
 5. IaC `docs/guides/employee-*.md`：可能停留在旧流程，只作背景，事实必须回到 1–4 核实。
 

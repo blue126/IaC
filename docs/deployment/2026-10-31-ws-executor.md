@@ -1,6 +1,8 @@
-# ws-executor VM 部署
+# remotecc-ops VM 部署
 
-日期：2026-10-31。`ws-executor` 是执行器平台的专用常开 VM，只对局域网和 tailnet 开放。本次只交付 VM、Tailscale 和主机防火墙；wsctl、Semaphore 与任何凭据由后续 story 部署。
+> **2026-11-05 改名：** VM `ws-executor` 已改名 `remotecc-ops`，私有源码 `employee-admin` 已改名 `wsctl`。本文已按新名字更新；`/srv/remotecc/employee-admin` 保留为指向 `wsctl` 的兼容链接，因为台账和历史申请里存有旧绝对路径。固定工具目录 `/usr/local/lib/ws-executor` 未改名。
+
+日期：2026-10-31。`remotecc-ops` 是执行器平台的专用常开 VM，只对局域网和 tailnet 开放。本次只交付 VM、Tailscale 和主机防火墙；wsctl、Semaphore 与任何凭据由后续 story 部署。
 
 ## 基本信息
 
@@ -11,14 +13,14 @@
 | IP | 192.168.1.116/24，网关 192.168.1.1，网桥 vmbr1 |
 | 规格 | 2 核、4096 MB 内存、32G 系统盘（`var.storage_pool`，默认 vmdata） |
 | 系统 | 从 `ubuntu-24.04-template`（pve0 VMID 9000）完整克隆，登录用户 `ubuntu` |
-| Inventory | `ansible_host.ws_executor`，组 `pve_vms`（因此自动属于 `tailscale` 组） |
+| Inventory | `ansible_host.remotecc_ops`，组 `pve_vms`（因此自动属于 `tailscale` 组） |
 
 相关文件：
 
-- Terraform：`terraform/remotecc/ws-executor.tf`
+- Terraform：`terraform/remotecc/remotecc-ops.tf`
 - 网站：`/srv/git/apply-site.git` 检出到 `/srv/remotecc/apply-site`，由 `wsctl apply-site` 经 Cloudflare API 部署（执行器没有 Node）
-- 主机变量：`ansible/inventory/host_vars/ws-executor.yml`
-- Playbook：`ansible/playbooks/deploy-ws-executor.yml`
+- 主机变量：`ansible/inventory/host_vars/remotecc-ops.yml`
+- Playbook：`ansible/playbooks/deploy-remotecc-ops.yml`
 - 防火墙角色：`ansible/roles/host-firewall/`
 
 ## 部署步骤
@@ -26,15 +28,15 @@
 `terraform apply`、Tailscale 授权（真实运行 playbook 会用 vault 中的 auth key 加入 tailnet）均需用户分别授权。
 
 ```bash
-# 1. 在 terraform/remotecc/ 中先看真实 plan，确认只新增 ws-executor 的 VM 与 ansible_host
+# 1. 在 terraform/remotecc/ 中先看真实 plan，确认只新增 remotecc-ops 的 VM 与 ansible_host
 terraform plan
 terraform apply            # 获批后
 
 # 2. 在 ansible/ 中用本检出的 .venv 部署（详见 AGENTS.md 的运行位置说明）
-ansible-playbook playbooks/deploy-ws-executor.yml --syntax-check
-ansible-playbook playbooks/deploy-ws-executor.yml --check --diff
-ansible-playbook playbooks/deploy-ws-executor.yml
-ansible-playbook playbooks/deploy-ws-executor.yml --tags verify
+ansible-playbook playbooks/deploy-remotecc-ops.yml --syntax-check
+ansible-playbook playbooks/deploy-remotecc-ops.yml --check --diff
+ansible-playbook playbooks/deploy-remotecc-ops.yml
+ansible-playbook playbooks/deploy-remotecc-ops.yml --tags verify
 ```
 
 若 Ansible 提示 "no hosts matched"，先在仓库根目录运行 `./scripts/refresh-terraform-state.sh`。
@@ -45,7 +47,7 @@ Deploy play 依次：等待 SSH 与 cloud-init 完成、确认 Ubuntu 24.04 虚�
 
 ## 主机名
 
-共享的 cloud-init 片段 `cloud-init-ubuntu.yml` 会覆盖 Proxmox 生成的 hostname，克隆出的 VM 默认沿用模板名 `ubuntu-24`。Deploy play 因此把主机名设为 inventory 名 `ws-executor`，并在 Tailscale 节点名不一致时执行 `tailscale set --hostname`。
+共享的 cloud-init 片段 `cloud-init-ubuntu.yml` 会覆盖 Proxmox 生成的 hostname，克隆出的 VM 默认沿用模板名 `ubuntu-24`。Deploy play 因此把主机名设为 inventory 名 `remotecc-ops`，并在 Tailscale 节点名不一致时执行 `tailscale set --hostname`。
 
 ## 防火墙策略
 
@@ -81,20 +83,20 @@ Deploy play 依次：等待 SSH 与 cloud-init 完成、确认 Ubuntu 24.04 虚�
 
 ## 执行器运行环境（story 1.5）
 
-`ws-executor-runtime` 角色在 VM 上安装钉住版本与校验和的 Terraform、uv、bws，并建立运行目录与两个裸仓库：
+`remotecc-ops-runtime` 角色在 VM 上安装钉住版本与校验和的 Terraform、uv、bws，并建立运行目录与两个裸仓库：
 
 | 裸仓库 | 推送后检出到 | 分支 |
 | --- | --- | --- |
-| `/srv/git/employee-admin.git` | `/srv/remotecc/employee-admin` | `main` |
+| `/srv/git/wsctl.git` | `/srv/remotecc/wsctl` | `main` |
 | `/srv/git/iac.git` | `/srv/iac` | `main` |
 
 部署代码就是 `git push`。Mac 侧远程配置（`ubuntu` 用户经 sudo 写 root 拥有的仓库）：
 
 ```bash
-git remote add ws-executor ssh://ubuntu@192.168.1.116/srv/git/employee-admin.git   # 或 iac.git
-git config remote.ws-executor.receivepack "sudo git-receive-pack"
-git config remote.ws-executor.uploadpack "sudo git-upload-pack"
-git push ws-executor HEAD:main
+git remote add remotecc-ops ssh://ubuntu@192.168.1.116/srv/git/wsctl.git   # 或 iac.git
+git config remote.remotecc-ops.receivepack "sudo git-receive-pack"
+git config remote.remotecc-ops.uploadpack "sudo git-upload-pack"
+git push remotecc-ops HEAD:main
 ```
 
 IaC 首次推送后，再跑一次 deploy playbook 会执行 `scripts/setup-dev-env.sh` 建好 `/srv/iac/.venv` 与 Ansible collections。运行数据目录 `/srv/remotecc/employee-data`（0700）由后续迁移 story 填充。

@@ -1,6 +1,6 @@
 # OCI Hub 原生 Mosh 开户
 
-本入口是私有 `remotecc/employee-admin/wsctl`，写操作只在执行器 ws-executor 上运行（Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/employee-admin/wsctl ...`）；Mac 只读，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`。新方案使用独立 BWS 项目、Portal 账本和 PVE VNet；不经过 VM500。SSH、SFTP 与 Mosh 会话在员工 VM 内终止。
+本入口是私有 `remotecc/wsctl/wsctl`，写操作只在执行器 remotecc-ops 上运行（Semaphore 项目 employee-lifecycle 的模板，或 `ssh ubuntu@192.168.1.116 sudo /srv/remotecc/wsctl/wsctl ...`）；Mac 只读，写命令返回 `WSCTL_WRITES_ON_EXECUTOR`。新方案使用独立 BWS 项目、Portal 账本和 PVE VNet；不经过 VM500。SSH、SFTP 与 Mosh 会话在员工 VM 内终止。
 
 ## 管理员操作
 
@@ -25,7 +25,7 @@ wsctl export --device alice
 
 ## 台账、Terraform 与 HAPI
 
-员工台账以网站 D1 的 `employees` 表为准（凭据除外），执行器保存本地快照；D1 不可读时写操作停止。员工 VM、VM500、员工模板和 ws-executor 的 Terraform 在 `terraform/remotecc`（HCP 工作区 `iac-remotecc`），不在 Jenkins 管理的 `terraform/proxmox`。
+员工台账以网站 D1 的 `employees` 表为准（凭据除外），执行器保存本地快照；D1 不可读时写操作停止。员工 VM、VM500、员工模板和 remotecc-ops 的 Terraform 在 `terraform/remotecc`（HCP 工作区 `iac-remotecc`），不在 Jenkins 管理的 `terraform/proxmox`。
 
 开户默认开通 HAPI：桌面之后安装 `hapi` role，结束时运行 `wsctl hapi-sync`。失败只报告，不撤销开户，之后手动重跑 `wsctl hapi-sync` 即可。已有 VM 升级 HAPI 目前没有专用命令，需要时再加。
 
