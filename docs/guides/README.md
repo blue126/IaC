@@ -16,6 +16,7 @@
 
 - **[terraform-proxmox-complete-guide.md](./terraform-proxmox-complete-guide.md)** — Terraform + Proxmox 综合指南（2022 行，含 40+ 常见问题）。
 - **[ansible-patterns-and-best-practices.md](./ansible-patterns-and-best-practices.md)** — Ansible 模式与最佳实践。
+- **[pve0-memory-rollout.md](./pve0-memory-rollout.md)** — pve0 内存采样、IaC 对账、balloon 试点、ARC 分阶段扩容与回滚。
 - **[QUICK-REFERENCE.md](./QUICK-REFERENCE.md)** — Terraform 与 Proxmox 常用命令速查卡。
 - **[proxmox-provider-migration-guide.md](./proxmox-provider-migration-guide.md)** — 从 telmate 迁移到 bpg Proxmox Terraform provider 实战指南。
 - **[jenkins-webhook-router-setup.md](./jenkins-webhook-router-setup.md)** — Jenkins Webhook-Router 手工配置指南。
