@@ -18,14 +18,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# TEMPORARY probe, reverted before review: run the Linux-only gateway backup suites once.
-echo "PROBE bash=${BASH_VERSION} busybox=$(command -v busybox || echo none)"
-(cd "${REPOSITORY_ROOT}" && bash tests/gateway-backup/gateway-backup-test.sh 2>&1 | tail -n 3; echo "PROBE gateway rc=${PIPESTATUS[0]}")
-(cd "${REPOSITORY_ROOT}" && bash tests/gateway-backup/gateway-backup-ctl-test.sh 2>&1 | tail -n 14; echo "PROBE ctl rc=${PIPESTATUS[0]}")
-if command -v busybox >/dev/null; then
-  (cd "${REPOSITORY_ROOT}" && CTL_TEST_BUSYBOX=1 bash tests/gateway-backup/gateway-backup-ctl-test.sh 2>&1 | tail -n 14; echo "PROBE ctl-busybox rc=${PIPESTATUS[0]}")
-fi
-
 fail() {
   echo "FAIL: $*" >&2
   exit 1
