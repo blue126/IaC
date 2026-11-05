@@ -109,7 +109,7 @@ Coordinator 将子项结果与未决项放回原生步骤并对照父目标；�
 
 规则本身在 `docs/agent/bmad-cross-model-review.md` 和 `docs/agent/bmad-review-routing.md`。本节只说它在 Multica 上怎么落地。
 
-实现使用已批准的 OpenAI 模型；指定审核层/lens 由 PAL clink 启动已批准的 Claude 或 Gemini CLI 执行。reviewer 只出报告，宿主保留原工作流的汇总与分诊。拒绝有效 findings 需证据；产品/架构分歧升级，不由轻量 Coordinator 裁决。
+实现使用已批准的 OpenAI 模型；指定审核层/lens 由 PAL clink 启动探测通过的 CLI 执行，优先选和宿主不同的 provider。reviewer 只出报告，宿主保留原工作流的汇总与分诊。拒绝有效 findings 需证据；产品/架构分歧升级，不由轻量 Coordinator 裁决。
 
 PAL MCP 必须出现在实际执行 Run 的 runtime 中；其 working_dir 与角色目录必须绑定该 Run，不能使用全局固定工作树。旧环境变量不再是新通道前提；按核心文档 X2 分阶段迁移，不影响未迁移项目。
 
