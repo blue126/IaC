@@ -1,8 +1,10 @@
 # 网关备份：范围、调用与恢复
 
-`scripts/gateway-backup/gateway-backup.sh backup all` 由脚本顺序执行六项常规业务，外部控制器只需调用一次。每项记录原运行状态，按依赖顺序停服，直接调用官方 `proxmox-backup-client backup`，最后尝试启动原先运行的容器并清理临时元数据；这些步骤全部成功后才处理下一项。保留 `backup <business>` 单业务入口。按用户要求，业务数据生成未加密的原生 pxar 归档，明确使用 `--crypt-mode none`；停机时间包含整个上传过程。PBS 登录认证和 HTTPS 传输保留。
+`scripts/gateway-backup/gateway-backup.sh backup all` 由脚本顺序执行六项常规业务，外部控制器只需调用一次。每项记录原运行状态，按依赖顺序停服，直接调用官方 `proxmox-backup-client backup`，最后尝试启动原先运行的容器并清理临时元数据。某项失败时，该项仍完成自己的启动尝试和清理，批次随后继续下一项；收到 INT/TERM 时取消当前项并停止整批。保留 `backup <business>` 单业务入口。按用户要求，业务数据生成未加密的原生 pxar 归档，明确使用 `--crypt-mode none`；停机时间包含整个上传过程。PBS 登录认证和 HTTPS 传输保留。
 
 **当前状态（2026-10-09）：脚本和官方静态 PBS 客户端 4.2.6 已部署到网关；小智真实备份已验证成功，用户随后反馈已完成一次全部容器备份。恢复演练按用户决定暂缓，尚未验证恢复后的应用可用性。** 后续人工执行真实停服前仍需先通知用户业务影响和恢复安排。
+
+**待部署的变更：** 本文描述的失败后继续、metadata 变更检测和[控制器接口](#控制器接口)只完成了离线验证，尚未部署。在重新部署前，网关上运行的仍是 2026-10-09 的版本：任一业务失败即停止队列，每次完整读取全部文件，也没有 `gateway-backup-ctl.sh`。部署需用户另行授权。
 
 2026-10-06 小智实测生成快照 `host/gateway-xiaozhi/2026-10-06T01:15:46Z`，四份业务/元数据归档的 `crypt-mode` 均为 `none`。全流程约 129 秒，客户端上传约 1.83 秒；结束后五个容器均运行，MySQL/Redis 健康，Web 返回 HTTP 200，其他业务保持运行。MQTT 网关停止超时后被 Docker 强制结束，退出慢的问题暂未修改。2026-10-09 用户反馈的全业务结果尚未逐项独立复核；`backup all` 仍按下文规则排除 qnetd。
 
@@ -107,9 +109,13 @@ CN Proxy 的 Tailscale 身份位于 `/etc/sing-box/ts-state`，依据见 [CN 出
 
 外部控制器在运行时导出 `PBS_REPOSITORY`（格式 `user@realm!token@server:datastore`）和 `PBS_PASSWORD`（PBS 登录 Token）；服务器证书需要显式信任时，再导出 `PBS_FINGERPRINT`。仓库地址也可直接写入脚本顶部。Token 从 [Ansible Vault](../architecture/ansible-vault-architecture.md) 取得，通过进程环境注入，无需落地配置或凭据文件，也不要写入脚本或命令历史。每次备份明确使用 `--crypt-mode none`，无需加密密钥或密钥口令。
 
+每次备份还使用 `--change-detection-mode=metadata`：客户端对比上一份快照的文件元数据，未变化的文件尽量复用已有数据块，只读取变化的文件，从而缩短停服时间。这是客户端特性，官方说明它兼容旧版服务端；在 Web 界面浏览拆分归档需要 PBS 3.2.5 及以上。此前记录的一次完整测试中，Hermes 的 19.8 GiB 每次都要全部重读，停机约 4 分 46 秒；其中 15.1 GiB 是 `/mnt/data/hermes/backups` 里不再变化的升级备份包，最近 24 小时只有约 560 MiB 变化。
+
+启用后每个归档保存为拆分格式（`.mpxar` 元数据和 `.ppxar` 数据）。现有快照都是旧格式，启用后的第一轮没有可比对的拆分快照，仍会完整读取，这一轮的停机时间不会缩短；新旧格式之间的去重效果也较差。判断依据只有元数据，内容变了但大小和 mtime 都没变的文件会被当作未变化而复用，官方技术文档明确提示了这一点。需要强制重读全部内容时，可使用原生的 `data` 模式。拆分归档尚未做过真实恢复，官方文档也没有写明 `<名称>.pxar` 能否自动对应拆分归档，恢复前先用 `snapshot files` 确认实际归档名。依据见 [PBS 技术概览](https://pbs.proxmox.com/docs/technical-overview.html)。
+
 配置权限时，为 token 和其所属用户分别授予目标 datastore/namespace 的 `DatastoreBackup` 角色；token 的有效权限受所属用户限制。该角色可备份和恢复自己拥有的备份，已有组还需核对 owner 是否允许当前身份写入。停服前的 `snapshot list` 成功只证明可以读取列表，不能证明具有写权限。依据见 [PBS 权限与角色说明](https://pbs.proxmox.com/docs/user-management.html)。
 
-所有使用此版本的单业务和批次调用必须使用同一 `lock_dir`，默认 `/var/lock`。它们共用 `gateway-backup.lock`，原生 flock 从读取运行状态前一直持有到完整批次的重启和元数据清理结束；锁文件留在原位置。并发调用在任何 Docker/PBS 操作前非零退出，包括不同业务之间的调用。该锁协调本工具，维护窗口中仍需避免人工部署或其他工具同时改动所选业务。
+所有使用此版本的单业务和批次调用必须使用同一 `lock_dir`，默认 `/var/lock`。它们共用 `gateway-backup.lock`，原生 flock 从读取运行状态前一直持有到完整批次的重启和元数据清理结束，批次中的每项继承同一锁描述符而不重新打开锁文件；锁文件留在原位置。并发调用在任何 Docker/PBS 操作前非零退出，包括不同业务之间的调用。该锁协调本工具，维护窗口中仍需避免人工部署或其他工具同时改动所选业务。
 
 操作者还需核对各来源目录中的原生 `.pxarexclude` 规则和内部挂载点。必要的内部挂载点应显式加入脚本对应业务的 `sources`，或通过原生 `--include-dev` 纳入。保留小智的 `--exclude /youtube-mcp` 隔离边界，逐项核对排除和重新包含规则，避免用宽泛规则改变独立业务的备份范围。
 
@@ -119,7 +125,7 @@ CN Proxy 的 Tailscale 身份位于 `/etc/sing-box/ts-state`，依据见 [CN 出
 bash scripts/gateway-backup/gateway-backup.sh backup all
 ```
 
-固定顺序为 **小智 → Hermes → Open WebUI → Codex Proxy → CN Proxy → youtube-mcp**。脚本输出每项进度和独立 PBS 组结果，不需要 cron 或外层循环。每项的备份、原容器启动尝试和元数据清理全部成功后才继续；任何一步失败或收到取消，队列立即停止，保留非零退出码并标出当前业务。只有六项全部完成才返回 `0`；`docker start` 成功仅表示启动请求被接受，应用可用性由调用方另行检查。
+固定顺序为 **小智 → Hermes → Open WebUI → Codex Proxy → CN Proxy → youtube-mcp**。脚本输出每项进度和独立 PBS 组结果，不需要 cron 或外层循环。每项作为独立的单业务调用运行：某项失败时，它仍完成原容器启动尝试和元数据清理并报告自己的退出码，批次随后继续下一项；结束时输出汇总，列出失败业务及其退出码。只有六项全部完成才返回 `0`，否则返回第一个失败业务的退出码。收到 INT/TERM 时，批次把信号转发给当前业务，等它完成取消清理后停止，不再运行剩余业务，并返回 `130`/`143`；控制器只需向批次进程发送信号。`docker start` 成功仅表示启动请求被接受，应用可用性由调用方另行检查。
 
 单业务用法仍然可用：
 
@@ -132,6 +138,65 @@ bash scripts/gateway-backup/gateway-backup.sh backup xiaozhi
 停服前检查认证环境变量、源目录、两个必要卷、容器状态以及 PBS 列表读取。MySQL/Redis 必须已经停止且退出码为 `0`、没有 OOM 标记，才能物理捕获。小智按 MQTT → Web → 后端 → Redis → MySQL 停止；原先停止的容器不被启动。退出时按表中正序尝试启动所有原先运行的容器，实际业务可用性由演练中的应用检查确认。
 
 Docker inspect 可能包含环境变量和凭证，采集时暂存于本次私有临时目录：目录模式 `700`、文件模式 `600`、`umask 077`。容器 inspect、原生 `docker image inspect` 输出（包含 `RepoDigests` 和平台）及原运行容器名通过未加密的 `metadata.pxar` 保存，退出时清理本次临时目录。此目录仅有重建参考信息，业务文件由客户端直接读取。
+
+## 控制器接口
+
+Home Assistant 等外部控制器不直接执行 `gateway-backup.sh`，而是经 SSH 调用同目录的 [`gateway-backup-ctl.sh`](../../scripts/gateway-backup/gateway-backup-ctl.sh)。它只接受三个动作：
+
+| 动作 | 行为 | 输出 |
+| --- | --- | --- |
+| `start <run_id>` | 从标准输入读取 PBS token，在新会话中后台启动 `backup all`，确认已启动后立即返回 | `started run_id=<run_id>` |
+| `status <run_id>` | 查询这一轮的状态 | `running`；或 `exit=<退出码>`，后跟一行 `summary=<批次汇总>`；或 `unknown`，后跟 `reason=<原因>` |
+| `cancel <run_id>` | 向批次进程发送 TERM：当前业务中止上传、恢复原容器，随后整批退出（`143`） | `cancelling`；这一轮已结束时输出同 `status` |
+
+- run_id 为 1–64 位字母、数字、`.`、`_`、`-`，以字母或数字开头。每轮使用新的 run_id，不可复用。
+- 每轮记录写入 `/opt/gateway-backup/runs/<run_id>/`（目录权限 `700`）：`runner.pid`、`pid`（批次进程）、`started`、`finished`、`exit` 和 `log`。token 只经环境变量传给批次，不写入这些文件，也不出现在任何进程的命令行。脚本不清理旧记录。
+- 一轮的所有进程都持有 `runs/.active.lock`，直到最后一个进程退出；这期间新的 `start` 会被拒绝。手动运行持有脚本自身的批次锁时，`start` 同样会被拒绝。
+- `unknown` 表示既没有存活进程，也没有记录退出码，例如网关在备份中途重启。控制器应按失败处理，并人工核对各业务容器的状态。
+- 退出码：`0` 成功，`2` 用法或输入错误（含空 token），`3` 忙碌或 run_id 已用过，`1` 其他错误。
+
+非机密的 `pbs_repository`（格式 `user@realm!token@server:datastore`）和 `pbs_fingerprint` 写在 ctl 脚本顶部，仓库中留空，部署时填写；未填写时 `start` 直接报错。
+
+### 网关部署
+
+**控制器尚未部署。下面每一步都会改动网关或 Home Assistant，必须先逐条取得用户授权。** 目录沿用已记录的部署位置，部署前需核对网关实际路径：
+
+```text
+/opt/gateway-backup/
+├── gateway-backup.sh
+├── gateway-backup-ctl.sh       # 需可执行：forced command 直接运行它
+└── runs/                       # 每轮记录，由 ctl 脚本创建
+/usr/bin/proxmox-backup-client  # Dropbear 会话的 PATH 需包含 /usr/bin
+```
+
+ctl 脚本依赖 `/bin/bash`（4.4 及以上，用到 `mapfile -d`）、`setsid`、`flock` 和 `/proc`。网关上的 `setsid` 和 Bash 版本尚未核对。
+
+OpenWrt 的 root 授权公钥在 `/etc/dropbear/authorized_keys`。为控制器单独生成一把密钥，在该文件中加入下面一整行，这把密钥就只能执行上述三个动作：
+
+```text
+command="/opt/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
+```
+
+Dropbear 把客户端请求的命令放在 `SSH_ORIGINAL_COMMAND` 中；ctl 脚本只接受 `<动作> <run_id>` 形式，拒绝 shell 语法、多余参数和内部动作。`/etc/dropbear` 位于 overlay，系统升级后应核对这一行仍在；`/opt/gateway-backup` 和客户端是否保留同样需要核对，它们不在 `/mnt/data` 上。
+
+### Home Assistant 侧
+
+[`ha-gateway-backup.sh`](../../scripts/gateway-backup/ha-gateway-backup.sh) 放在 HA 的 `/config/scripts/`。HA 的 `shell_command` 一旦使用模板就不经过 shell，无法重定向，所以由这个辅助脚本把 token 文件接到 SSH 的标准输入。它在调用 SSH 前校验动作和 run_id，并固定使用 `BatchMode` 和 `StrictHostKeyChecking=yes`。
+
+| 文件 | 内容 |
+| --- | --- |
+| `/config/.ssh/gateway_backup_ed25519` | 控制器私钥，权限 `600` |
+| `/config/.ssh/gateway_backup_known_hosts` | 网关主机公钥；首次用 `ssh-keyscan` 获取后人工核对指纹 |
+| `/config/.secrets/gateway_backup_pbs_token` | PBS API token 的 secret，单独一行，权限 `600` |
+
+这条路线会在 HA 磁盘上保留一份 Vault 中 PBS token 的明文副本，这两个文件也可能进入 HA 自身的备份。网关上 token 仍不落盘。采用前需由用户确认接受，并核对 HA 备份的存放位置。
+
+```yaml
+shell_command:
+  gateway_backup: "/config/scripts/ha-gateway-backup.sh {{ action }} {{ run_id }}"
+```
+
+HA 脚本调用时用 `response_variable` 读取 `stdout` 和 `returncode`。`shell_command` 有 60 秒上限，三个动作都会在几秒内返回。
 
 ## 网关本地快照检查
 
@@ -170,24 +235,31 @@ proxmox-backup-client restore "${snapshot}" metadata.pxar "${restore_root}/metad
 
 | 情况 | 处理 |
 | --- | --- |
-| 全局锁已占用、PBS/认证不可用、源目录或卷不可用 | 当前业务停服前非零退出；不进入后续业务 |
+| 全局锁已占用 | 整个调用在任何 Docker/PBS 操作前非零退出 |
+| PBS/认证不可用、源目录或卷不可用 | 当前业务停服前失败；批次继续下一项，PBS 不可用时后续各项同样在停服前失败 |
 | 停服失败、MySQL/Redis 非干净退出 | 拒绝物理备份，尝试恢复原先运行的容器 |
-| 客户端备份失败或 INT/TERM 中断 | 取消信号转发给该客户端并等待其退出，随后才尝试原容器重启、清理私有元数据；取消仍返回 `130`/`143`，即使客户端最终返回 `0`；不进入后续业务 |
-| 重启失败 | 报出具体容器并继续尝试其余原运行容器，非零退出且停止队列；已成功上传的快照可能仍存在 |
-| 私有元数据清理失败 | 报出目录并非零退出，停止队列；已有备份错误码保留 |
+| 客户端备份失败或 INT/TERM 中断 | 取消信号转发给该客户端并等待其退出，随后才尝试原容器重启、清理私有元数据；取消仍返回 `130`/`143`，即使客户端最终返回 `0`。客户端失败时批次继续下一项；取消时停止整批 |
+| 重启失败 | 报出具体容器并继续尝试其余原运行容器，该项非零退出，批次继续下一项；已成功上传的快照可能仍存在 |
+| 私有元数据清理失败 | 报出目录，该项非零退出，批次继续下一项；已有备份错误码保留 |
 
 正常重启或元数据清理期间首次收到 INT/TERM 时，完成当前清理后退出，停止剩余队列。重复信号不会中断清理，已有错误码保留。强制杀进程或主机掉电无法执行 EXIT 清理，需人工核对并恢复服务。还原后的切换、重建和回退由操作者明确执行。
 
-批次失败后，已完成业务的快照保留。先核对失败业务的容器启动状态，并用原生 `snapshot list` 确认它是否已经生成快照，再按原顺序用 `backup <business>` 处理需要补做的业务及剩余项目。直接重跑 `backup all` 会从小智重新开始，再次备份此前已完成的业务。
+批次结束时的汇总列出失败业务及其退出码，其余业务的快照照常生成。先核对失败业务的容器启动状态，并用原生 `snapshot list` 确认它是否已经生成快照，再用 `backup <business>` 单独补做。批次被取消时，汇总列出未运行的业务，同样逐项补做。直接重跑 `backup all` 会再次备份全部六项。
 
 ```bash
-for file in scripts/gateway-backup/gateway-backup.sh tests/gateway-backup/gateway-backup-test.sh; do
+for file in scripts/gateway-backup/gateway-backup.sh scripts/gateway-backup/gateway-backup-ctl.sh \
+    tests/gateway-backup/gateway-backup-test.sh tests/gateway-backup/gateway-backup-ctl-test.sh; do
     bash -n "${file}"
 done
-shellcheck -s bash scripts/gateway-backup/gateway-backup.sh tests/gateway-backup/gateway-backup-test.sh
+shellcheck -s bash scripts/gateway-backup/gateway-backup.sh scripts/gateway-backup/gateway-backup-ctl.sh \
+    tests/gateway-backup/gateway-backup-test.sh tests/gateway-backup/gateway-backup-ctl-test.sh
+shellcheck -s sh scripts/gateway-backup/ha-gateway-backup.sh
 bash tests/gateway-backup/gateway-backup-test.sh
+# The controller test needs Linux (setsid, flock, /proc); Alpine's BusyBox matches the gateway and HA.
+docker run --rm --init -v "$PWD":/src:ro python:3.13-alpine sh -c \
+    'apk add -q bash && cp -r /src /w && cd /w && CTL_TEST_BUSYBOX=1 bash tests/gateway-backup/gateway-backup-ctl-test.sh'
 ```
 
-离线测试使用临时虚构目录和针对本适配器的 Docker/PBS 命令替身，验证七组原生参数、本机 Docker 固定、两种卷解析、停启顺序、独立子项目排除、锁覆盖、容器与镜像元数据权限及错误清理。批次场景实际执行六项，检查每项清理完成后才进入下一项、qnetd 排除、中途失败停止队列，以及批次/单业务并发拒绝。取消场景覆盖客户端延迟退出并返回 `0`、PID 登记窗口、清理期间重复 TERM 和正常清理阶段首次取消；数据库场景独立覆盖非 OOM 异常退出和 OOM 标记。无加密测试验证适配器传入 `--crypt-mode none`、不检查或传入密钥的命令契约。测试所用 Python 仅在开发机运行；不连接真实 Docker daemon、PBS 或读取真实凭证，也不证明实际归档的加密状态、真实数据库恢复或应用可用性。
+离线测试使用临时虚构目录和针对本适配器的 Docker/PBS 命令替身，验证七组原生参数、本机 Docker 固定、两种卷解析、停启顺序、独立子项目排除、锁覆盖、容器与镜像元数据权限及错误清理。批次场景实际执行六项，检查每项清理完成后才进入下一项、qnetd 排除、中途各类失败后继续剩余业务并保留首个错误码、只向批次进程发送 INT/TERM 时转发给当前业务并停止整批，以及批次/单业务并发拒绝。取消场景覆盖客户端延迟退出并返回 `0`、PID 登记窗口、清理期间重复 TERM 和正常清理阶段首次取消；数据库场景独立覆盖非 OOM 异常退出和 OOM 标记。无加密测试验证适配器传入 `--crypt-mode none`、不检查或传入密钥的命令契约，并验证每次备份都使用 metadata 变更检测。控制器测试用替身批次覆盖：`start` 立即返回且批次脱离调用方会话，token 只经环境变量传递、不出现在命令行或文件中，运行中再次 `start`、run_id 复用和手动批次持锁都被拒绝，退出码与批次汇总的报告、`cancel` 的 TERM 转发，Dropbear 强制命令下的输入白名单，孤儿批次与丢失运行的如实报告，以及 HA 辅助脚本只经标准输入发送 token。测试所用 Python 仅在开发机运行；不连接真实 Docker daemon、PBS 或读取真实凭证，也不证明实际归档的加密状态、真实数据库恢复或应用可用性。
 
 参考：[PBS 客户端用法](https://pbs.proxmox.com/docs/backup-client.html)、[原生命令手册](https://pbs.proxmox.com/docs/proxmox-backup-client/man1.html)。

@@ -32,12 +32,18 @@ with lockfile.open() as contender:
     except BlockingIOError: pass
     else: raise AssertionError('Global lock was released before cleanup completed')
 active = root / 'active-business'
+# A business configured to fail its restart or cleanup may leave residue; the batch continues past it.
+residue = {owners[os.environ['FAIL_START']]} if os.environ.get('FAIL_START') else set()
+if os.environ.get('FAIL_CLEANUP'): residue.add(os.environ.get('AT_BUSINESS', ''))
 if tool == 'docker' and args[:2] != ['image', 'inspect']:
     business = owners[args[-1]]
     assert business in json.loads((root / 'allowed.json').read_text()), business
     if not active.exists() or active.read_text() != business:
-        assert (root / 'state.json').read_text() == (root / 'original.json').read_text(), 'Next business began before original states were restored'
-        assert not list((root / 'tmp').iterdir()), 'Next business began before metadata cleanup'
+        skip = {n for b in residue for n in scopes.get(b, [])}
+        current, original = (json.loads((root / f'{n}.json').read_text()) for n in ('state', 'original'))
+        assert {k: v for k, v in current.items() if k not in skip} == {k: v for k, v in original.items() if k not in skip}, 'Next business began before original states were restored'
+        leftovers = [p for p in (root / 'tmp').iterdir() if not any(p.name.startswith(f'gateway-backup.{b}.') for b in residue)]
+        assert not leftovers, 'Next business began before metadata cleanup'
         active.write_text(business)
 else:
     business = active.read_text()
@@ -46,9 +52,11 @@ def enabled(flag):
     return os.environ.get(flag) and os.environ.get('AT_BUSINESS', business) == business
 def signal_cleanup_group():
     group = os.getpgrp()
-    # Only the adapter's private session may be signalled, never the test runner.
+    # Only the adapter's own process group may be signalled, never the test runner. In a
+    # batch, the business invocation leads its own group inside the batch's private session.
     assert group != int(os.environ['BACKUP_TEST_RUNNER_PGID'])
-    assert os.getsid(0) == group == os.getppid()
+    assert os.getsid(0) != int(os.environ['BACKUP_TEST_RUNNER_SID'])
+    assert group == os.getppid()
     os.killpg(group, getattr(signal, 'SIG' + os.environ['GROUP_SIGNAL']))
     time.sleep(0.1)
     (root / 'group-cleanup-survived').write_text(tool)
@@ -173,7 +181,7 @@ ln -s fixture-command "${BACKUP_TEST_ROOT}/bin/proxmox-backup-client"
 ln -s fixture-command "${BACKUP_TEST_ROOT}/bin/rm"
 
 python3 - <<'PY'
-import fcntl, json, os, pathlib, shlex, subprocess, time
+import fcntl, json, os, pathlib, shlex, signal, subprocess, time
 repo = pathlib.Path(os.environ['BACKUP_TEST_REPO'])
 root = pathlib.Path(os.environ['BACKUP_TEST_ROOT'])
 businesses = {
@@ -224,7 +232,7 @@ def environment(r, **flags):
     env = {k: v for k, v in os.environ.items() if not k.startswith('PBS_')}
     env.update(PATH=str(root / 'bin') + ':' + os.environ['PATH'], BACKUP_CASE=str(r),
                TMPDIR=str(r / 'tmp'), DOCKER_HOST='tcp://remote.invalid:2376', DOCKER_CONTEXT='remote-production',
-               BACKUP_TEST_RUNNER_PGID=str(os.getpgrp()),
+               BACKUP_TEST_RUNNER_PGID=str(os.getpgrp()), BACKUP_TEST_RUNNER_SID=str(os.getsid(0)),
                PBS_REPOSITORY='fixture@pbs!backup@pbs.invalid:backup',
                PBS_PASSWORD='fictional-token', PBS_FINGERPRINT=':'.join(['aa'] * 32))
     env.update({k: str(v) for k, v in flags.items()})
@@ -257,7 +265,8 @@ def run(r, business, expected=0, args=None, check_cleanup=True, **flags):
         script.write_text(source.replace(boundary, injection + boundary))
     command = ['/bin/bash', str(r / 'cli/gateway-backup.sh')]
     command += args if args is not None else ['backup', business]
-    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10,
+    # A batch now runs all six businesses even after a failure, so allow it more time.
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30 if business == 'all' else 10,
                             start_new_session=bool(flags.get('SIGNAL_CLEANUP_GROUP')))
     (r / 'result.log').write_text(result.stdout + result.stderr)
     assert (result.returncode != 0 if expected is None else result.returncode == expected), (r, result.returncode, result.stdout, result.stderr)
@@ -283,7 +292,7 @@ for business, (names, paths) in businesses.items():
         expected_sources.append(archive + '.pxar:' + str(r / volume))
     expected_sources.append('metadata.pxar:' + (r / 'metadata-path').read_text())
     expected = ['backup', *expected_sources, '--backup-type', 'host', '--backup-id', 'gateway-' + business,
-                '--crypt-mode', 'none']
+                '--crypt-mode', 'none', '--change-detection-mode=metadata']
     if business == 'xiaozhi': expected += ['--exclude', '/youtube-mcp']
     assert args == expected, (business, args)
     running = [n for n in names if n not in stopped]
@@ -299,6 +308,8 @@ run(r, 'xiaozhi', pbs_keyfile=str(r / 'missing-key'),
     PBS_PASSWORD_FILE=str(r / 'missing-token-file'))
 args = json.loads((r / 'backup-args.json').read_text())
 assert args[args.index('--crypt-mode') + 1] == 'none' and '--keyfile' not in args
+# Unchanged files are reused from the previous snapshot instead of being reread during downtime.
+assert '--change-detection-mode=metadata' in args
 assert not any(c[:2] == ['proxmox-backup-client', 'key'] for c in calls(r))
 unchanged(r)
 passed('adapter command contract: no key inspection/keyfile option, explicit crypt-mode none despite obsolete key references')
@@ -397,7 +408,7 @@ for index, (business, args) in enumerate(zip(batch, backups), 1):
     metadata_arg = next(a for a in args if a.startswith('metadata.pxar:'))
     assert not pathlib.Path(metadata_arg.split(':', 1)[1]).exists()
     expected = ['backup', *expected_sources, metadata_arg, '--backup-type', 'host', '--backup-id', 'gateway-' + business,
-                '--crypt-mode', 'none']
+                '--crypt-mode', 'none', '--change-detection-mode=metadata']
     if business == 'xiaozhi': expected += ['--exclude', '/youtube-mcp']
     assert args == expected, (business, args)
     running = [n for n in names if original[n]]
@@ -409,7 +420,9 @@ for index, (business, args) in enumerate(zip(batch, backups), 1):
 assert mutations(r) == expected_calls
 assert 'qnetd-witness is excluded from all' in result.stdout
 assert not any(n in call for call in calls(r) for n in ('qnetd-witness', 'unrelated-container'))
-assert [c for c in calls(r) if c[0] == 'flock'] == [['flock', '-n', '9']]
+# The batch takes the lock once; each business re-locks only the inherited descriptor.
+assert [c for c in calls(r) if c[0] == 'flock'] == [['flock', '-n', '9']] * (1 + len(batch))
+assert 'Batch completed: 6/6 businesses backed up.' in result.stdout
 passed('all executes the exact six-business stop/backup/start sequence under one lock, resets business options, retains stopped containers and excludes qnetd')
 
 def stopped_at_hermes(r, result):
@@ -418,13 +431,26 @@ def stopped_at_hermes(r, result):
     assert 'Backup progress 3/' not in result.stdout
     untouched = [n for b in batch[2:] + ['qnetd-witness'] for n in businesses[b][0]] + ['unrelated-container']
     assert not any(n in call for call in calls(r) for n in untouched), calls(r)
+    assert 'ERROR: Batch cancelled (exit ' in result.stderr
+    assert 'not run: ' + ' '.join(batch[2:]) in result.stderr
+
+def continued_after_hermes(r, result, code):
+    assert f'host/gateway-hermes (exit {code})' in result.stderr
+    assert 'Backup completed: host/gateway-hermes.' not in result.stdout
+    for index, business in enumerate(batch, 1):
+        assert f'Backup progress {index}/6: {business}' in result.stdout
+        if business != 'hermes': assert f'Backup completed: host/gateway-{business}.' in result.stdout
+    assert f'Batch finished with failures: 5/6 completed; failed: hermes(exit {code})' in result.stderr
+    backed_up = [args[args.index('--backup-id') + 1] for args in map(json.loads, (r / 'backups.jsonl').read_text().splitlines())]
+    assert [b for b in backed_up if b != 'gateway-hermes'] == ['gateway-' + b for b in batch if b != 'hermes']
+    assert not any(n in call for call in calls(r) for n in businesses['qnetd-witness'][0] + ['unrelated-container'])
 
 for flags, code in [({'FAIL_PBS': 1}, 11), ({'FAIL_METADATA': 1}, 18), ({'FAIL_STOP': 'hermes-webui'}, 17),
                     ({'FAIL_BACKUP': 1}, 23), ({'FAIL_START': 'hermes'}, 1), ({'FAIL_CLEANUP': 1}, 1),
                     ({'FAIL_BACKUP': 1, 'FAIL_START': 'hermes', 'FAIL_CLEANUP': 1}, 23)]:
     r = fixture('all')
     result = run(r, 'all', expected=code, AT_BUSINESS='hermes', **flags)
-    stopped_at_hermes(r, result)
+    continued_after_hermes(r, result, code)
     if not (flags.get('FAIL_PBS') or flags.get('FAIL_METADATA')):
         assert [c[-1] for c in calls(r) if c[:2] == ['docker', 'start'] and c[-1] in businesses['hermes'][0]] == businesses['hermes'][0]
     expected_state = json.loads((r / 'original.json').read_text())
@@ -433,7 +459,7 @@ for flags, code in [({'FAIL_PBS': 1}, 11), ({'FAIL_METADATA': 1}, 18), ({'FAIL_S
     if flags.get('FAIL_CLEANUP'):
         assert 'Could not remove private metadata:' in result.stderr
         assert len(list((r / 'tmp').iterdir())) == 1
-passed('middle-business preflight, metadata, stop, backup, restart and cleanup failures stop the queue and preserve the original error')
+passed('middle-business preflight, metadata, stop, backup, restart and cleanup failures preserve that error, then the batch continues with the remaining businesses')
 
 for sig, code in (('INT', 130), ('TERM', 143)):
     for window in (False, True):
@@ -466,10 +492,42 @@ passed('isolated-process-group INT/TERM during restart and metadata deletion com
 
 r = fixture('all')
 result = run(r, 'all', expected=23, AT_BUSINESS='hermes', FAIL_BACKUP=1, SIGNAL_CLEANUP_RETURN=1)
-assert 'host/gateway-hermes (exit 23)' in result.stderr
-stopped_at_hermes(r, result)
+# The late TERM reaches only that business, which keeps error 23; the batch treats it as a failure.
+continued_after_hermes(r, result, 23)
 unchanged(r)
 passed('late TERM between cleanup reporting and return preserves the existing backup error 23')
+
+for sig, code in (('INT', 130), ('TERM', 143)):
+    # A controller cancels by signalling the batch PID only; the batch forwards it.
+    r = fixture('all', ('xiaozhi-esp32-server-web',))
+    command = ['/bin/bash', str(r / 'cli/gateway-backup.sh'), 'backup', 'all']
+    process = subprocess.Popen(command, env=environment(r, SIGNAL_BACKUP=sig, SIGNAL_PID_WINDOW=1, AT_BUSINESS='hermes'),
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    deadline = time.monotonic() + 5
+    while not (r / 'client-ready').exists() and process.poll() is None and time.monotonic() < deadline: time.sleep(0.01)
+    assert (r / 'client-ready').exists(), 'Batch did not reach the hermes client'
+    process.send_signal(getattr(signal, 'SIG' + sig))
+    stdout, stderr = process.communicate(timeout=30)
+    result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    (r / 'result.log').write_text(stdout + stderr)
+    assert process.returncode == code, (process.returncode, stdout, stderr)
+    assert (r / 'client-cancelled').read_text() == str(int(getattr(signal, 'SIG' + sig)))
+    stopped_at_hermes(r, result)
+    assert not list((r / 'tmp').iterdir())
+    unchanged(r)
+passed('INT/TERM sent only to the batch PID is forwarded to the running business, which restores its containers, and stops the batch')
+
+r = fixture('xiaozhi')
+result = run(r, 'xiaozhi', expected=1, GATEWAY_BACKUP_BATCH_CHILD=1)
+assert 'must inherit the active batch lock' in result.stderr
+assert calls(r) == [['flock', '-n', '9']]
+unchanged(r)
+r = fixture('all')
+result = run(r, 'all', expected=1, GATEWAY_BACKUP_BATCH_CHILD=1)
+assert 'A batch child must run a single business' in result.stderr
+assert not calls(r)
+unchanged(r)
+passed('batch-child mode rejects all and requires the inherited batch lock before Docker/PBS access')
 
 for first, target in (('all', 'hermes'), ('xiaozhi', 'xiaozhi')):
     r = fixture('all')
@@ -487,7 +545,7 @@ for first, target in (('all', 'hermes'), ('xiaozhi', 'xiaozhi')):
             assert calls(r)[before:] == [['flock', '-n', '9']], 'Concurrent invocation touched Docker/PBS'
     finally:
         (r / 'release-client').touch()
-        stdout, stderr = process.communicate(timeout=10)
+        stdout, stderr = process.communicate(timeout=30)
         (r / 'concurrent-result.log').write_text(stdout + stderr)
     assert process.returncode == 0, (process.returncode, stdout, stderr)
     assert not list((r / 'tmp').iterdir())
