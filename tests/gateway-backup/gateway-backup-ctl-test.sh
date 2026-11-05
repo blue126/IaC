@@ -54,7 +54,7 @@ def fixture(configured=True):
     (c / 'lock').mkdir()
     (backup / 'gateway-backup.sh').write_text(stub.replace('CASE_DIR', shlex.quote(str(c))))
     source = (repo / 'scripts/gateway-backup/gateway-backup-ctl.sh').read_text()
-    replacements = {'backup_dir=/opt/gateway-backup\n': f'backup_dir={shlex.quote(str(backup))}\n',
+    replacements = {'backup_dir=/mnt/data/gateway-backup\n': f'backup_dir={shlex.quote(str(backup))}\n',
                     'batch_lock=/var/lock/gateway-backup.lock\n': f'batch_lock={shlex.quote(str(c / "lock/gateway-backup.lock"))}\n'}
     if configured:
         replacements.update({"pbs_repository=''\n": f"pbs_repository='{repository}'\n",
