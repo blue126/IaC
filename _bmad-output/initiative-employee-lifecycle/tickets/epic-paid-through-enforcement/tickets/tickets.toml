@@ -1,0 +1,59 @@
+# Stories of epic-paid-through-enforcement, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "paid_through 快照推到 OCI 并驱动 expired 原因"
+description = "catalog 支持 paid_through；执行器整份推送带 generation 的快照到 OCI；OCI reconcile 读快照增删 expired，保留其他原因。"
+verify = "测试员工 paid_through 设为过去后隧道在一个 timer 周期内断开，改回后恢复；人工与配额原因不变；旧 generation 快照被拒。"
+covers = ["R1", "R2"]
+after = ["1.7"]
+hitl = true
+risk = "high"
+notes = ["OCI oci-hub 角色部署由管理员确认执行"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "wsctl enforce 到期关机、续费开机"
+description = "按 catalog 关闭已到期员工 VM 并记录，续费后只开执行器关掉的 VM；Semaphore 每 5 分钟定时运行。"
+verify = "测试员工到期后 5 分钟内 VM 关机，续费后 5 分钟内开机；catalog 外与手动关机的 VM 不被碰。"
+covers = ["R3"]
+after = [1, "1.7"]
+hitl = true
+risk = "high"
+notes = ["Semaphore 定时任务创建由管理员确认"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "wsctl renew 与开户写入 paid_through"
+description = "renew <邮箱> N 按 Sydney 月底规则推进并推快照；provision 开户设当月月底并推快照。"
+verify = "测试覆盖未过期、已过期、跨年续费；renew 后测试员工隧道与 VM 一起恢复。"
+covers = ["R4"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "不到期标记与现有员工初始化"
+description = "catalog 支持 no_expiry；pilot、control 标为不到期，其余现有员工设为上线当月月底并推快照。"
+verify = "快照包含除不到期者外的全部员工；不到期员工不受断开与关机影响；wsctl status 正常。"
+covers = ["R5"]
+after = [1, 2, 3]
+hitl = true
+risk = "medium"
+notes = ["初始化名单由管理员确认"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 各 story 推迟的整理项，仅限清理。"
+verify = "现有测试全部通过，无新增行为。"
+covers = []
+after = [1, 2, 3, 4]
+hitl = false
+risk = "low"

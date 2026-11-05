@@ -1,0 +1,104 @@
+# Stories of epic-executor-platform, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "ws-executor VM 上线并只对局域网与 Tailscale 开放"
+description = "Terraform 在 pve0 建 VMID 115 / 192.168.1.115，Ansible 做基础配置、加入 Tailscale、防火墙只放行局域网与 tailnet。"
+verify = "从局域网和 Tailscale 都能 SSH 登录 VM；从公网扫描不到任何开放端口；terraform plan 无漂移。"
+covers = ["R1"]
+after = []
+hitl = true
+risk = "medium"
+notes = ["terraform apply 与 Tailscale 授权由管理员确认执行"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "wsctl 取代 onboard.sh 且无需 --profile"
+description = "employee-admin 新增 wsctl 入口，去掉 profile 参数，onboard.sh 改为转发；测试与文档同步。"
+verify = "wsctl status 与原 onboard.sh --profile oci-hub online 输出一致；onboard.sh 调用被转发；现有测试通过。"
+covers = ["R6"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "写命令改为展示计划后确认执行"
+description = "provision、reissue 等创建或删除资源的命令展示计划与 SHA，交互确认或 --approve <SHA> 后以同一 SHA 执行。"
+verify = "测试覆盖：确认后执行；SHA 不符、计划或输入变化时拒绝；--approve 非交互路径。"
+covers = ["R7"]
+after = [2]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "执行器凭据改为运行时从 BWS 取出"
+description = "把 runtime vault 密码、IaC Vault 密码、SSH 私钥、HCP Terraform token 存入 BWS default 项目；VM 上部署 Linux 版 bws 与 BWS token；wsctl 运行时取出、用完即删。"
+verify = "在 VM 上运行一次需要全部凭据的只读命令成功，结束后磁盘上只剩 BWS token 与加密的邮件缓存。"
+covers = ["R3"]
+after = [1]
+hitl = true
+risk = "high"
+notes = ["写入 BWS 需管理员授权"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "git push 即部署 employee-admin 到 VM"
+description = "VM 上建裸仓库与 post-receive 检出，Mac 的 employee-admin 加该远程；VM 上用 setup-dev-env.sh 建 .venv 与 collections。"
+verify = "Mac 上 git push 后，VM 运行目录更新到该提交，wsctl --help 可运行。"
+covers = ["R4"]
+after = [1, 2]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 6
+type = "story"
+title = "employee-data 迁到 VM 并只读核对一致"
+description = "复制 employee-data 与邮件缓存到 VM，修正 settings 中的 bws 程序路径、Terraform 机密变量路径与 iac_root；只读运行 status 与 Mac 对比。"
+verify = "VM 上 wsctl status 的输出与迁移前 Mac 上一致（逐员工比较）。"
+covers = ["R5"]
+after = [4, 5]
+hitl = true
+risk = "high"
+notes = ["迁移窗口内停止 Mac 上的写操作"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Semaphore 以 root 运行并调用 wsctl"
+description = "安装 Semaphore 原生包与嵌入式数据库，仅局域网与 Tailscale 可达；建 status、provision、reissue 模板与一个定时测试任务。"
+verify = "浏览器登录 Semaphore 运行 status 模板成功；经 --approve 运行 reissue 成功；定时测试任务按时运行。"
+covers = ["R2"]
+after = [3, 6]
+hitl = true
+risk = "medium"
+unknown = "Semaphore v2.19 支持哪种嵌入式数据库（BoltDB 或 SQLite）"
+
+[[entry]]
+id = 8
+type = "story"
+title = "切换为唯一执行器并清除 Mac 凭据"
+description = "清除 Mac 上的执行器凭据与写入路径，修订 AGENTS.md 与 employee-provision skill 中的执行位置和凭据规则。"
+verify = "Mac 上运行任何写命令都失败并提示改用执行器；AGENTS.md 写明执行器凭据在 BWS default 项目。"
+covers = ["R5"]
+after = [7]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 9
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 各 story 推迟的整理项，仅限清理。"
+verify = "现有测试全部通过，无新增行为。"
+covers = []
+after = [1, 2, 3, 4, 5, 6, 7, 8]
+hitl = false
+risk = "low"

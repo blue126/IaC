@@ -1,0 +1,92 @@
+# Stories of epic-apply-site, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "cc.willfan.me 规格页与申请表上线并可被 wsctl request 拉取"
+description = "Worker + D1 部署在自定义域名，页面移动端优先、文案与小程序一致；提交写入 D1；管理令牌保护的列表接口；wsctl request 落地 site-<ID>.json。"
+verify = "手机提交的申请出现在 wsctl request 结果与 requests/oci-hub/ 中；无令牌访问管理接口返回 401；国内网络可打开页面。"
+covers = ["R1", "R3"]
+after = ["1.7"]
+hitl = true
+risk = "medium"
+notes = ["Cloudflare 资源经 MCP 创建；管理令牌写入 BWS 由管理员确认；国内网络实测由管理员执行"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "申请表 Turnstile 校验与 IP 限频"
+description = "提交先验 Turnstile，再按 IP 每小时 3 次、每天 10 次限频（D1 计数）；Turnstile 不可用时只靠限频。"
+verify = "无效 Turnstile 令牌被拒；同一 IP 第 4 次提交返回 429；测试覆盖计数窗口。"
+covers = ["R2"]
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 8
+type = "story"
+title = "申请前验证邮箱（6 位验证码）"
+description = "页面先获取邮箱验证码（Turnstile + 限频，经 Resend 从 noreply@cc.willfan.me 发出），提交申请时必须带正确验证码；申请记录标明邮箱已验证。"
+verify = "未带或带错验证码的提交被拒；正确验证码提交成功且只能用一次；同一邮箱 60 秒内只能获取一次；验证码 10 分钟过期。"
+covers = ["R8"]
+after = [2]
+hitl = true
+risk = "medium"
+notes = ["Resend 账号与域名验证由用户完成（2026-11-01 用户要求增加邮箱验证并选择免费组件）"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "从申请开户并回写已处理"
+description = "provision --request <ID> 从申请文件取邮箱与姓名；开户完成与 request --dismiss 回写已处理。"
+verify = "从一条测试申请执行 provision --plan-only 得到正确邮箱；dismiss 后该申请不再出现在 wsctl request。"
+covers = ["R3", "R4"]
+after = [1, 8]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "设备包经一次性链接下载"
+description = "管理接口上传设备包到 D1；下载页点按钮下载，24 小时内 3 次，满或过期删除；provision 发下载邮件取代 Temp.sh。"
+verify = "测试包可下载 3 次，第 4 次与过期后返回已失效且 D1 中无该包；邮件链接打开的是下载页而非文件。"
+covers = ["R5"]
+after = [1, 3]
+hitl = true
+risk = "high"
+notes = ["真实发信测试由管理员确认收件"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "wsctl reissue 重发设备包"
+description = "生成新链接并重发邮件，旧链接立即失效。"
+verify = "reissue 后旧链接返回已失效，新链接可下载。"
+covers = ["R6"]
+after = [4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+type = "story"
+title = "退役 Temp.sh 交付"
+description = "删除 deliver-temp 路径与相关测试，更新 README、skill 与部署文档。"
+verify = "代码与文档中不再出现 temp.sh；现有测试通过。"
+covers = ["R7"]
+after = [4, 5]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 7
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 各 story 推迟的整理项，仅限清理。"
+verify = "现有测试全部通过，无新增行为。"
+covers = []
+after = [1, 2, 3, 4, 5, 6, 8]
+hitl = false
+risk = "low"

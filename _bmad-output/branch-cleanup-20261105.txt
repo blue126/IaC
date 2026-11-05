@@ -1,0 +1,56 @@
+chore/docs-directory-restructure a5906a218c57205008bc75354436747635cf7e1e a5906a218c57205008bc75354436747635cf7e1e 
+chore/esxi-workspace-retirement 599decb8fceb153490732504c2340b69c9bab105 599decb8fceb153490732504c2340b69c9bab105 
+chore/homepage-readonly-tokens 2afa70ff64b68a73fa03d9a344a5da01d23e2f26 2afa70ff64b68a73fa03d9a344a5da01d23e2f26 
+claude/joshua-linkedin-mail-f67039 ef603882dd0f31989bccfc5e92a8116957fbad71 
+claude/unifi-design-center-af0756 fd2a655329fb67646b34aee36b06842b610bcc8b 
+codex/bmad-fresh-install-20261025 f7e0e48a376e4e29261dc9a5d48990cd0bb97867 f7e0e48a376e4e29261dc9a5d48990cd0bb97867 
+codex/docs-records-corrections 3a30b161ce9317796732ef60c18a80df7c8ed461 
+codex/employee-claude-integration 29ea959a3569e90ea9b829b2700133f2aa53ae65 29ea959a3569e90ea9b829b2700133f2aa53ae65 
+codex/employee-claude-spec d47f12d9748f0343f69afd601376f0512813df00 
+codex/employee-gateway-update 751f7b6da8c4bf92cfa62c8fc77f7c61626ce146 
+codex/employee-memory-8g 00290d8c4c4d72d1e2e09ac6d9d8b02bfbfcbc42 00290d8c4c4d72d1e2e09ac6d9d8b02bfbfcbc42 
+codex/employee-mosh-pilot 0bf5f907ad81a9b58c620e23fcc5d98317b14758 0bf5f907ad81a9b58c620e23fcc5d98317b14758 
+codex/employee-provision-project-skill 76f4e39654c666849b77ad72e0cd9b04516d7422 76f4e39654c666849b77ad72e0cd9b04516d7422 
+codex/fix-monitoring-note-status 455c5a33d169bb4a48b3648200748e923b7f2115 
+codex/guacamole-argo-ssh 06ef32fddea2c1a51e88e19d0438e03056369383 
+codex/hapi-internal-http ecf02be527b59342e01730d23a3585c50a909582 
+codex/hub-closeout-followups 01edc5ce3527f2f29afb7888393ef63bf5decbd9 
+codex/oci-hub-prototype 7fe7590a761f8bc646f8ec45c1ab25f81a4ba46d 7fe7590a761f8bc646f8ec45c1ab25f81a4ba46d 
+codex/pve0-sata-lpm-monitoring 882b05c7ca337496ed8841d2b00604505eddf803 
+codex/qwen38-256k-agent af7313fe1f2a64e06be3f0f1a8b189f0de591716 
+codex/ticketing-spec-discovery 15b922eecf801d6ce8c42f15319dee3bf49588b3 
+codex/vault-main-reconcile af7aa2cfbfe86ecab997c74f85e0f27ce6fa1de2 
+codex/vm502-xfce-kasmvnc-spine d137f8fe8dbcdb2ca6b056c3c9deaf180409fa61 d137f8fe8dbcdb2ca6b056c3c9deaf180409fa61 
+deploy/pal-review-r8 831ab8da303bdea23c1262759facab71791c4c10 831ab8da303bdea23c1262759facab71791c4c10 
+docs/bmad-autonomy-instructions 68684709e1e255c10fc683a31ed9431fc21c1ab5 68684709e1e255c10fc683a31ed9431fc21c1ab5 
+docs/bmad-native-agent-r76 9f95c4b94bf7827adf6c7b1527d658fdf292b2d6 9f95c4b94bf7827adf6c7b1527d658fdf292b2d6 
+feat/access-hermes-gateway a0e367ca279e1383e08fe5efc8a49238dfad180b 
+feat/netbox-pbs-inventory a5af27fc0404695375be3f64b6a5f83d97ed31ab 
+feat/qwen3-tts-voice-aliases 37915fb397ae4122c2d7a6126da6a01be0fa96a6 
+fix/coordinator-blocker-triage 98560406493600ee8717545eb57d9ed9e2a9a49d 98560406493600ee8717545eb57d9ed9e2a9a49d 
+fix/netbox-ignore-managed-fields 3e02a6d650148e0846eb6b5bff33d0346948dad1 
+fix/netbox-vm-tf-trailing-newlines 85c8309e5b1c87e7a12b59ee698d8db35780a4dc 
+fix/will31-user-skill-level c1f4027232a963a23bc0a469b5138d5e900b11a8 c1f4027232a963a23bc0a469b5138d5e900b11a8 
+release/expert-handoff-auto cec2b9b1b9c7ccca74ac127ef39d13894991c511 
+claude/mosh-full-range dc1ca5040b76b7228cb2064ecd05e70e2f502224 dc1ca5040b76b7228cb2064ecd05e70e2f502224 /Users/weierfu/Projects/IaC/.worktrees/mosh-full-range
+codex/bmad-output-delivery c5bb4e2b8d5b5528814a765970dde79a30ecc953 c5bb4e2b8d5b5528814a765970dde79a30ecc953 /Users/weierfu/.codex/worktrees/bmad-output-delivery/IaC
+codex/ga2-authenticated-admission-planning de62b750a236c8d38e132b8d1212372c9cc0e2d4 /Users/weierfu/Projects/IaC/.worktrees/ga2-authenticated-admission
+codex/hapi-http-rollout-docs be7fd0cc7e78ef881ce69eb6805e713203e425a7 be7fd0cc7e78ef881ce69eb6805e713203e425a7 /private/tmp/iac-hapi-internal-http
+codex/jenkins-peer-delivery 1d8a41db6469d5d1720ddb40f4bfe14f09593495 /Users/weierfu/.codex/worktrees/jenkins-peer-delivery/IaC
+codex/vm502-story12-ready 18f691a25e4a88f807b80ca1e007bd550ed50b2b 18f691a25e4a88f807b80ca1e007bd550ed50b2b /private/tmp/vm502-story12-ready-IaC
+codex/vm508-kasmvnc cf11610315cfcd3750bb23a81d2b791442e1d188 cf11610315cfcd3750bb23a81d2b791442e1d188 /Users/weierfu/.codex/worktrees/vm508-kasm-role/IaC
+fix/host-playwright-mcp 37915fb397ae4122c2d7a6126da6a01be0fa96a6 /Users/weierfu/Documents/Codex/2026-09-04/referenced-chatgpt-conversation-this-is-an/work/iac-host-playwright
+wt/t_55b57334 233724ced9ab7a166337422137f3411f23e41023 /Users/weierfu/Projects/IaC/.worktrees/t_55b57334
+wt/t_6abc14b3 233724ced9ab7a166337422137f3411f23e41023 /Users/weierfu/Projects/IaC/.worktrees/t_6abc14b3
+codex/oci-retired-entry-doc f28d861dd22667ec5cc46577558516a2ae9f2192 (broken worktree)
+codex/vm502-story10 5a954e737b2be9542beebad4e2cb4c26b510a50e (broken worktree)
+codex/vm502-story13 b5b625d849c4d9fff5905f865a387a007ed41142 (broken worktree)
+codex/workspace-login-https-fix 00290d8c4c4d72d1e2e09ac6d9d8b02bfbfcbc42 (broken worktree)
+codex/heyuan-employee-gateway ef603882dd0f31989bccfc5e92a8116957fbad71 (dropped by user; uncommitted archived)
+claude/modest-robinson-adb406 f6187cd8a7789d210e4f8d4c0351125de59840ab (architecture notes copied to main checkout)
+worktree-centralized-storage-monitoring e0514541f57be19685bf3361212b66cbf6e1d7d7 (architecture notes copied to main checkout)
+codex/pnetlab-template-drift-20261101 e2f23f44bffeb0a798076494b9e3fb974488d61a (dropped by user, uncommitted not archived)
+worktree-agent-a7f919d490b15fe8b 4e11c2a7288467eaef1c79158a9065e0e0863ae6 (dropped by user, uncommitted not archived)
+codex/bookorbit-oci ee928725a6a96c4ce39e1c0cb2fd866cade3ed29 (deleted with ignored tmp by user)
+codex/pve0-memory-design fd2a655329fb67646b34aee36b06842b610bcc8b (ported in PR #259)
+feat/gateway-backup-continue-on-failure ee928725a6a96c4ce39e1c0cb2fd866cade3ed29 (ported in PR #260)

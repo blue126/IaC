@@ -1,0 +1,57 @@
+# Epics of initiative-employee-lifecycle, in build order.
+
+[[epic]]
+id = 1
+slug = "epic-executor-platform"
+title = "执行器常驻 pve0，经 Semaphore 操作"
+description = "pve0 上的专用执行器 VM 承载 wsctl 与 Semaphore，凭据已从 Mac 迁入；管理员在浏览器里运行 wsctl status 并以交互确认执行写命令，Mac 不再是执行器。"
+covers = ["R12", "R13"]
+
+[[epic]]
+id = 2
+slug = "epic-paid-through-enforcement"
+title = "付费期限自动执行"
+description = "renew 推进 paid_through 并推送快照；月底后隧道几秒内断开、VM 5 分钟内关机，续费后恢复；不到期标记生效，现有员工完成初始化。"
+covers = ["R4", "R5", "R6", "R14"]
+after = [{ epic = 1, needs = "执行器 VM 上的 wsctl 与 Semaphore 定时能力" }]
+
+[[epic]]
+id = 3
+slug = "epic-apply-site"
+title = "员工在 cc.willfan.me 申请并下载设备包"
+description = "员工在手机上看规格、提交申请；管理员从拉取的申请开户或重发；员工经一次性链接下载设备包，Temp.sh 退役。"
+covers = ["R1", "R2", "R3", "R10"]
+after = [{ epic = 1, needs = "执行器 VM 上的 wsctl 交互确认与凭据" }]
+
+[[epic]]
+id = 4
+slug = "epic-reminders-and-retirement"
+title = "提醒、摘要与批量退役"
+description = "员工每天按需收到到期提醒，管理员每天收到摘要；status 显示推导状态与孤儿资源；管理员一次确认批量退役。"
+covers = ["R7", "R8", "R9", "R11"]
+after = [{ epic = 2, needs = "paid_through 与不到期标记" }, { epic = 3, needs = "网站申请记录与 R2 设备包删除接口" }]
+
+[[epic]]
+id = 5
+slug = "epic-miniprogram-entry"
+title = "员工在微信小程序与网站申请并查看状态"
+description = "员工经微信登录在小程序、或经邮箱验证码在网站，看规格、提交申请、查看自己的状态与到期日；两端文案与风格一致；执行器把两个入口的申请合并处理，并向 uniCloud 与网站推送状态副本。"
+covers = ["R15", "R16", "R17", "R20"]
+after = [{ epic = 1, needs = "执行器 VM 上的 wsctl 与凭据" }, { epic = 3, needs = "统一的申请格式与 wsctl request" }]
+refined = true
+
+[[epic]]
+id = 6
+slug = "epic-hapi-access"
+title = "HAPI 接入并入 wsctl 生命周期"
+description = "开户默认同时启用 WireGuard 与 HAPI；wsctl access 可分别启停；到期停用、续费恢复、退役清除都覆盖 HAPI；hapi-admin 的逻辑并入 wsctl，独立机器账号与 Sandbox 绑定撤销。"
+covers = ["R18", "R19"]
+after = [{ epic = 1, needs = "执行器 VM、wsctl 与凭据" }, { epic = 2, needs = "paid_through 与 5 分钟到期任务" }]
+
+[[epic]]
+id = 7
+slug = "epic-hapi-release-and-roster"
+title = "HAPI 应用独立发布，员工名单由执行器推送"
+description = "HAPI 应用代码经 wsctl hapi-release 发布，员工名单由执行器推送到 VM500，日常路径不经过 Ansible；到期员工被拒绝登录；VM502 转为普通员工 VM。"
+covers = ["R19"]
+after = [{ epic = 6, needs = "HAPI 已并入 wsctl 生命周期" }]

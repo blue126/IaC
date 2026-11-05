@@ -25,7 +25,6 @@ ansible/credentials/
 ansible/collections/
 .vault_pass
 #AI coding related
-/_bmad-output/
 .opencode/
 _bmad/config.user.toml
 _bmad/**/config.user.yaml

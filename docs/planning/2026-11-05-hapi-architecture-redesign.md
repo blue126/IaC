@@ -1,6 +1,6 @@
 # HAPI 架构调整方案
 
-状态：方案已由用户确认，实现另行授权。基于 `origin/main` 的 `3dce31d` 和主检出下的管理代码（只读）。本方案没有登录 VM500、执行器或 Cloudflare 核实现场，需要现场确认的项目列在第 7 节。架构约束见 spine 的 AD-2、AD-10、AD-14、AD-16、AD-20、AD-22、AD-23、AD-24。
+状态：已于 2026-11-06 上线。VM502 转普通员工 VM（P6）提前到 P5 之前完成，线上过程记录在 epic-hapi-release-and-roster。基于 `origin/main` 的 `3dce31d` 和主检出下的管理代码（只读）。本方案没有登录 VM500、执行器或 Cloudflare 核实现场，需要现场确认的项目列在第 7 节。架构约束见 spine 的 AD-2、AD-10、AD-14、AD-16、AD-20、AD-22、AD-23、AD-24。
 
 ## 1. 结论
 

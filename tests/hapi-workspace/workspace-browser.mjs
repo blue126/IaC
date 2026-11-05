@@ -36,13 +36,13 @@ const server = http.createServer(async (request, response) => {
         records.push({ path: url.pathname, owner, method: request.method })
         if (url.pathname.startsWith('/_workspace/') && denied) return json(response, 403, {})
         if (url.pathname === '/_workspace/login/') {
-            const file = await readFile(path.resolve('ansible/roles/hapi-control-plane/files/hapi-login-portal/index.html'), 'utf8')
+            const file = await readFile(path.resolve('remotecc/hapi-control/hapi-login-portal/index.html'), 'utf8')
             const encoded = JSON.stringify(identity()).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
             response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' })
             return response.end(file.replace('{{workspace}}', encoded).replace('{{hapi_url}}', '/sessions'))
         }
         if (url.pathname === '/_workspace/login/guide.js' || url.pathname === '/_workspace/login/guide.css') {
-            const file = path.resolve('ansible/roles/hapi-control-plane/files/hapi-login-portal', path.basename(url.pathname))
+            const file = path.resolve('remotecc/hapi-control/hapi-login-portal', path.basename(url.pathname))
             response.writeHead(200, { 'Content-Type': url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css' })
             return response.end(await readFile(file))
         }
