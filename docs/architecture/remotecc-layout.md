@@ -10,6 +10,7 @@ IaC/remotecc/             # 一个私有 Git 仓库，下面的组件都不是�
 │   ├── design/           # 网站和文档共用的文案、配色和字体
 │   └── docs/             # 员工文档站（Hugo），发布到 cc.willfan.me/docs/
 ├── employee-miniprogram/ # 员工小程序
+├── hapi-control/         # VM500 上的 HAPI 应用代码与 hapi-ctl，部署见 wsctl hapi-release
 ├── wsctl/                # 管理员工具
 ├── employee-data/        # 不入 Git：Mac 员工运行副本，只读、可能过期
 └── hapi-data/            # 不入 Git：HAPI 服务运维材料与回执

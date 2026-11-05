@@ -1,0 +1,70 @@
+# Stories of epic-reminders-and-retirement, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "wsctl status 显示推导状态、到期日与孤儿资源"
+description = "按 AD-3 推导每名员工状态与到期日；比对 catalog、Terraform 清单与 PVE 列出孤儿资源；输出待提醒人数。"
+verify = "人为构造的孤儿（清单有、catalog 无）出现在 status 结果；各员工状态与 Portal/电源/到期日一致。"
+covers = ["R1"]
+after = ["2.4", "3.3"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = "wsctl remind 到期前 7 天提醒"
+description = "到期前 7 天内、未续费、非不到期员工各发一封提醒，按员工与 paid_through 去重；Semaphore 每日定时。"
+verify = "测试员工在窗口内只收到一封提醒；续费后不再提醒；不到期员工不会收到。"
+covers = ["R2"]
+after = [1]
+hitl = true
+risk = "medium"
+notes = ["真实发信与 Semaphore 定时由主会话执行"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "管理员每日摘要"
+description = "remind 同时给管理员发摘要：新申请、可退役、孤儿资源、3 天内到期；08:00 Sydney。"
+verify = "管理员邮箱收到摘要，内容与 wsctl status 一致。"
+covers = ["R3"]
+after = [1, 2]
+hitl = true
+risk = "low"
+
+[[entry]]
+id = 4
+type = "story"
+title = "wsctl retire 批量退役"
+description = "列出可退役员工与删除内容，一次确认后逐个复查并按顺序删除，最后推快照；可续跑。"
+verify = "临时测试员工退役后 Portal、Terraform、BWS、网站包、catalog 均无记录，status 无孤儿；已续费员工被跳过。"
+covers = ["R4"]
+after = [1]
+hitl = true
+risk = "high"
+notes = ["需先开一个临时测试员工；terraform apply 销毁由管理员确认"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "非交互审批路径可用：固定凭据目录并串行运行 wsctl"
+description = "执行器上凭据固定物化到 /run/wsctl，wsctl 全程持有全局锁排队运行；--plan-only 与 --approve 跨两次调用得到同一 SHA 与运行目录；Semaphore 入口接上 retire。"
+verify = "执行器上两次 provision --plan-only 得到相同 approval_sha256 与 run_dir；以该 SHA 经 --approve 执行成功；并发两个 wsctl 时后者排队；retire 可经 Semaphore 入口两步执行。"
+covers = ["R12"]
+after = [4]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户选方案 A：固定目录 + 串行，运行结束仍删除凭据"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 各 story 推迟的整理项，仅限清理。"
+verify = "现有测试全部通过，无新增行为。"
+covers = []
+after = [1, 2, 3, 4, 6]
+hitl = false
+risk = "low"

@@ -1,0 +1,325 @@
+# Stories of epic-miniprogram-entry, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "新视觉设计与统一文案源"
+description = "设计一套网站与小程序共用的视觉（配色、字体层级、卡片、按钮、表单、状态标签，含深色模式）并输出设计 token；把规格说明、申请须知、表单提示、状态与到期日表述整理为一份 JSON 文案源。"
+verify = "管理员审定设计稿与文案；token 与 text.json 可被两端构建读取。"
+covers = ["R20"]
+after = []
+hitl = true
+risk = "low"
+notes = ["2026-11-02 用户选择重新设计一套；文案源为单一 JSON", "2026-11-02 风格参考 pay.sh：近黑底、细线网格分区、等宽字体标签、荧光绿强调色、直角卡片、终端感；只借鉴风格，不使用其品牌、标志与素材"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "网站改用新设计与文案源"
+description = "申请网站的规格页、申请表、验证码、设备包下载页改用 5.1 的 token 与 text.json；功能不变。"
+verify = "页面与设计稿一致、文案全部来自 text.json；现有 Worker 测试全部通过；线上申请与下载流程照常。"
+covers = ["R20"]
+after = [1]
+hitl = true
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "网站员工登录与我的工作区"
+description = "员工在网站用邮箱验证码登录，获得 2 小时 HttpOnly 会话，查看自己的状态与到期日，并在有效期内直接下载设备包（与邮件链接共用 3 次额度，AD-17）；执行器把状态副本推送到网站（D1，管理令牌接口）。"
+verify = "以测试副本推送后，测试员工登录看到副本中的状态与到期日；会话 2 小时后失效；未登录或他人邮箱看不到状态；未开通邮箱请求登录码得到相同响应且不发信；登录后可下载设备包，次数与邮件链接合计不超过 3 次，失效后不可下载。"
+notes = ["2026-11-02 用户决定：5.3 只做网站侧与接收接口，执行器生成与推送副本移到 5.6；副本格式见 5.3 计划", "2026-11-05 「我的工作区」登录 Claude 步骤改为打开 workspace-login 显示的地址，去掉员工核对证书指纹（证书由 verify 核对）"]
+covers = ["R20"]
+after = [2]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "uniCloud 后端：登录、验证码、申请与状态"
+description = "在 uniCloud 支付宝云开通空间，实现云函数：微信登录（openid）、邮箱验证码（仅发信 Resend 密钥）、提交申请（openid 限频）、查询本人状态；管理接口只接受执行器令牌，用于拉取申请、回写已处理、推送状态副本。"
+verify = "云函数在真机调试下完成登录、验证码、提交与查询；无令牌访问管理接口被拒；云端除发信密钥外无凭据。"
+covers = ["R15"]
+after = [1]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户决定暂不上线微信小程序：本条延后，不在本期做；uniCloud 空间 remotecc-miniprogram 保留不用", "需管理员开通 uniCloud 空间与小程序 AppID（不能代为注册账号）"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "小程序前端重写"
+description = "按新设计与 text.json 重写规格、申请、我的工作区三页，去掉邀请码与旧审批状态机，对接 5.4 云函数；不出现收费字样，不提供设备包下载。"
+verify = "真机上看到与网站一致的文案与风格，完成登录、验证码、申请与状态查看。"
+covers = ["R15", "R20"]
+after = [1, 4]
+hitl = true
+notes = ["2026-11-02 用户决定暂不上线微信小程序：本条延后，不在本期做；uniCloud 空间 remotecc-miniprogram 保留不用"]
+risk = "medium"
+
+[[entry]]
+id = 6
+type = "story"
+title = "执行器汇总两入口并推送状态"
+description = "wsctl request 拉取 uniCloud 申请（mp- 前缀），同邮箱跨入口只算一条并标出来源，处理结果只回写来源入口；执行器把 5.12 生成的状态副本也推送到 uniCloud；status 显示失败的来源。"
+verify = "两个入口的同邮箱申请合并为一条；provision/dismiss 只回写来源；任一入口不可用时另一入口与开户照常；小程序显示的状态与网站一致；小程序来源的未处理申请显示为\"申请中\"。"
+covers = ["R16"]
+after = [4, 12]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户决定暂不上线微信小程序：本条延后，不在本期做；uniCloud 空间 remotecc-miniprogram 保留不用", "2026-11-02 用户同意拆分：执行器生成副本并推送到网站移到 5.12"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "摘要显示 uniCloud 免费空间到期日"
+description = "管理员每日摘要显示 uniCloud 免费空间到期日，不足 7 天时标红提醒续期。"
+verify = "摘要显示到期日；人为设到 7 天内时标红。"
+covers = ["R17"]
+after = [4]
+hitl = false
+notes = ["2026-11-02 用户决定暂不上线微信小程序：本条延后，不在本期做；uniCloud 空间 remotecc-miniprogram 保留不用"]
+risk = "low"
+
+[[entry]]
+id = 8
+type = "story"
+title = "小程序提审上线"
+description = "以个人主体提交微信审核并发布。"
+verify = "小程序通过审核上线，员工可搜索打开。"
+covers = ["R15"]
+after = [5, 6]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户决定暂不上线微信小程序：本条延后，不在本期做；uniCloud 空间 remotecc-miniprogram 保留不用", "需管理员在微信公众平台操作"]
+
+[[entry]]
+id = 10
+type = "story"
+title = "一条命令登录（服务端）：系统 mosh-server 与整段端口"
+description = "VM 改用系统自带 mosh-server（超时由 sshd SetEnv 设置，保留 workspace-mosh 供旧客户端）；执行器不再逐设备分配端口，新设备一律 60000-61000，现有配对在一次边界更新中迁移到整段；Hub 边界放行员工设备到其本人 VM 的 UDP 60000-61000。上线后现有客户端用法不变。"
+verify = "迁移后员工本人设备到其 VM 的 UDP 60000-61000 可达、其他员工设备不可达；现有设备 bootstrap.sh mosh 照常；从任一员工设备用 ssh -F 设备配置加原生 mosh（不带 --server/--port）可进入工作区。"
+covers = ["R21"]
+after = []
+hitl = true
+risk = "high"
+notes = ["2026-11-02 用户批准拆分：服务端为 5.10，客户端为 5.15；系统 hostname 见 5.14（暂不做）；mosh-server 可监听所有网卡，安全依靠 Hub 边界"]
+
+[[entry]]
+id = 11
+type = "story"
+title = "一句话交给 agent 完成 bootstrap"
+description = "仿照 Cloudflare agent-setup：员工只需把一句话发给自己的 AI agent（如\"Fetch and execute the instructions at <URL> to set up my Remote/CC workspace\"），agent 读取我们发布的提示词文件，在员工本机完成 bootstrap（导入设备包、配置隧道与 SSH/Mosh、验证 mosh <主机名>）。更新 workspace-onboarding 仓库、设备包下载邮件与网站/小程序中的 bootstrap 说明。"
+verify = "测试员工把那一句话发给 agent 后，agent 按提示词完成配置并能 mosh <主机名> 登录；邮件、网站申请须知与 workspace-onboarding README 都改为这一句话的方式，手动步骤保留为备选。"
+covers = ["R21"]
+after = [15]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户提出，参照 https://developers.cloudflare.com/agent-setup/prompt.md 的做法；在当前工作完成后做", "提示词文件需放在固定、可信的地址（如公开 workspace-onboarding 仓库或 cc.willfan.me），内容只引导本机操作，设备包与私钥不得离开员工本机", "2026-11-04 核对完成：公开仓库 workspace-onboarding 的 README 即写给员工 Agent 的接入说明，交付邮件只给一句“请阅读 …README.md，帮我完成 RemoteCC 工作区接入”（随 5.22 交付）；设备包由员工在 cc.willfan.me/me 自行下载，私钥不离开本机", "2026-11-05 workspace-onboarding README 第 5 步加入 HAPI 网页入口（公开仓库 PR #9）；plan 状态更正为 done"]
+
+[[entry]]
+id = 12
+type = "story"
+title = "执行器生成状态副本并推送到网站"
+description = "执行器按 5.3 计划中的副本格式为全体员工生成状态副本（状态、到期日、主机名、规格、本月流量、设备，含已拉取未处理申请的\"申请中\"），在开户/续费/退役后与每小时推送到网站 PUT /admin/status；推送失败不影响原命令。"
+verify = "网站\"我的工作区\"显示的状态与到期日与 wsctl status 一致；续费后页面随之更新；已拉取未处理的申请显示为\"申请中\"；网站不可用时开户与续费照常。"
+covers = ["R20"]
+after = [3]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户同意从 5.6 拆出，先做网站这一半"]
+
+[[entry]]
+id = 13
+type = "story"
+title = "管理员手册"
+description = "写一份面向管理员的中文手册，覆盖员工工作区全生命周期的日常操作：申请处理（wsctl request / provision / dismiss）、续费（renew）、提醒与摘要（remind）、到期断开与关机（enforce）、退役（retire）、重发设备包（reissue）、桌面更新（desktop-update）、状态推送（publish-status），以及 Semaphore 各模板与两步审批的用法、网站与小程序的管理接口、常见故障与排查入口。"
+verify = "按手册能独立完成一次从申请到退役的完整流程；每个命令都给出 Semaphore 与命令行两种入口、需要的审批与常见报错；手册不含任何凭据。"
+covers = []
+after = [12]
+hitl = true
+risk = "low"
+notes = ["2026-11-02 用户提出；放在私有 employee-admin 仓库（只有管理员本人使用），可写执行器路径与 settings 字段，仍不含凭据", "2026-11-04 核对完成：管理员手册在私有 employee-admin 仓库 docs/admin-handbook.md（审批、生命周期各命令、Semaphore、网站、部署、排障）；本日补充 3.15 hapi-sync、3.16 D1 台账（catalog-sync、profile-copy、控制台手工编辑）（employee-admin f96f814）", "2026-11-05 手册已删除 desktop-update 章节，补 D1、HAPI、Terraform 组件说明，并跟随 wsctl、remotecc-ops 改名"]
+
+[[entry]]
+id = 14
+type = "story"
+title = "VM 系统 hostname 改为 <员工ID>-vm"
+description = "开户时把 VM 的系统 hostname 设为 <员工ID>-vm（PVE VM 名与 Ansible inventory 名仍为 oci-hub-<员工ID>）；hub-terminal、deploy-oci-hub-terminal 断言、hub-status、hub-publish、hub-desktop 探测、设备包 vm_hostname 与 workspace-onboarding 校验随之改用该名；现有 VM 是否迁移另议。"
+verify = "新开户的测试员工登录后提示符为 employee@<员工ID>-vm；desktop-update、status、publish-status、客户端 verify 均通过。"
+covers = ["R21"]
+after = [15]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 从 5.10 拆出，延后", "2026-11-04 用户决定不做：hostname 保持 oci-hub-<员工ID>，员工介意可自行修改"]
+
+[[entry]]
+id = 15
+type = "story"
+title = "一条命令登录（客户端）：本机 ssh 别名与 Include"
+description = "workspace-onboarding 新版（1.1.0）把设备 ssh_config 的 Host 行改为 \"oci-hub-<设备> <员工ID>-vm\"（别名由清单 vm_hostname 推出），重跑时旧版配置原地升级，并在 ~/.ssh/config 最前加一行 Include；mosh 子命令改为原生 mosh <员工ID>-vm；Windows 给出 WSL 步骤；执行器状态推送主机名改为 <员工ID>-vm，交付邮件同步。"
+verify = "macOS 与 Linux 上新设备和重跑新版 setup 的旧设备，直接 mosh <员工ID>-vm 与 ssh <员工ID>-vm 进入；重复运行不重复写 Include；网站主机名与登录命令显示 <员工ID>-vm。"
+covers = ["R21"]
+after = [10]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 从 5.10 拆出；不重发设备包；不另建配置文件，直接升级原 ssh_config"]
+
+[[entry]]
+id = 16
+type = "story"
+title = "地址对齐：VM 与设备地址末位等于 VMID-500"
+description = "开户分配改为 VM overlay 10.234.0.<VMID-500>、该员工设备 10.235.0.<VMID-500>（同一员工的所有设备用同一地址，不区分设备）；现有员工在维护窗口内迁移（Hub WireGuard 地址、VM overlay、边界配对、catalog、BWS、host pin），与 5.15 的 1.1.0 发布和全员重发设备包合并为一次。"
+verify = "新开户与迁移后的员工 VM 与设备地址末位一致；迁移后所有员工用新设备包 setup 完成并能 mosh <员工ID>-vm 登录；跨员工隔离不变。"
+covers = ["R21"]
+after = [15]
+hitl = true
+risk = "high"
+notes = ["2026-11-02 用户决定：现有员工也要对齐；同一员工所有设备同一 IP；迁移等维护窗口，与 5.15 合并", "2026-11-02 用户决定：VMID 501 对应网关地址 .1、保留不给员工用，员工 VMID 从 502 起，地址末位 = VMID-500", "2026-11-02 用户接受限制：同一员工的设备共用一个 WireGuard 身份（同一密钥、同一地址），同一时刻只能一台在线，吊销按员工整体进行", "2026-11-02 用户决定：不再等维护窗口，5.18 拆除完成后立即做；demo 不按旧顺序分配另开子网，等本 story 完成后以对齐地址开户；仍与 5.15 的 1.1.0 发布合并，员工只需重新 setup 一次", "5.18 中失败的 demo 开户计划（10.236.0.4/30）需在本 story 中作废；pve2 boundary.json 已含 503（disabled）条目", "2026-11-03 完成：全员设备地址对齐 10.235.0.<VMID-500>（502 先行；504–507 迁移，503/508 仅重建），统一格式设备包，迁移邮件已发（reissue，链接至 2026-11-06）；employee-admin 0c31f6c 已移除 address-migrate/mosh-ports-migrate"]
+
+[[entry]]
+id = 23
+type = "story"
+title = "退役清理 PVE 上的残留网络配置"
+description = "wsctl retire 在删除 VM 后同时清理该员工在 pve2 上的残留：SDN vnet 与 subnet（oh<VMID>）、PVE IPAM 记录、Hub 与 PVE boundary 中的条目，并应用 SDN；清理现有遗留 oh501、oh509。"
+verify = "退役后 pve2 上无该员工的 vnet/subnet/IPAM/boundary 条目，SDN 无 pending；oh501、oh509 已清理；其他员工网络不受影响。"
+covers = ["R21"]
+after = []
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户提出：退役应包含清理 pve 上 VM 的残留配置", "2026-11-03 完成上线：pve-sdn.py --prune 删除策略未列出且无 VM 使用的 ocihub VNet（先子网后 VNet，SDN 锁内），terminal_boundary play 在 PVE 边界变更后执行，retire 随边界一并释放（IaC PR #228）；已在 pve2 删除 oh501、oh509"]
+
+[[entry]]
+id = 17
+type = "story"
+title = "设备包保存到退役：登录后随时自助下载"
+description = "设备包在网站保存到该员工退役为止：邮件链接仍为 72 小时；之后员工在\"我的工作区\"经邮箱验证码登录后可不限次数下载，每次下载记录日志；退役时删除（现有逻辑）。更新 AD-17。"
+verify = "邮件链接 72 小时后失效但\"我的工作区\"仍可下载；每次下载有记录；退役后设备包被删除、页面不再提供下载。"
+covers = ["R20"]
+after = [3]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户选 B：接受私钥长期存于 Cloudflare D1、邮箱被攻破即可取得设备私钥的风险", "2026-11-03 完成上线：邮件链接仍 72 小时/3 次但不再删除设备包，cron 只清过期链接验证码；“我的工作区”登录后不限次数下载；每次下载记入 D1 bundle_downloads（设备、link/session、时间，不记 IP）；退役（DELETE /admin/bundles）或新包替换才删除（apply-site 版本 cafe7c9e，迁移 0009）。现存 7 个设备包均保留"]
+
+[[entry]]
+id = 18
+type = "story"
+title = "员工状态移出代码仓库并拆除旧员工模型"
+description = "oci-hub roster（oci-hub-workspaces.auto.tfvars.json）移出 IaC git，作为执行器 employee-data 中的运行状态，由 wsctl 以 -var-file 传给 Terraform（变量必填、缺失即失败）；拆除旧员工模型：employee_workspaces 表、employee_slot、墓碑 employee_retirement、旧网桥 vmbr501-508、旧边界 hook 及 employee-access.tf 对旧表的依赖（VM500 现为 HAPI 控制面，必须保留）；退役与开户不再需要 roster 回流提交；完成后以 VMID 503 开 demo。"
+verify = "Terraform plan 对现有员工 VM 无任何变更；旧模型资源已从状态移除且 PVE 上不再有旧网桥（确认无引用后）；Mac 上缺少 roster 时 plan 直接报错；退役/开户不再产生 iac_roster_commit_required；demo 以 VMID 503 开户成功。"
+covers = ["R21"]
+after = []
+hitl = true
+risk = "low"
+notes = ["2026-11-02 用户决定：roster 是状态不应依赖代码 PR；拆除墓碑与旧员工表以释放 VMID 503/501；demo 等本 story 完成后以 503 开户", "执行器 pool vmid_start 已改为 502（原值 510，备份 settings.json.bak-vmid-start-20261102）；在本 story 完成前不带 --vmid 的开户会选到 503 并被旧表校验拦下", "执行器 /srv/iac roster 已比 GitHub main 少 pilot、pilot509；本 story 完成前不要把 IaC main 推到执行器"]
+
+[[entry]]
+id = 19
+type = "story"
+title = "Terraform 拆分为内部根与对外服务根"
+description = "把 terraform/proxmox 中“为了对外提供服务”的资源拆到独立 Terraform 根与 HCP 工作区：员工工作区（oci-hub 模块与 ansible_host）、VM500（employee-access / HAPI 控制面）、员工模板与引导文件、ws-executor；由执行器 wsctl 以 employee-data 名单管理。内部 homelab VM 留在 iac-proxmox-lab，Jenkins 只 plan/部署内部根，不再需要员工名单。state 迁移只搬记录、不重建 VM，迁移前后 plan 均无变化。"
+verify = "两个根各自 plan 对现有资源无变化；Jenkins proxmox 只读 plan 与部署恢复且不含任何员工资源；执行器开户/退役/状态在新根上正常；iac-proxmox-lab state 中不再有对外服务资源。"
+covers = ["R21"]
+after = [18]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户决定：Terraform 应把 homelab 内部 VM 与对外服务 VM 分开管理，Jenkins 只读内部 VM；VM500、员工模板、ws-executor 都归对外根（都在“为了对外提供服务”框架下）；先完成 5.18 再做本 story", "5.18 期间 Jenkins proxmox plan 因缺必填名单变量而失败（不投影空名单，避免预测删除员工 VM）", "2026-11-04 完成上线：新根 terraform/remotecc（HCP 工作区 iac-remotecc，本地执行）管理 8 台员工 VM、VM500、员工模板与引导文件、ws-executor，共 31 条 state 记录；state 拆分前离线验证，推送后合并 PR #248；真实 plan：remotecc 无资源变化，proxmox 只有 jenkins_agent 待建（Jenkins 恢复遗留）。VM250 已由用户改为 LaaS 模板，pnetlab 从配置和 state 移除，VM 未动。wsctl 已切到新根（employee-admin d2e4d55、73f4cae）。待办：Jenkins 节点重新部署投影脚本后恢复 proxmox 只读 plan。拆分前 state 备份在 remotecc/employee-data/state-backup-5.19/", "2026-11-04 更正：此前“Jenkins 节点需重新部署投影脚本”有误，CT107 未部署 jenkins-plan-gateway（属未激活的恢复方案）。实际流水线由 Jenkinsfile 直接 terraform plan；合并后第 141 次构建 plan 通过（2 to add，jenkins_agent），不含员工资源、不需要名单，验收满足"]
+
+[[entry]]
+id = 20
+type = "story"
+title = "申请前接受服务条款"
+description = "网站申请表增加服务条款（T&C）勾选，未勾选不能发送申请：说明这是个人项目、不保证可用性（availability）、客户支持为 best effort。条款文案放在 design/text.json，可在网站上单独查看；申请记录保存接受的条款版本与时间。"
+verify = "未勾选时前端与后端都拒绝提交；勾选后申请成功并记录条款版本与时间；条款页面可访问。"
+covers = ["R21"]
+after = []
+hitl = true
+risk = "low"
+notes = ["2026-11-02 用户提出", "2026-11-03 完成上线：申请页列出“开始之前”五条并必勾接受，服务端缺 terms 拒绝（APPLY_TERMS_REQUIRED），D1 applications.terms_sha256 记录所接受条款的 SHA256；首页申请须知改为现行流程（apply-site 3fd3084 及后续，版本 4f791401）"]
+
+[[entry]]
+id = 21
+type = "story"
+title = "所有对外邮件改用 hello@willfan.me 发送"
+description = "网站验证码邮件（当前 RemoteCC <noreply@cc.willfan.me>）与执行器交付/提醒/退役等邮件统一使用 hello@willfan.me 作为发件人；需确认发信服务对 willfan.me 域的验证（SPF/DKIM），不改网关。"
+verify = "网站三类验证码邮件与执行器各类邮件的 From 均为 RemoteCC <hello@willfan.me>，送达不进垃圾箱。"
+covers = ["R21"]
+after = []
+hitl = true
+risk = "low"
+notes = ["2026-11-02 用户提出", "2026-11-02 完成：Resend 验证 willfan.me；网站发件人 hello@willfan.me 并对每份新申请即时通知管理员（apply-site 03841cd）；执行器邮件经网站 /admin/mail 发出（apply-site 2e6373a、employee-admin 4d06ca9），已部署并实测管理员汇总邮件送达"]
+
+[[entry]]
+id = 22
+type = "story"
+title = "邮件模板排版与 Agent 一句话引导"
+description = "交付与通知邮件改为有排版的 HTML（与网站设计统一，保留纯文本版本）；借鉴 Cloudflare 的 bootstrap 模式，邮件只给一条 one-liner，让员工的 agent 读取托管在 cc.willfan.me 的引导提示词完成设备接入；评估把 bootstrap 脚本也改为由 cc.willfan.me 托管，从而去掉对 GitHub workspace-onboarding 仓库的依赖。"
+verify = "邮件在常见客户端排版正确；按 one-liner 由 agent 完成接入；如去掉 GitHub 依赖，则全流程不访问 github.com。"
+covers = ["R21"]
+after = [21]
+hitl = true
+risk = "medium"
+notes = ["2026-11-02 用户提出", "2026-11-02 用户决定：引导提示词与 bootstrap 仍放 GitHub（workspace-onboarding），让员工看到全貌；保留 GitHub 依赖", "2026-11-02 用户决定：先整体重写 workspace-onboarding README 与 Agent 引导提示词（按 收邮件→Agent 下载校验→setup→mosh <员工ID>-vm 流程，清掉试点期旧说法），再改邮件模板；1.1.0 已于 73357d7 合并", "5.16 迁移与发新设备包在本 story 完成后进行", "2026-11-03 完成：workspace-onboarding 1.2.0/1.3.0（同设备换发自动替换旧安装，PR #7）；新员工与迁移邮件共用 Beta 版“开始之前”与接受声明（employee-admin d426949、28b05ef），页脚 Beta", "2026-11-04 收尾：交付与通知邮件模板、一句话 Agent 引导已上线（引导文档托管在公开仓库 workspace-onboarding）。评估项“bootstrap 托管到 cc.willfan.me、去掉 GitHub 依赖”暂不做：GitHub 仓库目前够用；设备包文件名等非必需项未做"]
+
+[[entry]]
+id = 24
+type = "story"
+title = "开户默认开通 HAPI"
+description = "新员工开户时一并在其 VM 上部署 HAPI 员工侧组件（Runner、Claude 登录执行服务等，目前只在 VM502 试点），并在 VM500 网关绑定其 Cloudflare Access 身份与 namespace，作为与 WireGuard/SSH/mosh 并列、各自独立管理的第二种接入方式；现有员工补开；网站、交付邮件、workspace-onboarding README 补充 HAPI 说明；评估现有员工是否补开。"
+verify = "新开户的员工 VM 上 HAPI 可用且只对本人开放；跨员工隔离不变；网站/邮件/README 有对应说明；退役时 HAPI 相关资源一并清理。"
+covers = ["R21"]
+after = [16, 22]
+hitl = true
+risk = "medium"
+notes = ["2026-11-03 用户决定要做；排在 5.22 邮件改版与 5.16 地址迁移之后", "2026-11-03 用户决定：现有员工也要补开；访问经 Cloudflare Access（https://hapi.willfan.me），VM500 是 Tunnel/身份网关/共享 HAPI Hub/会话库所在，登录已实现——登录 Access 即自动进入本人 namespace 的 HAPI（无需 HAPI 令牌）", "现有基线见 docs/guides/hapi-unified-entry.md、hapi-internal-http.md、docs/architecture/hapi-workspace-provisioning.md：员工 VM 侧运行 Runner、Claude 登录执行服务与 Firefox，经受控内网 HTTP 连 VM500；文档称新员工的 Access 身份→namespace 绑定、HapiWorkspace BWS 凭据、Runner 部署及首次授权验收尚未纳入开户流程——本 story 要把这些接入 wsctl provision/retire 并为现有 6 名员工补开", "2026-11-03 用户：现有 HAPI role 已具备，开户只需在 playbook 中补上 role。代码核对：employee-hapi 是旧试点 role（public_url hapi-test、本机 Hub/Tunnel），统一入口后的员工 VM 侧应为 hapi-hub-client（及 claude-login-agent）；另需在 VM500 hapi-control-plane 路由表加该员工的 Access 邮箱→namespace→VM 路由、Access 策略放行其邮箱、BWS 中该员工的 Hub 客户端凭据——规划时逐项核实哪些已自动化", "现状：执行器开户代码（hub-onboard/hub-terminal/oci-hub-admin）不涉及 HAPI；deploy-employee-hapi.yml 只针对 employee-control（VM502），deploy-hapi-workspace*.yml 针对独立的 hapi_workspaces 组", "2026-11-03 用户决定：(1) Access subject 采用首次登录按邮箱绑定：网关遇到已登记邮箱、尚无 subject 的路由时，用本次 Access 验证的 subject 一次性绑定并持久化，此后严格校验 email+subject；(2) Access 策略放行员工邮箱由执行器经新建的受限 Cloudflare API 令牌（仅 Access: Apps and Policies Edit，存 BWS default 项目 executor/cloudflare-access-token）在 provision/retire 时增删；令牌由用户创建，agent 不接触令牌值", "2026-11-03 进展：Cloudflare 令牌复用 BWS default 的 CLOUDFLARE_AUTH_TOKEN（dashboard 名称 Workers AI & Access Edit Token，已加 Access: Apps and Policies Edit，已只读验证能看到 hapi.willfan.me 应用；BWS 备注已写）；hapi.willfan.me 现有唯一策略 VM502 owner only（app-scoped，include 用户邮箱），员工放行计划另建 app-scoped 策略由 wsctl 维护、不动 owner 策略；首次登录绑定 PR #229（未部署）。待做：员工 VM 侧 hapi-hub-client/claude-login-agent 部署、共享 Hub namespace 与凭据、PVE 边界放行 VM500→员工 VM 9443、VM500 路由表、wsctl provision/retire 接入、6 名现有员工补开", "2026-11-04 完成上线：hapi role 并入 prepare-employee-desktop（provision/update 默认开启）；wsctl hapi-sync 以 D1 为源维护 VM500 路由、令牌、Hub 凭据、worker 防火墙与登录页资产、PVE 9443 放行、Cloudflare Access 员工策略（RemoteCC employees），provision/desktop-update/retire 结束时自动执行；HAPI 令牌存 BWS 工作区记录（VM502 沿用原令牌）；8 台 VM（502–509）desktop-update 完成且 Hub 健康 200；登录页修复 KasmVNC 指针/剪贴板协议，手机端提示改用电脑完成 Claude 登录（IaC PR #234 #235 #237–#240 #242 #243）；手工 service-egress.json 的 502 条目已清空。待办：HAPI 通知邮件（用户要求暂缓）", "2026-11-04 HAPI 通知邮件已发给 7 名员工（不含 control），记录在执行器 runs/hapi-notice-20261104.json；5.24 全部完成", "2026-11-05 HAPI 入口进入员工触点：「我的工作区」页面网页入口、开通邮件（网站版本 4e80b838）；员工文档页 usage/hapi 已写，待文档站接入后发布"]
+
+[[entry]]
+id = 25
+type = "story"
+title = "统一设备包：终端 mosh + VM 浏览器入口"
+description = "设备包同时携带终端（access_mode=mosh、mosh_ports）与 VM 浏览器入口（desktop_url、tls_certificate_sha256）：员工用 mosh <ID>-vm 登录，并在本机浏览器经 VPN 打开 VM 桌面在 VM 内 workspace-login 登录 Claude。新开户 VM 安装桌面（prepare-employee-desktop）与前端证书；address-migrate 重建为统一格式；workspace-onboarding 脚本/schema/README 接受并验证统一格式（恢复 TLS pin 校验）；demo 补装桌面。"
+verify = "新开户与迁移后的员工包均为统一格式；setup 通过；mosh <ID>-vm 可登录；本机浏览器经 VPN 打开 VM 桌面且 TLS pin 校验通过，可在 VM 内完成 workspace-login。"
+covers = ["R21"]
+after = [22]
+hitl = true
+risk = "medium"
+notes = ["2026-11-03 用户选择 A：设备包同时带 mosh 与 VM 浏览器入口（不改走 HAPI 登录）；Claude 登录仍须在 VM 浏览器内（规则 B）", "发现：现有 6 名员工的包均为 desktop 模式（10-30 迁移生成），demo 为 mosh 终端模式且 VM 未装桌面；5.22 新版 bootstrap 只接受终端包——统一格式上线前不得迁移或重发现有员工的包", "5.16 迁移暂停于 502 的计划阶段（未执行任何写入）；BWS 旧记录 OCI_HUB_DEVICE_FANWEIBLUE_V1 已按授权删除", "2026-11-03 用户决定：新开户装 KasmVNC；现有仍为 noVNC 的员工（502、505、506、507）也用 wsctl desktop-update 切换到 KasmVNC（504、508 已切换）；Ansible 语法检查/lint 不需要 Docker Sandbox，由 PR CI（repo-validation）完成", "2026-11-03 用户：address-migrate 是一次性工具，全员迁移完成后清理（代码、wsctl/Semaphore 接线、测试、手册），运行记录保留归档；同类一次性的 mosh-ports-migrate 一并评估清理", "2026-11-03 完成：502/505/506/507 已切 KasmVNC（employee_acceptance pending）；全员统一设备包；desktop-update 安装模式随 address-migrate 一并移除（0c31f6c），新开户仍在开户流程中安装桌面"]
+
+[[entry]]
+id = 9
+notes = ["2026-11-04 完成：移除只服务 VM250 旧磁盘的 proxmox-storage 角色与 playbook，修 oci-hub-mosh rescue 错误提示（IaC PR #250）；existing 流程删除与 BWS 整理已在本日完成。保留 PNetLab 的 Ansible 文件（用户决定）；SetEnv drop-in、隔离自动化、D1 batch 上限留在 deferred-work", "2026-11-05 后续清理：删除 wsctl desktop-update、hostname 校验和 playbook 的独立 update 阶段（IaC PR #251）；tasks/update.yml 与 prepare-materials.py 保留，provision 阶段依赖它们。执行器 VM 改名 remotecc-ops、管理代码改名 wsctl（IaC PR #252，terraform 0 新增 2 改名 0 销毁）；/srv/remotecc/employee-admin 保留为兼容链接，切换前备份在执行器 employee-data/state-backup-rename-20261105/"]
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 各 story 推迟的整理项，仅限清理。"
+verify = "现有测试全部通过，无新增行为。"
+covers = []
+after = [1, 2, 3, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 26
+type = "story"
+title = "网站经执行器部署（apply-site 纳入 RemoteCC 部署流程）"
+description = "apply-site 与 design 同 employee-admin 一样推到执行器 git 仓库，由执行器在部署钩子中依次运行测试、sync-design --check、D1 迁移（--command 并确认成功）、wrangler deploy；Mac 不再持有 Cloudflare 部署凭据。代码仍在 git 忽略的 remotecc/ 下，不进 IaC 公开仓库。"
+verify = "git push 到执行器即完成网站部署并留记录；迁移失败时不部署；Mac 无需 wrangler 登录。"
+covers = ["R21"]
+after = [20]
+hitl = true
+risk = "medium"
+notes = ["2026-11-03 用户提出：网站更新能否做成 RemoteCC IaC 的一部分；起因是 5.20 上线时 D1 迁移失败但网站已部署", "2026-11-04 完成上线：wsctl apply-site（计划→批准）由执行器经 Cloudflare API 部署网站，执行器不装 Node；先跑 D1 迁移并记入 site_migrations，再上传继承绑定的新版本、比对绑定、切流量、健康检查，失败自动切回；首次部署版本 9023605e，线上验证回滚生效过一次（健康检查 User-Agent 被 Cloudflare 1010 拦截，已修）；令牌 executor/apply-site-deploy-token 在 BWS remotecc；迁移必须兼容线上旧 Worker，删表删列分两次发布（employee-admin dc07bbd，apply-site 7d6fbb6）"]
+
+[[entry]]
+id = 27
+type = "story"
+title = "员工台账统一到 D1：employees 表为唯一数据源"
+description = "除密钥凭据（BWS）外，员工 ID、收件邮箱、VMID、到期日/永不过期、设备、地址、主机指纹与资料（姓名、电话、application_id、条款版本、备注）统一存于 D1 employees 表；执行器经网站带令牌的管理接口读写（带版本号比较后写入），网站“我的工作区”直接读该表，删除状态副本推送；Terraform 名单由执行器运行时从该表生成。applications 为不可变申请原件（凭据），开户时把姓名/电话/邮箱复制一次到 employees 并记 application_id，此后只改 employees；可选在开户后清空申请原件中的电话。迁移：网站表与接口 → 执行器双写核对 → 以 D1 为准 → 删状态副本 → 回填资料。D1 Time Travel 提供 30 天时间点恢复。"
+verify = "执行器所有读写台账经 D1；本地 catalog.json 仅只读快照；网站直接显示 employees；版本冲突被拒；申请原件不被修改；可用 Time Travel 恢复。"
+covers = ["R21"]
+after = [24]
+hitl = true
+risk = "medium"
+notes = ["2026-11-03 用户提出：员工数据分布太散，除 BWS 凭据外统一到 D1；同意 applications（不可变原件）与 employees（当前资料）分工的设计", "替代此前“资料集中放执行器台账 profile + employee-data 本地 git 历史”的方案", "2026-11-04 收尾：状态副本只含运行状态 {email, state, workspace, spec, traffic, updated_at}，paid_through/devices 由网站从 employees 表读取、hostname 由 workspace 推出；网站兼容新旧两种格式（apply-site 499f720），执行器改推新格式（employee-admin 21f2014）。待部署：先网站后执行器", "2026-11-04 完成上线：网站 197bf38d 先部署、执行器 f96f814 后部署；publish-status 推送 8 名员工新格式副本，D1 中 6 名 ACTIVE 均有 paid_through、2 名 NO_EXPIRY 标记 no_expiry"]
+

@@ -1,5 +1,7 @@
 # HAPI控制面原型验证
 
+> 控制面应用代码及其测试（`test-auth.py`、`test-proxy.py`、`test-reconcile.py`）已移到私有仓库的`hapi-control/tests/`，下文提到它们时指那里的文件。
+
 HTTP简化候选的本机回归使用该工作树`.venv`与Nginx，无需Sandbox。`test-proxy.py`中的内部TLS案例已替换为实际来源绑定和伪造头拒绝；CA／CRL服务与旧`test-health.py`／PKI套件已从候选源码撤回。历史验收记录保留，当前限制见[内部HTTP说明](../../docs/guides/hapi-internal-http.md)。
 
 单Hub方案的上游认证探针为`probe-shared-hub-auth.mjs`，只对锁定且摘要匹配的上游源码使用合成凭据，在任务Sandbox loopback运行。7个HTTP／Runner Socket.IO案例确认共享base允许客户端选择namespace；这是架构风险复现，不是租户隔离通过。结论与复现见[单Hub评估](../../docs/planning/2026-10-30-hapi-shared-hub-assessment.md)。
@@ -9,8 +11,6 @@ HTTP简化候选的本机回归使用该工作树`.venv`与Nginx，无需Sandbox
 在已获准、工具齐备的任务Sandbox中，从仓库根执行：
 
 ```bash
-python3 tests/hapi-workspace/test-auth.py
-python3 tests/hapi-workspace/test-proxy.py
 python3 tests/hapi-workspace/test-login-agent.py
 export ANSIBLE_CONFIG="$PWD/tests/ci/fixtures/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$PWD/ansible/roles"

@@ -1,6 +1,6 @@
 # HAPI 单一入口迁移与验收
 
-> **2026-11-04 更新：** 入口已开放给全部员工。VM500 的路由、令牌、Hub 凭据、worker 防火墙规则和登录页资源由 `hapi-registry` role 维护，经 `wsctl hapi-sync` 运行；不要手工编辑这些文件。登录页远程画面用 KasmVNC 自带的网页客户端；手机上会提示改用电脑完成 Claude 登录。
+> **2026-11-06 更新：** 入口已开放给全部员工。VM500 的路由、令牌、Hub 凭据、worker 防火墙规则由 `hapi-ctl` 生成，经 `wsctl enforce` 和 `wsctl hapi-sync` 送达；登录页等应用代码经 `wsctl hapi-release` 发布。不要手工编辑这些文件。结构见[控制面维护说明](../architecture/hapi-control-plane.md)。登录页远程画面用 KasmVNC 自带的网页客户端；手机上会提示改用电脑完成 Claude 登录。
 
 2026-11-02已完成[内部HTTP简化](hapi-internal-http.md)现网切换及旧PKI服务退役，见[发布记录](../planning/2026-11-02-hapi-internal-http-rollout.md)。
 
@@ -46,13 +46,13 @@ flowchart LR
 
 标准noVNC不识别KasmVNC的253／254消息（用户加入／离开共享会话），第二路viewer或旧连接离开时就会断开，页面每3秒重连后两路互相踢下线。登录页因此改用KasmVNC自带的网页客户端。
 
-- **托管位置：** `wsctl hapi-sync`运行`hapi-registry`时，VM500从校验过sha256的KasmVNC 1.5.0安装包解出客户端，不由员工VM提供。同源iframe能读取登录页和授权码，所以这些页面不能来自VM。
+- **托管位置：** 发布包里带着从校验过sha256的KasmVNC 1.5.0安装包解出的客户端，放在VM500的`current/kasm/`，不由员工VM提供。同源iframe能读取登录页和授权码，所以这些页面不能来自VM。
 - **连接路径：** WebSocket仍走`/_workspace/login/websockify`，Access鉴权和stream lease不变，员工VM无需改动。
 - **切换方式：** 所有工作区一次切换，没有按工作区的开关。登录页不再加载noVNC；Nginx的旧noVNC路由和VM500上的`novnc`软件包只为切换时已打开的旧页面保留，验收后一起移除。
-- **发布顺序：** `hapi-registry`先解压客户端、加载路由，最后才发布登录页，新旧路由同时存在，所以任何一步失败时页面和路由都能配合工作。已打开的旧页面刷新后才会用上新客户端。
-- **版本约束：** 升级KasmVNC时要同步修改`hapi-registry`里的安装包地址、校验值、解压路径和资源文件名，以及`hapi-control-plane`的Nginx模板里的解压路径和内联脚本CSP摘要。
+- **发布：** 页面、客户端和Nginx由`hapi-ctl activate`切换，相邻版本必须能共存。已打开的旧页面刷新后才会用上新客户端。
+- **版本约束：** 升级KasmVNC时修改私有`hapi-control/`里的`kasm.json`和Nginx模板中的内联脚本CSP摘要。
 
-使用`hapi-control-plane`管理VM500身份与路由，`hapi-shared-hub`管理共享Hub，`hapi-ingress`只管理VM500的Tunnel连接器。员工VM一侧统一由`hapi` role管理，默认随开户（`prepare-employee-desktop.yml`的provision阶段）部署，不另设playbook（story 5.24）：固定版本的Runner、经本机127.0.0.1:3006连接VM500共享Hub的通道、供VM500访问的9443私有入口，以及固定的Claude登录API；登录页的远程画面是该VM的KasmVNC桌面（9443的`/websockify`经本机8443入口转发，桌面凭据只在8443入口）。旧试点`employee-hapi`、独立工作区`hapi-workspace`／`hapi-workspace-baseline`、`hapi-hub-client`、`claude-login-agent`、`hapi-network`与一次性的`hapi-internal-http`迁移已于2026-11-03删除；`hapi` role部署时会停用并清除VM上残留的旧试点服务。
+`hapi-control-plane`管理VM500的软件包、用户、单元和信任配置，`hapi-shared-hub`管理共享Hub的二进制和单元，`hapi-ingress`只管理VM500的Tunnel连接器。员工VM一侧统一由`hapi` role管理，默认随开户（`prepare-employee-desktop.yml`的provision阶段）部署，不另设playbook（story 5.24）：固定版本的Runner、经本机127.0.0.1:3006连接VM500共享Hub的通道、供VM500访问的9443私有入口，以及固定的Claude登录API；登录页的远程画面是该VM的KasmVNC桌面（9443的`/websockify`经本机8443入口转发，桌面凭据只在8443入口）。旧试点`employee-hapi`、独立工作区`hapi-workspace`／`hapi-workspace-baseline`、`hapi-hub-client`、`claude-login-agent`、`hapi-network`与一次性的`hapi-internal-http`迁移已于2026-11-03删除；`hapi` role部署时会停用并清除VM上残留的旧试点服务。
 
 PVE现有OCI边界需保留独立服务授权文件及相关编译器支持。现场编译器的既有Mosh等功能在修复时保留，不能直接用较旧分支覆盖现场版本。私有运行记录保存了部署基线、差异和回退配置；合并代码和后续部署应以当前边界所有者版本为基线集成作用域修复。
 
