@@ -112,9 +112,9 @@ for run_id in ('r2', 'r1'):
     result = ctl(c, 'start', run_id, stdin=token + '\n')
     assert result.returncode == 3 and 'busy: an earlier controller run is still active' in result.stderr, result
 assert not (runs(c) / 'r2').exists()
-(c / 'release-output').write_text('ERROR: Batch finished with failures: 5/6 completed; failed: hermes(exit 23)\n')
+(c / 'release-output').write_text('ERROR: Batch finished with failures: 4/5 completed; failed: hermes(exit 23)\n')
 (c / 'release').write_text('23')
-assert finished(c, 'r1') == 'exit=23\nsummary=ERROR: Batch finished with failures: 5/6 completed; failed: hermes(exit 23)\n'
+assert finished(c, 'r1') == 'exit=23\nsummary=ERROR: Batch finished with failures: 4/5 completed; failed: hermes(exit 23)\n'
 assert all((runs(c) / 'r1' / name).exists() for name in ('started', 'finished'))
 result = ctl(c, 'start', 'r1', stdin=token + '\n')
 assert result.returncode == 3 and 'run_id already used: r1' in result.stderr

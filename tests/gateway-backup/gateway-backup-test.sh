@@ -191,9 +191,8 @@ businesses = {
     'codex-proxy': (['codex-proxy'], [('codex-proxy', '/mnt/data/codex-openai-proxy')]),
     'cn-proxy': (['cn-proxy'], [('cn-proxy', '/etc/sing-box')]),
     'qnetd-witness': (['qnetd-witness'], [('qnetd', '/mnt/data/qnetd')]),
-    'youtube-mcp': (['youtube-mcp-youtube-mcp-1'], [('youtube-mcp', '/mnt/data/xiaozhi/youtube-mcp')]),
 }
-batch = ['xiaozhi', 'hermes', 'open-webui', 'codex-proxy', 'cn-proxy', 'youtube-mcp']
+batch = ['xiaozhi', 'hermes', 'open-webui', 'codex-proxy', 'cn-proxy']
 client_path = '/mnt/data/gateway-backup/bin/proxmox-backup-client'
 cases = 0
 
@@ -223,6 +222,7 @@ def fixture(business, stopped=()):
     client.symlink_to(root / 'bin/fixture-command')
     (r / 'sing-box/ts-state').mkdir()
     (r / 'sing-box/ts-state/identity').write_text('fictional identity')
+    (r / 'data/xiaozhi/youtube-mcp').mkdir()
     (r / 'data/xiaozhi/youtube-mcp/independent-data').write_text('fictional youtube data')
     allowed = batch if business == 'all' else [business]
     state = {n: n not in stopped for names, _ in businesses.values() for n in names}
@@ -270,7 +270,7 @@ def run(r, business, expected=0, args=None, check_cleanup=True, **flags):
         script.write_text(source.replace(boundary, injection + boundary))
     command = ['/bin/bash', str(r / 'cli/gateway-backup.sh')]
     command += args if args is not None else ['backup', business]
-    # A batch now runs all six businesses even after a failure, so allow it more time.
+    # A batch now runs all five businesses even after a failure, so allow it more time.
     result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30 if business == 'all' else 10,
                             start_new_session=bool(flags.get('SIGNAL_CLEANUP_GROUP')))
     (r / 'result.log').write_text(result.stdout + result.stderr)
@@ -305,7 +305,7 @@ for business, (names, paths) in businesses.items():
     assert [c[-1] for c in calls(r) if c[:2] == ['docker', 'start']] == running
     stages = [c[:2] for c in mutations(r)]
     assert stages == [['docker', 'stop']] * len(running) + [['proxmox-backup-client', 'backup']] + [['docker', 'start']] * len(running)
-passed('seven independent groups and sources; local Docker override, Redis/Hermes volumes, CN identity, youtube exclusion, stop/start order and private container/image metadata')
+passed('six independent groups and sources; local Docker override, Redis/Hermes volumes, CN identity, youtube exclusion, stop/start order and private container/image metadata')
 
 r = fixture('xiaozhi')
 run(r, 'xiaozhi', pbs_keyfile=str(r / 'missing-key'),
@@ -420,15 +420,15 @@ for index, (business, args) in enumerate(zip(batch, backups), 1):
     expected_calls += [['docker', 'stop', '--time', '60', n] for n in reversed(running)]
     expected_calls += [['proxmox-backup-client', *args]]
     expected_calls += [['docker', 'start', n] for n in running]
-    assert f'Backup progress {index}/6: {business}' in result.stdout
+    assert f'Backup progress {index}/5: {business}' in result.stdout
     assert f'Backup completed: host/gateway-{business}.' in result.stdout
 assert mutations(r) == expected_calls
 assert 'qnetd-witness is excluded from all' in result.stdout
 assert not any(n in call for call in calls(r) for n in ('qnetd-witness', 'unrelated-container'))
 # The batch takes the lock once; each business re-locks only the inherited descriptor.
 assert [c for c in calls(r) if c[0] == 'flock'] == [['flock', '-n', '9']] * (1 + len(batch))
-assert 'Batch completed: 6/6 businesses backed up.' in result.stdout
-passed('all executes the exact six-business stop/backup/start sequence under one lock, resets business options, retains stopped containers and excludes qnetd')
+assert 'Batch completed: 5/5 businesses backed up.' in result.stdout
+passed('all executes the exact five-business stop/backup/start sequence under one lock, resets business options, retains stopped containers and excludes qnetd')
 
 def stopped_at_hermes(r, result):
     assert 'host/gateway-hermes (exit ' in result.stderr
@@ -443,9 +443,9 @@ def continued_after_hermes(r, result, code):
     assert f'host/gateway-hermes (exit {code})' in result.stderr
     assert 'Backup completed: host/gateway-hermes.' not in result.stdout
     for index, business in enumerate(batch, 1):
-        assert f'Backup progress {index}/6: {business}' in result.stdout
+        assert f'Backup progress {index}/5: {business}' in result.stdout
         if business != 'hermes': assert f'Backup completed: host/gateway-{business}.' in result.stdout
-    assert f'Batch finished with failures: 5/6 completed; failed: hermes(exit {code})' in result.stderr
+    assert f'Batch finished with failures: 4/5 completed; failed: hermes(exit {code})' in result.stderr
     backed_up = [args[args.index('--backup-id') + 1] for args in map(json.loads, (r / 'backups.jsonl').read_text().splitlines())]
     assert [b for b in backed_up if b != 'gateway-hermes'] == ['gateway-' + b for b in batch if b != 'hermes']
     assert not any(n in call for call in calls(r) for n in businesses['qnetd-witness'][0] + ['unrelated-container'])
