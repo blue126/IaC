@@ -13,6 +13,8 @@
     - name: Verify actual Hub ACL state
       ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
       changed_when: false
+      check_mode: false
     - name: Verify isolated Portal and accounting timer
       ansible.builtin.command: systemctl is-active oci-hub-portal oci-hub-quota.timer  # noqa command-instead-of-module
       changed_when: false
+      check_mode: false
