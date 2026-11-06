@@ -88,7 +88,7 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 账号为 `admin@wgportal.local`，密码在 BWS 项目 `remotecc`（原名 EmployeeWorkspace-OCIHub）的 `OCI_HUB_PORTAL_ADMIN_V1` 记录 `secrets.admin_password`；不要将密码或 API token 贴入文档、聊天或 URL。界面可查看接口、设备及流量；启用/停用可以直接在 Portal 操作；开户、VM/地址分配及增额继续使用管理员入口，两者共用 Portal 接入状态。
 
-维护使用 `ansible/playbooks/configure-oci-hub-portal-public.yml`，只配置既有 Caddy/Portal，不安装软件；`oci_hub_portal_external_url` 在 OCI 主机变量中持久化，完整 Portal 模板也使用此变量。运行前使用已批准的 OCI 管理 inventory 与严格主机公钥校验，按仓库约定在 Sandbox 执行。
+维护使用 `ansible/playbooks/deploy-oci-hub.yml`（`oci-hub` role），只配置既有 Caddy/Portal，不安装软件；`oci_hub_portal_external_url` 在 OCI 主机变量中持久化，完整 Portal 模板也使用此变量。运行前使用已批准的 OCI 管理 inventory 与严格主机公钥校验，按仓库约定在 Sandbox 执行。
 
 上线核对：公网 TLS 校验成功、登录页 HTTP200、未登录 `/api/v1/interface/all` 返回401，Portal 后端仅监听127.0.0.1:8888，Portal/配额 timer active，既有 proxy.willfan.me 返回200。没有重置用户、接口、密钥或账本。
 
@@ -105,4 +105,4 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 VM500 现仅保留 net0；旧 gateway 网卡/路由/NAT已清理，其防火墙只保护 HAPI 主机本身。维护勿再使用旧 gateway controller 的 --routing 模式，见 [VM500 清理](2026-10-30-vm500-legacy-nic-cleanup.md)。
 
-旧 employee-access role、六个组合入口和 parallel 授权分支已移除。仍使用的管理员公钥维护由 admin-ssh-keys 提供。旧员工模型（`employee_workspaces` 表、`employee_slot` 永久分配、`employee_retirement` 墓碑、vmbr501-508 与 `employee-*-boundary.py` hook）及 pve2 上丢弃 `tap503i0` 的退役 guard 已拆除：Terraform 以 `removed` 遗忘两类 `terraform_data`，销毁旧网桥与 hook 文件；guard 由一次性剧本 `ansible/playbooks/remove-retired-workspace-boundary.yml` 删除。VM500 配置在 `terraform/remotecc/employee-access.auto.tfvars.json`；共享 snippets 不删除。
+旧 employee-access role、六个组合入口和 parallel 授权分支已移除。仍使用的管理员公钥维护由 admin-ssh-keys 提供。旧员工模型（`employee_workspaces` 表、`employee_slot` 永久分配、`employee_retirement` 墓碑、vmbr501-508 与 `employee-*-boundary.py` hook）及 pve2 上丢弃 `tap503i0` 的退役 guard 已拆除：Terraform 以 `removed` 遗忘两类 `terraform_data`，销毁旧网桥与 hook 文件；guard 已由一次性剧本删除（该剧本完成后已移除，见 Git 历史）。VM500 配置在 `terraform/remotecc/employee-access.auto.tfvars.json`；共享 snippets 不删除。

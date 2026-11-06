@@ -28,7 +28,7 @@ Mac／Firefox 的当前已验证组合：Kasm 设置开启 `IME Input Mode`，Ma
 
 ## 管理员维护
 
-管理员使用 `prepare-vm502-desktop.yml` 的三个显式阶段。`trust` 维护前端证书；`prepare` 暂存并检查候选，不替换活动桌面；`activate` 取得共享锁后，核对候选代次、平台、profile 写入者与监听冲突，再关闭此 VM 桌面路由并替换受管定义。它拒绝活动 desktop/browser，不能用于无提示踢掉员工会话。
+管理员使用 `prepare-employee-desktop.yml` 的三个显式阶段。`trust` 维护前端证书；`prepare` 暂存并检查候选，不替换活动桌面；`activate` 取得共享锁后，核对候选代次、平台、profile 写入者与监听冲突，再关闭此 VM 桌面路由并替换受管定义。它拒绝活动 desktop/browser，不能用于无提示踢掉员工会话。
 
 启动入口和维护使用同一个锁 inode。维护标记存在时，普通启动必须拒绝；不通过删标记绕过。材料使用固定 `generations/<generation>/502/`，没有 `latest` 或跨 VM 引用。后端仅绑定 loopback TLS 8444，前端为该 VM overlay 的 HTTPS 8443。
 

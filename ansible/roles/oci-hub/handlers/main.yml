@@ -1,0 +1,5 @@
+---
+- name: Restart scoped Portal after a configuration change
+  ansible.builtin.systemd_service:
+    name: oci-hub-portal
+    state: restarted

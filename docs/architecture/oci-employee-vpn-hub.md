@@ -493,4 +493,4 @@ PVE SDN 采用 API 全局锁拒绝无关 pending changes；内核规则 JSON 和
 
 ## 旧角色源码收口
 
-旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 永久退役端口 guard（retired-workspace-boundary）已由一次性拆除剧本 `remove-retired-workspace-boundary.yml` 取代，旧 Terraform 原分配、状态迁移和退役防重用测试一并移除，VMID 503 可重新分配。历史设备关联移至管理员私有记录。HAPI 及其他业务角色不在本次清理范围。
+旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 永久退役端口 guard（retired-workspace-boundary）已由一次性拆除剧本清除（该剧本完成后已删除，见 Git 历史），旧 Terraform 原分配、状态迁移和退役防重用测试一并移除，VMID 503 可重新分配。历史设备关联移至管理员私有记录。HAPI 及其他业务角色不在本次清理范围。

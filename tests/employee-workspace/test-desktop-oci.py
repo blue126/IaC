@@ -283,7 +283,7 @@ class OCITests(unittest.TestCase):
         self.assertIn("when: kasmvnc_presentation_phase == 'activate'", text)
         self.assertIn("when: kasmvnc_presentation_phase == 'trust'", text)
         self.assertNotIn('employee-access', text)
-        self.assertIn('tasks_from: presentation', (ROOT / 'ansible/playbooks/prepare-vm502-desktop.yml').read_text())
+        self.assertIn('- kasmvnc', (ROOT / 'ansible/playbooks/prepare-employee-desktop.yml').read_text())
 
 
 class ProbeDiagnosticTests(unittest.TestCase):

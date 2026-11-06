@@ -1,4 +1,0 @@
----
-- name: Delegate the existing presentation entry to the KasmVNC role
-  ansible.builtin.include_role:
-    name: kasmvnc

@@ -2,18 +2,3 @@
 # Bootstrap-only connection fallback for the standalone PVE node.
 # The encrypted value stays in group_vars/all/vault.yml.
 ansible_ssh_pass: "{{ vault_proxmox_password }}"
-
-# Standalone local SSD storage kept separate from the main ZFS mirror.
-pve2_local_ssd_storage:
-  device: /dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_BTWL404609D8800RGN
-  serial: BTWL404609D8800RGN
-  storage_id: pve2-ssd
-  mount_path: /mnt/pve/pve2-ssd
-  filesystem: ext4
-  content:
-    - images
-    - rootdir
-    - iso
-    - vztmpl
-    - backup
-    - snippets

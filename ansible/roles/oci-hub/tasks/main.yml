@@ -105,6 +105,7 @@
     owner: root
     group: root
     mode: '0600'
+  notify: Restart scoped Portal after a configuration change
   no_log: true
 
 - name: Deploy executor protected configuration
@@ -179,3 +180,13 @@
     name: oci-hub-quota.timer
     enabled: true
     state: started
+
+- name: Configure the public Portal site using the existing Caddy installation
+  ansible.builtin.include_role:
+    name: caddy
+    tasks_from: reverse-proxy
+  vars:
+    caddy_reverse_proxy_name: wgportal
+    caddy_reverse_proxy_domain: "{{ oci_hub_portal_external_url | urlsplit('hostname') }}"
+    caddy_reverse_proxy_upstream: 127.0.0.1:8888
+  when: oci_hub_portal_external_url is match('^https://')
