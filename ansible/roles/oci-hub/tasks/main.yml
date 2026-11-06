@@ -16,11 +16,13 @@
   ansible.builtin.command:
     argv: [which, python3, nft, wg, ip, iptables]
   changed_when: false
+  check_mode: false
 
 - name: Enumerate existing WireGuard interfaces without reading keys
   ansible.builtin.command: wg show interfaces
   register: oci_hub_existing_interfaces
   changed_when: false
+  check_mode: false
 
 - name: Require every existing foreign interface to be excluded
   ansible.builtin.assert:
@@ -141,6 +143,7 @@
   until: oci_hub_portal_ready.status | default(0) == 200
   retries: 20
   delay: 1
+  check_mode: false
   no_log: true
 
 - name: Require explicit authorization for first ledger initialization
