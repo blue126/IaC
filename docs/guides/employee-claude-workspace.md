@@ -32,7 +32,7 @@
 本次交付实现及当时的独立验证环境验证（该 Docker Sandbox 已退役）。真正安装、部署、写凭据或变更网络前仍须另行授权。
 
 1. 核实 Q-4／Q-5：PVE 节点和 provider 指向同一集群；VMID、bridge、子网、MAC 无冲突；现有 PVE nft/防火墙规则与新表共同生效；所有家庭公网 IP、受保护服务及 NAT 回流路径已列出；明确维护源和恢复管理路径。bridge provider 会应用节点待生效网络配置，先处理其他 pending 网络更改，不能直接套用示例地址。当前员工资源使用专用 employee provider，API以root@pam认证到独立pve2，SSH也限定该节点；既有集群与pve2 token providers不变。启动hook和可执行snippet需要这一管理认证。
-2. 先以prepare-employee-pve.yml校验固定Ubuntu26.04镜像摘要并创建本任务专用employee-snippets存储，不修改既有storage。Terraform创建从未启动的干净模板；每次克隆的vendor-data安装qemu-guest-agent，核实SSH host keys独立生成。模板不含员工令牌、浏览器状态或设备私钥。网关模板不得预启用路由、额外 NIC、代理服务或 cloudflared。确认既有备份作业是否自动纳入新 VMID，Q-6 未确定前不配置个人凭据。
+2. 先确认固定Ubuntu26.04镜像摘要和本任务专用employee-snippets存储（pve2上的`/var/lib/employee-snippets`，dir类型，content=snippets）已就绪，不修改既有storage。Terraform创建从未启动的干净模板；每次克隆的vendor-data安装qemu-guest-agent，核实SSH host keys独立生成。模板不含员工令牌、浏览器状态或设备私钥。网关模板不得预启用路由、额外 NIC、代理服务或 cloudflared。确认既有备份作业是否自动纳入新 VMID，Q-6 未确定前不配置个人凭据。
 3. 填写 `terraform/proxmox/employee-access.tf` 和 `employee-workspace.tf` 的输入。默认 `employee_access=null`、`employee_workspaces={}`，不会创建任何员工资源；不改旧服务输入。下面只说明数据形状，地址和 VMID 必须现场分配：
 
 ```hcl

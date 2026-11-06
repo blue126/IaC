@@ -4,6 +4,7 @@
   "source_files": {
     "proxmox/anki.tf": "e123868227540c0f0ed75e1556399bbbb5b3e69cd3befb5322b80cbcfcefb504",
     "proxmox/caddy.tf": "66469c440dabfb513a76f20d3bfa36733eeb38ef0321d552d08c9c86f1fc1448",
+    "proxmox/cloud-init-snippet.tf": "d1172c2373829a044bd9c6baa28fc8618e2eb2f56860c1f2d12a62fd85e035eb",
     "proxmox/container-lab.tf": "c1fe42a280139149d1eb26fbbca01b66ad7ca07ee12aa3710abf0ee07ff66d9e",
     "proxmox/ct120.tf": "8877bf8e6a6151c83452cede2b802166a022212d3ef8d63a5720846f7daabbe5",
     "proxmox/fileserver.tf": "e6b2d3650f58232d009a4b3679c2e594f5a0a4492156b98ae60351afe231b8a8",

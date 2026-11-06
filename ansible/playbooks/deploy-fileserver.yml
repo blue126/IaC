@@ -1,0 +1,45 @@
+---
+- name: Deploy Fileserver Time Machine share
+  hosts: fileserver
+  become: true
+  roles:
+    - fileserver
+
+- name: Verify Fileserver Deployment
+  hosts: fileserver
+  become: true
+  tags: [verify]
+  tasks:
+    - name: Verify Time Machine bind mount
+      ansible.builtin.command:
+        cmd: findmnt --mountpoint /srv/timemachine
+      changed_when: false
+
+    - name: Verify Time Machine storage is writable
+      ansible.builtin.command:
+        cmd: runuser -u timemachine -- test -w /srv/timemachine
+      changed_when: false
+
+    - name: Verify Samba configuration
+      ansible.builtin.command:
+        cmd: testparm -s
+      changed_when: false
+
+    - name: Verify Samba is active
+      ansible.builtin.systemd:
+        name: smbd
+        state: started
+      check_mode: true
+      changed_when: false
+
+    - name: Verify Avahi is active
+      ansible.builtin.systemd:
+        name: avahi-daemon
+        state: started
+      check_mode: true
+      changed_when: false
+
+    - name: Verify SMB port is listening
+      ansible.builtin.wait_for:
+        port: 445
+        timeout: 10

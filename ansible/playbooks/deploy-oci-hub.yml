@@ -18,3 +18,50 @@
       ansible.builtin.command: systemctl is-active oci-hub-portal oci-hub-quota.timer  # noqa command-instead-of-module
       changed_when: false
       check_mode: false
+    - name: Verify the Portal socket remains on loopback
+      ansible.builtin.command:
+        argv: [ss, -H, -ltn, 'sport = :8888']
+      register: oci_hub_portal_socket
+      changed_when: false
+      check_mode: false
+    - name: Require loopback only for the backend
+      ansible.builtin.assert:
+        that:
+          - oci_hub_portal_socket.stdout_lines | length == 1
+          - "'127.0.0.1:8888' in oci_hub_portal_socket.stdout"
+    - name: Verify the unauthenticated Portal API remains protected
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/api/v1/interface/all
+        status_code: [401, 403]
+        follow_redirects: none
+      check_mode: false
+    - name: Verify Caddy serves the HTTPS Portal login
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --noproxy
+          - '*'
+          - --fail
+          - --silent
+          - --show-error
+          - --location
+          - --max-time
+          - '20'
+          - --resolve
+          - "{{ oci_hub_portal_external_url | default('') | urlsplit('hostname') }}:443:127.0.0.1"
+          - --output
+          - /dev/null
+          - --write-out
+          - '%{http_code}'
+          - "{{ oci_hub_portal_external_url | default('') }}/"
+      register: oci_hub_public_http
+      changed_when: false
+      check_mode: false
+      retries: 6
+      delay: 5
+      until: oci_hub_public_http.rc == 0
+      when: oci_hub_portal_external_url | default('') is match('^https://')
+    - name: Require the Portal login page
+      ansible.builtin.assert:
+        that: oci_hub_public_http.stdout == '200'
+      when: oci_hub_portal_external_url | default('') is match('^https://')

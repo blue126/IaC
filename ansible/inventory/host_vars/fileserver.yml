@@ -1,0 +1,2 @@
+---
+timemachine_password: "{{ vault_timemachine_password }}"

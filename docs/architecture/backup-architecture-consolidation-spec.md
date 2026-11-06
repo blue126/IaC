@@ -853,9 +853,9 @@ pvesm add zfspool tank --pool tank --content rootdir,images --nodes pve1
 | PVE 存储 / VG / thin pool | `nvme-lvm`（LVM-thin）/ `nvme-vg` / `data` |
 | 文件系统 / 容器内可用容量 | ext4 / 约840GB（用户提供；900G为配置容量） |
 
-#### 一次性初始化配置（TurnKey 不含）
+#### 初始化配置（TurnKey 不含）
 
-**TurnKey Fileserver 只有 Samba，没有任何 Time Machine / AFP 支持。**以下配置由 [`configure-fileserver-timemachine.yml`](../../ansible/playbooks/configure-fileserver-timemachine.yml) 一次性写入，缺任何一项 macOS 都可能不识别该共享：
+**TurnKey Fileserver 只有 Samba，没有任何 Time Machine / AFP 支持。**以下配置由 [`deploy-fileserver.yml`](../../ansible/playbooks/deploy-fileserver.yml) 写入，缺任何一项 macOS 都可能不识别该共享：
 
 ```ini
 [global]
@@ -895,7 +895,7 @@ fruit:time machine max size = 1T
 
 #### 与现有 Ansible 的关系
 
-[`configure-fileserver-timemachine.yml`](../../ansible/playbooks/configure-fileserver-timemachine.yml) 是明确的一次性引导 playbook，不加入 `site.yml` 或常规部署自动化。它创建固定 UID/GID 用户、验证 bind mount 权限、写入 `vfs_fruit`/共享参数及 Avahi 通告。执行并验收后，所有 Samba 用户与共享变更均通过 Webmin 完成；不得把该 playbook 当成持续配置反复运行。
+[`deploy-fileserver.yml`](../../ansible/playbooks/deploy-fileserver.yml) 是 fileserver 的主 playbook，由 `fileserver` role 实现，可以重复运行。它创建固定 UID/GID 用户、验证 bind mount 权限、写入 `vfs_fruit`/共享参数及 Avahi 通告。Time Machine 的共享参数由 IaC 负责，在 Webmin 里修改这些参数会在下次部署时被覆盖；其他 Samba 用户与共享仍通过 Webmin 管理。Samba 密码只在账号不存在时写入，不会覆盖现有密码。
 
 ### 6.4 Windows Server VM（AD DS + Veeam VBR CE）
 
@@ -991,7 +991,7 @@ fruit:time machine max size = 1T
   - `zfs_arc_max=2G`（`/etc/modprobe.d/zfs.conf` + `update-initramfs`）
 - 独立监控工作：`smartd`、ZED、scrub timers、Prometheus/Grafana 与告警通道，见 [Proxmox 存储监控统一规范](./proxmox-storage-monitoring-spec.md)
 - `terraform/proxmox/fileserver.tf`：Fileserver LXC、网络与 `tank/timemachine` bind mount
-- `ansible/playbooks/configure-fileserver-timemachine.yml`：仅用于首次 Samba/Avahi 初始化，之后由 Webmin 接管
+- `ansible/playbooks/deploy-fileserver.yml`：配置 Time Machine 的 Samba/Avahi，可重复运行
 - **新增备份告警**：分层告警（作业结果 + 备份新鲜度 + dead-man + 通道自检），详见事故报告 7.3
 - **新增备份覆盖面校验**：详见事故报告 7.4——失败告警**抓不到**从未纳入作业的对象
 
