@@ -7,7 +7,7 @@ paradigm: '单一写者 + 派生状态（命令经唯一执行器写入各自的
 scope: '员工工作区生命周期：网站或小程序申请 → 开户与设备包下载 → 线下收费续期 → 到期提醒、断开与关机 → 退役；执行器常驻 pve0，Semaphore 作为管理面板'
 status: final
 created: '2026-10-31'
-updated: '2026-11-05'
+updated: '2026-11-06'
 binds: [hapi-control, hapi-ctl, apply-site, miniprogram, unicloud, executor-vm, wsctl, semaphore, oci-hub-admin, hub-status, oci-hub-quota.timer, wg-portal, terraform-oci-hub-workspaces, catalog, bws]
 sources: [docs/architecture/oci-employee-vpn-hub.md, remotecc/employee-admin/README.md, Hindsight kp-1f6403334b204b888bcfe786ba7a20df]
 ---
@@ -78,7 +78,7 @@ flowchart LR
 | 私钥 | BWS `EmployeeWorkspace-OCIHub` | 只在运行时物化；设备包在 R2 中临时存放（AD-17） |
 | HAPI 能否使用 | 不存储：员工在册且未到期（AD-3、AD-20） | VM500 的 `config.json` 中的 routes、`tokens/`、`credentials.json`、`agents.json`、`authorize.inc`、两份 Nginx 配置和 9443 worker 防火墙规则都是派生内容，只由 `hapi-ctl` 写入（AD-23） |
 | VM500 信任配置（issuer、audience、origin、Hub 监听地址） | IaC 写入的 `trust.json` | `config.json` 中的同名字段是 `hapi-ctl` 生成的副本 |
-| VM502 静态路由与 `employee-access.nft` 的基础规则 | VM500 现有文件 | `hapi-ctl` 原样保留；从零重建见 Deferred |
+| `employee-access.nft` 的基础规则 | VM500 现有文件 | `hapi-ctl` 原样保留；从零重建见 Deferred |
 | HAPI 身份放行（邮箱） | 不存储：catalog 派生 | Cloudflare Access 策略是投影，只由 `hapi-sync` 整份写入，手工修改会被覆盖 |
 | 员工 HAPI 令牌 | BWS 员工工作区记录 | 运行时物化；经 `hapi-ctl apply` 送到 VM500 |
 
@@ -212,25 +212,25 @@ stateDiagram-v2
 
 - **Binds:** `remotecc/hapi-control/`、`wsctl hapi-release`、VM500 的 `/opt/hapi-control/`、`hapi-control-plane`、`hapi-shared-hub`
 - **Prevents:** 应用代码由两条路径下发；改页面要走名单同步；页面、客户端和路由分步生效
-- **Rule:** 换一名员工或改一行页面时要动的东西不属于 IaC。鉴权、stream guard、登录页、Kasm 客户端、Nginx 模板与生成器、`hapi-ctl` 都在私有 `hapi-control/`，只经 `wsctl hapi-release` 发布；IaC 只管 VM、软件包、系统用户、单元、`trust.json`、`hapi-hub-config.py`、Tunnel 和 Hub 二进制。版本号是发布内容的 sha256 前 16 位（执行器的工作树没有 Git 元数据），`/opt/hapi-control/releases/<版本>/` 不可变，`current` 指向在用版本。发布走“计划 → 批准”，由人触发，不并入 `hapi-sync`、`enforce` 或推送钩子；审批 SHA 覆盖目标版本、线上版本和包内容，不覆盖名单。切换由 `hapi-ctl activate` 持锁完成：用目标版本渲染并校验候选配置，切软链接，替换配置，重载 Nginx，版本含 Python 改动时重启鉴权，再做健康检查；失败时在同一把锁内切回。健康检查指两个服务运行中、`hapi-auth.py --check` 通过、未带身份访问本机入口得到 403 而不是 5xx。切换过程中页面、Nginx 和鉴权可能短暂不一致，所以相邻版本必须能共存，不能共存的改动分两次发布。回滚只换代码，同样经 `activate`。
+- **Rule:** 换一名员工或改一行页面时要动的东西不属于 IaC。鉴权、stream guard、登录页、Kasm 客户端、Nginx 模板与生成器、`hapi-ctl` 都在私有 `hapi-control/`，只经 `wsctl hapi-release` 发布；IaC 只管 VM、软件包、系统用户、单元、`trust.json`、`hapi-hub-config.py`、Tunnel 和 Hub 二进制。版本号是发布内容的 sha256 前 16 位（执行器的工作树没有 Git 元数据），`/opt/hapi-control/releases/<版本>/` 不可变，`current` 指向在用版本。发布走“计划 → 批准”，由人触发，不并入 `hapi-sync`、`enforce` 或推送钩子；审批 SHA 覆盖目标版本、线上版本和包内容，不覆盖名单。切换由 `hapi-ctl activate` 持锁完成：用目标版本渲染并校验候选配置，切软链接，替换配置，重载 Nginx，版本含 Python 改动时重启鉴权，再做健康检查；失败时在同一把锁内切回。健康检查指两个服务运行中、`hapi-auth.py --check` 通过、未带身份访问本机入口得到 403 而不是 5xx，最多等 30 秒。切换过程中页面、Nginx 和鉴权可能短暂不一致，所以相邻版本必须能共存，不能共存的改动分两次发布。回滚只换代码，同样经 `activate`。
 
 ### AD-23 — VM500 动态文件的唯一写入口
 
 - **Binds:** `hapi-ctl apply`、`wsctl enforce`、`wsctl hapi-sync`、IaC 角色
 - **Prevents:** 空变量覆盖路由；路由与 Nginx 指纹错配；到期状态被另一条路径改回
-- **Rule:** AD-2 列出的 VM500 派生内容只由 `hapi-ctl` 写入，它只由 `wsctl` 经 SSH 调用，有两个写入子命令，共用一把 `flock`（`/run/hapi-control/lock`，等待最多 30 秒）。`apply` 经 stdin 接收名单，调用前必须通过 `require_fresh_catalog`，名单取自同一进程刚成功的 `catalog()`；读不到台账就不写，名单冻结，不拒绝在册员工。`activate` 不接收名单，用目标版本和现有路由重新渲染，D1 不可用时也能发布和回滚。`config.json` 与 Nginx 由同一份路由快照生成，全部校验通过才替换。替换前写 `/run/hapi-control/pending`，重载全部成功后才清除；标记存在时即使内容无变化也要重载。`enforce` 只送名单，且不送空名单；`hapi-sync` 送名单和令牌，只有它才回收令牌：既不在令牌列表、也不在名单、也不在 `static_ids` 的才删。名单中有但本机没有令牌的员工不生成路由。VM502 的静态路由由 `static_ids` 指明，在迁移期间保持原样；迁移完成后 VM502 转为普通员工 VM，`static_ids` 随之删除，不新增其他静态路由。IaC 角色不写这些内容，日常路径不调用 Ansible。
+- **Rule:** AD-2 列出的 VM500 派生内容只由 `hapi-ctl` 写入，它只由 `wsctl` 经 SSH 调用，有两个写入子命令，共用一把 `flock`（`/run/hapi-control/lock`，等待最多 30 秒）。`apply` 经 stdin 接收名单，调用前必须通过 `require_fresh_catalog`，名单取自同一进程刚成功的 `catalog()`；读不到台账就不写，名单冻结，不拒绝在册员工。`activate` 不接收名单，用目标版本和现有路由重新渲染，D1 不可用时也能发布和回滚。`config.json` 与 Nginx 由同一份路由快照生成，全部校验通过才替换。替换前写 `/run/hapi-control/pending`，重载全部成功后才清除；标记存在时即使内容无变化也要重载。`enforce` 只送名单，且不送空名单；`hapi-sync` 送名单和令牌，只有它才回收令牌：既不在令牌列表、也不在名单的才删。名单中有但本机没有令牌的员工不生成路由。IaC 角色不写这些内容，日常路径不调用 Ansible。
 
 ### AD-24 — `wsctl` 与 `hapi-ctl` 的协议
 
 - **Binds:** `hub-hapi.roster()`、`hapi-ctl apply`、`wsctl hapi-release`
 - **Prevents:** 两种名单形状；执行器与 VM500 版本不同步时静默写错；回滚让到期员工恢复登录
-- **Rule:** 名单只由 `hub-hapi.roster()` 构建，`enforce` 和 `hapi-sync` 都调用它，它不访问 BWS。载荷固定为 `{schema, static_ids, employees: [{id, email, address, enabled}], tokens?}`，地址和到期都在执行器算好。`hapi-ctl` 遇到不支持的 `schema` 或未知字段一律拒绝，不写任何文件。推送到执行器会立刻改变 `wsctl` 的行为，所以协议变更先发布兼容新旧 `schema` 的 `hapi-ctl`，再推送新 `wsctl`。`manifest.json` 声明支持的 `schema`，`hapi-release` 在计划阶段拒绝不支持当前 `schema` 的目标版本，回滚也一样。
+- **Rule:** 名单只由 `hub-hapi.roster()` 构建，`enforce` 和 `hapi-sync` 都调用它，它不访问 BWS。载荷固定为 `{schema, employees: [{id, email, address, enabled}], tokens?}`，当前 `schema` 为 2，地址和到期都在执行器算好。`hapi-ctl` 遇到不支持的 `schema` 或未知字段一律拒绝，不写任何文件。推送到执行器会立刻改变 `wsctl` 的行为，所以协议变更先发布兼容新旧 `schema` 的 `hapi-ctl`，再推送新 `wsctl`。`manifest.json` 声明支持的 `schema`，`hapi-release` 在计划阶段拒绝不支持当前 `schema` 的目标版本，回滚也一样。
 
 ## Consistency Conventions
 
 | Concern | Convention |
 | --- | --- |
-| 命令名 | `wsctl request`、`provision`、`renew`、`remind`、`reissue`、`access`、`retire`、`status`、`hapi-sync`、`hapi-release` |
+| 命令名 | `wsctl request`、`provision`、`renew`、`remind`、`reissue`、`access`、`retire`、`status`、`hapi-sync`、`hapi-install`、`hapi-release` |
 | 确认 | 创建或删除资源的命令：展示计划 → 确认执行；Semaphore 用 `--approve <SHA>`；`request`、`renew`、`remind`、`status`、开关机无确认 |
 | 命令输出 | 单个 JSON 对象到 stdout；错误为 `UPPER_SNAKE` 码（沿用 `HUB_*` 前缀风格）到 stderr；交互提示写到 stderr |
 | 时间 | 存储与传输用带偏移的 ISO 8601；计费边界一律按 `Australia/Sydney` 计算；断开在一个 OCI timer 周期内生效（当前 `OnUnitActiveSec=5s`），关机在 5 分钟内生效 |
