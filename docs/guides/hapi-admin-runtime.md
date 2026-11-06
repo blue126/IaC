@@ -27,7 +27,7 @@ python3 ~/Projects/IaC/remotecc/hapi-admin/hapi-entry.py doctor
 - 原工作树的HAPI材料保留为迁移前材料，不继续建立第二份活动登记。
 - 主检出运行区的`storage-migration-20261031.json`记录原文件摘要及复制校验；源码／运行数据目录均为0700。
 - BWS仍是服务秘密权威来源。本机profile只调整token文件路径，保持token及秘密值不变；原profile另行保留。管理员token不交给VM500或员工VM。
-- 公开HAPI角色、测试与运维文档已于2026-11-01经[PR #201](https://github.com/blue126/IaC/pull/201)合入`main`；`hapi-admin`私有原型和运行材料仍不进入公开Git。历史绑定不能据此自动改指向或重新启用。当前员工操作约定见[执行器上的wsctl流程](../deployment/oci-hub-native-provisioning.md)，不从旧独立HAPI原型恢复开户。
+- 公开HAPI角色、测试与运维文档已于2026-11-01经[PR #201](https://github.com/blue126/IaC/pull/201)合入`main`；`hapi-admin`私有原型和运行材料仍不进入公开Git。历史绑定不能据此自动改指向或重新启用。当前员工操作约定见[执行器上的wsctl流程](../deployment/oci-hub-provision.md)，不从旧独立HAPI原型恢复开户。
 
 5项绑定回归、17项基础设施执行器回归及正式`doctor`／挂载验证通过。上述不替代真实新增员工的完整开户验收。
 

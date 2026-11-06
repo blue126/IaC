@@ -1,6 +1,6 @@
 # 员工工作环境：申请、批准与 CD 自动开户
 
-> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。
+> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-provision.md) 为准，不执行旧脚本；早期规划内容仅供追溯。
 
 
 > **2026-10-27 当前状态：** 下文自助申请门户与完整项目 ZIP 是保留的未来方案，尚未实施。现行开户由私有 `employee-workspace-admin` 项目编排 Terraform/Ansible；设备私钥保存在专用 BWS 项目，通用 bootstrap 源码来自公开 `workspace-onboarding` 仓库，员工无需 GitHub 账号。
@@ -14,7 +14,7 @@
 > 员工 VM 分配（OCI Hub 名单）是执行器 `employee-data` 中由 settings `oci_hub.terraform_roster` 指向的运行状态，不进入 IaC Git，开户/退役无需回流 PR；旧 `employee-workspaces.auto.tfvars.json` 已删除，VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`。私有管理员项目负责开户编排、候选配置、设备包和交付回执；设备私钥留在 BWS。
 
 
-状态：自助申请与领取门户方案保留，暂缓实施；以下步骤描述当时设想的方案；现行申请、开户与交付见 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md)。
+状态：自助申请与领取门户方案保留，暂缓实施；以下步骤描述当时设想的方案；现行申请、开户与交付见 [OCI Hub 原生入口](../deployment/oci-hub-provision.md)。
 
 当前阶段继续由管理员发起开户，沿用每员工独立 VM、每设备独立身份，并通过 `cc.willfan.me` 一次性链接和邮件交付设备包。本方案不实施申请门户、邮箱验证领取或自动开户 CD；本记录不创建定时任务或自动触发部署。员工无需 GitHub 账号仍是后续自动化方案的明确要求。
 

@@ -30,7 +30,7 @@ flowchart LR
 - 更新Hub的公开URL与CORS Origin，并仅重载Hub。实际检查Runner进程未重启，任务目录、个人认证及Firefox配置没有迁移或重置。
 - 既有WireGuard服务、员工VM通用出网和Cloudflare账户全局会话设置未随此次入口迁移修改。
 
-本轮验收仅覆盖原获批所有者及其试点工作区。新增员工须在当前员工流程中明确本人VM、身份、凭据与路由，不共享试点，也不另建第二台工作VM或第二份Terraform state。员工管理以执行器上的`wsctl`为入口，见[当前操作约定](../deployment/oci-hub-native-provisioning.md)；旧独立HAPI执行器不再用于开户。新员工首次授权及两种接入的完整交付需另行验收。
+本轮验收仅覆盖原获批所有者及其试点工作区。新增员工须在当前员工流程中明确本人VM、身份、凭据与路由，不共享试点，也不另建第二台工作VM或第二份Terraform state。员工管理以执行器上的`wsctl`为入口，见[当前操作约定](../deployment/oci-hub-provision.md)；旧独立HAPI执行器不再用于开户。新员工首次授权及两种接入的完整交付需另行验收。
 
 ## 真实问题与回归
 

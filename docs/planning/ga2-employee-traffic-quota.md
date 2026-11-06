@@ -40,4 +40,4 @@ GA2 的未认证流量、握手及外层开销仍可能收费，员工额度不�
 当前仅完成平行建设设计，未部署、未启用配额；本范围不包含现有方案迁移、VM500 退役或现有入口关闭。
 
 
-原型代码与精确运行契约现见 [OCI Hub 原型 runbook](../deployment/oci-hub-workspace-prototype.md)。合成 SQLite/HTTP/namespace 验证与真实部署验收分别记录；实际用户月额度、Portal 恢复和真实 GA2/WSS/SSH 截止仍需上线门槛验证。
+原型代码与精确运行契约现见 [OCI Hub 部署契约](../deployment/oci-hub-deployment-contract.md)。合成 SQLite/HTTP/namespace 验证与真实部署验收分别记录；实际用户月额度、Portal 恢复和真实 GA2/WSS/SSH 截止仍需上线门槛验证。
