@@ -25,7 +25,7 @@ Verify: 执行器上 `wsctl` 只读检查和一次 dry run 通过；公开仓库
 
 ## References
 
-- plan — remotecc/wsctl/docs/2026-11-06-iac-migration-plan.md（私有仓库，含 Codex 审查记录）
+- plan — remotecc/docs/2026-11-06-iac-migration-plan.md（私有仓库，含 Codex 审查记录）
 
 ## Notes
 
