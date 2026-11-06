@@ -71,11 +71,11 @@ flowchart LR
 | 员工申请（邮箱、姓名、手机号等） | 提交所在的入口：网站 D1 或 uniCloud 云数据库 | 执行器只读拉取、合并（AD-19）；开户后员工主数据以 catalog 为准 |
 | 小程序展示的员工状态与到期日 | catalog 等事实（AD-3 推导） | uniCloud 中只存执行器推送的展示副本 |
 | `paid_through` | catalog（由 `wsctl provision`/`renew` 写；管理员可在 D1 控制台改） | OCI 快照是执行器推送的只读副本（AD-12） |
-| VM 存在与规格 | Terraform `terraform/proxmox/oci-hub-workspaces.auto.tfvars.json` | 只读 |
+| VM 存在与规格 | 执行器运行数据里的 Terraform roster（settings `oci_hub.terraform_roster`，不入 Git），`terraform/remotecc` 以 `-var-file` 读取 | 只读 |
 | VM 电源状态 | PVE（Terraform 不管理） | 只由执行器按 AD-16 开关 |
 | 员工、邮箱、设备、overlay、主机公钥 | 网站 D1 的 `employees` 表（catalog） | 执行器的 `catalog.json` 是本地快照，registry 为派生视图 |
 | 接入开关（用户/设备 Disabled、DisabledReason） | wg-portal | 执行器与 timer 经同一 Portal API 增删自己的原因 |
-| 私钥 | BWS `EmployeeWorkspace-OCIHub` | 只在运行时物化；设备包在 R2 中临时存放（AD-17） |
+| 私钥 | BWS `remotecc` | 只在运行时物化；设备包在 R2 中临时存放（AD-17） |
 | HAPI 能否使用 | 不存储：员工在册且未到期（AD-3、AD-20） | VM500 的 `config.json` 中的 routes、`tokens/`、`credentials.json`、`agents.json`、`authorize.inc`、两份 Nginx 配置和 9443 worker 防火墙规则都是派生内容，只由 `hapi-ctl` 写入（AD-23） |
 | VM500 信任配置（issuer、audience、origin、Hub 监听地址） | IaC 写入的 `trust.json` | `config.json` 中的同名字段是 `hapi-ctl` 生成的副本 |
 | `employee-access.nft` 的基础规则 | VM500 现有文件 | `hapi-ctl` 原样保留；从零重建见 Deferred |

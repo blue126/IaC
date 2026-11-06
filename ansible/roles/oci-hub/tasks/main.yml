@@ -6,7 +6,6 @@
       - oci_hub_boundary.kind == 'hub'
       - oci_hub_portal_version == '2.3.1'
       - oci_hub_portal_sha256 is match('^[a-f0-9]{64}$')
-      - oci_hub_ignored_interfaces | length > 0
       - oci_hub_portal_admin_password | length >= 16
       - oci_hub_portal_api_token | length >= 32
     fail_msg: Supply fixed, verified artifacts and explicit protected configuration.
@@ -120,19 +119,9 @@
     daemon_reload: true
   loop: [oci-hub-boundary, oci-hub-portal]
 
-# Service code arrives through the private `wsctl oci-hub-release`. On a new host the
-# steps below wait for it, so the role runs once before that release and once after.
-- name: Check whether a service code release is installed
-  ansible.builtin.stat:
-    path: /opt/oci-hub/current/executor.py
-  register: oci_hub_release
-
-- name: Inspect OCI-only ledger presence before first initialization
-  ansible.builtin.stat:
-    path: '{{ oci_hub_executor_config.database }}'
-  register: oci_hub_database
-
-- name: Wait for the loopback-only Portal API before initializing interfaces
+# Service code, the ledger, the interfaces and the quota timer belong to the private
+# `wsctl oci-hub-release`; `--new-hub` starts them on a host this role has prepared.
+- name: Wait for the loopback-only Portal API
   ansible.builtin.uri:
     url: http://127.0.0.1:8888/api/v1/interface/all
     user: '{{ oci_hub_portal_admin_user }}'
@@ -146,36 +135,6 @@
   delay: 1
   check_mode: false
   no_log: true
-
-- name: Require explicit authorization for first ledger initialization
-  ansible.builtin.assert:
-    that: oci_hub_new_ledger_authorized | default(false) | bool
-  when: oci_hub_release.stat.exists and not oci_hub_database.stat.exists
-
-- name: Initialize only an explicitly new ledger
-  ansible.builtin.command: python3 /opt/oci-hub/current/executor.py --config /etc/oci-hub/executor.json init
-  when: oci_hub_release.stat.exists and not oci_hub_database.stat.exists
-  changed_when: true
-
-- name: Bootstrap only the two explicitly approved Hub interfaces through the executor
-  ansible.builtin.command:
-    argv: [python3, /opt/oci-hub/current/executor.py, --config, /etc/oci-hub/executor.json, action]
-    stdin: '{{ oci_hub_bootstrap_request | to_json }}'
-  when: oci_hub_release.stat.exists and oci_hub_bootstrap_interfaces_authorized | bool
-  changed_when: true
-  no_log: true
-
-- name: Require actual Hub interfaces and routes before enabling accounting
-  ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py verify --routing
-  when: oci_hub_release.stat.exists
-  changed_when: false
-
-- name: Enable independent five-second quota sampling
-  ansible.builtin.systemd_service:
-    name: oci-hub-quota.timer
-    enabled: true
-    state: started
-  when: oci_hub_release.stat.exists
 
 - name: Configure the public Portal site using the existing Caddy installation
   ansible.builtin.include_role:
