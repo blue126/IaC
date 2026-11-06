@@ -95,7 +95,7 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 ## Portal 单一状态源更新
 
-2026-10-30 已部署。使用 `ansible/playbooks/update-oci-hub-authority.yml` 和私有工程现有 pack-oci-hub.py 的精确三文件 artifact 更新，不安装依赖、不重启 Portal 或 WG。任务暂停配额 timer、等待当前采样结束，持执行器锁备份月账、Portal 数据库和旧代码，随后通过 adopt_portal_state 审计迁移并恢复 timer。
+2026-10-30 已部署。OCI Hub 服务代码现在由私有入口 `wsctl oci-hub-release` 发布到 `/opt/oci-hub/releases/<version>/`，`/opt/oci-hub/current` 指向运行版本；当时使用的 playbook 和三文件 artifact 已于 2026-11-06 退役。发布不安装依赖、不重启 Portal 或 WG：暂停配额 timer、等待当前采样结束，持执行器锁备份月账、Portal 数据库和旧代码，切换版本，账本尚未迁移时通过 adopt_portal_state 审计迁移，再恢复 timer。回滚只切回旧代码，不还原账本。
 
 本轮恢复材料在 OCI 的 `/var/lib/oci-hub/backups/portal-authority-20261030T070540761092Z/`，root 专用。不要用旧代码直接打开已迁移的新账本：identities.reasons 已移除；需要回退时必须核对匹配的代码/账本备份及更新后用量、Portal 人工操作，不覆盖这些新数据。
 
