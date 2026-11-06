@@ -30,7 +30,7 @@ bash ./onboard.sh --profile oci-hub apply requests/alice-hub-mosh.json APPROVED_
 
 ## 部署前需要准备的私有配置
 
-- OCI Hub 已按 [Hub 部署契约](oci-hub-workspace-prototype.md) 上线：Portal、执行器、月账和两个 WG 接口可验证，使用独立 BWS 项目。此入口不会自动创建云主机、BWS 项目或放宽云网络权限。
+- OCI Hub 已按 [Hub 部署契约](oci-hub-deployment-contract.md) 上线：Portal、执行器、月账和两个 WG 接口可验证，使用独立 BWS 项目。此入口不会自动创建云主机、BWS 项目或放宽云网络权限。
 - OCI NSG/安全列表须已按独立批准范围允许测试设备实际来源到 UDP 51824，以及家中工作区出口到 UDP 51825。接入动作追加的是 Hub 本机策略，不会自动修改云 NSG；只改本机规则不代表云端口已可达。
 - 对已有 OCI 主机，`oci_hub_ingress.existing_nsg_id` 可指定已经绑定的 NSG，只追加两类精确来源规则，不改变 VNIC 或原规则；省略时仍创建独立 NSG，须另行审批绑定。不要创建未绑定的 NSG 后就宣布端口可达。私有计划与认证变量留在 employee-data，HCP 继续保存基础设施 state。
 - `settings.oci_hub.mosh_attachments[employee_id]` 保存该设备的预配置分配：recipient、device_id、workspace.overlay、runtime_bws_record、public_vars、registration_request、bundle_request，以及设备实际公网 `/32` 的 device_public_source。

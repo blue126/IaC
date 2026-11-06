@@ -19,4 +19,4 @@ VM500单Hub、Tunnel、统一身份入口和登录引导，VM502 Runner与个人
 
 ## 后续
 
-当前员工操作入口已随主分支更新为执行器上的`wsctl`，见[操作约定](../deployment/oci-hub-native-provisioning.md)。HAPI与WireGuard共用本人VM；旧独立HAPI执行器继续撤回，不因新入口存在就重新启用。新员工HAPI身份、首次个人授权与两种接入的完整交付仍须有独立验收证据。
+当前员工操作入口已随主分支更新为执行器上的`wsctl`，见[操作约定](../deployment/oci-hub-provision.md)。HAPI与WireGuard共用本人VM；旧独立HAPI执行器继续撤回，不因新入口存在就重新启用。新员工HAPI身份、首次个人授权与两种接入的完整交付仍须有独立验收证据。

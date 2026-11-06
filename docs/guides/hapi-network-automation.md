@@ -2,7 +2,7 @@
 
 > **历史记录（2026-11-03）**：本文涉及的角色、playbook、脚本与测试已在 story 5.24 中删除，员工 VM 一侧改由 `hapi` role管理（默认随`prepare-employee-desktop.yml`的provision阶段部署），见[统一入口](hapi-unified-entry.md)。下文命令不可再执行，仅供追溯。
 
-> **保留的网络能力与历史原型。** 独立HAPI开户候选已撤回；本页不提供当前员工开户入口。QA VM9101／9102和关联定时巡检已[回收](../planning/2026-10-31-hapi-qa-retirement.md)，网络代码与验收证据保留。当前员工操作约定见[wsctl流程](../deployment/oci-hub-native-provisioning.md)。
+> **保留的网络能力与历史原型。** 独立HAPI开户候选已撤回；本页不提供当前员工开户入口。QA VM9101／9102和关联定时巡检已[回收](../planning/2026-10-31-hapi-qa-retirement.md)，网络代码与验收证据保留。当前员工操作约定见[wsctl流程](../deployment/oci-hub-provision.md)。
 
 状态：现有bridge的端口ACL已在pve2两台新VM完成35项通信与11项生命周期验收；VLAN后端尚未实测，完整员工开户与公开应用入口仍未就绪。2026-10-30。
 

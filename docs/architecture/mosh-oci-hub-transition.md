@@ -35,7 +35,7 @@ SSH 用于启动会话，后续 Mosh 使用隧道内 UDP。SSH/SFTP 与 VM 内 `
 | VM 创建 | Hub profile 面向新 VM，首次停止并校验隔离 | 增加已有 VM 接入操作，不把原 VM 纳入另一份新建资源 |
 | VM 底层网络 | 原工作区出站依赖 VM500 | 首次新路径验收前接入独立 PVE 路由边界，不能复用旧出口 |
 
-依据：`ansible/roles/employee-access/files/employee-dispatch.py`、`ansible/roles/employee-access/tasks/mosh-pilot.yml`、`ansible/roles/employee-workspace/tasks/authorization.yml`、`scripts/oci-hub/boundary.py` 与 [Hub 部署契约](../deployment/oci-hub-workspace-prototype.md)。源码配置不代替实际部署状态核对。
+依据：`ansible/roles/employee-access/files/employee-dispatch.py`、`ansible/roles/employee-access/tasks/mosh-pilot.yml`、`ansible/roles/employee-workspace/tasks/authorization.yml`、`scripts/oci-hub/boundary.py` 与 [Hub 部署契约](../deployment/oci-hub-deployment-contract.md)。源码配置不代替实际部署状态核对。
 
 ## 新路径从首次验收起独立
 
@@ -115,7 +115,7 @@ online 区分“近期 VPN 握手”“SSH TCP 连接”“Mosh UDP 活跃/会�
 
 ## 历史基础代码与过渡入口（已替代）
 
-本节记录独立网络部署前的过渡实现，不是当前能力或操作指引。当前仅接受 `employee_workspace_profile=oci-hub`，使用 native 授权；不再支持 existing/parallel 授权合集。实际操作见[原生开户说明](../deployment/oci-hub-native-provisioning.md)。当时的实现包括：
+本节记录独立网络部署前的过渡实现，不是当前能力或操作指引。当前仅接受 `employee_workspace_profile=oci-hub`，使用 native 授权；不再支持 existing/parallel 授权合集。实际操作见[原生开户说明](../deployment/oci-hub-provision.md)。当时的实现包括：
 
 - Hub/PVE boundary 保持独立表；Hub 的 `pairs` 可选 `mosh_ports`，当前为整段 `[60000, 61000]`（早期为逐设备窄段如 `[60030, 60039]`，由 `wsctl mosh-ports-migrate` 统一迁移到整段），按设备→本人 VM 放行，已有 UDP conntrack 也不能绕过撤销。未提供该字段的映射保持原 TCP 权限。
 - Hub boundary 使用互斥的 `device_sources` 或旧 `ga2_sources`；OCI Terraform 对应提供同名互斥来源，保留旧规则资源地址。试点继续限制 /24 或更窄；没有放开动态公网来源。
