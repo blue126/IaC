@@ -18,8 +18,6 @@ sources:
   - Jenkinsfile-peer
   - Jenkinsfile-webhook-router
   - docs/architecture/cicd-architecture.md
-  - docs/planning/jenkins-peer-agent-recovery.md
-  - docs/guides/jenkins-agent-bootstrap.md
   - AGENTS.md
   - https://plugins.jenkins.io/github/
   - https://plugins.jenkins.io/lockable-resources/
@@ -122,7 +120,7 @@ flowchart LR
 
 - **Binds:** Jenkins installation, controller outage, and lost CI credentials or state access.
 - **Prevents:** Pretending CI can repair itself when unavailable and allowing the exception to become routine deployment practice.
-- **Rule:** After handoff, local Terraform or Ansible writes are allowed only for declared disaster recovery, the first bootstrap, and the AD-1 `control-plane` owner. The first peer agent is preferably bootstrapped from the healthy existing Jenkins Web UI/controller executor. The first bootstrap's Terraform change is limited to CT110 and its inventory entry, including importing CT110 into state; anything else in the diff stops it. Controller executors reach 0 only through the peer specification's S7 gate and a separate approval, after which a normal Jenkins plan reconciles the result. For every AD-9 event, record operator, command, target, reason, and result; restore CI promptly; then reconcile with a normal Jenkins plan. No later feature or configuration change qualifies, other than the `control-plane` owner.
+- **Rule:** After handoff, local Terraform or Ansible writes are allowed only for declared disaster recovery, the first bootstrap, and the AD-1 `control-plane` owner. The first peer agent is preferably bootstrapped from the healthy existing Jenkins Web UI/controller executor. The first bootstrap's Terraform change is limited to CT110 and its inventory entry, including importing CT110 into state; anything else in the diff stops it. Controller executors reach 0 only after every surviving job runs on the peer with scheduling and cleanup evidence, and a separate approval, after which a normal Jenkins plan reconciles the result. For every AD-9 event, record operator, command, target, reason, and result; restore CI promptly; then reconcile with a normal Jenkins plan. No later feature or configuration change qualifies, other than the `control-plane` owner.
 
 ### AD-10 — Executor capability is provisioned and pinned
 

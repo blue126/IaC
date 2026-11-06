@@ -9,7 +9,7 @@
 - 公共基线：`9e38f6138d17dfed06c488382a073e5267a0f247`。
 - 本地实现提交：`245e217f4f2e5fe96ff59143e0c9f446017ce0fc`；对应 tree：`6181ea6b5229567bda130e1c8240838cb0b378aa`。
 - 本次整理前，已逐项核对原交付摘要中 73 个代码、配置、测试和指南文件的 SHA256，全部与上述提交交付记录一致。本次调整忽略规则、跟踪状态和文档；另将现有文档测试读取的准确性契约移入 `docs/reference/doc-accuracy-contract/`，仅更新读取路径，保留全部断言和原契约字节。Jenkins 运行逻辑未改。
-- [批准的规格](../planning/jenkins-peer-agent-recovery.md)、本记录、[部署指南](../guides/jenkins-agent-bootstrap.md)及[私有应用接入契约](../guides/jenkins-private-app-ci-contract.md)随代码保留。
+- 本记录和[私有应用接入契约](../guides/jenkins-private-app-ci-contract.md)随代码保留。恢复规格和部署指南已于 2026-11-06 删除，待按 [CI-only 架构](../architecture/ci-only-execution-architecture.md)重写。
 - `_bmad-output/` 整体停止跟踪并保留本地文件；其中重复源码清单、各轮补丁、原始模型响应、失败尝试和长篇过程日志不再作为新增交付内容。既有提交历史未改写，因此历史中仍可找到原记录。其他任务在该目录的本地文件同样保留。
 
 ## 实现范围核对

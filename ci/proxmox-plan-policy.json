@@ -19,7 +19,7 @@
     "proxmox/openbao-testbed.tf": "1e721a6b5e18646274cb3de20f7df5c5303bc257388e2cc1d4b9e5dc9b98a301",
     "proxmox/pbs.tf": "05bbd1186b57eaa1ae8a749d44eaaebc548e47a8de49e2fda81cc605fa569269",
     "proxmox/pdm.tf": "4ff58fed3064f5392acd1bc2bca44c167670ad96b9f5c7c3f7c94454371b6f5a",
-    "proxmox/provider.tf": "4f42656b09e2f88df4caf52dbb03c5a872ba6187f9f9bae983d024577a82d363",
+    "proxmox/provider.tf": "941d8910ef3b1df12e4a9343f627060ff0b8c627412c7ace315ffa2a63e59889",
     "proxmox/provisioning.tf": "140e48213de616af6646e3f8979380f18871f44592b4e9b9b9d70e43740f7189",
     "proxmox/pve-cluster.tf": "20bfe065c9384dc9b1258d185af6499cd3052990cb82af62b68b4c0e74ddf716",
     "proxmox/rustdesk.tf": "91dfafd3de53c378aaf57473a83208c5381c0a19d63085ce8efdc8c037c47dad",

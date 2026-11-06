@@ -18,7 +18,6 @@
 
 ## 待部署验收
 
-- **[jenkins-peer-agent-recovery.md](./jenkins-peer-agent-recovery.md)** — 首个 Jenkins peer 的批准规格；本地实现完成，生产移交待验收。
 
 ## 已实现
 
