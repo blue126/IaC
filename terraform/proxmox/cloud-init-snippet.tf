@@ -4,7 +4,8 @@ resource "proxmox_virtual_environment_file" "cloud_init_ubuntu" {
   datastore_id = "local"
   node_name    = "pve0"
 
-  source_file {
-    path = "${path.module}/files/cloud-init-ubuntu.yml"
+  source_raw {
+    data      = file("${path.module}/files/cloud-init-ubuntu.yml")
+    file_name = "cloud-init-ubuntu.yml"
   }
 }
