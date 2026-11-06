@@ -602,12 +602,7 @@ ansible/inventory/
 
 ### Webhook (via Cloudflare Tunnel)
 
-```groovy
-// Jenkins Job 配置
-triggers {
-    githubPush()
-}
-```
+触发器配置在 Jenkins job 里（`GitHubPushTrigger`），不在 `Jenkinsfile` 里。Job 固定使用 `git@github.com:blue126/IaC.git` 的 `*/main` 分支和 `Jenkinsfile`。
 
 **架构变革**:
 - 引入 **Cloudflare Tunnel** 将内网 Jenkins 安全暴露给 GitHub
@@ -620,7 +615,7 @@ triggers {
 2. GitHub 发送 `push` 事件到 `https://jenkins.willfan.me/github-webhook/`
 3. 请求到达 Cloudflare Edge，经由加密隧道转发到 Jenkins 本地 `cloudflared` 守护进程
 4. `cloudflared` 将请求转发给 Jenkins `localhost:8080`
-5. Jenkins 验证 Payload 并触发 Pipeline
+5. Jenkins 按 job 配置匹配仓库和分支，然后触发 Pipeline。目前 GitHub webhook 没有设置 secret，Jenkins 不校验请求签名；目标规则见 [CI-only 架构](./ci-only-execution-architecture.md) 的 AD-13
 
 ### 触发条件
 
