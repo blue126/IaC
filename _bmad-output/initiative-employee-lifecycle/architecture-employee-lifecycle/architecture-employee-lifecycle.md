@@ -76,7 +76,7 @@ flowchart LR
 | VM 电源状态 | PVE（Terraform 不管理） | 只由执行器按 AD-16 开关 |
 | 员工、邮箱、设备、overlay、主机公钥 | 网站 D1 的 `employees` 表（catalog） | 执行器的 `catalog.json` 是本地快照，registry 为派生视图 |
 | 接入开关（用户/设备 Disabled、DisabledReason） | wg-portal | 执行器与 timer 经同一 Portal API 增删自己的原因 |
-| 私钥 | BWS `remotecc` | 只在运行时物化；设备包在 R2 中临时存放（AD-17） |
+| 私钥 | BWS `remotecc` | 运行时物化；设备包含私钥，网站 D1 存一份，保存到退役或被同设备的新包替换（AD-17）；执行器本地另留一份供 `wsctl reissue` 使用 |
 | HAPI 能否使用 | 不存储：员工在册且未到期（AD-3、AD-20） | VM500 的 `config.json` 中的 routes、`tokens/`、`credentials.json`、`agents.json`、`authorize.inc`、两份 Nginx 配置和 9443 worker 防火墙规则都是派生内容，只由 `hapi-ctl` 写入（AD-23） |
 | VM500 信任配置（issuer、audience、origin、Hub 监听地址） | IaC 写入的 `trust.json` | `config.json` 中的同名字段是 `hapi-ctl` 生成的副本 |
 | `employee-access.nft` 的基础规则 | VM500 现有文件 | `hapi-ctl` 原样保留；从零重建见 Deferred |
@@ -91,18 +91,22 @@ flowchart LR
 
 - **Binds:** `hub-status`、Semaphore 视图
 - **Prevents:** 存储的状态与 Portal 页面手工操作或 Terraform 现实不一致
-- **Rule:** 任何组件不得持久化"正常/已停用/已到期/可退役/已退役"之类的员工生命周期字段。状态按下图从事实计算；"可退役"由读取方按 `now > paid_through + 3 天` 现算。`paid_through` 是业务事实，不属于生命周期状态。
+- **Rule:** 任何组件不得持久化"正常/已停用/已到期/可退役/已退役"之类的员工生命周期字段。状态按下图从事实计算；"可退役"由读取方按 `now > paid_through + 3 天` 现算。`paid_through` 是业务事实，不属于生命周期状态。判定优先级固定：不到期、可退役、已到期、已停用、正常。优先级只决定显示的状态，不到期的员工仍受配额和人工停用约束。
 
 ```mermaid
 stateDiagram-v2
   [*] --> 正常: provision 完成（catalog 有员工 ∧ Terraform 有 VM ∧ paid_through = 当月月底）
   正常 --> 已停用: Portal 有人工/配额原因
   已停用 --> 正常: 原因清空
-  正常 --> 已到期: Portal 有 expired ∧ VM 已关机
+  正常 --> 已到期: now > paid_through（断开和关机随后生效）
   已到期 --> 正常: renew 后 expired 移除 ∧ VM 开机
   已到期 --> 可退役: now > paid_through + 3 天
   可退役 --> 正常: 退役执行前 renew
   可退役 --> [*]: 退役完成（catalog、Terraform、Portal、BWS 均无该员工）
+  正常 --> 不到期: catalog 打上 no_expiry
+  已到期 --> 不到期: 打标，expired 不自动清除（AD-8）
+  不到期 --> 正常: 去掉标记并写入未来的 paid_through
+  不到期 --> [*]: 管理员点名强制退役
 ```
 
 ### AD-4 — 发起方调用对方 [ADOPTED]
@@ -115,7 +119,7 @@ stateDiagram-v2
 
 - **Binds:** 申请网站、catalog、Portal、Terraform、主机名、OCI 快照、设备包、员工本机 SSH 配置、交付邮件
 - **Prevents:** 跨系统无法关联
-- **Rule:** 邮箱（小写规范化）是员工的唯一外部标识。`employee_id` 由邮箱按现有派生规则生成，是内部跨系统键：Portal 身份 `oci-hub:user:<employee_id>` / `oci-hub:vm:<employee_id>`，主机名 `oci-hub-<employee_id>`，Terraform 清单键 `<employee_id>`。OCI 快照只含 `employee_id`，不含邮箱。HAPI 的 route `email` 与 Cloudflare Access 放行邮箱就是员工邮箱，`namespace` 与 `workspace_id` 取 `employee_id`。VM 系统 hostname 与 PVE VM 名都保持 `oci-hub-<employee_id>`，不改名（2026-11-04 用户决定）。员工只用登录别名 `<employee_id>-vm`（如 `mosh alice-vm`），别名不存储：设备包的 `vm_hostname` 仍是 `oci-hub-<employee_id>`，员工本机 bootstrap 由它推出别名写入 SSH 配置；网站和邮件由 `employee_id` 拼出。网站状态里的 `hostname` 字段是这个别名，不是系统 hostname。
+- **Rule:** 邮箱（小写规范化）是员工的唯一外部标识。`employee_id` 由邮箱按现有派生规则生成，是内部跨系统键：Portal 身份 `oci-hub:user:<employee_id>` / `oci-hub:vm:<employee_id>`，主机名 `oci-hub-<employee_id>`，Terraform 清单键 `<employee_id>`。OCI 快照只含 `employee_id`，不含邮箱。HAPI 的 route `email` 与 Cloudflare Access 放行邮箱就是员工邮箱，`namespace` 与 `workspace_id` 取 `employee_id`。VM 系统 hostname 与 PVE VM 名都保持 `oci-hub-<employee_id>`，不改名（2026-11-04 用户决定）。员工只用登录别名 `<employee_id>-vm`（如 `mosh alice-vm`）。别名是派生值，不是事实来源：设备包的 `vm_hostname` 仍是 `oci-hub-<employee_id>`，员工本机 bootstrap 和交付邮件由它推出别名，网站由 `employee_id` 拼出。网站状态里的 `hostname` 字段是这个别名，不是系统 hostname；设备包 manifest 的 `ssh_alias` 是 `oci-hub-<device_id>`，也不是登录别名。
 
 ### AD-6 — 开户以网站申请为单位
 
@@ -131,9 +135,9 @@ stateDiagram-v2
 
 ### AD-8 — 计费周期与续费
 
-- **Binds:** `wsctl provision`、`wsctl renew`、`wsctl remind`、`wsctl retire`、`hub-status`、状态副本、OCI timer、到期关机任务
+- **Binds:** `wsctl provision`、`wsctl renew`、`wsctl remind`、`wsctl retire`、`wsctl hapi-sync`、`hub-status`、状态副本、申请网站、OCI timer、到期关机任务
 - **Prevents:** 各处对"到期"理解不同
-- **Rule:** `paid_through` 恒为某个自然月最后一刻（`Australia/Sydney`，`23:59:59`）。开户时为当月月底。`wsctl renew <邮箱> N`：若未过期，在原到期月上加 N 个月；若已过期，从本月起加 N 个月；结果取那个月的月底。续费只改 `paid_through` 并推送快照，不重新开户、不重发设备包。无宽限期。`no_expiry` 是 catalog 的员工标记，表示不到期，管理员可在 D1 控制台改。是否到期只有一条判定：`paid_through` 有值且没有 `no_expiry`，OCI 快照、到期关机和提醒都用它。标记优先于任何 `paid_through` 值：员工不进 OCI 快照，生命周期显示 `no_expiry`，不提醒、不断开、不关机，`wsctl retire` 不列入，`wsctl renew` 拒绝，开户不写 `paid_through`，网站不显示到期日。带标记的员工只能由管理员点名强制退役。例外：timer 不处理快照外的员工（AD-9），已带 `expired` 的员工打标后这个原因不会自动清除，打标前要先续费到未来日期。
+- **Rule:** `paid_through` 恒为某个自然月最后一刻（`Australia/Sydney`，`23:59:59`）。开户时为当月月底。`wsctl renew <邮箱> N`：若未过期，在原到期月上加 N 个月；若已过期，从本月起加 N 个月；结果取那个月的月底。续费只改 `paid_through` 并推送快照，不重新开户、不重发设备包。无宽限期。`no_expiry` 是 catalog 的员工标记，表示不到期，管理员可在 D1 控制台改；开户入口不打标，新员工都先有 `paid_through`。谁受到期约束只有一条判定：`paid_through` 有值且没有 `no_expiry`，OCI 快照、到期关机、提醒和 HAPI 都用它；受约束且 `now > paid_through` 才算到期。退役等待的 3 天按悉尼日历日计，只由 `hub-status` 判定。既无日期也无标记的行按这条判定不受约束，这是数据缺失，不是第二种豁免，所以去标时要同时写入日期。标记优先于任何 `paid_through` 值：员工不进 OCI 快照，生命周期显示 `no_expiry`，不提醒、不断开、不关机，`wsctl retire` 不列入，`wsctl renew` 拒绝，网站读 catalog 时不显示到期日。带标记的员工只能由管理员点名强制退役。例外：timer 不处理快照外的员工（AD-9），已带 `expired` 的员工打标后这个原因不会自动清除，打标前要先 `renew` 到未来日期并等 timer 移除 `expired`；这条例外随 `_bmad-output/backlog/story-no-expiry-clears-expired.md` 上线后删除。`enforce` 的快照推送（AD-12）落地前，控制台打标后要立刻运行 `wsctl expiry`，否则 timer 仍按旧日期断开。存量员工已在 2026-11-01 由 `wsctl expiry --initialize` 完成初始化。
 
 ### AD-9 — 到期断开在 OCI 执行
 
@@ -145,7 +149,7 @@ stateDiagram-v2
 
 - **Binds:** `wsctl retire`、Semaphore 退役模板
 - **Prevents:** 误删付费员工；遗留孤儿资源
-- **Rule:** 退役永不自动执行。`wsctl retire` 一次列出所有满足 `now > paid_through + 3 天` 的员工及每人将删除的内容（Terraform 销毁、Portal 用户与设备、HAPI 的 Access 放行与 route/credential/agent、BWS 密钥、R2 设备包、catalog 记录），管理员确认一次即批量执行（AD-1）。执行每个员工前重新读取 catalog 中的 `paid_through`，已续费则跳过。VM 记录的删除用 catalog generation 条件写入，是退役的提交点：控制台续期会改变 generation，写入失败就放弃该员工的退役；提交点之后的续期不再挽回。退役不备份，VM 数据永久删除。删除顺序：VM 记录（AD-28，提交点）→ Portal 身份和 OCI Hub 账本 → Terraform VM、VNet → PVE 防火墙 apply → BWS → R2 → catalog → `hapi-sync`（route、credential、agent、令牌和 Access 放行随 catalog 派生）→ 推送快照；`hapi-sync` 成功是退役完成的条件，失败时下一次 `enforce` 让 route 下线，名单为空时 `enforce` 不送（AD-23），由续跑退役完成。中断后可按运行记录续跑。退役运行完成并核验后，VMID、网卡槽位、overlay 与设备地址才回到池中，可分配给新员工，此前由运行记录占用，续跑绑定原资源身份（2026-11-02 用户决定，取代原"永不回收"）；OCI Hub 上 `retire` 同时从账本和 nft set 删除配对，VM、VNet 删除后触发 PVE 防火墙 apply。同一邮箱退役后再开户按新申请处理。
+- **Rule:** 退役永不自动执行。`wsctl retire` 一次列出所有满足 `now > paid_through + 3 天` 的员工及每人将删除的内容（Terraform 销毁、Portal 用户与设备、HAPI 的 Access 放行与 route/credential/agent、BWS 密钥、网站设备包、catalog 记录），管理员确认一次即批量执行（AD-1）。执行每个员工前重新读取 catalog 中的 `paid_through`，已续费则跳过。VM 记录的删除用 catalog generation 条件写入，是退役的提交点：控制台续期会改变 generation，写入失败就放弃该员工的退役；提交点之后的续期不再挽回。退役不备份，VM 数据永久删除。删除顺序：VM 记录（AD-28，提交点）→ Portal 身份和 OCI Hub 账本 → Terraform VM、VNet → PVE 防火墙 apply → BWS → 网站设备包 → catalog → `hapi-sync`（route、credential、agent、令牌和 Access 放行随 catalog 派生）→ 推送快照；`hapi-sync` 成功是退役完成的条件，失败时下一次 `enforce` 让 route 下线，名单为空时 `enforce` 不送（AD-23），由续跑退役完成。中断后可按运行记录续跑。退役运行完成并核验后，VMID、网卡槽位、overlay 与设备地址才回到池中，可分配给新员工，此前由运行记录占用，续跑绑定原资源身份（2026-11-02 用户决定，取代原"永不回收"）；OCI Hub 上 `retire` 同时从账本和 nft set 删除配对，VM、VNet 删除后触发 PVE 防火墙 apply。同一邮箱退役后再开户按新申请处理。
 
 ### AD-11 — Portal 对账
 
@@ -163,7 +167,7 @@ stateDiagram-v2
 
 - **Binds:** 申请网站、`wsctl request`
 - **Prevents:** 公网入口触及内部系统；表单被刷
-- **Rule:** 网站提供规格介绍、联系方式、申请表与设备包下载页（AD-17），员工查询见 AD-21。部署在 Cloudflare Worker，绑定域名 `cc.willfan.me`（不使用 `*.workers.dev`），页面移动端优先。提交接口先校验 Turnstile，再按 IP 限频；Turnstile 无法加载时只靠限频。D1 存申请内容、下载记录和 catalog，不存凭据。管理接口只接受执行器持有的令牌，只提供：列出未处理申请、标记已处理、上传/删除设备包、读取下载记录、读写 catalog 和 VM 记录（条件写入）。另有一个配对接口，只接受 OCI Hub 的只读令牌，返回 `{"schema":1,"generation":N,"pairs":[{"device":"<设备隧道 IPv4>","workspace":"<VM overlay IPv4>"}]}`，`generation` 是 catalog generation，包含开户中的记录，不含 VMID 算出的物理地址。
+- **Rule:** 网站提供规格介绍、联系方式和申请表，登录后的设备包下载见 AD-17，员工查询见 AD-21。部署在 Cloudflare Worker，绑定域名 `cc.willfan.me`（不使用 `*.workers.dev`），页面移动端优先。提交接口先校验 Turnstile，再按 IP 限频；Turnstile 无法加载时只靠限频。D1 存申请内容、下载记录、catalog、状态副本和设备包。除设备包内的私钥（AD-17 已接受的风险）外，D1 不存凭据。管理接口只接受执行器持有的令牌，只提供：列出未处理申请、标记已处理、上传/删除设备包、读取下载记录、读写 catalog 和 VM 记录（条件写入）。另有一个配对接口，只接受 OCI Hub 的只读令牌，返回 `{"schema":1,"generation":N,"pairs":[{"device":"<设备隧道 IPv4>","workspace":"<VM overlay IPv4>"}]}`，`generation` 是 catalog generation，包含开户中的记录，不含 VMID 算出的物理地址。
 
 ### AD-14 — 到期提醒与管理员摘要
 
@@ -185,15 +189,15 @@ stateDiagram-v2
 
 ### AD-17 — 设备包下载
 
-- **Binds:** `wsctl provision`/`reissue`/`retire`、申请网站、R2
+- **Binds:** `wsctl provision`/`deliver`/`reissue`/`retire`、申请网站、D1
 - **Prevents:** 依赖不可靠的外部临时网盘；设备包或下载链接经邮件外传；VM 还在而设备包已失效
-- **Rule:** 执行器把设备包上传到申请网站（存于 D1；Worker 内以 put/get/delete 封装，需要大文件时换 R2），替代 Temp.sh。员工登录网站（AD-21）后在"我的工作区"下载，不限次数；每次下载只记录设备、渠道和时间。邮件不带设备包和下载链接，开通和重发都只是通知。设备包与 VM 同寿命，不按时间或次数失效：保存到员工退役或被同设备的新包替换，同一设备只留最新一份。设备包不另加密码，包内私钥因此长期留在 D1。`wsctl reissue` 重新上传现有设备包并重发通知，不轮换密钥；`endpoint` 变更要用重建设备包的新命令（见 IP 变更预案）（2026-11-07 用户决定）。
+- **Rule:** 执行器把设备包上传到申请网站（存于 D1；Worker 内以 put/get/delete 封装，需要大文件时换 R2），替代 Temp.sh。员工登录网站（AD-21）后在"我的工作区"下载，不限次数；每次下载只记录设备、渠道和时间。邮件不带设备包和下载链接，开通和重发都只是通知。设备包与 VM 同寿命，不按时间或次数失效：保存到员工退役或被同设备的新包替换，同一设备只留最新一份。设备包不另加密码，包内私钥因此长期留在 D1，邮箱被攻破即可取得设备私钥；这是已接受的风险（2026-11-02 用户选 B）。执行器本地另留一份供 `wsctl reissue` 使用，现有 `wsctl retire` 不删这份。`wsctl reissue` 重新上传现有设备包并重发通知，不轮换密钥；`endpoint` 变更要用重建设备包的新命令（见 IP 变更预案）（2026-11-07 用户决定）。
 
 ### AD-18 — 小程序入口
 
 - **Binds:** 微信小程序、uniCloud 云函数与云数据库
 - **Prevents:** 小程序后端成为第二个事实来源；未登录提交；云端持有凭据
-- **Rule:** 小程序以个人主体备案，后端为 uniCloud 支付宝云免费空间，请求域名用 uniCloud 自带域名，不另办备案。员工经微信登录（openid）后可查看规格、提交申请、查看自己的状态与到期日；提交按 openid 限频。云数据库只存申请、邮箱验证码哈希与执行器推送的状态副本，不存私钥。云端唯一的凭据是仅有发信权限的 Resend 密钥，用于发送邮箱验证码（2026-11-02 用户决定放宽）。员工经微信登录后，还需邮箱验证码证明邮箱归属，才能看到该邮箱的状态。云函数的管理接口只接受执行器持有的令牌。小程序不提供设备包下载，设备包始终经邮件链接到网站下载（AD-17）。云端数据丢失时由执行器重新推送恢复。页面不出现收费或付款字样。
+- **Rule:** 小程序以个人主体备案，后端为 uniCloud 支付宝云免费空间，请求域名用 uniCloud 自带域名，不另办备案。员工经微信登录（openid）后可查看规格、提交申请、查看自己的状态与到期日；提交按 openid 限频。云数据库只存申请、邮箱验证码哈希与执行器推送的状态副本，不存私钥。云端唯一的凭据是仅有发信权限的 Resend 密钥，用于发送邮箱验证码（2026-11-02 用户决定放宽）。员工经微信登录后，还需邮箱验证码证明邮箱归属，才能看到该邮箱的状态。云函数的管理接口只接受执行器持有的令牌。小程序不提供设备包下载，员工登录网站后在"我的工作区"下载（AD-17）。云端数据丢失时由执行器重新推送恢复。页面不出现收费或付款字样。
 
 ### AD-19 — 多入口申请汇总
 
@@ -211,7 +215,7 @@ stateDiagram-v2
 
 - **Binds:** 申请网站、微信小程序、执行器状态推送
 - **Prevents:** 两个入口说法不一、状态各自为政
-- **Rule:** 网站与小程序都提供规格、申请与"我的工作区"三部分。员工经邮箱验证码证明邮箱归属后查看该邮箱的状态与到期日；网站验证后签发 2 小时有效的 HttpOnly 会话 cookie，过期需重新验证。网站"我的工作区"页是设备包唯一的下载入口（AD-17），小程序只提示到网站下载（AD-18）。状态只来自执行器推送的副本（与 uniCloud 相同的字段），网站与小程序不自行推导。两端文案来自同一份 JSON 文案源，构建时分别生成；视觉采用一套新设计，两端共用同一组设计 token。
+- **Rule:** 网站与小程序都提供规格、申请与"我的工作区"三部分。员工经邮箱验证码证明邮箱归属后查看该邮箱的状态与到期日，验证码 10 分钟有效、最多试 5 次、只存哈希、成功后作废；网站验证后签发 2 小时有效的 HttpOnly 会话 cookie，过期需重新验证。网站"我的工作区"页是设备包唯一的下载入口（AD-17），小程序只提示到网站下载（AD-18）。运行状态只来自执行器推送的副本，网站与小程序不自行推导；网站的到期日、登录别名和设备列表不在副本里，读 D1 catalog（AD-2）。uniCloud 读不到 D1，它的副本要多带到期日，字段等小程序恢复时定。副本是可重建的展示投影，不算 AD-3 禁止的状态存储；执行器每小时整份重发，`generation` 是发布序号，不是 catalog generation，接收方拒绝不更大的值。两端文案来自同一份 JSON 文案源，构建时分别生成；视觉采用一套新设计，两端共用同一组设计 token。
 
 ### AD-22 — HAPI 应用版本发布
 
@@ -249,7 +253,7 @@ AD-25 至 AD-32 是 2026-11 更新确定的目标状态，落地前以现有代�
 
 - **Binds:** `firewall.py`、OCI Hub 上的 `wireguardusrmgr.py`（原 `services/oci-hub/executor.py`，配置原 `executor.json`，改名和 `firewall` 同一 story）、`register`、`retire`、`readdress`、网站配对接口
 - **Prevents:** 公开代码调用私有代码；配对存两份；加人时重写规则
-- **Rule:** OCI Hub 规则固定，归 OS 层；设备与工作区的配对是 nft set 的元素。所有 nft 操作都在 `firewall.py`：加载规则和 set，重载时保留元素，`pairs` 动作从 stdin 接收完整配对列表，在一个事务里替换元素。重载和 `pairs` 共用一把 OCI Hub 本机锁，读取、保留和替换都在锁内。`wireguardusrmgr.py` 是 `pairs` 的唯一调用者：用只读令牌从网站配对接口读取完整配对（AD-13），定时拉取，`register`、`retire`、`readdress` 后立即拉取，开机后第一次拉取完成填充。读取失败时不动现有元素，开机时读不到就保持空 set 并重试。set 未填入时设备和 VM 之间不通。`firewall.py` 的规则校验排除 set 元素，配对校验归 `wireguardusrmgr.py`。账本继续服务配额，不作为配对来源。Mosh 是规则里的固定范围 60000-61000，不进 set 元素，`mosh_ports` 字段废弃。逐配对的 iptables FORWARD 规则改成按接口的静态规则，由先运行的 nft 链丢弃未配对流量。`firewall.py` 不读 D1 和账本，`wireguardusrmgr.py` 不写 nft 语法，两边只共享 `pairs` 的输入，也就是配对接口的响应（AD-13）。`firewall.py` 在本机锁内记录已接受的 generation，拒绝更旧的响应，相同 generation 可重放。空列表合法，格式不符就失败且不动现有元素。`interfaces` 经 role 生成的 `wireguardusrmgr.json` 下发。配对在 `registered` 之后、`enabled` 之前生效，`wsctl` 不触发 OCI Hub 的 apply。上线时先发布新 `wireguardusrmgr.py`，它在 `firewall.py` 还没有 `pairs` 动作时跳过更新，再切规则。PVE 规则暂不改 set
+- **Rule:** OCI Hub 规则固定，归 OS 层；设备与工作区的配对是 nft set 的元素。所有 nft 操作都在 `firewall.py`：加载规则和 set，重载时保留元素，`pairs` 动作从 stdin 接收完整配对列表，在一个事务里替换元素。重载和 `pairs` 共用一把 OCI Hub 本机锁，读取、保留和替换都在锁内。`wireguardusrmgr.py` 是 `pairs` 的唯一调用者：用只读令牌从网站配对接口读取完整配对（AD-13），定时拉取，`register`、`retire`、`readdress` 后立即拉取，开机后第一次拉取完成填充。读取失败时不动现有元素，开机时读不到就保持空 set 并重试。set 未填入时设备和 VM 之间不通。`firewall.py` 的规则校验排除 set 元素，配对校验归 `wireguardusrmgr.py`。账本继续服务配额，不作为配对来源。Mosh 是规则里的固定范围 60000-61000，不进 set 元素，`mosh_ports` 字段废弃。逐配对的 iptables FORWARD 规则改成按接口的静态规则，由先运行的 nft 链丢弃未配对流量。`firewall.py` 不读 D1 和账本，`wireguardusrmgr.py` 不写 nft 语法，两边只共享 `pairs` 的输入，也就是配对接口的响应（AD-13）。网站配对接口的 `generation` 和配对内容必须来自同一份一致快照，影响配对的写入都要让 `generation` 前进，所以相同 generation 的配对内容必须相同。`firewall.py` 在本机锁内记录已接受的 generation 和内容摘要，拒绝更旧的响应；相同 generation 内容相同时可重放，内容不同就失败且不动现有元素。空列表合法，格式不符就失败且不动现有元素。`interfaces` 经 role 生成的 `wireguardusrmgr.json` 下发。配对在 `registered` 之后、`enabled` 之前生效，`wsctl` 不触发 OCI Hub 的 apply。上线时先发布新 `wireguardusrmgr.py`，它在 `firewall.py` 还没有 `pairs` 动作时跳过更新，再切规则。PVE 规则暂不改 set
 
 ### AD-28 — VM 记录归 D1 [ADOPTED]
 
@@ -442,7 +446,7 @@ flowchart LR
 | uniCloud 付费空间 | 先用免费空间；续期负担或额度超标停服成为问题时再升级 |
 | PVE 只读 API token | 执行器与 PVE 同在局域网，沿用现有访问方式；需要更细权限时再加 |
 | 执行器 VM 的具体规格、Tailscale 接入细节、Semaphore 数据库 | 建 VM 时定，不影响命令契约 |
-| R2 | 设备包约 1.6 KB 且即删，存 D1 即可（2026-11-01）；需要放大文件时再开通 R2，只改 Worker 存取封装 |
+| R2 | 设备包很小，Worker 上限 64 KiB，长期存 D1 即可（AD-17）；需要放大文件时再开通 R2，要改 Worker 存取封装和读取 `bundles.data` 判断可用性的查询 |
 | 邮箱变更 | 当前无此需求；变更等同新员工 |
 | Hub 二进制并入版本发布 | 有状态、带迁移门禁、很少升级；继续由 `hapi-shared-hub` 管理 |
 | VM500 从零重建 | 恢复靠 VM 级备份，从零重建是备用方案；防火墙基础规则只存在于现有文件，真要走备用方案时再定来源和启动顺序 |
