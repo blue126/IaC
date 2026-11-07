@@ -113,9 +113,9 @@ stateDiagram-v2
 
 ### AD-5 — 统一标识 [ADOPTED]
 
-- **Binds:** 申请网站、catalog、Portal、Terraform、主机名、OCI 快照
+- **Binds:** 申请网站、catalog、Portal、Terraform、主机名、OCI 快照、设备包、员工本机 SSH 配置、交付邮件
 - **Prevents:** 跨系统无法关联
-- **Rule:** 邮箱（小写规范化）是员工的唯一外部标识。`employee_id` 由邮箱按现有派生规则生成，是内部跨系统键：Portal 身份 `oci-hub:user:<employee_id>` / `oci-hub:vm:<employee_id>`，主机名 `oci-hub-<employee_id>`，Terraform 清单键 `<employee_id>`。OCI 快照只含 `employee_id`，不含邮箱。HAPI 的 route `email` 与 Cloudflare Access 放行邮箱就是员工邮箱，`namespace` 与 `workspace_id` 取 `employee_id`。
+- **Rule:** 邮箱（小写规范化）是员工的唯一外部标识。`employee_id` 由邮箱按现有派生规则生成，是内部跨系统键：Portal 身份 `oci-hub:user:<employee_id>` / `oci-hub:vm:<employee_id>`，主机名 `oci-hub-<employee_id>`，Terraform 清单键 `<employee_id>`。OCI 快照只含 `employee_id`，不含邮箱。HAPI 的 route `email` 与 Cloudflare Access 放行邮箱就是员工邮箱，`namespace` 与 `workspace_id` 取 `employee_id`。VM 系统 hostname 与 PVE VM 名都保持 `oci-hub-<employee_id>`，不改名（2026-11-04 用户决定）。员工只用登录别名 `<employee_id>-vm`（如 `mosh alice-vm`），别名不存储：设备包的 `vm_hostname` 仍是 `oci-hub-<employee_id>`，员工本机 bootstrap 由它推出别名写入 SSH 配置；网站和邮件由 `employee_id` 拼出。网站状态里的 `hostname` 字段是这个别名，不是系统 hostname。
 
 ### AD-6 — 开户以网站申请为单位
 
@@ -131,9 +131,9 @@ stateDiagram-v2
 
 ### AD-8 — 计费周期与续费
 
-- **Binds:** `wsctl provision`、`wsctl renew`、OCI timer、到期关机任务
+- **Binds:** `wsctl provision`、`wsctl renew`、`wsctl remind`、`wsctl retire`、`hub-status`、状态副本、OCI timer、到期关机任务
 - **Prevents:** 各处对"到期"理解不同
-- **Rule:** `paid_through` 恒为某个自然月最后一刻（`Australia/Sydney`，`23:59:59`）。开户时为当月月底。`wsctl renew <邮箱> N`：若未过期，在原到期月上加 N 个月；若已过期，从本月起加 N 个月；结果取那个月的月底。续费只改 `paid_through` 并推送快照，不重新开户、不重发设备包。无宽限期。
+- **Rule:** `paid_through` 恒为某个自然月最后一刻（`Australia/Sydney`，`23:59:59`）。开户时为当月月底。`wsctl renew <邮箱> N`：若未过期，在原到期月上加 N 个月；若已过期，从本月起加 N 个月；结果取那个月的月底。续费只改 `paid_through` 并推送快照，不重新开户、不重发设备包。无宽限期。`no_expiry` 是 catalog 的员工标记，表示不到期，管理员可在 D1 控制台改。是否到期只有一条判定：`paid_through` 有值且没有 `no_expiry`，OCI 快照、到期关机和提醒都用它。标记优先于任何 `paid_through` 值：员工不进 OCI 快照，生命周期显示 `no_expiry`，不提醒、不断开、不关机，`wsctl retire` 不列入，`wsctl renew` 拒绝，开户不写 `paid_through`，网站不显示到期日。带标记的员工只能由管理员点名强制退役。例外：timer 不处理快照外的员工（AD-9），已带 `expired` 的员工打标后这个原因不会自动清除，打标前要先续费到未来日期。
 
 ### AD-9 — 到期断开在 OCI 执行
 
@@ -186,8 +186,8 @@ stateDiagram-v2
 ### AD-17 — 设备包下载
 
 - **Binds:** `wsctl provision`/`reissue`/`retire`、申请网站、R2
-- **Prevents:** 依赖不可靠的外部临时网盘；私钥长期暴露；邮件预扫描用掉下载次数
-- **Rule:** 执行器把设备包上传到申请网站（存于 D1；Worker 内以 put/get/delete 封装，需要大文件时换 R2），并给员工发一封带随机下载链接的邮件，替代 Temp.sh。链接 24 小时内有效，最多下载 3 次；链接打开的是下载页，需点击按钮才下载。下载满 3 次或过期后，Worker 删除文件；需要重新下载时由 `wsctl reissue` 重发现有设备包；`endpoint` 变更要用重建设备包的新命令（见 IP 变更预案）。设备包不另加密码。员工在网站登录（AD-21）后，"我的工作区"页也可在同一有效期内下载，与邮件链接共用 3 次额度；失效后显示"请联系管理员重新发送"（2026-11-02 用户决定）。
+- **Prevents:** 依赖不可靠的外部临时网盘；设备包或下载链接经邮件外传；VM 还在而设备包已失效
+- **Rule:** 执行器把设备包上传到申请网站（存于 D1；Worker 内以 put/get/delete 封装，需要大文件时换 R2），替代 Temp.sh。员工登录网站（AD-21）后在"我的工作区"下载，不限次数；每次下载只记录设备、渠道和时间。邮件不带设备包和下载链接，开通和重发都只是通知。设备包与 VM 同寿命，不按时间或次数失效：保存到员工退役或被同设备的新包替换，同一设备只留最新一份。设备包不另加密码，包内私钥因此长期留在 D1。`wsctl reissue` 重新上传现有设备包并重发通知，不轮换密钥；`endpoint` 变更要用重建设备包的新命令（见 IP 变更预案）（2026-11-07 用户决定）。
 
 ### AD-18 — 小程序入口
 
@@ -211,7 +211,7 @@ stateDiagram-v2
 
 - **Binds:** 申请网站、微信小程序、执行器状态推送
 - **Prevents:** 两个入口说法不一、状态各自为政
-- **Rule:** 网站与小程序都提供规格、申请与"我的工作区"三部分。员工经邮箱验证码证明邮箱归属后查看该邮箱的状态与到期日；网站验证后签发 2 小时有效的 HttpOnly 会话 cookie，过期需重新验证。网站"我的工作区"页同时提供设备包下载（AD-17），小程序只提示到网站下载（AD-18）。状态只来自执行器推送的副本（与 uniCloud 相同的字段），网站与小程序不自行推导。两端文案来自同一份 JSON 文案源，构建时分别生成；视觉采用一套新设计，两端共用同一组设计 token。
+- **Rule:** 网站与小程序都提供规格、申请与"我的工作区"三部分。员工经邮箱验证码证明邮箱归属后查看该邮箱的状态与到期日；网站验证后签发 2 小时有效的 HttpOnly 会话 cookie，过期需重新验证。网站"我的工作区"页是设备包唯一的下载入口（AD-17），小程序只提示到网站下载（AD-18）。状态只来自执行器推送的副本（与 uniCloud 相同的字段），网站与小程序不自行推导。两端文案来自同一份 JSON 文案源，构建时分别生成；视觉采用一套新设计，两端共用同一组设计 token。
 
 ### AD-22 — HAPI 应用版本发布
 
