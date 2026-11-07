@@ -55,3 +55,4 @@ risk: high
 
 - Decision: 2026-11-07 用户批准切分和 story 大纲。本 epic 的需求全部来自 initiative，不需要再补输入。
 - Decision: 2026-11-07 tracer bullet 是 11.1：改名不改行为，但穿过公开代码、私有代码、两个 role 和两台主机，先证明这条路径通。改名按 AD-26 和 AD-27 在一个 story 里完成。
+- Decision: 2026-11-07 用户同意收紧 AD-27：相同 generation 的配对内容必须相同。11.4 至 11.6 按收紧后的主干实现。
