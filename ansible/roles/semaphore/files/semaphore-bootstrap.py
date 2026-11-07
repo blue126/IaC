@@ -26,9 +26,8 @@ TEMPLATES={
         field('WSCTL_APPLICATION','申请编号','wsctl request 输出的编号。和邮箱二选一。'),
         field('WSCTL_EMAIL','邮箱','不走申请时直接填员工邮箱。和申请编号二选一。'),APPROVE],True,
         '开户。先留空批准码运行，看计划；再填批准码运行。结果是 workspace_created_stopped 时，用同样内容再做一遍，直到 configured。开户不发信，之后运行 wsctl deliver。'),
-    'wsctl deliver':(['deliver'],[DEVICE,
-        field('WSCTL_NOTIFY','发邮件','留空：把设备包上传到网站。上传完成后填 yes：发开通邮件。'),APPROVE],False,
-        '开户后发包，分两步，每步都是先计划再批准：先留空“发邮件”上传设备包，再填 yes 发开通邮件。'),
+    'wsctl deliver':(['deliver'],[DEVICE,APPROVE],False,
+        '开户后发包：一次批准同时把设备包上传到网站并发出开通邮件。先留空批准码看计划，核对收件人和邮件后填批准码执行。'),
     'wsctl reissue':(['reissue'],[DEVICE,APPROVE],False,'用原包重新上传并重发通知邮件。不换密钥，不重新开户。'),
     'wsctl renew':(['renew'],[
         field('WSCTL_EMPLOYEE','员工','邮箱或 employee_id。同一邮箱有多名员工时填 employee_id。'),

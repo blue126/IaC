@@ -40,6 +40,13 @@ class Templates(unittest.TestCase):
         self.assertFalse(override)
         self.assertNotIn("wsctl retire", self.bootstrap["SCHEDULES"])
 
+    def test_deliver_approves_the_upload_and_the_mail_together(self):
+        arguments, fields, override = self.template("wsctl deliver")
+        self.assertEqual(arguments, ["deliver"])
+        self.assertEqual(fields, ["WSCTL_DEVICE", "WSCTL_APPROVE"])
+        self.assertFalse(override)
+        self.assertNotIn("wsctl deliver", self.bootstrap["SCHEDULES"])
+
 
 if __name__ == "__main__":
     unittest.main()
