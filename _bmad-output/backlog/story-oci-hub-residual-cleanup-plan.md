@@ -15,8 +15,16 @@ review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      deliver 续跑发信前不重新核对网站仍保存该包（WILL-115 流程原有行为）
+    evidence: |-
+      明确拒信后回执回到 verified，publish() 跳过 site_verify，verify_end_to_end 只查运行时映射；若期间包被替换或撤下，同一批准仍会发信。reissue() 有专门防护，deliver 路径没有。非本次清理引入。
+    location: >-
+      wsctl/oci-hub-admin.py:587-590
+    severity: medium (unverified)
 ---
+
 
 <intent-contract>
 
@@ -80,6 +88,7 @@ deferred: []
 - 删除 `deliver-temp.py` 的 `main()` 与 `test_mail` 参数后，`templates/test-notice.html` 失去唯一调用方，一并删除；`mail_subject()` 不再接收 `test_mail`。
 - `tests/oci-hub/inventory.yml` 的 `oci_hub_mosh_gateway` 组只服务已删除的 playbook，移除该组。`docs/deployment/mosh-oci-hub-pilot.md` 里的同名组描述的是私有 `mosh_inventory` 契约，`settings.json` 仍使用它，故保留。
 - OCI Hub 只读核对（2026-11-07）：`/opt/oci-hub/backup-readdress-20261103`（executor.py 8296640…、portal.py 38e3486…）与 `/etc/oci-hub/portal.yaml.2335891.2026-10-30@06:32:23~`（f858f5c…）存在；在 `/etc`、`/opt`、`/var`、`/usr`、`/root` 搜索两个路径只命中 `auth.log` 中本次 sudo 记录。删除后两路径均不存在；`oci-hub-portal.service` active/running（启动于 2026-11-06 12:08，未因删除重启），`oci-hub-boundary.service` active/exited，`oci-hub-quota.timer` active/waiting。
+- 2026-11-07 集成：远端私有 main 在清理提交之后新增 `c1f6bfb`（Semaphore 模板）和 `e0c88ac`（WILL-115 合并上传与发信批准），两者都改了同一批文件。清理提交 rebase 到 `e0c88ac` 之上，解决 `oci-hub-admin.py`、`test-oci-hub.py` 的冲突，保留 WILL-115 的 `mail_binding`/单一批准流程，并把 `notify()` 的发信续跑条件从 `profile=='oci-hub' and purpose!='reissue'` 改为 `purpose!='reissue'`（profile 参数已删除）。集成后的提交是 `3fc5882`，作为送审与交付版本。
 - 代码哈希 `source_hash()` 变化，部署前需确认没有未执行的开户计划。
 
 ## Plan Change Log
@@ -105,14 +114,38 @@ deferred: []
   - `[false]` `[reject]` 审核未验证测试与“仅本地提交” — 原生 Quick 层按规则不运行测试；宿主已运行全部相关测试，提交状态在交付记录中。
   - `[false]` `[reject]` source 视图缺 `_bmad-output` — X3 要求共享 source 不含 spec 与作者声明；票据与计划已放入该层 inputs，并从 diff 审核。
 
+### 2026-11-07 — Review pass 2 (集成提交 `3fc5882`)
+- verdicts: 8 findings — high 0, medium 1, low 6, false 1, maybe-false 0
+- lenses: quick (PAL clink, claude / claude-opus-5-5, return_code 0, 无权限拒绝，200.7 s，USD 1.4496)
+- findings:
+  - `[false]` `[reject]` 送审 diff 只含 `wsctl/`，公开仓库改动无法按 diff 审核 — 公开改动就是已单独审核的 `d303d69`，本次 rebase 未改动它；source 树的最终状态与之一致。
+  - `[low]` `[patch]` `deliver-temp.py:353` 的 reissue 一侧续跑行为没有测试 — 新增 `test_reissue_definite_mail_refusal_keeps_the_stop`，断言回执保持 `notifying`。
+  - `[medium]` `[patch]` 删除 `LegacyProfileBoundary` 后 `DELIVERY_PROFILE_MISMATCH` 失去覆盖 — 新增 `test_inner_manifest_profile_and_device_are_enforced`，同时覆盖内层 profile 与设备不匹配。
+  - `[low]` `[patch]` `UnifiedFormatTests.payload` 的循环变量改名与空行属非必要改动 — 恢复原写法。
+  - `[low]` `[patch]` 计划验证命令的 `git grep` 预期过宽 — 改为只查代码与测试，并注明文档和 skill 仍有 Temp.sh 说明。
+  - `[low]` `[patch]` 计划记录的测试数量取自集成前 — 更新为集成后的实际结果。
+  - `[defer]` `[defer]` 明确拒信后续跑不重新核对网站仍保存该包（`oci-hub-admin.py:587-590`） — WILL-115 原有行为，非本次适配引入；记入 `deferred`，交后续票处理。
+  - `[low]` `[patch]` `deliver-temp.py:235` 残留恒真的 `profile` 分支 — 删除该条件，回执身份已在上游校验。
+
+### 2026-11-07 — Review pass 3 (集成提交 `f484fc9`)
+- verdicts: 1 finding — high 0, medium 0, low 1, false 0, maybe-false 0
+- lenses: quick（PAL clink；claude 返回 “Not logged in”，改用 probe 同样通过、且与宿主不同的 codex / gpt-6.1-sol，return_code 0，121.0 s）
+- findings:
+  - `[low]` `[patch]` `test-temp-delivery.py:358` 夹具把 `ssh-ed25519` 写成 `ssh ed25519` — 恢复原字符串；该行正是上一轮回退改名时引入。
+
+### 2026-11-07 — Review pass 4 (交付提交 `035c897`)
+- verdicts: 0 findings — high 0, medium 0, low 0, false 0, maybe-false 0
+- lenses: quick（PAL clink；claude 仍不可用，codex / gpt-6.1-sol，return_code 0，93.3 s）
+- 结论：未发现本次 diff 引入的缺陷；单一批准绑定上传与邮件、开户邮件明确拒信后回到 `verified` 续跑、reissue 拒信不续跑，三者均保留。
+
 ## Verification
 
 **Commands:**
-- `cd remotecc/wsctl && python3 test-temp-delivery.py` -- expected: 31 tests OK
-- `cd remotecc/wsctl && python3 test-oci-hub.py` -- expected: 73 tests OK
+- `cd remotecc/wsctl && python3 test-temp-delivery.py` -- expected: 34 tests OK
+- `cd remotecc/wsctl && python3 test-oci-hub.py` -- expected: 79 tests OK
 - `cd remotecc/wsctl && python3 test-hub-remind.py && python3 test-wsctl.py && python3 test-hub-mosh.py` -- expected: 28 + 50 + 20 tests OK
 - `ssh ubuntu@159.13.46.201 "sudo -n sh -c 'test ! -e /opt/oci-hub/backup-readdress-20261103 && test ! -e /etc/oci-hub/portal.yaml.2335891.2026-10-30@06:32:23~ && systemctl is-active oci-hub-portal && systemctl is-active oci-hub-quota.timer'"` -- expected: active / active
-- `git grep -n -i "configure-oci-hub-mosh-boundary\|test-mosh-boundary-play\|temp\.sh\|LEGACY_PROFILE_MISMATCH"` -- expected: 仅历史规划记录
+- `git grep -n -i -E "configure-oci-hub-mosh-boundary|test-mosh-boundary-play|temp\\.sh|LEGACY_PROFILE_MISMATCH" -- '*.py' '*.yml' '*.html'` -- expected: 代码与测试无命中（公开文档和 skill 里仍有 Temp.sh 的说明，不在本项范围）
 
 ## Auto Run Result
 
@@ -132,8 +165,10 @@ deferred: []
 - `wsctl/test-oci-hub.py` -- 调用点去掉 `profile`，删除 `LegacyProfileBoundary`
 - `wsctl/templates/test-notice.html` -- 删除
 
-**Review:** quick 层（PAL clink，claude-opus-5-5，return_code 0，无权限拒绝，196.1 s，USD 1.4068382）。14 条 finding：0 high、1 medium、10 low、3 false；11 条 patch，0 条 defer，3 条 reject。`followup_review_recommended: false`（首轮仅 1 条 medium）。
+**Review:** 共四轮 quick 层。首轮（原提交）14 条 finding，claude-opus-5-5；第二轮（集成提交 `3fc5882`）8 条，claude-opus-5-5；第三轮（`f484fc9`）1 条、第四轮（交付提交 `035c897`）0 条，claude 不可用（“Not logged in”），改用 probe 同样通过的 codex / gpt-6.1-sol。所有 patch、defer、reject 的逐条记录见 Review Triage Log。`followup_review_recommended: false`。
 
-**Verification:** `test-temp-delivery.py` 31、`test-oci-hub.py` 73、`test-hub-remind.py` 28、`test-wsctl.py` 50、`test-hub-mosh.py` 20，全部 OK；Hub 上两个目标路径已不存在，`oci-hub-portal.service` active、`oci-hub-quota.timer` active。
+**Delivery revision:** 私有 `035c897`（基于 `e0c88ac`），送审与交付同为该提交。
 
-**Residual risks:** 代码哈希改变会让未执行的开户计划失效，部署前须确认没有进行中的运行；审核针对打补丁前的 diff，补丁为审核发现的最小修复并已重跑相关测试。
+**Verification:** `test-temp-delivery.py` 34、`test-oci-hub.py` 79、`test-hub-remind.py` 28、`test-wsctl.py` 55、`test-hub-mosh.py` 20，共 216 个用例全部 OK；Hub 上两个目标路径已不存在，`oci-hub-portal.service` active、`oci-hub-quota.timer` active。
+
+**Residual risks:** 代码哈希改变会让未执行的开户计划失效，部署前须确认没有进行中的运行。claude 在第三、四轮不可用，后两轮改由 codex 执行，属已报告的执行通道替换，未静默降级。`deferred` 记了一条 WILL-115 流程原有的发信前不复核站点状态。
