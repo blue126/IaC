@@ -30,6 +30,13 @@ TEMPLATES={
         field('WSCTL_NOTIFY','发邮件','留空：把设备包上传到网站。上传完成后填 yes：发开通邮件。'),APPROVE],False,
         '开户后发包，分两步，每步都是先计划再批准：先留空“发邮件”上传设备包，再填 yes 发开通邮件。'),
     'wsctl reissue':(['reissue'],[DEVICE,APPROVE],False,'用原包重新上传并重发通知邮件。不换密钥，不重新开户。'),
+    'wsctl renew':(['renew'],[
+        field('WSCTL_EMPLOYEE','员工','邮箱或 employee_id。同一邮箱有多名员工时填 employee_id。'),
+        field('WSCTL_MONTHS','月数','1–24 的整数。')],False,
+        '续费。延长 paid_through，推送快照并更新网站状态。不需要批准，不重新开户，也不重发设备包。'),
+    'wsctl retire':(['retire'],[
+        field('WSCTL_EMPLOYEE','员工 ID','可选。只把计划缩小到这名可退役员工，不会扩大范围。改了要清空批准码重新计划。'),APPROVE],False,
+        '退役。批准码留空只出计划，填计划里的 approval_sha256 才执行。永不自动运行，也没有定时任务。'),
     'wsctl access':(['access'],[APPROVE],False,'管理来源变化后重新下发 PVE 边界的 SSH 授权。'),
     'wsctl enforce':(['enforce'],[],False,'到期断开。每 5 分钟自动运行，一般不用手动点。'),
     'wsctl remind':(['remind'],[],False,'到期提醒。每小时整点自动运行，一般不用手动点。'),
