@@ -116,5 +116,5 @@ risk: high
 - Decision: 2026-11-07 用户同意收紧 AD-27：相同 generation 的配对内容必须相同，由架构师在 WILL-117 写入主干。
 - Decision: 2026-11-07 WILL-117 验收：主干 `3c632a0933f0feed`（PR #285）。两路跨模型审查第 2 轮仍不通过，送审版本 `94fab3a547b82c21` 与交付版本不一致，未再审；分诊在 `reviews/triage-will-117.md`。不再加审查轮次，余下问题由 `_bmad-output/backlog/story-spine-revision-before-vm-records.md` 承接，阻塞 10.3 和 12.2。
 - Source conflict: R2 要一次确认，代码和文档是分步审批（R2-H4）。WILL-115 合并了上传和发信的批准，核对后在上面这张票定改 R2 还是改 AD-6。
-- Open question: 执行器上含私钥的 `device-bundle.zip` 退役后还在，读代码推断同一邮箱再开户会报 `HUB_DELIVERY_CONFLICT`。是否让 `wsctl retire` 删除，等用户决定。
-- Open question: 环境边界没有定，12.3 用测试员工隔离。是否写明单一生产环境，等用户决定。
+- Decision: 2026-11-07 用户决定 `wsctl retire` 删除执行器上含私钥的 `device-bundle.zip`，见 `_bmad-output/backlog/story-retire-deletes-executor-bundle.md`。
+- Decision: 2026-11-07 用户确认只有一套生产环境，测试靠测试员工隔离；由 `_bmad-output/backlog/story-spine-revision-before-vm-records.md` 写入主干。
