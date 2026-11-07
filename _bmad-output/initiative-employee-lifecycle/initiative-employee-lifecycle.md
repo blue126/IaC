@@ -29,7 +29,7 @@ risk: high
 - R7 (AD-14): 每天自动给 `paid_through` 为本月底且未续费的员工发提醒邮件，同一员工同一 `paid_through` 只发一次。
 - R8 (AD-14): 管理员每天收到摘要邮件，列出新申请、可退役员工（`now > paid_through + 3 天`）和孤儿资源（有 VM 无 catalog 记录，或反之）。
 - R9 (AD-10): 管理员可一次确认批量退役全部可退役员工；执行前逐个复查 `paid_through`，已续费者跳过；退役后 Portal、Terraform、BWS、R2、catalog 中均无该员工，不备份。
-- R10 (AD-17, AD-1, Decision 2026-11-07): 管理员可为员工重发设备包：新包替换旧包，员工收到不带下载链接的通知邮件。
+- R10 (AD-17, AD-1, Decision 2026-11-07): 管理员可为员工重发设备包：重新上传原包并发通知邮件，不换密钥，邮件不带下载链接。
 - R11 (AD-3, AD-14): `wsctl status` 显示每个员工的推导状态（正常/已停用/已到期/可退役）、到期日、孤儿资源与待提醒人数；在 wg-portal 页面手工停用后，状态立即反映。
 - R12 (AD-15): 执行器与 Semaphore 运行在 pve0 上的专用 VM；管理员从浏览器经 Semaphore 完成 R2、R4、R9、R10、R11 的操作；Mac 关机时 R6、R7、R8 照常执行。
 - R13 (AD-1): `wsctl` 是唯一入口，不再需要 `--profile`；`onboard.sh` 已于 2026-11-04 删除。
@@ -111,3 +111,6 @@ risk: high
 - Assumption: 暂缓的 RemoteCC IaC 迁移（`_bmad-output/backlog/story-remotecc-iac-files-moved-to-private-repo.md`）恢复前，epic 9 至 11 按文件留在公开仓库规划；恢复时这些 epic 的路径要重新核对。
 - Decision: 2026-11-07 用户批准切分：新增 epic 8 至 12，共 27 个 story，按“一起交付、一起上线的能力”切分；依据 AD-25 至 AD-32，AD-32 的备份部分先行，恢复部分最后。
 - Decision: 2026-11-07 用户确认把记录已完成的 5.11、5.13、5.17、5.19、5.20、5.21、5.23、5.24、5.26、5.27 和 epic 7 全部 story 标为 done，5.14 标为 dropped。
+- Source conflict: R14 写被标记者不受断开影响；代码里已到期后才打 `no_expiry` 的员工，`expired` 不会自动清除，WireGuard 仍断开（WILL-117 核对，`deferred-work.md` 已记录）。AD-8 按现状写成例外：打标前先续费到未来日期。修代码还是保留例外，等用户决定。
+- Open question: AD-16 要求续费开机，又不能把人工关闭的 VM 开回来，但没有事实能区分两种关机（WILL-117 两路跨模型审查都判 high）。人工关机要不要保持，等用户决定。
+- Open question: AD-27 允许相同 generation 重放，但没有保证相同 generation 的配对内容相同，影响 11.4 至 11.6。等用户决定是否让架构师收紧，11.4 在此之前不开工。

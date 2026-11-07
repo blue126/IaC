@@ -32,6 +32,7 @@ covers = ["R3"]
 after = ["9.3", "10.1"]
 hitl = true
 risk = "medium"
+unknown = "AD-27 是否收紧为相同 generation 的配对内容必须相同？"
 
 [[entry]]
 id = 5
