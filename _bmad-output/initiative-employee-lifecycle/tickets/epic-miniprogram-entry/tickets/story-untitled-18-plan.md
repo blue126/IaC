@@ -3,7 +3,7 @@ title: '员工名单移出代码仓库并拆除旧员工模型'
 type: 'refactor'
 ticket: '18'
 created: '2026-11-02'
-status: 'built'
+status: done
 baseline_revision: 'IaC d8b5f2b40cf0f98fd7d95c9d884668112c65ea2b; employee-admin 7fa17f1dabf23f278ce2d961b27c402fdc130713'
 route: 'full'
 route_source: 'auto'

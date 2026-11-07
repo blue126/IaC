@@ -10,7 +10,7 @@
 
 - source_plan: `_bmad-output/initiative-employee-lifecycle/tickets/epic-paid-through-enforcement/tickets/story-paid-through-oci-expired-plan.md`
   summary: 员工带着 expired 离开 paid_through 快照（改标 no_expiry、退役、删字段）时，OCI 不再移除其设备上的 expired；2.4 与 epic 4 在移出快照前须先推一次未来日期（或改为记录"曾由 timer 加过"的集合）。
-  evidence: reconcile 只在 employee in paid 时拥有 expired（services/oci-hub/executor.py reconcile 设备分支），冻结意图要求快照外员工不处理。
+  evidence: reconcile 只在 employee in paid 时拥有 expired（services/oci-hub/executor.py reconcile 设备分支），冻结意图要求快照外员工不处理。 2026-11-07 已开票 `_bmad-output/backlog/story-no-expiry-clears-expired.md`。
 
 - source_plan: `_bmad-output/initiative-employee-lifecycle/tickets/epic-paid-through-enforcement/tickets/story-wsctl-renew-plan.md`
   summary: wsctl renew 改写整份 catalog，使计划与执行之间（或中途续跑）的其他员工开户因 HUB_TERMINAL_CATALOG_CHANGED 被拒，需重新 plan。
