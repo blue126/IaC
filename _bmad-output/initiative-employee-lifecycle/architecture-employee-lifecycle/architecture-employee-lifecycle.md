@@ -7,8 +7,8 @@ paradigm: '单一写者 + 派生状态（命令经唯一执行器写入各自的
 scope: '员工工作区生命周期：网站或小程序申请 → 开户与设备包下载 → 线下收费续期 → 到期提醒、断开与关机 → 退役；执行器常驻 pve0，Semaphore 作为管理面板'
 status: final
 created: '2026-10-31'
-updated: '2026-11-06'
-binds: [hapi-control, hapi-ctl, apply-site, miniprogram, unicloud, executor-vm, wsctl, semaphore, oci-hub-admin, hub-status, oci-hub-quota.timer, wg-portal, terraform-oci-hub-workspaces, catalog, bws]
+updated: '2026-11-07'
+binds: [hapi-control, hapi-ctl, apply-site, miniprogram, unicloud, executor-vm, wsctl, semaphore, oci-hub-admin, hub-status, oci-hub-quota.timer, wg-portal, terraform-oci-hub-workspaces, catalog, bws, firewall, wireguardusrmgr, terraform-oci]
 sources: [docs/architecture/oci-employee-vpn-hub.md, remotecc/employee-admin/README.md, Hindsight kp-1f6403334b204b888bcfe786ba7a20df]
 ---
 
@@ -26,6 +26,7 @@ sources: [docs/architecture/oci-employee-vpn-hub.md, remotecc/employee-admin/REA
 | 命令执行 | `wsctl` → `oci-hub-admin.py` 及 `hub-*.py` | pve0 上的执行器 VM |
 | 定时执行 | 执行器：提醒、到期关机/续费开机；OCI：`oci-hub-quota.timer`（配额 + 到期断开） | 执行器 VM / OCI |
 | 查询 | `hub-status.view`（`wsctl status`） | 执行器 VM |
+| OCI Hub 本机执行 | `wireguardusrmgr.py`：账本、配对 set、配额 | OCI |
 
 ## Invariants & Rules
 
@@ -38,7 +39,7 @@ flowchart LR
   SEM --> EXE[wsctl 执行器 VM pve0]
   EXE -->|拉取申请 / 上传设备包| SITE
   EXE -->|提醒与摘要邮件| MAIL[现有邮件通道]
-  EXE --> TF[Terraform 员工清单]
+  EXE --> TF[Terraform remotecc]
   EXE --> CAT[D1 catalog]
   EXE --> BWS[BWS]
   EXE -->|Portal API| WGP[wg-portal]
@@ -57,7 +58,7 @@ flowchart LR
 
 - **Binds:** 所有写 Terraform、catalog、BWS、Portal、PVE 电源的命令；Semaphore 模板
 - **Prevents:** 第二个开户引擎、绕过人工审批的写通道
-- **Rule:** 跨系统写入只经 `wsctl`（原 `onboard.sh`，保留为转发 `wsctl` 的兼容入口，文档与 skill 改完后删除；oci-hub 为唯一 profile，不再需要 `--profile`）。会创建或删除资源的子命令先生成计划并计算 SHA，展示给管理员，确认后以同一 SHA 执行；计划、输入或代码变化即拒绝。Semaphore 用 `--approve <SHA>` 达到同一效果。`renew`、`remind`、到期关机/续费开机不创建或删除资源，不需要确认。Semaphore 只调用这些子命令，不内嵌业务逻辑。OCI timer 只能增删 Portal 原因（AD-9）。
+- **Rule:** 跨系统写入只经 `wsctl`（oci-hub 为唯一 profile，不再需要 `--profile`）。会创建或删除资源的子命令先生成计划并计算 SHA，展示给管理员，确认后以同一 SHA 执行；计划、输入或代码变化即拒绝。Semaphore 用 `--approve <SHA>` 达到同一效果。`renew`、`remind`、到期关机/续费开机不创建或删除资源，不需要确认。Semaphore 只调用这些子命令，不内嵌业务逻辑。OCI timer 只做本机写入：Portal 原因、配额账本和配对 set（AD-9、AD-27）。
 
 ### AD-2 — 事实所有权表 [ADOPTED]
 
@@ -71,7 +72,7 @@ flowchart LR
 | 员工申请（邮箱、姓名、手机号等） | 提交所在的入口：网站 D1 或 uniCloud 云数据库 | 执行器只读拉取、合并（AD-19）；开户后员工主数据以 catalog 为准 |
 | 小程序展示的员工状态与到期日 | catalog 等事实（AD-3 推导） | uniCloud 中只存执行器推送的展示副本 |
 | `paid_through` | catalog（由 `wsctl provision`/`renew` 写；管理员可在 D1 控制台改） | OCI 快照是执行器推送的只读副本（AD-12） |
-| VM 存在与规格 | 执行器运行数据里的 Terraform roster（settings `oci_hub.terraform_roster`，不入 Git），`terraform/remotecc` 以 `-var-file` 读取 | 只读 |
+| VM 存在与规格 | 网站 D1 中的 VM 记录（AD-28）；落地前仍是执行器运行数据里的 Terraform roster（settings `oci_hub.terraform_roster`，不入 Git） | `terraform/remotecc` 读运行时生成的 `-var-file`；PVE 上的 VM、VNet 是开户结果，防火墙从它们派生（AD-26） |
 | VM 电源状态 | PVE（Terraform 不管理） | 只由执行器按 AD-16 开关 |
 | 员工、邮箱、设备、overlay、主机公钥 | 网站 D1 的 `employees` 表（catalog） | 执行器的 `catalog.json` 是本地快照，registry 为派生视图 |
 | 接入开关（用户/设备 Disabled、DisabledReason） | wg-portal | 执行器与 timer 经同一 Portal API 增删自己的原因 |
@@ -81,6 +82,10 @@ flowchart LR
 | `employee-access.nft` 的基础规则 | VM500 现有文件 | `hapi-ctl` 原样保留；从零重建见 Deferred |
 | HAPI 身份放行（邮箱） | 不存储：catalog 派生 | Cloudflare Access 策略是投影，只由 `hapi-sync` 整份写入，手工修改会被覆盖 |
 | 员工 HAPI 令牌 | BWS 员工工作区记录 | 运行时物化；经 `hapi-ctl apply` 送到 VM500 |
+| 静态网络与主机配置（`uplink`、`aggregate`、`protected`、`development_destinations`、`dns_servers`、`interfaces`、`management_sources`、`control_address`、`endpoint`、`workspace_defaults` 等） | IaC 的 Ansible 变量，不宜公开的放 Vault（AD-25） | `wsctl` 只读 |
+| Hub 入站来源（`workspace_sources`、`device_sources`、`device_ingress_mode`） | `terraform/oci` 的变量文件 | Ansible 读同一文件写 Hub 防火墙 |
+| 设备与工作区配对 | D1（员工、设备、VM 记录） | OCI Hub 的 nft set 是投影，只经 `wireguardusrmgr.py` 调用 `firewall.py pairs` 写入（AD-27） |
+| `portal.yaml`、`wireguardusrmgr.json` | IaC（AD-31） | 线上文件是部署结果 |
 
 ### AD-3 — 生命周期状态只推导不存储
 
@@ -104,7 +109,7 @@ stateDiagram-v2
 
 - **Binds:** 组件间所有调用
 - **Prevents:** 双向耦合；公网主机获得对家中的调用通道
-- **Rule:** 流程上的发起方主动调用对方，按上方依赖图单向。执行器拉取申请、上传设备包、推送快照与状态副本、发送邮件、开关 VM；申请网站与 uniCloud 只被调用；OCI timer 不调用执行器、Terraform、BWS 或 PVE。
+- **Rule:** 流程上的发起方主动调用对方，按上方依赖图单向。执行器拉取申请、上传设备包、推送快照与状态副本、发送邮件、开关 VM；申请网站与 uniCloud 只被调用；OCI timer 不调用执行器、Terraform、BWS 或 PVE。OCI Hub 可以用只读令牌读取网站的配对接口（AD-27）。
 
 ### AD-5 — 统一标识 [ADOPTED]
 
@@ -134,13 +139,13 @@ stateDiagram-v2
 
 - **Binds:** `oci-hub-quota.timer`、wg-portal
 - **Prevents:** 依赖家中网络；覆盖人工原因
-- **Rule:** timer 在本机读取 `paid_through` 快照：`now > paid_through` 则给 `oci-hub:user:<employee_id>` 添加原因 `expired`，否则移除 `expired`；只增删 `expired` 与既有 `quota_exhausted:YYYY-MM`，其他原因原样保留。快照缺失或无法读取时沿用上次有效值；快照里没有的员工不做任何处理。timer 每轮重新施加 `expired`，管理员在页面上对已到期用户直接启用会在下一轮被重新停用，要放行须先 `renew`。timer 除 Portal 原因外不做任何写入。
+- **Rule:** timer 在本机读取 `paid_through` 快照：`now > paid_through` 则给 `oci-hub:user:<employee_id>` 添加原因 `expired`，否则移除 `expired`；只增删 `expired` 与既有 `quota_exhausted:YYYY-MM`，其他原因原样保留。快照缺失或无法读取时沿用上次有效值；快照里没有的员工不做任何处理。timer 每轮重新施加 `expired`，管理员在页面上对已到期用户直接启用会在下一轮被重新停用，要放行须先 `renew`。timer 只写 Portal 原因、配额账本、已接受的快照 generation 和配对 set，不调用家中系统。
 
 ### AD-10 — 退役
 
 - **Binds:** `wsctl retire`、Semaphore 退役模板
 - **Prevents:** 误删付费员工；遗留孤儿资源
-- **Rule:** 退役永不自动执行。`wsctl retire` 一次列出所有满足 `now > paid_through + 3 天` 的员工及每人将删除的内容（Terraform 销毁、Portal 用户与设备、HAPI 的 Access 放行与 route/credential/agent、BWS 密钥、R2 设备包、catalog 记录），管理员确认一次即批量执行（AD-1）。执行每个员工前重新读取 catalog 中的 `paid_through`，已续费则跳过。退役不备份，VM 数据永久删除。删除顺序：Portal 身份 → Terraform VM → BWS → R2 → catalog → `hapi-sync`（route、credential、agent、令牌和 Access 放行随 catalog 派生）→ 推送快照；`hapi-sync` 失败时，下一次 `enforce` 让 route 下线，其余残留由每日 `hapi-sync` 清理。中断后可按运行记录续跑。退役后 VMID、网卡槽位、overlay 与设备地址随记录删除回到池中，可分配给新员工（2026-11-02 用户决定，取代原"永不回收"）；Hub/PVE boundary 中该员工的条目一并删除。同一邮箱退役后再开户按新申请处理。
+- **Rule:** 退役永不自动执行。`wsctl retire` 一次列出所有满足 `now > paid_through + 3 天` 的员工及每人将删除的内容（Terraform 销毁、Portal 用户与设备、HAPI 的 Access 放行与 route/credential/agent、BWS 密钥、R2 设备包、catalog 记录），管理员确认一次即批量执行（AD-1）。执行每个员工前重新读取 catalog 中的 `paid_through`，已续费则跳过。VM 记录的删除用 catalog generation 条件写入，是退役的提交点：控制台续期会改变 generation，写入失败就放弃该员工的退役；提交点之后的续期不再挽回。退役不备份，VM 数据永久删除。删除顺序：VM 记录（AD-28，提交点）→ Portal 身份和 OCI Hub 账本 → Terraform VM、VNet → PVE 防火墙 apply → BWS → R2 → catalog → `hapi-sync`（route、credential、agent、令牌和 Access 放行随 catalog 派生）→ 推送快照；`hapi-sync` 成功是退役完成的条件，失败时下一次 `enforce` 让 route 下线，名单为空时 `enforce` 不送（AD-23），由续跑退役完成。中断后可按运行记录续跑。退役运行完成并核验后，VMID、网卡槽位、overlay 与设备地址才回到池中，可分配给新员工，此前由运行记录占用，续跑绑定原资源身份（2026-11-02 用户决定，取代原"永不回收"）；OCI Hub 上 `retire` 同时从账本和 nft set 删除配对，VM、VNet 删除后触发 PVE 防火墙 apply。同一邮箱退役后再开户按新申请处理。
 
 ### AD-11 — Portal 对账
 
@@ -152,13 +157,13 @@ stateDiagram-v2
 
 - **Binds:** `wsctl provision`/`renew`/`retire`、OCI timer
 - **Prevents:** 增量推送丢失或乱序导致误断开、误恢复
-- **Rule:** 快照是全体员工 `employee_id → paid_through` 的整份替换，带单调递增的 `generation`。执行器每次修改 `paid_through` 或员工集合后经 SSH 推送：先写临时文件再原子改名。timer 拒绝 `generation` 不大于已接受值的快照。快照只含 `employee_id`、`paid_through`、`generation`，不含邮箱或凭据。
+- **Rule:** 快照是全体员工 `employee_id → paid_through` 的整份替换，带单调递增的 `generation`。执行器每次修改 `paid_through` 或员工集合后经 SSH 推送，`enforce` 发现 catalog generation 变化时也推送（覆盖 D1 控制台续期），失败时下一周期重试并写入管理员摘要：先写临时文件再原子改名。timer 拒绝 `generation` 不大于已接受值的快照。快照只含 `employee_id`、`paid_through`、`generation`，不含邮箱或凭据。
 
 ### AD-13 — 申请网站
 
 - **Binds:** 申请网站、`wsctl request`
 - **Prevents:** 公网入口触及内部系统；表单被刷
-- **Rule:** 网站提供规格介绍、联系方式、申请表与设备包下载页（AD-17），不提供登录或员工状态查询。部署在 Cloudflare Worker，绑定域名 `cc.willfan.me`（不使用 `*.workers.dev`），页面移动端优先。提交接口先校验 Turnstile，再按 IP 限频；Turnstile 无法加载时只靠限频。D1 存申请内容、下载记录和 catalog，不存凭据。管理接口只接受执行器持有的令牌，只提供：列出未处理申请、标记已处理、上传/删除设备包、读取下载记录。
+- **Rule:** 网站提供规格介绍、联系方式、申请表与设备包下载页（AD-17），员工查询见 AD-21。部署在 Cloudflare Worker，绑定域名 `cc.willfan.me`（不使用 `*.workers.dev`），页面移动端优先。提交接口先校验 Turnstile，再按 IP 限频；Turnstile 无法加载时只靠限频。D1 存申请内容、下载记录和 catalog，不存凭据。管理接口只接受执行器持有的令牌，只提供：列出未处理申请、标记已处理、上传/删除设备包、读取下载记录、读写 catalog 和 VM 记录（条件写入）。另有一个配对接口，只接受 OCI Hub 的只读令牌，返回 `{"schema":1,"generation":N,"pairs":[{"device":"<设备隧道 IPv4>","workspace":"<VM overlay IPv4>"}]}`，`generation` 是 catalog generation，包含开户中的记录，不含 VMID 算出的物理地址。
 
 ### AD-14 — 到期提醒与管理员摘要
 
@@ -182,7 +187,7 @@ stateDiagram-v2
 
 - **Binds:** `wsctl provision`/`reissue`/`retire`、申请网站、R2
 - **Prevents:** 依赖不可靠的外部临时网盘；私钥长期暴露；邮件预扫描用掉下载次数
-- **Rule:** 执行器把设备包上传到申请网站（存于 D1；Worker 内以 put/get/delete 封装，需要大文件时换 R2），并给员工发一封带随机下载链接的邮件，替代 Temp.sh。链接 24 小时内有效，最多下载 3 次；链接打开的是下载页，需点击按钮才下载。下载满 3 次或过期后，Worker 删除文件；需要重新下载时由 `wsctl reissue` 重新生成。设备包不另加密码。员工在网站登录（AD-21）后，"我的工作区"页也可在同一有效期内下载，与邮件链接共用 3 次额度；失效后显示"请联系管理员重新发送"（2026-11-02 用户决定）。
+- **Rule:** 执行器把设备包上传到申请网站（存于 D1；Worker 内以 put/get/delete 封装，需要大文件时换 R2），并给员工发一封带随机下载链接的邮件，替代 Temp.sh。链接 24 小时内有效，最多下载 3 次；链接打开的是下载页，需点击按钮才下载。下载满 3 次或过期后，Worker 删除文件；需要重新下载时由 `wsctl reissue` 重发现有设备包；`endpoint` 变更要用重建设备包的新命令（见 IP 变更预案）。设备包不另加密码。员工在网站登录（AD-21）后，"我的工作区"页也可在同一有效期内下载，与邮件链接共用 3 次额度；失效后显示"请联系管理员重新发送"（2026-11-02 用户决定）。
 
 ### AD-18 — 小程序入口
 
@@ -226,11 +231,62 @@ stateDiagram-v2
 - **Prevents:** 两种名单形状；执行器与 VM500 版本不同步时静默写错；回滚让到期员工恢复登录
 - **Rule:** 名单只由 `hub-hapi.roster()` 构建，`enforce` 和 `hapi-sync` 都调用它，它不访问 BWS。载荷固定为 `{schema, employees: [{id, email, address, enabled}], tokens?}`，当前 `schema` 为 2，地址和到期都在执行器算好。`hapi-ctl` 遇到不支持的 `schema` 或未知字段一律拒绝，不写任何文件。推送到执行器会立刻改变 `wsctl` 的行为，所以协议变更先发布兼容新旧 `schema` 的 `hapi-ctl`，再推送新 `wsctl`。`manifest.json` 声明支持的 `schema`，`hapi-release` 在计划阶段拒绝不支持当前 `schema` 的目标版本，回滚也一样。
 
+AD-25 至 AD-32 是 2026-11 更新确定的目标状态，落地前以现有代码为准；其中的 Hub 指 OCI Hub。建议落地顺序：AD-25、AD-31，然后 AD-28、AD-29，再 AD-26、AD-27，最后 AD-30。AD-26 必须在 AD-29 之后：`pve-sdn.py` 的 VNet 列表现在来自策略文件，取消文件前 SDN 要先迁走。
+
+### AD-25 — 所有权分三层 [ADOPTED]
+
+- **Binds:** `terraform/`、`ansible/`、`wsctl`、settings
+- **Prevents:** 静态拓扑只存在于线上文件；同一配置散在主机文件和运行数据里
+- **Rule:** 云和虚拟化资源归 Terraform，员工数据作为输入，不写进 Git。OS 配置（防火墙代码和静态参数、systemd 单元、sysctl、黑洞路由）归 Ansible。应用数据（员工、设备、配对）归 `wsctl` 和各事实所有者。判定标准：不随员工变化的 infra 和 OS 配置进 IaC，随员工变化的数据不进 Git。settings 不再保存静态网络参数。这些参数放一份不含插值的变量文件，role 和 `wsctl` 读同一份，`wsctl` 只读。`endpoint` 只存 OCI Hub 的 IPv4，端口由使用方拼接（设备 51824，工作区 51825）。值进公开仓库前逐项判断，不宜公开的放 Vault，`wsctl` 不依赖 Vault 里的值
+
+### AD-26 — 防火墙从主机对象派生 [ADOPTED]
+
+- **Binds:** `scripts/oci-hub/firewall.py`（原 `boundary.py`）、`oci-hub-pve`、VM 启动 hook、`wsctl provision`/`retire`
+- **Prevents:** 主机上的员工数据副本；多个模块改写同一文件；线上文件成为数据来源
+- **Rule:** 不设员工层文件。PVE 上 `firewall.py` 读本机已应用的 SDN 配置和 VM 配置生成规则，读不到就失败：工作区是 `ocihub` zone 里名为 `oh<VMID>` 的 VNet，其子网、网关、地址、MAC 必须等于 VMID 算出的值，不符则拒绝加载并拒绝启动该 VM。算法只有一份：有效 VMID 502 至 754，子网是 `aggregate` 起始地址加 (VMID-500)×256 的 /30，网关 +1，VM +2，MAC 是 `02:ed:` 加 VMID 的 4 字节；overlay 不在此列，归 catalog。`firewall.py` 和 var-file 生成共用同一组测试向量。管理来源和 HAPI 放行对所有 VM 相同，不按员工存储，渲染时由 OS 层的 `management_sources`、`control_address` 展开。`wsctl` 只改对象，改完触发 PVE 的 apply，不传数据。开户时 VNet 先于规则出现，VM 保持停止，规则加载后才启动。规则在 `pve-guests` 之前加载（`Requires=`、`After=pve-cluster.service`）。对象读取、渲染、加载和 hook 校验共用一把 PVE 本机锁，hook 比对当前对象摘要和已加载规则的摘要，不符就拒绝启动。摘要由 `firewall.py` 里同一个函数计算，只含参与渲染的字段。`boundary.json` 的 `generation`、`management_access`、`hapi_*_grants` 废弃；`disabled` 是否保留由实现 story 核对。`service-egress.json` 和 `cloudflare_tunnel_vmids` 切换后不再读取，切换前盘点内容并核对放行等价。改名在同一 story 完成，覆盖文件、`oci-hub-boundary.service` 和私有代码里硬编码的路径。切换前必须做两项验证：新渲染结果与线上规则一致；只读预检现有 VM 全部符合 VMID 算法。接受的代价：规则跟随对象，不再与独立批准的策略比对
+
+### AD-27 — Hub 配对走 nft set [ADOPTED]
+
+- **Binds:** `firewall.py`、OCI Hub 上的 `wireguardusrmgr.py`（原 `services/oci-hub/executor.py`，配置原 `executor.json`，改名和 `firewall` 同一 story）、`register`、`retire`、`readdress`、网站配对接口
+- **Prevents:** 公开代码调用私有代码；配对存两份；加人时重写规则
+- **Rule:** OCI Hub 规则固定，归 OS 层；设备与工作区的配对是 nft set 的元素。所有 nft 操作都在 `firewall.py`：加载规则和 set，重载时保留元素，`pairs` 动作从 stdin 接收完整配对列表，在一个事务里替换元素。重载和 `pairs` 共用一把 OCI Hub 本机锁，读取、保留和替换都在锁内。`wireguardusrmgr.py` 是 `pairs` 的唯一调用者：用只读令牌从网站配对接口读取完整配对（AD-13），定时拉取，`register`、`retire`、`readdress` 后立即拉取，开机后第一次拉取完成填充。读取失败时不动现有元素，开机时读不到就保持空 set 并重试。set 未填入时设备和 VM 之间不通。`firewall.py` 的规则校验排除 set 元素，配对校验归 `wireguardusrmgr.py`。账本继续服务配额，不作为配对来源。Mosh 是规则里的固定范围 60000-61000，不进 set 元素，`mosh_ports` 字段废弃。逐配对的 iptables FORWARD 规则改成按接口的静态规则，由先运行的 nft 链丢弃未配对流量。`firewall.py` 不读 D1 和账本，`wireguardusrmgr.py` 不写 nft 语法，两边只共享 `pairs` 的输入，也就是配对接口的响应（AD-13）。`firewall.py` 在本机锁内记录已接受的 generation，拒绝更旧的响应，相同 generation 可重放。空列表合法，格式不符就失败且不动现有元素。`interfaces` 经 role 生成的 `wireguardusrmgr.json` 下发。配对在 `registered` 之后、`enabled` 之前生效，`wsctl` 不触发 OCI Hub 的 apply。上线时先发布新 `wireguardusrmgr.py`，它在 `firewall.py` 还没有 `pairs` 动作时跳过更新，再切规则。PVE 规则暂不改 set
+
+### AD-28 — VM 记录归 D1 [ADOPTED]
+
+- **Binds:** catalog、`hub-onboard`、`hub-retire`、`terraform/remotecc` 的 `-var-file`
+- **Prevents:** roster 和 catalog 各存一份 VM 事实；VM 建好却无记录，被下一次 Terraform 计划销毁；退役中断后 VM 被建回来
+- **Rule:** VM 规格并入 D1，roster 文件退役，var-file 每次运行时生成。开户时 VM 记录在 Terraform 之前写入，退役时先删 VM 记录再跑 Terraform，中断后下一次 plan 继续销毁。D1 提供两个查询：全部 VM 记录含开户中的 VM 及其 overlay 和设备地址，用于生成 var-file 和配对接口；`catalog()` 只返回在册员工：有 VM 记录，且至少一台设备已配置完成，不新增状态字段（AD-3）。开户完成前不在册，退役删除 VM 记录后立即不在册，此后的续期不会恢复它。读取失败或不完整时不生成 var-file，不能当成空清单。VNet、地址、网关、MAC 由 VMID 算出，不存；CPU、内存、磁盘、模板等存创建时的实际值，默认值变更不影响老 VM。迁移时冻结 roster 写入，原样导入，核对完整 plan 后一次切换
+
+### AD-29 — PVE SDN 归 Terraform（目标）[ADOPTED]
+
+- **Binds:** `terraform/remotecc`、bpg/proxmox、`oci-hub-pve`、`pve-sdn.py`
+- **Prevents:** VM 和 VNet 分属两个写者；SDN 清理靠单独脚本
+- **Rule:** 目标状态下 zone、VNet、子网和 VM 由同一份 Terraform 输入创建和删除，`pve-sdn.py` 退役。实现 story 先升级 provider 并确认 plan 没有意外差异，版本钉在 1.0 以下，再导入现有对象。provider 不支持 SDN 全局锁，applier 会提交全部 pending，所以 Terraform 运行前做预检：取锁确认没有无关 pending 后释放，依靠 `wsctl` 运行锁串行，接受预检到提交之间的窗口。升级前核实共享模块 `proxmox-vm`、`terraform/proxmox` 和 API token 的 SDN 权限。完成前 `oci-hub-pve` 仍是 SDN 唯一写者，部署合同里“固定 0.70、不升级”一条由该 story 修订
+
+### AD-30 — 防火墙代码只由 role 下发 [ADOPTED]
+
+- **Binds:** `oci-hub`、`oci-hub-pve`、`deploy-oci-hub-terminal.yml`
+- **Prevents:** 多条路径写同一份代码；开户流程带着旧 checkout 覆盖线上
+- **Rule:** `firewall.py` 属 OS 层，只由这两个 role 下发。`wsctl` 流程只触发 PVE 的 apply，terminal play 不再复制任何代码。`configure-oci-hub-mosh-boundary.yml` 退役。跑 role 前必须确认 `/srv/iac` 是最新的（自动同步见 Deferred）。`iac.git` 的部署钩子也持 `wsctl` 运行锁，运行中不换代码，计划摘要包含 IaC commit
+
+### AD-31 — Hub 服务配置归 IaC [ADOPTED]
+
+- **Binds:** `oci-hub` role、`portal.yaml`、`wireguardusrmgr.json`、Ansible Vault
+- **Prevents:** 线上文件成为唯一副本；role 无法重跑
+- **Rule:** 静态配置放 role 和 inventory，`wireguardusrmgr.json` 由 role 生成，字段固定为现有的 `profile`、`database`、`portal_url`、`portal_username`、`portal_token`，加 AD-27 的 `interfaces`、`pairs_url`、`pairs_token`。Portal 的 4 个密钥（管理员密码、API 令牌、session、CSRF）和配对接口的只读令牌放 Ansible Vault，role 可随时重跑。密钥迁移属于凭据改动，需单独授权
+
+### AD-32 — Hub 备份与恢复 [ADOPTED]
+
+- **Binds:** `terraform/oci`、OCI Hub 启动卷、`endpoint`、`wsctl`
+- **Prevents:** 给执行器加 OCI 凭据；恢复时才发现 IP 变了没有预案；恢复后账本和 D1 不一致
+- **Rule:** OCI Hub 整机丢失靠启动卷备份恢复，从零重建是备用。Terraform 自定义备份策略，每周一次，保留期 4 周，留在 5 份免费额度内，手动备份也计入。策略实际分配失败时改用定时任务调 OCI API，并自己清理旧备份，运行位置由 story 定，不放执行器（AD-15 不变）。恢复优先在同一实例上替换启动卷以保留临时 IP。同机的 Anki、unified-proxy、BookOrbit 会一起回退，恢复前确认它们空闲。恢复前用 `terraform/oci` 的隔离开关关闭 WireGuard 入站，防止备份里的旧身份重新生效，隔离期间 NSG 只经这个开关变更。恢复后先确认备份里的服务版本和配置兼容，按 AD-27 的顺序升级。恢复后推送 `paid_through` 快照（AD-12），用新命令按 D1 双向对账：补登记备份之后开户的员工，清掉备份之后退役或改址的身份。全部通过才解除隔离，任一步失败就保持。备份之后的月用量、采样基线和 Portal 人工原因会回退，这是接受的数据损失，恢复报告要列出。Hub 实例设 `prevent_destroy`，`ignore_changes` 加 `source_details`。公网 IP 保持临时 IP，变更时按 `docs/deployment/oci-hub-ip-change.md` 处理。上线前置：演练替换启动卷后 IP 不变、`terraform plan` 无漂移、备份策略绑定仍有效。新实例恢复分支在“全量切换 endpoint” story 完成前受阻
+
 ## Consistency Conventions
 
 | Concern | Convention |
 | --- | --- |
-| 命令名 | `wsctl request`、`provision`、`renew`、`remind`、`reissue`、`access`、`retire`、`status`、`hapi-sync`、`hapi-install`、`hapi-release` |
+| 命令名 | `wsctl request`、`provision`、`renew`、`remind`、`reissue`、`access`、`retire`、`status`、`enforce`、`hapi-sync`、`hapi-install`、`hapi-release`、`oci-hub-release` |
+| “Hub”一词 | OCI 上的 WireGuard 主机称 OCI Hub；VM500 上的称 HAPI Hub |
 | 确认 | 创建或删除资源的命令：展示计划 → 确认执行；Semaphore 用 `--approve <SHA>`；`request`、`renew`、`remind`、`status`、开关机无确认 |
 | 命令输出 | 单个 JSON 对象到 stdout；错误为 `UPPER_SNAKE` 码（沿用 `HUB_*` 前缀风格）到 stderr；交互提示写到 stderr |
 | 时间 | 存储与传输用带偏移的 ISO 8601；计费边界一律按 `Australia/Sydney` 计算；断开在一个 OCI timer 周期内生效（当前 `OnUnitActiveSec=5s`），关机在 5 分钟内生效 |
@@ -244,7 +300,8 @@ stateDiagram-v2
 | --- | --- |
 | Python（执行器） | 3.14（以执行器 VM 实际安装为准，与 Mac 当前 3.14.7 保持一致） |
 | ansible-core（`.venv`，uv 管理） | `>=2.16,<2.21`（当前 2.20.10） |
-| Terraform provider bpg/proxmox | 0.70.0 |
+| Terraform provider bpg/proxmox | 0.70.0（AD-29 要升级，目标版本在实现 story 核验并钉在 1.0 以下；2026-11 最新为 0.120.0） |
+| Terraform provider oracle/oci | 8.3.0 |
 | wg-portal | v2.3.1 |
 | Semaphore UI | v2.19.17（2026-10-20 最新稳定版，安装时复核） |
 | Cloudflare Workers + D1 + R2 + Turnstile（申请网站） | 托管服务，无版本号；Worker 用纯 JavaScript，不引入前端框架 |
@@ -283,16 +340,77 @@ flowchart TB
 
 ```text
 remotecc/
-  employee-admin/        # 执行器（私有 Git）：wsctl 入口；新增 request、renew、remind、retire、reissue、快照推送、开关机
+  wsctl/                 # 执行器（私有 Git）：wsctl 入口和 hub-*.py
+    services/oci-hub/    # OCI Hub 服务：wireguardusrmgr.py、账本
   employee-data/         # 迁到执行器 VM
     requests/oci-hub/    # 从网站拉取的申请 <申请 ID>.json
-    oci-hub/runtime/terminal/catalog.json   # 员工主记录，新增 paid_through
+    oci-hub/runtime/terminal/catalog.json   # D1 catalog 的本地快照
   apply-site/            # 新增（私有）：Worker 源码、D1 schema
   hapi-control/          # 私有：HAPI 应用代码与 hapi-ctl（AD-22）
   employee-miniprogram/  # 搁置
-terraform/proxmox/       # 新增执行器 VM（pve0）
+terraform/remotecc/      # 员工 VM、VM500、执行器 VM
+scripts/oci-hub/         # firewall.py（原 boundary.py）
 ansible/roles/           # 新增执行器 VM 角色（wsctl 运行环境 + Semaphore）；oci-hub 的 timer 增加到期逻辑
 ```
+
+## 配置总览
+
+配置来源、写入口和落点。实线是写入，虚线是读取。
+
+```mermaid
+flowchart LR
+  subgraph SRC["来源"]
+    GIT["公开 IaC Git<br/>代码、静态参数"]
+    VAULT["Ansible Vault<br/>Portal 密钥、不宜公开的静态值"]
+    CAT["D1 catalog<br/>员工、设备、VM 记录"]
+    BWS["BWS<br/>员工密钥、执行器凭据"]
+  end
+  subgraph WR["写入口"]
+    TFO["terraform/oci"]
+    TFR["terraform/remotecc"]
+    ANS["Ansible role"]
+    WS["wsctl"]
+    EX["OCI Hub wireguardusrmgr.py"]
+    FW["PVE firewall.py"]
+  end
+  subgraph TGT["落点"]
+    OCI["OCI：实例、NSG、备份策略"]
+    PVEO["PVE：VM、VNet、子网"]
+    OSP["PVE OS 层：防火墙代码、静态配置"]
+    OSH["OCI Hub OS 层：防火墙、portal.yaml、wireguardusrmgr.json"]
+    LED["OCI Hub 账本和 Portal"]
+    SET["OCI Hub nft set"]
+    NFT["PVE nft 规则"]
+  end
+  GIT -.-> TFO
+  GIT -.-> ANS
+  VAULT -.-> ANS
+  CAT -.-> WS
+  BWS -.-> WS
+  WS --> CAT
+  WS --> BWS
+  TFO --> OCI
+  WS -->|生成 var-file 后调用| TFR
+  TFR -->|目标态含 VNet| PVEO
+  ANS --> OSP
+  ANS --> OSH
+  WS -->|register、retire| EX
+  EX --> LED
+  CAT -.->|只读配对接口| EX
+  EX -->|调用 firewall.py pairs| SET
+  WS -->|触发 apply| FW
+  PVEO -.-> FW
+  OSP -.-> FW
+  FW --> NFT
+```
+
+| 重建顺序 | OCI Hub 整机恢复 | 从零重建（备用，账本丢失的处理未定，受阻） |
+| --- | --- | --- |
+| 1 | 确认同机服务空闲，打开隔离开关，恢复启动卷，优先同一实例替换；不能替换就走 IP 预案（受阻，见 AD-32） | Terraform 建实例和网络，按 IP 预案改地址 |
+| 2 | `terraform plan` 确认无漂移，核对备份策略绑定 | `deploy-oci-hub.yml --skip-tags verify` |
+| 3 | `oci-hub-release` 确认服务版本兼容，再跑 `oci-hub` role（AD-31 落地后才能重跑） | `wsctl oci-hub-release --new-hub` |
+| 4 | 推送 `paid_through` 快照，按 D1 双向对账 | `wsctl` 从 D1 重新登记全部身份，推送快照 |
+| 5 | `wireguardusrmgr.py` 从 D1 填入 nft set，解除隔离 | `deploy-oci-hub.yml --tags verify` |
 
 ## Capability → Architecture Map
 
@@ -307,11 +425,14 @@ ansible/roles/           # 新增执行器 VM 角色（wsctl 运行环境 + Sema
 | 到期关机 / 续费开机 | 执行器定时任务 | AD-16 |
 | 日常停用/恢复 | wg-portal 页面 | AD-2、AD-11 |
 | 重发设备包 | `wsctl reissue` | AD-1、AD-17 |
-| 退役 | `wsctl retire` | AD-1、AD-10 |
+| 退役 | `wsctl retire` | AD-1、AD-10、AD-26、AD-27、AD-28 |
 | 总览 | `wsctl status` | AD-2、AD-3、AD-14 |
 | HAPI 名单同步 | `wsctl enforce`、`wsctl hapi-sync` → `hapi-ctl apply` | AD-16、AD-20、AD-23、AD-24 |
 | HAPI 应用发版 | `wsctl hapi-release` | AD-22 |
 | 执行器与管理面板 | pve0 执行器 VM + Semaphore | AD-1、AD-15 |
+| 防火墙 | `firewall.py`、Hub `wireguardusrmgr.py` | AD-25、AD-26、AD-27、AD-30 |
+| VM 与网络创建 | `wsctl provision` → Terraform | AD-28、AD-29 |
+| Hub 配置与恢复 | `oci-hub` role、Terraform 备份策略 | AD-31、AD-32 |
 
 ## Deferred
 
@@ -319,7 +440,6 @@ ansible/roles/           # 新增执行器 VM 角色（wsctl 运行环境 + Sema
 | --- | --- |
 | 在线收费 | 业务规模上来后再做；届时只替换 `paid_through` 的写入来源（AD-2、AD-8），其余不变。Stripe、Airwallex、国内直连的调研结论在 memlog |
 | uniCloud 付费空间 | 先用免费空间；续期负担或额度超标停服成为问题时再升级 |
-| 网站上的员工状态查询 | 状态查询由小程序提供（AD-18） |
 | PVE 只读 API token | 执行器与 PVE 同在局域网，沿用现有访问方式；需要更细权限时再加 |
 | 执行器 VM 的具体规格、Tailscale 接入细节、Semaphore 数据库 | 建 VM 时定，不影响命令契约 |
 | R2 | 设备包约 1.6 KB 且即删，存 D1 即可（2026-11-01）；需要放大文件时再开通 R2，只改 Worker 存取封装 |
@@ -327,3 +447,8 @@ ansible/roles/           # 新增执行器 VM 角色（wsctl 运行环境 + Sema
 | Hub 二进制并入版本发布 | 有状态、带迁移门禁、很少升级；继续由 `hapi-shared-hub` 管理 |
 | VM500 从零重建 | 恢复靠 VM 级备份，从零重建是备用方案；防火墙基础规则只存在于现有文件，真要走备用方案时再定来源和启动顺序 |
 | Cloudflare Access 应用和 Tunnel 纳入 Terraform | 目前手工配置，变化极少；不影响名单和发版 |
+| 执行器 IaC 自动同步 | 走 CI/CD，暂不做；在此之前手动 `git push`，上线 story 先确认 `/srv/iac` 是最新的（AD-30） |
+| 保留公网 IP | 临时 IP 不能原地转成同地址的保留 IP；下次本来要重发全部设备包时一起做 |
+| PVE 规则改 nft set | OCI Hub 先做（AD-27）；PVE 规则复杂，现有渲染够用 |
+| OCI Hub 从零重建 | 恢复靠启动卷备份，从零重建是备用；账本丢失时如何处理（部署合同不允许重新初始化为零）到时再定 |
+| 执行器和 D1 的恢复 | AD-32 只覆盖 OCI Hub；执行器运行记录、快照 generation 和 D1 数据丢失后的恢复来源、允许损失范围要另定。在此之前的底线：恢复后先冻结写命令，全量对账，作废旧审批，generation 不回退，确认后才恢复写入 |
