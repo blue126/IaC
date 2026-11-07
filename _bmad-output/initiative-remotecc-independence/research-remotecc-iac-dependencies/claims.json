@@ -1,0 +1,233 @@
+[
+  {
+    "q": 1,
+    "text": "布局文档把 apply-site、employee-miniprogram、hapi-control、wsctl 列为同一个私有 RemoteCC 仓库的组件，employee-data 与 hapi-data 为不入 Git 的运行数据。",
+    "path": "docs/architecture/remotecc-layout.md",
+    "line": "8-16",
+    "symbol": "RemoteCC"
+  },
+  {
+    "q": 1,
+    "text": "公开 IaC 的忽略规则排除整个 remotecc 目录。",
+    "path": ".gitignore",
+    "line": "36",
+    "symbol": "remotecc"
+  },
+  {
+    "q": 1,
+    "text": "文档说明私有仓库远端为执行器上的 remotecc.git、无 GitHub 远端，提交和分支独立于 IaC；这不是本轮对远端服务状态的核验。",
+    "path": "docs/architecture/remotecc-layout.md",
+    "line": "19-25",
+    "symbol": "main"
+  },
+  {
+    "q": 2,
+    "text": "RemoteCC root 绑定 HCP organization homelab-roseville / workspace iac-remotecc。",
+    "path": "terraform/remotecc/versions.tf",
+    "line": "1-8",
+    "symbol": "terraform"
+  },
+  {
+    "q": 2,
+    "text": "公开布局文档另列模板 Terraform 源码 template-build-source 与数据目录 template-build 中的 state；本轮未读取该 state。",
+    "path": "docs/architecture/remotecc-layout.md",
+    "line": "41",
+    "symbol": "state"
+  },
+  {
+    "q": 2,
+    "text": "内部 Proxmox root 的 workspace 名称为 iac-proxmox-lab。",
+    "path": "terraform/proxmox/versions.tf",
+    "line": "1-8",
+    "symbol": "terraform"
+  },
+  {
+    "q": 2,
+    "text": "RemoteCC README 把员工 VM、VM500、员工模板及 remotecc-ops 列为该 root 的资源，声明 local execution、由执行器 wsctl 驱动，名册为非 Git 运行数据。",
+    "path": "terraform/remotecc/README.md",
+    "line": "1-7",
+    "symbol": "Infrastructure"
+  },
+  {
+    "q": 2,
+    "text": "员工 VM 模块仍从相邻 ../modules/proxmox-vm 引入，因此 workspace 分开不等于模块源码独立。",
+    "path": "terraform/remotecc/oci-hub-workspace.tf",
+    "line": "54-57",
+    "symbol": "oci_hub_workspace"
+  },
+  {
+    "q": 2,
+    "text": "remotecc-ops 同样引用相邻的 proxmox-vm 模块。",
+    "path": "terraform/remotecc/remotecc-ops.tf",
+    "line": "1-2",
+    "symbol": "source"
+  },
+  {
+    "q": 2,
+    "text": "RemoteCC 动态 inventory 指向相对路径 ../terraform/remotecc。",
+    "path": "ansible/inventory/terraform-remotecc.yml",
+    "line": "1-2",
+    "symbol": "project_path"
+  },
+  {
+    "q": 2,
+    "text": "state 刷新脚本默认包含 proxmox、remotecc、oci，并把 state pull 的结果写入各 root 的 terraform.tfstate。",
+    "path": "scripts/refresh-terraform-state.sh",
+    "line": "11-40",
+    "symbol": "STATE_FILE"
+  },
+  {
+    "q": 2,
+    "text": "secrets bridge 把 Proxmox 的生成凭据文件复制到 RemoteCC root；这说明共享凭据输入路径，不证明任何凭据当前有效。",
+    "path": "scripts/get-secrets.sh",
+    "line": "47-48",
+    "symbol": "PROJECT_ROOT"
+  },
+  {
+    "q": 3,
+    "text": "workspace 部署直接使用 oci-hub-spoke 与 employee-workspace。",
+    "path": "ansible/playbooks/deploy-oci-hub-workspace.yml",
+    "line": "24-29",
+    "symbol": "roles"
+  },
+  {
+    "q": 3,
+    "text": "employee-workspace 再调用 admin-ssh-keys 维护管理员访问。",
+    "path": "ansible/roles/employee-workspace/tasks/main.yml",
+    "line": "19-24",
+    "symbol": "admin-ssh-keys"
+  },
+  {
+    "q": 3,
+    "text": "桌面 playbook 使用 kasmvnc，并在 provision 阶段 include hapi；hapi 不是另一套员工 VM。",
+    "path": "ansible/playbooks/prepare-employee-desktop.yml",
+    "line": "2-19",
+    "symbol": "hapi"
+  },
+  {
+    "q": 3,
+    "text": "执行器部署同时调用 common、ubuntu-vm、tailscale、host-firewall、remotecc-ops-runtime、semaphore，存在通用主机角色依赖。",
+    "path": "ansible/playbooks/deploy-remotecc-ops.yml",
+    "line": "50-56",
+    "symbol": "roles"
+  },
+  {
+    "q": 3,
+    "text": "终端 playbook 从 playbook_dir 的两级父目录读取 boundary.py 和 pve-sdn.py。",
+    "path": "ansible/playbooks/deploy-oci-hub-terminal.yml",
+    "line": "26-48",
+    "symbol": "src"
+  },
+  {
+    "q": 3,
+    "text": "HAPI 独立安装入口调用 hapi role。",
+    "path": "ansible/playbooks/deploy-employee-hapi.yml",
+    "line": "3-8",
+    "symbol": "roles"
+  },
+  {
+    "q": 3,
+    "text": "控制面部署入口调用 hapi-control-plane。",
+    "path": "ansible/playbooks/deploy-hapi-control-plane.yml",
+    "line": "2-6",
+    "symbol": "roles"
+  },
+  {
+    "q": 3,
+    "text": "共享 Hub 部署入口调用 hapi-shared-hub。",
+    "path": "ansible/playbooks/deploy-hapi-shared-hub.yml",
+    "line": "2-6",
+    "symbol": "roles"
+  },
+  {
+    "q": 3,
+    "text": "OCI Hub 部署入口作用于 oci 主机组并调用 oci-hub。",
+    "path": "ansible/playbooks/deploy-oci-hub.yml",
+    "line": "2-6",
+    "symbol": "roles"
+  },
+  {
+    "q": 3,
+    "text": "oci-hub-pve 角色从 playbook_dir 的两级父目录读取 boundary.py 与 pve-sdn.py。",
+    "path": "ansible/roles/oci-hub-pve/tasks/main.yml",
+    "line": "17-87",
+    "symbol": "src"
+  },
+  {
+    "q": 3,
+    "text": "router 入口直接调用 oci-hub-pve。",
+    "path": "ansible/playbooks/configure-oci-hub-router.yml",
+    "line": "2-6",
+    "symbol": "oci-hub-pve"
+  },
+  {
+    "q": 3,
+    "text": "Mosh 边界入口渲染和复制同一个相对路径 boundary.py。",
+    "path": "ansible/playbooks/configure-oci-hub-mosh-boundary.yml",
+    "line": "7-37",
+    "symbol": "argv"
+  },
+  {
+    "q": 4,
+    "text": "公开执行器默认配置同时声明 /srv/remotecc 和 /srv/iac 两个 checkout；只有 remotecc 条目声明 /run/wsctl.lock。这是配置声明，未现场验证部署状态。",
+    "path": "ansible/roles/remotecc-ops-runtime/defaults/main.yml",
+    "line": "12-27",
+    "symbol": "remotecc_ops_repositories"
+  },
+  {
+    "q": 4,
+    "text": "公开 Ansible 配置把 roles、collections 和 .vault_pass 解析为所在 Ansible 树的相对资源，迁离代码根不能自动带走这些运行材料。",
+    "path": "ansible/ansible.cfg",
+    "line": "6-10",
+    "symbol": "roles_path"
+  },
+  {
+    "q": 4,
+    "text": "公开接口文档明确：源码复制不等于配置和数据绑定复制；执行器上的 IaC 根由受保护配置决定。私有入口的精确解析与拒绝条件见独立受限证据包。",
+    "path": "docs/architecture/remotecc-layout.md",
+    "line": "27-39",
+    "symbol": "Worktree"
+  },
+  {
+    "q": 5,
+    "text": "CI classifier 将共享模块变化关联到四个 root，并将 tests/oci-hub 的变化关联到 RemoteCC root。",
+    "path": "scripts/ci/classify-pr.sh",
+    "line": "50-70",
+    "symbol": "terraform_remotecc"
+  },
+  {
+    "q": 5,
+    "text": "Terraform validator 限定 root 白名单，执行 fmt、init -backend=false、validate；未在这个脚本执行 plan/apply。",
+    "path": "scripts/ci/validate-terraform.sh",
+    "line": "18-36",
+    "symbol": "selected_roots"
+  },
+  {
+    "q": 5,
+    "text": "Ansible validator 使用 CI 专用 inventory/config，撤销 Vault 环境变量，再 lint 与逐 playbook syntax-check；脚本会安装依赖，本轮没有执行它。",
+    "path": "scripts/ci/validate-ansible.sh",
+    "line": "27-80",
+    "symbol": "ANSIBLE_CONFIG"
+  },
+  {
+    "q": 5,
+    "text": "OCI ingress 测试夹具实际复制 terraform/oci/oci-hub.tf，而不是 RemoteCC root；测试目录名不能直接当作资源归属。",
+    "path": "tests/oci-hub/prepare-ingress-terraform.py",
+    "line": "7-11",
+    "symbol": "root"
+  },
+  {
+    "q": 5,
+    "text": "HAPI README 明确该目录不在 PR 校验内，需手工运行；列出的历史测试通过数不是本轮测试结果。",
+    "path": "tests/hapi-workspace/README.md",
+    "line": "35-37",
+    "symbol": "Kasm网页客户端"
+  },
+  {
+    "q": 6,
+    "text": "旧 story 记录迁往私有 IaC 子目录的提议，2026-11-06 暂缓、未批准；它保留子目录名 IaC 的决定以及三个待决事项，不能当作已实施事实。",
+    "path": "_bmad-output/backlog/story-remotecc-iac-files-moved-to-private-repo.md",
+    "line": "19-37",
+    "symbol": "Description"
+  }
+]
