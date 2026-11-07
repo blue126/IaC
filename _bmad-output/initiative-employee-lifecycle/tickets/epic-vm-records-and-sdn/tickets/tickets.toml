@@ -44,6 +44,7 @@ covers = ["R1"]
 after = [2, 5]
 hitl = true
 risk = "high"
+unknown = "开户中的资源是否在到期范围内（story-spine-revision-before-vm-records）？"
 
 [[entry]]
 id = 4

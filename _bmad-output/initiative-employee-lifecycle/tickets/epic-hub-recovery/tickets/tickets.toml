@@ -23,6 +23,7 @@ hitl = true
 risk = "high"
 plan_checkpoint = true
 notes = ["会中断同机服务，演练时间由 will 决定"]
+unknown = "AD-32 的隔离要覆盖哪些入口（story-spine-revision-before-vm-records）？"
 
 [[entry]]
 id = 3
