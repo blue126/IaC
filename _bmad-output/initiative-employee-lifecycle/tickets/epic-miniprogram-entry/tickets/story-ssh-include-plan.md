@@ -3,7 +3,7 @@ title: '一条命令登录（客户端）：本机 ssh 别名与 Include'
 type: 'feature'
 ticket: '15'
 created: '2026-11-02'
-status: 'built'
+status: done
 baseline_revision: 'workspace-onboarding 080581b4d5745df5d1cd5c39b5a29bd67a65cc92; employee-admin af5d8bd'
 route: 'full'
 route_source: 'auto'

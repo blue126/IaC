@@ -52,3 +52,4 @@ risk: medium
 - Decision: 2026-11-02 uniCloud 支付宝云免费版服务空间 `remotecc-miniprogram` 已开通：SpaceId `env-00jy726lv4yv`，request 域名 `https://env-00jy726lv4yv.api-hz.cloudbasefunction.cn`，到期 2026-12-02 23:59:59（免费版按月到期，需续期；5.7 摘要提示）。AK/SK 不入文档。
 - Open question: 个人主体是否需要认证费未核实；正式小程序 AppID 状态待确认。
 - Dropped: 5.14，2026-11-04 用户决定 VM 系统 hostname 保持 `oci-hub-<员工ID>`，员工介意可自行修改。
+- Decision: 2026-11-07 用户在 WILL-112 确认：5.9、5.10、5.15、5.16、5.18、5.25 记为 done，5.4–5.8 随小程序暂停。已知遗留：5.18 的 demo 以 VMID 503 开户没有成功的直接记录；5.24 的员工文档页 `usage/hapi` 等文档站接入后发布；5.25 中 502、505、506、507 的 `employee_acceptance` 仍为 pending。5.26 的描述和验收改为现行做法，保留批准这一步。

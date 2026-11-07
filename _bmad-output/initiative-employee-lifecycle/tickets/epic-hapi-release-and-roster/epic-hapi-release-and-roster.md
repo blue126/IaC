@@ -57,3 +57,4 @@ HAPI 应用代码移到私有 `remotecc/hapi-control/`，经 `wsctl hapi-release
 - Decision: 2026-11-06 到期实测通过：`control` 改为已到期后，定时 `enforce` 停用路由并关闭 VM502，浏览器被拒绝；恢复后路由启用、VM502 开机，身份绑定保留。
 - Decision: 2026-11-06 P5 提前完成：删除 `hapi-registry`、`vm500_writer`、`enforce_push`、`static_ids`，线上版本 7a65901fbfb2cabe。`test-proxy.py` 移到 `hapi-control/tests/`。`_bmad-output/` 改为随仓库提交。
 - Decision: 2026-11-06 noVNC 清理完成：线上版本 da6df049cc5f12d2 去掉旧路由，VM500 卸载 `novnc` 和 `websockify`。
+- Decision: 2026-11-07 WILL-112 核对私有代码后的已知缺口：7.5 的“回滚到不支持的 schema 被拒绝”只有前向测试，修复后没有线上回滚记录；7.10 的测试员工只记录了到期和恢复，开户、退役没有记录，“观察一周”被提前。由 `story-lifecycle-e2e-acceptance` 补。

@@ -303,13 +303,13 @@ risk = "low"
 id = 26
 type = "story"
 title = "网站经执行器部署（apply-site 纳入 RemoteCC 部署流程）"
-description = "apply-site 与 design 同 employee-admin 一样推到执行器 git 仓库，由执行器在部署钩子中依次运行测试、sync-design --check、D1 迁移（--command 并确认成功）、wrangler deploy；Mac 不再持有 Cloudflare 部署凭据。代码仍在 git 忽略的 remotecc/ 下，不进 IaC 公开仓库。"
-verify = "git push 到执行器即完成网站部署并留记录；迁移失败时不部署；Mac 无需 wrangler 登录。"
+description = "apply-site 与 design 随 remotecc 推到执行器 git 仓库；由 wsctl apply-site 计划并批准后发布：执行器构建文档、执行 D1 迁移、上传新版本、比对绑定、切流量并做健康检查，失败自动切回；测试和 sync-design --check 在 Mac 上运行（执行器没有 Node）；Mac 不再持有 Cloudflare 部署凭据。代码仍在 git 忽略的 remotecc/ 下，不进 IaC 公开仓库。"
+verify = "wsctl apply-site --plan-only 列出版本和待执行迁移，--approve 同一 SHA 完成发布并留记录；迁移失败时不部署；健康检查失败自动切回；Mac 无需 wrangler 登录。"
 covers = ["R21"]
 after = [20]
 hitl = true
 risk = "medium"
-notes = ["2026-11-03 用户提出：网站更新能否做成 RemoteCC IaC 的一部分；起因是 5.20 上线时 D1 迁移失败但网站已部署", "2026-11-04 完成上线：wsctl apply-site（计划→批准）由执行器经 Cloudflare API 部署网站，执行器不装 Node；先跑 D1 迁移并记入 site_migrations，再上传继承绑定的新版本、比对绑定、切流量、健康检查，失败自动切回；首次部署版本 9023605e，线上验证回滚生效过一次（健康检查 User-Agent 被 Cloudflare 1010 拦截，已修）；令牌 executor/apply-site-deploy-token 在 BWS remotecc；迁移必须兼容线上旧 Worker，删表删列分两次发布（employee-admin dc07bbd，apply-site 7d6fbb6）"]
+notes = ["2026-11-03 用户提出：网站更新能否做成 RemoteCC IaC 的一部分；起因是 5.20 上线时 D1 迁移失败但网站已部署", "2026-11-04 完成上线：wsctl apply-site（计划→批准）由执行器经 Cloudflare API 部署网站，执行器不装 Node；先跑 D1 迁移并记入 site_migrations，再上传继承绑定的新版本、比对绑定、切流量、健康检查，失败自动切回；首次部署版本 9023605e，线上验证回滚生效过一次（健康检查 User-Agent 被 Cloudflare 1010 拦截，已修）；令牌 executor/apply-site-deploy-token 在 BWS remotecc；迁移必须兼容线上旧 Worker，删表删列分两次发布（employee-admin dc07bbd，apply-site 7d6fbb6）", "2026-11-07 用户同意保留批准这一步，描述和验收改为现行做法（WILL-112）"]
 
 [[entry]]
 id = 27
@@ -321,5 +321,5 @@ covers = ["R21"]
 after = [24]
 hitl = true
 risk = "medium"
-notes = ["2026-11-03 用户提出：员工数据分布太散，除 BWS 凭据外统一到 D1；同意 applications（不可变原件）与 employees（当前资料）分工的设计", "替代此前“资料集中放执行器台账 profile + employee-data 本地 git 历史”的方案", "2026-11-04 收尾：状态副本只含运行状态 {email, state, workspace, spec, traffic, updated_at}，paid_through/devices 由网站从 employees 表读取、hostname 由 workspace 推出；网站兼容新旧两种格式（apply-site 499f720），执行器改推新格式（employee-admin 21f2014）。待部署：先网站后执行器", "2026-11-04 完成上线：网站 197bf38d 先部署、执行器 f96f814 后部署；publish-status 推送 8 名员工新格式副本，D1 中 6 名 ACTIVE 均有 paid_through、2 名 NO_EXPIRY 标记 no_expiry"]
+notes = ["2026-11-03 用户提出：员工数据分布太散，除 BWS 凭据外统一到 D1；同意 applications（不可变原件）与 employees（当前资料）分工的设计", "替代此前“资料集中放执行器台账 profile + employee-data 本地 git 历史”的方案", "2026-11-04 收尾：状态副本只含运行状态 {email, state, workspace, spec, traffic, updated_at}，paid_through/devices 由网站从 employees 表读取、hostname 由 workspace 推出；网站兼容新旧两种格式（apply-site 499f720），执行器改推新格式（employee-admin 21f2014）。待部署：先网站后执行器", "2026-11-04 完成上线：网站 197bf38d 先部署、执行器 f96f814 后部署；publish-status 推送 8 名员工新格式副本，D1 中 6 名 ACTIVE 均有 paid_through、2 名 NO_EXPIRY 标记 no_expiry", "2026-11-07 核对私有代码：Terraform 名单仍是 employee-data 里的本地文件，没有从 D1 生成；状态副本保留。名单部分由 10.3 接手（WILL-112）"]
 

@@ -12,7 +12,7 @@ risk: high
 
 ## Description
 
-把员工工作区从申请、开户、按月续费、到期提醒与断开、到退役串成一条由唯一执行器驱动的生命周期。员工在 `cc.willfan.me` 申请并下载设备包；收费在线下完成，系统只记录付到哪天；执行器与 Semaphore 常驻 pve0 上的专用 VM，提醒、断开、关机自动完成，开户、续费、退役由管理员在 Semaphore 中各确认一次。2026-11 的架构更新进一步收拢配置来源：静态配置归 IaC，VM 记录归 D1，防火墙从主机对象派生，OCI Hub 有定期备份并能原地恢复。设计依据是已定稿的架构主干。
+把员工工作区从申请、开户、按月续费、到期提醒与断开、到退役串成一条由唯一执行器驱动的生命周期。员工在 `cc.willfan.me` 申请并下载设备包；收费在线下完成，系统只记录付到哪天；执行器与 Semaphore 常驻 pve0 上的专用 VM，提醒、断开、关机自动完成，开户、退役由管理员在 Semaphore 中批准，续费无需批准。2026-11 的架构更新进一步收拢配置来源：静态配置归 IaC，VM 记录归 D1，防火墙从主机对象派生，OCI Hub 有定期备份并能原地恢复。设计依据是已定稿的架构主干。
 
 ## Outcome
 
@@ -21,14 +21,14 @@ risk: high
 ## Requirements
 
 - R1 (AD-13): 员工可在 `cc.willfan.me` 用手机浏览器查看工作区规格并提交申请（邮箱、姓名、手机号）；提交经 Turnstile 校验并按 IP 限频；提交成功的申请出现在 `wsctl request` 的结果中。
-- R2 (AD-6, AD-1): 管理员可从一条已拉取的申请开户，只需一次确认；开户后该员工的 `paid_through` 为当月月底（Sydney），并收到开通邮件。
+- R2 (AD-6, AD-1): 管理员可从一条已拉取的申请开户：新 VM 共 3 次批准（建 VM、配置、上传设备包并发开通邮件）；开户后该员工的 `paid_through` 为当月月底（Sydney），并收到开通邮件。
 - R3 (AD-17, Decision 2026-11-07): 员工登录网站后在“我的工作区”下载设备包，不限次数；邮件不带设备包和下载链接；设备包与 VM 同寿命，保存到员工退役或被同设备的新包替换；不再使用 Temp.sh。
 - R4 (AD-8): 管理员可用一条无需确认的命令为员工续 N 个月：未过期则在原到期月上加 N 个月，已过期则从本月起加，结果为月底。
 - R5 (AD-9, AD-11): `paid_through` 过后，该员工的隧道接入在一个 OCI timer 周期内断开，续费后在同样时限内恢复；人工停用原因与配额原因保持不变。
 - R6 (AD-16): `paid_through` 过后 5 分钟内该员工 VM 关机，续费后 5 分钟内开机，磁盘保留；不影响 catalog 以外的 VM。
 - R7 (AD-14): 每天自动给 `paid_through` 为本月底且未续费的员工发提醒邮件，同一员工同一 `paid_through` 只发一次。
 - R8 (AD-14): 管理员每天收到摘要邮件，列出新申请、可退役员工（`now > paid_through + 3 天`）和孤儿资源（有 VM 无 catalog 记录，或反之）。
-- R9 (AD-10): 管理员可一次确认批量退役全部可退役员工；执行前逐个复查 `paid_through`，已续费者跳过；退役后 Portal、Terraform、BWS、R2、catalog 中均无该员工，不备份。
+- R9 (AD-10): 管理员可一次确认批量退役全部可退役员工；执行前逐个复查 `paid_through`，有人已续费时整批拒绝（`RETIRE_REPLAN_REQUIRED`），重新计划后不含此人；退役后 Portal、Terraform、BWS、网站设备包、catalog 中均无该员工，不备份。
 - R10 (AD-17, AD-1, Decision 2026-11-07): 管理员可为员工重发设备包：重新上传原包并发通知邮件，不换密钥，邮件不带下载链接。
 - R11 (AD-3, AD-14): `wsctl status` 显示每个员工的推导状态（正常/已停用/已到期/可退役）、到期日、孤儿资源与待提醒人数；在 wg-portal 页面手工停用后，状态立即反映。
 - R12 (AD-15): 执行器与 Semaphore 运行在 pve0 上的专用 VM；管理员从浏览器经 Semaphore 完成 R2、R4、R9、R10、R11 的操作；Mac 关机时 R6、R7、R8 照常执行。
@@ -118,3 +118,7 @@ risk: high
 - Source conflict: R2 要一次确认，代码和文档是分步审批（R2-H4）。WILL-115 合并了上传和发信的批准，核对后在上面这张票定改 R2 还是改 AD-6。
 - Decision: 2026-11-07 用户决定 `wsctl retire` 删除执行器上含私钥的 `device-bundle.zip`，见 `_bmad-output/backlog/story-retire-deletes-executor-bundle.md`。
 - Decision: 2026-11-07 用户确认只有一套生产环境，测试靠测试员工隔离；由 `_bmad-output/backlog/story-spine-revision-before-vm-records.md` 写入主干。
+- Decision: 2026-11-07 用户在 WILL-112 接受 R2、R9 的现状，文本按实现修订：开户 3 次批准；有人已续费时退役整批拒绝。
+- Decision: 2026-11-07 `wsctl renew`、`wsctl retire` 的 Semaphore 模板（WILL-114，PR #280）和 `wsctl deliver` 一次批准（WILL-115，PR #284）已部署，这些路径线上还没运行过。
+- Decision: 2026-11-07 用户确认 D1 是 single source of truth。5.27 没做的“Terraform 名单从 D1 生成”由 10.3 接手，不另开票。
+- Decision: 2026-11-07 用户决定退役时清除 Hub 会话数据，并做一次完整生命周期测试，见 `_bmad-output/backlog/story-retire-clears-hub-sessions.md`、`story-lifecycle-e2e-acceptance.md`。实施要另行授权。
