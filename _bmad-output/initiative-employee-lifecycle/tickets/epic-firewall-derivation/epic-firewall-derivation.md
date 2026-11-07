@@ -43,7 +43,7 @@ risk: high
 ## Boundaries
 
 - 不把 PVE 规则改成 nft set（架构 Deferred）。
-- `configure-oci-hub-mosh-boundary.yml` 的删除已由 WILL-118 单独执行。
+- `configure-oci-hub-mosh-boundary.yml` 的删除归 `_bmad-output/backlog/story-oci-hub-residual-cleanup.md`（PR #283），不在本 epic。
 - Touch point: 申请网站 Worker — 新增配对接口和令牌校验；owner: 本 epic。
 
 ## References
