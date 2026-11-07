@@ -51,17 +51,17 @@ wsctl export --device alice
 
 已批准的特定设备豁免继续通过acceptance_waivers绑定其员工/设备/授权引用，结果为acceptance_waived，不推广至其他设备或称为验收通过。当前Mosh验收不再要求已退役的旧接入保留项。
 
-### 上传与邮件分两次批准
+### 上传与邮件一次批准
 
 将export输出的delivery_request保存到宿主私有申请目录。草稿形态如下；路径须替换为工具实际输出：
 
 ```json
-{"profile":"oci-hub","device_id":"alice","recipient":"alice@example.com","bundle_dir":"EXPORT返回的directory","run_dir":"EXPORT草稿提供的run_dir","notify":false,"purpose":"onboarding"}
+{"profile":"oci-hub","device_id":"alice","recipient":"alice@example.com","bundle_dir":"EXPORT返回的directory","run_dir":"EXPORT草稿提供的run_dir","purpose":"onboarding"}
 ```
 
-先执行 `wsctl deliver DELIVERY.json --plan-only`，核对后以 `wsctl deliver DELIVERY.json --approve SHA256` 执行。工具建立回执目录、上传并经管理接口校验（SHA-256 一致且网站仍保存该包），返回verified。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。
+先执行 `wsctl deliver DELIVERY.json --plan-only`，核对收件人、mail_subject 和可在宿主打开的 mail_preview，再以 `wsctl deliver DELIVERY.json --approve SHA256` 执行。一次批准同时覆盖上传和发信；批准摘要绑定设备包字节、收件人和邮件正文，其中任何一项变化都要重新plan。`purpose`为onboarding/trial/migration；正式开户默认onboarding，使用Mosh本身不触发试点邮件。旧版请求文件里的 `notify` 字段已取消，删掉它或重新 `export`；`HUB_DELIVERY_REQUEST_FIELDS_INVALID` 就是这个原因。
 
-随后仅把notify改为true，重新plan。它要求已有verified上传，不会在没有已校验的上传和预览时直接发信。展示返回的收件人、mail_subject及可在宿主打开的host_mail_preview；再次批准后deliver才发邮件。主题和正文纳入审批摘要，变化后重新plan。
+执行时先建立回执目录、上传并经管理接口校验（SHA-256 一致且网站仍保存该包），返回verified；校验不通过就停止，不发信。发信前再核一次当前subject和邮件正文摘要，与批准时的预览不一致则拒绝。上传成功后发信失败，用同一批准码重跑即可接着跑：不重新上传；网站明确拒绝发信时只补发一次，结果不明时停在notifying、不再重发。
 
 设备包上传到 `cc.willfan.me`（D1 存储），员工登录「我的工作区」下载，不限次数；包保存到员工退役或被同设备的新包替换为止，不按时间过期。开通邮件不带下载链接；通知邮件经网站 `/admin/mail`（Resend，发件人 hello@willfan.me）发出。上传后执行器经管理接口核对 SHA-256 与"网站仍保存该包"，不计下载。Temp.sh 已退役。上传或发信结果不明时不自动重试；上传成功但校验失败可恢复原校验，不重新上传。平台5xx、请求限频和包已不在网站分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
 
@@ -79,7 +79,7 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 2026-10-30 用户确认旧入口无人使用并授权后，VM500 六个旧员工入口服务已停用并屏蔽；VM500 主机作为 HAPI 控制面保留，管理 SSH、自身主机防护及历史凭据保留；员工网络隔离由 PVE 边界承担。默认/explicit existing 写入入口无条件拒绝；所有活动工作区通过 --profile oci-hub 维护。VM501 为 demo，VM502 为本人测试，VM509 底层地址已调到 10.236.9.2。见 [迁移与退役记录](2026-10-30-demo-test-hub-retirement.md)。当前无需再次执行用户已跳过的专项验收。
 
-员工客户端 v2 原生 Mosh 已通过公开 workspace-onboarding PR #1 合并至 main（三平台 CI 通过）；设备包上传和邮件仍按独立授权执行。
+员工客户端 v2 原生 Mosh 已通过公开 workspace-onboarding PR #1 合并至 main（三平台 CI 通过）；设备包上传和邮件仍须管理员批准，两者共用一次批准。
 
 
 ## Portal 浏览器管理入口
