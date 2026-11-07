@@ -89,6 +89,7 @@ deferred:
 - `tests/oci-hub/inventory.yml` 的 `oci_hub_mosh_gateway` 组只服务已删除的 playbook，移除该组。`docs/deployment/mosh-oci-hub-pilot.md` 里的同名组描述的是私有 `mosh_inventory` 契约，`settings.json` 仍使用它，故保留。
 - OCI Hub 只读核对（2026-11-07）：`/opt/oci-hub/backup-readdress-20261103`（executor.py 8296640…、portal.py 38e3486…）与 `/etc/oci-hub/portal.yaml.2335891.2026-10-30@06:32:23~`（f858f5c…）存在；在 `/etc`、`/opt`、`/var`、`/usr`、`/root` 搜索两个路径只命中 `auth.log` 中本次 sudo 记录。删除后两路径均不存在；`oci-hub-portal.service` active/running（启动于 2026-11-06 12:08，未因删除重启），`oci-hub-boundary.service` active/exited，`oci-hub-quota.timer` active/waiting。
 - 2026-11-07 集成：远端私有 main 在清理提交之后新增 `c1f6bfb`（Semaphore 模板）和 `e0c88ac`（WILL-115 合并上传与发信批准），两者都改了同一批文件。清理提交 rebase 到 `e0c88ac` 之上，解决 `oci-hub-admin.py`、`test-oci-hub.py` 的冲突，保留 WILL-115 的 `mail_binding`/单一批准流程，并把 `notify()` 的发信续跑条件从 `profile=='oci-hub' and purpose!='reissue'` 改为 `purpose!='reissue'`（profile 参数已删除）。集成后的提交是 `3fc5882`，作为送审与交付版本。
+- 部署（2026-11-07）：`035c897` 推送到 `remotecc-ops`，post-receive 输出 `deployed remotecc 035c897…`。执行器 `git --git-dir=/srv/git/remotecc.git rev-parse main` 与工作树一致，工作树只有未跟踪的 `__pycache__` 和锁文件；部署文件 md5 与本地一致。`wsctl status`：mapping_generation 14、`pending_actions`/`reconcile_failures`/`orphans` 均为空、8 个工作区；`wsctl verify` 正常；`wsctl reissue --device control --plan-only` 产出批准码与邮件预览，未上传、未发信，只新建 `runs/reissue-control-003/mail-preview.html`。
 - 代码哈希 `source_hash()` 变化，部署前需确认没有未执行的开户计划。
 
 ## Plan Change Log
