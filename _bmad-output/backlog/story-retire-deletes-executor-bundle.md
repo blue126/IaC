@@ -1,5 +1,5 @@
 ---
-id: 6
+id: 8
 type: story
 title: "退役后执行器上没有该员工的设备包"
 parent: none
