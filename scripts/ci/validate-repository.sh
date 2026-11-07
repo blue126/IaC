@@ -146,6 +146,8 @@ if [[ "${python_applicable}" == true ]]; then
     (cd "${REPOSITORY_ROOT}" && "${PYTHON_BIN}" "tests/ci/${peer_suite}")
   done
   echo "jenkins_peer_regressions=passed suites=${#peer_suites[@]}"
+  "${PYTHON_BIN}" "${REPOSITORY_ROOT}/tests/ci/semaphore-templates-test.py"
+  echo "semaphore_templates_status=passed"
   checked_python_files=0
   while IFS= read -r -d '' changed_file; do
     if [[ "${changed_file}" == *.py && -f "${REPOSITORY_ROOT}/${changed_file}" ]]; then
