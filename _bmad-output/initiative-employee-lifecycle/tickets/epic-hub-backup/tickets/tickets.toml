@@ -1,0 +1,35 @@
+# Stories of epic-hub-backup, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "OCI Hub 启动卷绑定每周备份策略"
+description = "在 terraform/oci 定义每周一次、保留 4 周的自定义策略并绑定启动卷；绑定失败时按 AD-32 改用定时任务，运行位置在本 story 决定。"
+verify = "控制台显示策略已绑定，下一个周期出现自动备份，备份总数不超过 5 份。"
+covers = ["R1"]
+after = []
+hitl = true
+risk = "medium"
+notes = ["2026-11-07 用户要求放进 backlog：备份策略的实际分配", "策略跑起来后可删除手动备份 hub-manual-2026-11-07", "绑定失败时的定时任务运行位置在本 story 决定，不放执行器"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "OCI Hub 实例不会被 Terraform 误删"
+description = "Hub 实例设 prevent_destroy，ignore_changes 加 source_details。"
+verify = "plan 无漂移；含销毁实例的 plan 被 Terraform 拒绝。"
+covers = ["R1"]
+after = [1]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 3
+type = "story"
+title = "隔离开关能关闭 WireGuard 入站"
+description = "terraform/oci 增加隔离开关变量，默认不隔离；打开时 NSG 关闭 WireGuard 入站，隔离期间 NSG 只经这个开关变更。11.7 让 Ansible 读同一入站变量，本 story 不改变量文件的读取方。"
+verify = "打开开关的 plan 只改 WireGuard 入站规则，关闭后 plan 无差异；真实打开留给恢复演练。"
+covers = ["R1"]
+after = [2]
+hitl = true
+risk = "high"

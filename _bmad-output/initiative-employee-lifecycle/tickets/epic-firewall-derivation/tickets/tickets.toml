@@ -1,0 +1,100 @@
+# Stories of epic-firewall-derivation, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "boundary 和 executor 改名后线上照常"
+description = "boundary 改 firewall，executor 改 wireguardusrmgr，覆盖文件、service、配置文件和私有代码里的硬编码路径；行为不变。pve-sdn.py 按名字加载 boundary.py，所以排在 pve-sdn.py 退役之后。"
+verify = "两台主机的服务正常，规则摘要与改名前相同，wsctl status 正常。"
+covers = ["R4"]
+after = ["9.4", "10.6"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 2
+type = "story"
+title = "PVE 防火墙从 SDN 和 VM 配置派生"
+description = "firewall.py 读本机对象渲染规则，加本机锁和 hook 摘要校验；管理来源和 HAPI 放行由 OS 层展开；核对 service-egress.json 和 cloudflare_tunnel_vmids 等价后停读。service 单元加 Requires= 和 After=pve-cluster.service；VMID 算法用 10.1 的测试向量。"
+verify = "新渲染结果与线上规则一致；不符合 VMID 算法的 VM 被拒绝启动；PVE 上不再读 boundary.json。hook 在摘要不符时拒绝启动。"
+covers = ["R2"]
+after = [1, "9.1", "10.1", "10.2", "10.6"]
+hitl = true
+risk = "high"
+notes = ["disabled 字段是否保留在本 story 核对"]
+[[entry]]
+id = 4
+type = "story"
+title = "配对接口按只读令牌返回配对"
+description = "Worker 增加 AD-13 的配对接口，只接受 Hub 只读令牌，用全部 VM 记录查询，响应带 catalog generation。"
+verify = "正确令牌拿到 schema 1 的响应且不含物理地址；管理令牌和错误令牌被拒绝。"
+covers = ["R3"]
+after = ["9.3", "10.1"]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "firewall.py pairs 在一个事务里替换 set 元素"
+description = "增加 pairs 动作：stdin 接收完整配对，本机锁内替换元素，拒绝更旧 generation，重载保留元素。重载和 pairs 共用一把 Hub 本机锁。与 11.2 同改 firewall.py，排在其后。"
+verify = "空列表合法；格式错误和旧 generation 被拒绝且元素不变；重载后元素还在。"
+covers = ["R3"]
+after = [2]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 6
+type = "story"
+title = "wireguardusrmgr.py 定时拉取配对"
+description = "role 生成的配置加 interfaces、pairs_url、pairs_token；定时及 register、retire、readdress 后拉取并调用 pairs；firewall.py 没有 pairs 动作时跳过。开机后第一次拉取填充 set，读不到时保持空 set 并重试。"
+verify = "读取失败时元素不变；新程序在旧 firewall.py 上运行不报错。"
+covers = ["R3"]
+after = [4, 5]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 7
+type = "story"
+title = "OCI Hub 规则切换到 nft set"
+description = "Hub 规则固定，配对只走 set；Mosh 用固定范围，mosh_ports 废弃；逐配对 iptables FORWARD 改成按接口的静态规则；入站来源从 terraform/oci 变量文件读取。VM 记录导入 D1 后才切换，否则配对为空；Ansible 读 8.3 的入站变量文件。"
+verify = "每台设备只通自己的 VM；Hub 重启后 set 未填入时不通，拉取后恢复。"
+covers = ["R3"]
+after = [6, "8.3", "10.3"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 3
+type = "story"
+title = "wsctl 不再改写策略文件"
+description = "hub-terminal、hub-access、hub-hapi、hub-retire 只改对象并触发 PVE apply，boundary.json 退役，两个 role 脱离传入策略。"
+verify = "测试员工开户和退役跑通；两台主机上没有 boundary.json；两个 role 不传策略也能重跑且无差异。"
+covers = ["R1", "R2"]
+after = [2, 7, "10.4"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 8
+type = "story"
+title = "防火墙代码只由 role 下发"
+description = "terminal play 不再复制代码，wsctl 流程只触发 PVE apply。"
+verify = "搜索不到 role 以外下发 firewall.py 的路径；开户不改变主机上的代码文件。"
+covers = ["R4"]
+after = [3]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 9
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 延后的计划和审查发现，只做清理。"
+verify = "仓库检查通过，没有新增行为。"
+covers = []
+after = [1, 2, 3, 4, 5, 6, 7, 8]
+hitl = false
+risk = "low"

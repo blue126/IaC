@@ -55,3 +55,42 @@ title = "HAPI 应用独立发布，员工名单由执行器推送"
 description = "HAPI 应用代码经 wsctl hapi-release 发布，员工名单由执行器推送到 VM500，日常路径不经过 Ansible；到期员工被拒绝登录；VM502 转为普通员工 VM。"
 covers = ["R19"]
 after = [{ epic = 6, needs = "HAPI 已并入 wsctl 生命周期" }]
+
+[[epic]]
+id = 8
+slug = "epic-hub-backup"
+title = "OCI Hub 启动卷有定期备份，实例不会被误删"
+description = "Terraform 自定义策略每周备份、保留 4 周并已绑定到启动卷；Hub 实例设 prevent_destroy，ignore_changes 含 source_details；隔离开关可关闭 WireGuard 入站；terraform plan 无漂移。"
+covers = ["R28"]
+
+[[epic]]
+id = 9
+slug = "epic-iac-static-config"
+title = "静态配置和 Hub 服务配置归 IaC，role 可随时重跑"
+description = "静态网络参数在一份不含插值的变量文件里，settings 不再保存；portal.yaml 和 executor.json 由 role 按现有字段生成（改名和 pairs 字段归 epic 11），Portal 密钥和配对只读令牌在 Vault；iac.git 钩子持 wsctl 运行锁。本 epic 交付 R22 的静态输入，role 脱离策略文件重跑由 epic 11 完成。"
+covers = ["R22"]
+after = [{ epic = 1, needs = "执行器、wsctl 与 Semaphore" }]
+
+[[epic]]
+id = 10
+slug = "epic-vm-records-and-sdn"
+title = "VM 记录归 D1，VNet 与 VM 同由 Terraform 管理"
+description = "VM 记录在 D1，提供全部 VM 记录和在册员工两个查询（前者供 epic 11 的配对接口），var-file 每次运行时生成，roster 退役；VMID 算法测试向量和只读预检在此建立；开户和退役顺序按 AD-28 和 AD-10；bpg/proxmox 升级，现有 SDN 已导入 Terraform，pve-sdn.py 退役。"
+covers = ["R23", "R24"]
+after = [{ epic = 3, needs = "D1 与 Worker 管理接口" }, { epic = 5, needs = "employees 表（5.27）" }, { epic = 4, needs = "wsctl retire 现有流程" }, { epic = 9, needs = "aggregate 等静态参数所在的变量文件，var-file 按 VMID 算地址要用" }]
+
+[[epic]]
+id = 11
+slug = "epic-firewall-derivation"
+title = "防火墙从主机对象派生，配对来自 D1，代码只走 role"
+description = "PVE 规则从 SDN 和 VM 配置派生，OCI Hub 配对是来自 D1 的 nft set 元素，配对接口和 Worker 侧令牌校验在此实现，boundary.json 退役，role 不再需要 wsctl 传入策略即可重跑（完成 R22）；boundary 和 executor 完成改名；firewall.py 只由两个 role 下发。"
+covers = ["R22", "R25", "R26", "R27"]
+after = [{ epic = 8, needs = "terraform/oci 的隔离开关先落地，Ansible 再读入站变量" }, { epic = 9, needs = "OS 层静态参数、role 生成的服务配置和 Vault 里的配对令牌" }, { epic = 10, needs = "VNet 已归 Terraform；D1 的全部 VM 记录查询" }]
+
+[[epic]]
+id = 12
+slug = "epic-hub-recovery"
+title = "OCI Hub 能恢复，公网 IP 变化时能全量切换"
+description = "wsctl 按 D1 双向对账；恢复演练证明替换启动卷后公网 IP 不变、对账通过才解除隔离；endpoint 变化时可批量重建设备包并批量重跑 oci-hub-spoke；指向 OCI Hub 的 DNS 记录列入执行器运行手册。"
+covers = ["R29", "R30"]
+after = [{ epic = 2, needs = "paid_through 快照推送" }, { epic = 3, needs = "设备包上传与 reissue" }, { epic = 8, needs = "备份策略和隔离开关" }, { epic = 9, needs = "endpoint 成为一个 IaC 变量" }, { epic = 11, needs = "wireguardusrmgr.py 从 D1 填入 nft set" }]

@@ -1,0 +1,79 @@
+# Stories of epic-vm-records-and-sdn, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "D1 有 VM 记录，两个查询可读"
+description = "在 employees 的 JSON 里加 VM 记录，提供全部 VM 记录（含开户中）和 catalog() 在册员工两个查询；建立 VMID 算法测试向量。在册员工的定义是有 VM 记录且至少一台设备配置完成，不新增状态字段；现有读取方切到这两个查询在 10.3 完成。"
+verify = "开户中的测试记录出现在全部 VM 查询、不在 catalog()；读取失败返回错误，不返回空表。"
+covers = ["R1"]
+after = ["3.1", "5.27", "9.1"]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "bpg/proxmox 升级后 plan 无意外差异"
+description = "升级 provider 并钉在 1.0 以下，核实共享模块 proxmox-vm、terraform/proxmox 和 API token 的 SDN 权限。"
+verify = "terraform/proxmox 和 terraform/remotecc 的 plan 都没有意外差异。"
+covers = ["R2"]
+after = []
+hitl = true
+risk = "high"
+notes = ["目标版本在本 story 核验"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "现有 VM 全部符合 VMID 算法"
+description = "只读预检：现有 VM 的 VNet、子网、网关、地址、MAC 都等于 VMID 算出的值。"
+verify = "预检报告列出全部现有 VM，全部通过，不符项已处理。"
+covers = ["R1"]
+after = [1]
+hitl = true
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "roster 退役，var-file 运行时生成"
+description = "冻结 roster 写入，原样导入 D1，var-file 由 VM 记录生成，读取失败时不生成。现有读取方切到两个查询；切换后冻结开户和退役，到 10.4 完成为止。"
+verify = "切换前后完整 plan 没有变化；断开 D1 时 wsctl 拒绝生成，不当成空清单。"
+covers = ["R1"]
+after = [2, 5]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 4
+type = "story"
+title = "开户和退役按 VM 记录顺序执行"
+description = "开户先写 VM 记录再跑 Terraform；退役先条件删除 VM 记录再跑 Terraform，generation 变化时放弃该员工退役。退役顺序按 AD-10；地址和 VMID 由运行记录占用，核验后才回到池中；完成后解冻开户和退役。"
+verify = "在 Terraform 前中断的退役，下一次 plan 继续销毁；控制台续期后退役被放弃。"
+covers = ["R1"]
+after = [3, "4.4"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 6
+type = "story"
+title = "VNet 和子网归 Terraform，pve-sdn.py 退役"
+description = "导入现有 zone、VNet、子网；Terraform 运行前加 pending 预检；修订部署合同；pve-sdn.py 退役。"
+verify = "导入后 plan 没有差异；测试员工开户和退役时 VNet 随 VM 建删。"
+covers = ["R2"]
+after = [3, 4, 5]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 7
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 延后的计划和审查发现，只做清理。"
+verify = "仓库检查通过，没有新增行为。"
+covers = []
+after = [1, 2, 3, 4, 5, 6]
+hitl = false
+risk = "low"

@@ -51,3 +51,4 @@ risk: medium
 - Decision: 2026-11-02 视觉重新设计一套，两端共用设计 token；文案源为单一 JSON；网站会话 2 小时；小程序也用邮箱验证码，uniCloud 可持有仅发信 Resend 密钥（AD-18 放宽，AD-21）。
 - Decision: 2026-11-02 uniCloud 支付宝云免费版服务空间 `remotecc-miniprogram` 已开通：SpaceId `env-00jy726lv4yv`，request 域名 `https://env-00jy726lv4yv.api-hz.cloudbasefunction.cn`，到期 2026-12-02 23:59:59（免费版按月到期，需续期；5.7 摘要提示）。AK/SK 不入文档。
 - Open question: 个人主体是否需要认证费未核实；正式小程序 AppID 状态待确认。
+- Dropped: 5.14，2026-11-04 用户决定 VM 系统 hostname 保持 `oci-hub-<员工ID>`，员工介意可自行修改。

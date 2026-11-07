@@ -74,7 +74,7 @@ risk: high
 - 现有 oci-hub 工作区迁移后都能重新接入：`pilot`、`control` 标记为不到期，其余员工的 `paid_through` 为上线当月月底。
 - 线上 `boundary.json` 和 roster 文件删除后，开户和退役各跑通一次，防火墙规则与切换前等价。
 - OCI Hub 恢复演练通过：替换启动卷后公网 IP 不变，对账通过后才解除隔离。
-- 用测试 `endpoint` 跑一次全量切换，所有设备包和员工 VM 的配置都指向新地址。
+- 用测试员工和测试 `endpoint` 跑一次全量切换，设备包和 VM 配置都指向新地址，不影响真实员工。
 
 ## Boundaries
 
@@ -109,3 +109,5 @@ risk: high
 - Decision: 2026-11-07 用户同意把 R14 的 `no_expiry`、R21 的登录别名和 AD-17 的新规则补进架构主干，由架构师执行。
 - Decision: 2026-11-07 用户批准清理已知残留，见 `_bmad-output/backlog/story-oci-hub-residual-cleanup.md`；`configure-oci-hub-portal-public.yml` 早已删除，无需处理。
 - Assumption: 暂缓的 RemoteCC IaC 迁移（`_bmad-output/backlog/story-remotecc-iac-files-moved-to-private-repo.md`）恢复前，epic 9 至 11 按文件留在公开仓库规划；恢复时这些 epic 的路径要重新核对。
+- Decision: 2026-11-07 用户批准切分：新增 epic 8 至 12，共 27 个 story，按“一起交付、一起上线的能力”切分；依据 AD-25 至 AD-32，AD-32 的备份部分先行，恢复部分最后。
+- Decision: 2026-11-07 用户确认把记录已完成的 5.11、5.13、5.17、5.19、5.20、5.21、5.23、5.24、5.26、5.27 和 epic 7 全部 story 标为 done，5.14 标为 dropped。
