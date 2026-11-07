@@ -23,7 +23,7 @@ Cloudflare Worker + D1 搭建 cc.willfan.me：规格介绍、申请表（Turnsti
 - R3 (parent R1, AD-6, AD-19): `wsctl request` 用 Worker 管理令牌拉取未处理申请，落为 `employee-data/requests/oci-hub/site-<申请ID>.json`；`wsctl request --dismiss <ID>` 回写已处理。
 - R4 (parent R2, AD-6): `wsctl provision --request <ID>` 的邮箱与姓名取自申请文件；开户完成后回写已处理。
 - R5 (parent R3, AD-17): 执行器把设备包上传到 Worker（存 D1 BLOB），给员工发不带下载链接的开通邮件；员工登录“我的工作区”后下载，不限次数；设备包保存到退役或被同设备的新包替换为止；provision 不再调用 Temp.sh。
-- R6 (parent R10, AD-17): `wsctl reissue` 生成新链接并重发邮件，旧链接立即失效。
+- R6 (parent R10, AD-17): `wsctl reissue` 重新上传原包并发不带下载链接的通知邮件，不换密钥。
 - R7 (parent R3): Temp.sh 交付代码与文档退役。
 - R8 (parent R1, Decision 2026-11-01): 申请前必须验证邮箱：页面获取 6 位验证码（10 分钟有效、最多试 5 次、同一邮箱 60 秒内只发一次），经 Resend 发出；提交时校验，验证码一次性。
 
@@ -35,7 +35,7 @@ Cloudflare Worker + D1 搭建 cc.willfan.me：规格介绍、申请表（Turnsti
 
 - 手机浏览器提交的申请出现在 wsctl request 中，被刷时遭 Turnstile 或限频拒绝。
 - 从申请开户后员工收到开通邮件，登录“我的工作区”后可下载设备包；退役后设备包被删除。
-- reissue 生成新链接；provision 与 reissue 不再调用 Temp.sh。
+- reissue 重新上传原包并发通知；provision 与 reissue 不再调用 Temp.sh。
 - 网站与管理接口部署在 cc.willfan.me，从国内网络实测可打开。
 
 ## Boundaries
