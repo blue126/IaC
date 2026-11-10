@@ -43,7 +43,7 @@ def check_sshd_dropin(base):
     dropin.write_text(jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(
         template.read_text()).render(oci_hub_mosh_network_timeout=604800))
     lines = [line.strip() for line in dropin.read_text().splitlines() if line.strip() and not line.startswith('#')]
-    assert lines == ['Match User employee', 'SetEnv MOSH_SERVER_NETWORK_TMOUT=604800', 'Match all'], lines
+    assert lines == ['Match User employee', 'SetEnv MOSH_SERVER_NETWORK_TMOUT=604800 LC_CTYPE=C.UTF-8', 'Match all'], lines
     sshd = shutil.which('sshd') or ('/usr/sbin/sshd' if Path('/usr/sbin/sshd').exists() else None)
     if not sshd or not shutil.which('ssh-keygen'):
         print('NOT RUN: sshd effective-configuration check needs sshd and ssh-keygen')
@@ -56,8 +56,8 @@ def check_sshd_dropin(base):
         return subprocess.run([sshd, '-T', '-f', str(base / 'sshd_config'), '-C', f'user={user},host=localhost,addr=127.0.0.1'],
                               check=True, capture_output=True, text=True).stdout.splitlines()
     employee, other = effective('employee'), effective('other')
-    assert 'setenv MOSH_SERVER_NETWORK_TMOUT=604800' in employee
-    assert not any(line.startswith('setenv MOSH_SERVER_NETWORK_TMOUT') for line in other)
+    assert 'setenv MOSH_SERVER_NETWORK_TMOUT=604800' in employee and 'setenv LC_CTYPE=C.UTF-8' in employee
+    assert not any(line.startswith(('setenv MOSH_SERVER_NETWORK_TMOUT', 'setenv LC_CTYPE')) for line in other)
     assert 'passwordauthentication no' in employee and 'passwordauthentication no' in other
     print('PASS: sshd -t accepts the Mosh drop-in; only employee sessions carry MOSH_SERVER_NETWORK_TMOUT')
 

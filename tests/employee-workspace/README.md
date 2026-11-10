@@ -6,6 +6,7 @@
 
 - `test-login.py`：真实 tmux/PTY 加合成 OAuth 进程，验证 workspace-login，不读取个人登录态。
 - `test-desktop-*.py`、`test-browser-lifecycle.py`：桌面与浏览器生命周期的合成验证。
+- `test-locale.py`：对临时文件执行实际的 `locale.yml` 任务，验证写入 `LANG=C.UTF-8`、`AcceptEnv LANG LC_*` drop-in、重跑无变更、缺少 C.UTF-8 时拒绝；本机有 `sshd` 时再用 `sshd -T` 检查它与 Mosh drop-in 共存。
 
 旧员工模型（`employee_workspaces` 永久分配、磁盘保护与退役标记）的 Terraform 夹具已随该模型于 2026-11-02 移除。
 
