@@ -84,7 +84,7 @@ def check_sshd(base, dropin):
         effective = subprocess.run([sshd, '-T', '-f', str(config), '-C', 'user=employee,host=localhost,addr=127.0.0.1'],
                                    check=True, capture_output=True, text=True).stdout.splitlines()
         assert 'acceptenv LANG' in effective and 'acceptenv LC_*' in effective, effective
-        assert 'setenv MOSH_SERVER_NETWORK_TMOUT=604800' in effective
+        assert 'setenv MOSH_SERVER_NETWORK_TMOUT=604800' in effective and 'setenv LC_CTYPE=C.UTF-8' in effective
     print('PASS: sshd -t accepts the locale drop-in; employee sessions accept LANG and LC_* with or without the stock AcceptEnv')
 
 
