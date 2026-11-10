@@ -85,6 +85,9 @@
       tags: [workspace_login]
   tags: [workspace_login]
 
+- name: Give the workspace a UTF-8 native locale for mosh-server
+  ansible.builtin.import_tasks: locale.yml
+
 - name: Disable SSH password authentication
   ansible.builtin.copy:
     dest: /etc/ssh/sshd_config.d/00-employee-key-only.conf

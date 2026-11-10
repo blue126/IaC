@@ -1,0 +1,42 @@
+---
+# mosh-server refuses to start unless its own environment is UTF-8, so the
+# workspace's native locale is C.UTF-8 (built into glibc, needs no locale-gen).
+- name: List the locales available on the workspace
+  ansible.builtin.command:
+    argv: [locale, -a]
+  register: employee_workspace_locales
+  changed_when: false
+  check_mode: false
+
+- name: Require the built-in C.UTF-8 locale
+  ansible.builtin.assert:
+    that:
+      - >-
+        employee_workspace_locales.stdout_lines
+        | map('lower') | map('replace', '-', '') | select('equalto', 'c.utf8') | list | length > 0
+    fail_msg: C.UTF-8 is not available on this workspace; mosh-server would refuse to start.
+
+- name: Set the UTF-8 native locale
+  ansible.builtin.copy:
+    dest: /etc/default/locale
+    owner: root
+    group: root
+    mode: '0644'
+    content: "LANG=C.UTF-8\n"
+
+- name: Accept the client locale variables over SSH
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/05-employee-locale.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # Managed by Ansible (employee-workspace). AcceptEnv entries accumulate,
+      # so this keeps Ubuntu's default even if sshd_config loses it.
+      AcceptEnv LANG LC_*
+  notify: Reload workspace SSH
+
+- name: Validate SSH configuration with the locale drop-in
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+  check_mode: false
