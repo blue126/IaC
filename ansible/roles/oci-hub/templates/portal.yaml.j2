@@ -29,5 +29,6 @@ database:
   dsn: /var/lib/oci-hub/portal/sqlite.db
   debug: false
 statistics:
+  data_collection_interval: {{ oci_hub_portal_data_collection_interval }}
   collect_audit_data: false
   listening_address: 127.0.0.1:8787

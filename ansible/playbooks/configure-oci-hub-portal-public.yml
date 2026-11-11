@@ -8,6 +8,11 @@
       ansible.builtin.assert:
         that:
           - oci_hub_portal_external_url == 'https://wgportal.willfan.me'
+    - name: Require the metrics password hash
+      ansible.builtin.assert:
+        that:
+          - oci_hub_portal_metrics_password_hash | length > 0
+        fail_msg: vault_oci_hub_portal_metrics_password_hash must be set in the IaC Vault
     - name: Read only the public Portal URL from its protected configuration
       ansible.builtin.command:
         argv:
@@ -36,6 +41,18 @@
         mode: '0600'
       no_log: true
       notify: Restart scoped Portal after URL change
+    - name: Set the Portal statistics interval while preserving credentials
+      ansible.builtin.lineinfile:
+        path: /etc/oci-hub/portal.yaml
+        regexp: '^  data_collection_interval: '
+        insertafter: '^statistics:'
+        line: '  data_collection_interval: {{ oci_hub_portal_data_collection_interval }}'
+        backup: true
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+      notify: Restart scoped Portal after URL change
     - name: Apply the Portal URL change before proxy verification
       ansible.builtin.meta: flush_handlers
     - name: Configure the Portal site using the existing Caddy installation
@@ -46,6 +63,15 @@
         caddy_reverse_proxy_name: wgportal
         caddy_reverse_proxy_domain: wgportal.willfan.me
         caddy_reverse_proxy_upstream: 127.0.0.1:8888
+        # The site's read-only view of the Portal's metrics; the Portal's other 8787 paths stay private.
+        caddy_reverse_proxy_pre_directives: |
+          handle /ga2-metrics {
+              basic_auth {
+                  ga2-site {{ oci_hub_portal_metrics_password_hash }}
+              }
+              rewrite * /metrics
+              reverse_proxy 127.0.0.1:8787
+          }
     - name: Apply the validated Caddy site
       ansible.builtin.meta: flush_handlers
   handlers:
@@ -73,6 +99,16 @@
         that:
           - oci_hub_public_socket.stdout_lines | length == 1
           - "'127.0.0.1:8888' in oci_hub_public_socket.stdout"
+    - name: Verify the Portal metrics socket remains on loopback
+      ansible.builtin.command:
+        argv: [ss, -H, -ltn, 'sport = :8787']
+      register: oci_hub_metrics_socket
+      changed_when: false
+    - name: Require loopback only for the metrics backend
+      ansible.builtin.assert:
+        that:
+          - oci_hub_metrics_socket.stdout_lines | length == 1
+          - "'127.0.0.1:8787' in oci_hub_metrics_socket.stdout"
     - name: Verify the unauthenticated Portal API remains protected
       ansible.builtin.uri:
         url: http://127.0.0.1:8888/api/v1/interface/all
@@ -89,3 +125,14 @@
     - name: Require the Portal login page
       ansible.builtin.assert:
         that: oci_hub_public_http.stdout == '200'
+    - name: Request the metrics route without its token
+      ansible.builtin.command:
+        argv: [curl, --noproxy, '*', --silent, --show-error, --max-time, '20', --resolve, 'wgportal.willfan.me:443:127.0.0.1', --output, /dev/null, --write-out, '%{http_code}', 'https://wgportal.willfan.me/ga2-metrics']
+      register: oci_hub_metrics_http
+      changed_when: false
+      retries: 6
+      delay: 5
+      until: oci_hub_metrics_http.rc == 0
+    - name: Require the metrics route to refuse it
+      ansible.builtin.assert:
+        that: oci_hub_metrics_http.stdout == '401'
