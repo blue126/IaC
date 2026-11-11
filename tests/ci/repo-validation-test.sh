@@ -410,6 +410,24 @@ unpinned_collections="$(awk '
 [[ -z "${unpinned_collections}" ]] || \
   fail "every Ansible collection must pin a version: ${unpinned_collections}"
 
+# main saves the collections cache that PRs restore, so its key must be the
+# repo-validation key character for character, and it stays read-only.
+cache_workflow="${REPOSITORY_ROOT}/.github/workflows/refresh-ansible-collections-cache.yml"
+collections_key="$(grep -E '^[[:space:]]*key:.*ansible-collections-' "${workflow}" | sed -E 's/^[[:space:]]*//')"
+[[ -n "${collections_key}" ]] || fail "repo-validation must cache Ansible collections"
+grep -Fxq "          ${collections_key}" "${cache_workflow}" || \
+  fail "refresh-ansible-collections-cache must save under the repo-validation key: ${collections_key}"
+assert_file_contains "${cache_workflow}" "path: ansible/collections"
+assert_file_contains "${cache_workflow}" "branches: [main]"
+assert_file_contains "${cache_workflow}" "persist-credentials: false"
+if grep -Ev '^[[:space:]]*uses:[[:space:]]+[^@[:space:]]+@[0-9a-f]{40}([[:space:]]+#.*)?$' \
+    < <(grep -E '^[[:space:]]*uses:' "${cache_workflow}") | grep -q .; then
+  fail "refresh-ansible-collections-cache must pin every Action to a full commit SHA"
+fi
+if grep -Eq '^[[:space:]]*pull_request(_target)?:|secrets\.|[[:space:]][a-z-]+:[[:space:]]*write' "${cache_workflow}"; then
+  fail "refresh-ansible-collections-cache must run only on main, without secrets or write permissions"
+fi
+
 assert_file_contains "${jenkinsfile}" "stage('Approval - Terraform Apply')"
 assert_file_contains "${jenkinsfile}" "Review the Terraform plan above. Proceed with apply?"
 assert_file_contains "${jenkinsfile}" "stage('Approval - Ansible Deploy')"
