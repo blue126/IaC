@@ -144,4 +144,14 @@
     caddy_reverse_proxy_name: wgportal
     caddy_reverse_proxy_domain: "{{ oci_hub_portal_external_url | urlsplit('hostname') }}"
     caddy_reverse_proxy_upstream: 127.0.0.1:8888
+    # The site's read-only view of the Portal's metrics; the Portal's other 8787 paths stay private.
+    caddy_reverse_proxy_pre_directives: "{{ oci_hub_ga2_metrics_route if oci_hub_portal_metrics_password_hash | length > 0 else '' }}"
+    oci_hub_ga2_metrics_route: |
+      handle /ga2-metrics {
+          basic_auth {
+              ga2-site {{ oci_hub_portal_metrics_password_hash }}
+          }
+          rewrite * /metrics
+          reverse_proxy 127.0.0.1:8787
+      }
   when: oci_hub_portal_external_url is match('^https://')

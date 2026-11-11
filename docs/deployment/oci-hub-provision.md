@@ -84,13 +84,13 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 ## Portal 浏览器管理入口
 
-2026-10-30 已部署 **https://wgportal.willfan.me/**，无需本地 SSH 转发或员工 VPN。Cloudflare DNS 的 A 记录直接指向 OCI，现有 Caddy 负责公网 HTTPS/证书，反代到 `127.0.0.1:8888`；Portal 后端端口仍不公开。Portal 使用已有管理员认证，未另外新增 Access 应用。
+2026-10-30 已部署 **https://wgportal.willfan.me/**，无需本地 SSH 转发或员工 VPN。Cloudflare DNS 的 A 记录直接指向 OCI，现有 Caddy 负责公网 HTTPS/证书，反代到 `127.0.0.1:8888`；Portal 后端端口仍不公开。Portal 使用已有管理员认证，未另外新增 Access 应用。运行下面的维护 playbook 后，Caddy 还提供只读路由 `/ga2-metrics`：用独立令牌保护，只转发 `127.0.0.1:8787` 的 `/metrics`，供“我的工作区”读取连接状态。
 
 账号为 `admin@wgportal.local`，密码在 BWS 项目 `remotecc`（原名 EmployeeWorkspace-OCIHub）的 `OCI_HUB_PORTAL_ADMIN_V1` 记录 `secrets.admin_password`；不要将密码或 API token 贴入文档、聊天或 URL。界面可查看接口、设备及流量；启用/停用可以直接在 Portal 操作；开户、VM/地址分配及增额继续使用管理员入口，两者共用 Portal 接入状态。
 
-维护使用 `ansible/playbooks/deploy-oci-hub.yml`（`oci-hub` role），只配置既有 Caddy/Portal，不安装软件；`oci_hub_portal_external_url` 在 OCI 主机变量中持久化，完整 Portal 模板也使用此变量。运行前使用已批准的 OCI 管理 inventory 与严格主机公钥校验，按仓库约定在 Sandbox 执行。
+维护使用 `ansible/playbooks/deploy-oci-hub.yml`（`oci-hub` role），只配置既有 Caddy/Portal，不安装软件；`oci_hub_portal_external_url` 在 OCI 主机变量中持久化，完整 Portal 模板也使用此变量。IaC Vault 有 `vault_oci_hub_portal_metrics_password_hash` 时，role 还给 Caddy 加 `/ga2-metrics` 路由；没有时不加这条路由。Portal 采集间隔由 `oci_hub_portal_data_collection_interval`（默认 15s）写进模板，配置有变化时重启 Portal。运行前使用已批准的 OCI 管理 inventory 与严格主机公钥校验，按仓库约定在 Sandbox 执行。
 
-上线核对：公网 TLS 校验成功、登录页 HTTP200、未登录 `/api/v1/interface/all` 返回401，Portal 后端仅监听127.0.0.1:8888，Portal/配额 timer active，既有 proxy.willfan.me 返回200。没有重置用户、接口、密钥或账本。
+上线核对：公网 TLS 校验成功、登录页 HTTP200、未登录 `/api/v1/interface/all` 返回401，未带令牌请求 `/ga2-metrics` 返回401，Portal 后端仅监听127.0.0.1:8888，Portal 指标端口仅监听127.0.0.1:8787，Portal/配额 timer active，既有 proxy.willfan.me 返回200。没有重置用户、接口、密钥或账本。
 
 
 ## Portal 单一状态源更新
