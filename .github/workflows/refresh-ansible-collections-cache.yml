@@ -1,0 +1,77 @@
+name: Refresh Ansible collections cache
+
+# GitHub Actions caches are scoped per ref: a PR can restore a cache saved on
+# its own ref or on main, but not one saved by another PR. repo-validation only
+# runs on pull_request, so without this workflow main never holds the
+# collections cache and every new PR downloads all collections from Galaxy
+# (one Galaxy outage then fails CI). This workflow saves the cache on main, and
+# restoring it every few days keeps it inside the 7-day eviction window.
+
+on:
+  schedule:
+    # 03:00 UTC on days 1, 6, 11, 16, 21, 26 and 31 of each month: at most 5
+    # days apart (6 across a 31-day month end), always under the 7-day limit.
+    - cron: '0 3 */5 * *'
+  push:
+    branches: [main]
+    paths:
+      - ansible/requirements.yml
+      - .github/workflows/refresh-ansible-collections-cache.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-ansible-collections-cache
+  cancel-in-progress: false
+
+jobs:
+  refresh-ansible-collections-cache:
+    name: Refresh Ansible collections cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out main
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      # Same pinned Action and Python runtime as repo-validation; ansible-galaxy
+      # comes from the same requirements.txt.
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      # The key must stay identical to the "Cache Ansible collections" step in
+      # repo-validation.yml; otherwise PRs never find what this run saves.
+      # tests/ci/repo-validation-test.sh checks that both keys match.
+      - name: Restore Ansible collections cache
+        id: ansible-collections-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ansible/collections
+          key: ${{ runner.os }}-ansible-collections-${{ hashFiles('ansible/requirements.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-ansible-collections-
+
+      # Only on an exact-key miss: the cache Action then saves the result when
+      # the job ends. Galaxy is retried because its outages are what this
+      # workflow exists to absorb.
+      - name: Install Ansible collections from Galaxy
+        if: steps.ansible-collections-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          for attempt in 1 2 3; do
+            if ansible-galaxy collection install -r ansible/requirements.yml -p ansible/collections; then
+              exit 0
+            fi
+            echo "Galaxy install attempt ${attempt} failed" >&2
+            sleep $((attempt * 30))
+          done
+          exit 1
