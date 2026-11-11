@@ -41,7 +41,7 @@ TEMPLATES={
     'wsctl remind':(['remind'],[],False,'到期提醒。每小时整点自动运行，一般不用手动点。'),
     'wsctl hapi-sync':(['hapi-sync'],[],False,'让 VM500、PVE 9443 授权和 Access 策略与员工名单一致，清理退役残留。每天自动运行，一般不用手动点。'),
     'wsctl publish-status':(['publish-status'],[],False,'把状态推到网站。每小时第 15 分自动运行，一般不用手动点。'),
-    'wsctl ga2-sync':(['ga2-sync'],[],False,'把网站上的 VPN 连接租约同步成 GA2 的放行规则，只动描述以 ga2-lease 开头的规则。每分钟自动运行，一般不用手动点。'),
+    'wsctl ga2-sync':(['ga2-sync'],[],False,'把员工在网站上发起的连接租约同步成 GA2 的放行规则，只动描述为 ga2-lease 的规则。每分钟自动运行，一般不用手动点。'),
 }
 SCHEDULES={'wsctl status':'*/30 * * * *','wsctl enforce':'*/5 * * * *','wsctl remind':'0 * * * *','wsctl publish-status':'15 * * * *','wsctl hapi-sync':'45 3 * * *','wsctl ga2-sync':'* * * * *'}
 
