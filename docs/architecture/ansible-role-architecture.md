@@ -352,6 +352,7 @@ Role 之间不使用 `meta/main.yml` 声明依赖，而是在 playbook 的 `role
 | `deploy-anki.yml` | anki | anki | pip venv |
 | `deploy-n8n.yml` | n8n | docker → n8n | Docker Compose（现有 LXC 内） |
 | `install-tailscale.yml` | tailscale | tailscale | 脚本安装 |
+| `deploy-fileserver.yml` | fileserver | fileserver | 系统包（TurnKey 自带 Samba） |
 | `deploy-cloudflared.yml` | jenkins | common → tailscale → cloudflared | 系统包 + 可选本机 Tunnel 配置 |
 | `sync-netbox.yml` | pve_lxc:pve_vms:proxmox_cluster | netbox-sync | API 同步 |
 

@@ -3,7 +3,7 @@ title: '地址对齐：VM 与设备地址末位等于 VMID-500'
 type: 'feature'
 ticket: '16'
 created: '2026-11-02'
-status: 'built'
+status: done
 baseline_revision: 'employee-admin 26cb3d8d51e0754a24f54a310520d32b0ba97ea6; IaC b2471a7fbc4ccf9d9caad81864e168423556ab54'
 route: 'full'
 route_source: 'auto'

@@ -1,5 +1,5 @@
 {{ caddy_reverse_proxy_domain }} {
-{% if caddy_reverse_proxy_pre_directives is defined %}
+{% if caddy_reverse_proxy_pre_directives | default('') | length > 0 %}
 {{ caddy_reverse_proxy_pre_directives | indent(4, first=true) }}
 {% endif %}
     reverse_proxy {{ caddy_reverse_proxy_upstream }}

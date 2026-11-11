@@ -4,7 +4,7 @@
 
 ## 后续多人开户的流程边界
 
-独立HAPI开户候选已于2026-10-31撤回。HAPI和WireGuard是同一员工VM的两种接入方式，不另建VM或第二份Terraform state。员工管理入口为执行器上的`wsctl`，见[当前操作约定](../deployment/oci-hub-native-provisioning.md)；原独立HAPI开户skill已移除，撤回依据见[历史记录](../planning/2026-10-31-hapi-onboarding-withdrawal.md)。
+独立HAPI开户候选已于2026-10-31撤回。HAPI和WireGuard是同一员工VM的两种接入方式，不另建VM或第二份Terraform state。员工管理入口为执行器上的`wsctl`，见[当前操作约定](../deployment/oci-hub-provision.md)；原独立HAPI开户skill已移除，撤回依据见[历史记录](../planning/2026-10-31-hapi-onboarding-withdrawal.md)。
 
 现行入口为`https://hapi.willfan.me`：Tunnel、身份网关、单共享Hub与会话数据库在VM500，VM502保留Runner、Claude与个人登录环境。登录引导已接入统一入口，详见[现行入口与维护说明](hapi-unified-entry.md)。
 

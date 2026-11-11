@@ -1,6 +1,8 @@
 ---
 oci_hub_profile: oci-hub
 oci_hub_install_authorized: false
-oci_hub_bootstrap_interfaces_authorized: false
 oci_hub_portal_external_url: http://127.0.0.1:8888
+oci_hub_ignored_interfaces: []
 oci_hub_portal_data_collection_interval: 15s
+# bcrypt hash guarding /ga2-metrics; empty leaves the route out.
+oci_hub_portal_metrics_password_hash: ""

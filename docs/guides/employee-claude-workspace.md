@@ -1,6 +1,6 @@
 # 员工 Claude Code 工作环境：实施与验收
 
-> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-native-provisioning.md) 为准，不执行旧脚本；早期规划内容仅供追溯。2026-11-02 起旧员工模型（`employee-workspace.tf`、`employee_workspaces` 表、永久槽位/墓碑、vmbr501-508、`employee-*-boundary.py` hook 与 pve2 退役 guard）已从仓库拆除，下文涉及这些输入的步骤均不可再执行；OCI Hub 名单是执行器 `employee-data` 中的运行状态（settings `oci_hub.terraform_roster`），VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`。
+> 历史说明：本页中的旧 VM500 gateway 部署入口已退役并移除。当前开户与维护以 [OCI Hub 原生入口](../deployment/oci-hub-provision.md) 为准，不执行旧脚本；早期规划内容仅供追溯。2026-11-02 起旧员工模型（`employee-workspace.tf`、`employee_workspaces` 表、永久槽位/墓碑、vmbr501-508、`employee-*-boundary.py` hook 与 pve2 退役 guard）已从仓库拆除，下文涉及这些输入的步骤均不可再执行；OCI Hub 名单是执行器 `employee-data` 中的运行状态（settings `oci_hub.terraform_roster`），VM500 配置在 `terraform/proxmox/employee-access.auto.tfvars.json`。
 
 
 本实现对应 [SPEC](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/SPEC.md)、[访问契约](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/access-and-isolation.md) 和 [验收矩阵](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/specs/spec-employee-claude-workspace/verification.md)。代码生成、离线测试不代表部署或 CAP 验收通过。当前采用单节点、每人一个持久 VM、外置受管 SSH 入口；WireGuard 是待实测的自建接入候选。
@@ -32,7 +32,7 @@
 本次交付实现及当时的独立验证环境验证（该 Docker Sandbox 已退役）。真正安装、部署、写凭据或变更网络前仍须另行授权。
 
 1. 核实 Q-4／Q-5：PVE 节点和 provider 指向同一集群；VMID、bridge、子网、MAC 无冲突；现有 PVE nft/防火墙规则与新表共同生效；所有家庭公网 IP、受保护服务及 NAT 回流路径已列出；明确维护源和恢复管理路径。bridge provider 会应用节点待生效网络配置，先处理其他 pending 网络更改，不能直接套用示例地址。当前员工资源使用专用 employee provider，API以root@pam认证到独立pve2，SSH也限定该节点；既有集群与pve2 token providers不变。启动hook和可执行snippet需要这一管理认证。
-2. 先以prepare-employee-pve.yml校验固定Ubuntu26.04镜像摘要并创建本任务专用employee-snippets存储，不修改既有storage。Terraform创建从未启动的干净模板；每次克隆的vendor-data安装qemu-guest-agent，核实SSH host keys独立生成。模板不含员工令牌、浏览器状态或设备私钥。网关模板不得预启用路由、额外 NIC、代理服务或 cloudflared。确认既有备份作业是否自动纳入新 VMID，Q-6 未确定前不配置个人凭据。
+2. 先确认固定Ubuntu26.04镜像摘要和本任务专用employee-snippets存储（pve2上的`/var/lib/employee-snippets`，dir类型，content=snippets）已就绪，不修改既有storage。Terraform创建从未启动的干净模板；每次克隆的vendor-data安装qemu-guest-agent，核实SSH host keys独立生成。模板不含员工令牌、浏览器状态或设备私钥。网关模板不得预启用路由、额外 NIC、代理服务或 cloudflared。确认既有备份作业是否自动纳入新 VMID，Q-6 未确定前不配置个人凭据。
 3. 填写 `terraform/proxmox/employee-access.tf` 和 `employee-workspace.tf` 的输入。默认 `employee_access=null`、`employee_workspaces={}`，不会创建任何员工资源；不改旧服务输入。下面只说明数据形状，地址和 VMID 必须现场分配：
 
 ```hcl

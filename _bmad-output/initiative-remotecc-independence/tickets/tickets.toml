@@ -1,0 +1,57 @@
+# will 于 2026-11-07 批准（D17），依赖按 D18、D19 更新。表顺序即构建顺序，id 永久。
+# 整个 initiative 排在 lifecycle epic 8–12 完成之后（D19）。tickets.py 不跨 initiative 校验，这个门槛写在 epic 1 的 Notes。
+# 切分规则：slice.md 默认规则。一个 epic 是一起交付部署的一项能力；模块只有同时是部署边界才切开。
+# R11、R12 不进 epic（D17）：R11 是架构定稿的前置门槛，R12 随 initiative 入公开 Git 完成。
+
+[[epic]]
+id = 1
+slug = "epic-standalone-project"
+title = "独立项目自给"
+description = "私有 remotecc 仓库带齐 RemoteCC 的 Terraform、Ansible、测试、工具链和凭据路径，并到达执行器但尚未生效，`host-firewall` 规则并入改名后的 `remotecc-ops` 角色；在没有 IaC checkout 的环境里校验、plan、语法检查、dry run 和契约测试都通过，现有 wsctl 员工流程不变。"
+covers = ["R2", "R3", "R6", "R7", "R8"]
+parts = "R2：无 IaC checkout 的校验和 plan，以及切换前基线。R3：除 deploy-oci-hub.yml 外的入口。R6：除 Hub 外的凭据路径不经 secrets bridge。R7：除 ingress 夹具外的测试和等效校验。R8：S2、S3、S8、S9、S10 的调用方核查。"
+
+[[epic]]
+id = 2
+slug = "epic-executor-cutover"
+title = "执行器切到独立项目"
+description = "执行器上的 wsctl 和 Semaphore 入口不再需要 IaC 代码根；切换后 plan 相对基线零差异，一次获批 dry run、一次真实员工流程和 R1 的三项代表性改动都通过，待批准项都有结局，失败时能退回切换前的绑定。"
+covers = ["R1", "R2", "R4", "R5", "R6", "R13"]
+parts = "R2：切换后相对基线零差异，每台 VM 仍只由一份 state 管理。R6：IaC 不提供文件时的一次完整运行。"
+after = [{ epic = 1, needs = "已到达执行器的独立项目、工具链和凭据路径，以及切换前 plan 基线" }]
+
+[[epic]]
+id = 3
+slug = "epic-oci-hub-service"
+title = "OCI Hub 服务从独立项目部署"
+description = "OCI Hub 服务从独立项目部署到共享 OCI 主机并通过 verify，主机和网络规则仍由 IaC 管理，同机的 anki、bookorbit 不受影响。"
+covers = ["R3", "R6", "R7", "R8"]
+parts = "R3：deploy-oci-hub.yml。R6：Portal 密钥和配对令牌从 IaC Vault 迁到 BWS。R7：tests/oci-hub 的 ingress 夹具。R8：S4 的调用方核查。"
+after = [
+  { epic = 1, needs = "独立项目的工具链、凭据路径、校验载体和 `scripts/oci-hub/`" },
+  { epic = 2, needs = "wsctl 已从独立项目运行：新主机部署要交替运行 Hub 部署和 `wsctl oci-hub-release`，两者须来自同一项目" },
+]
+
+[[epic]]
+id = 4
+slug = "epic-public-iac-detach"
+title = "公开 IaC 移除 RemoteCC"
+description = "公开 IaC 不再含已划走的文件和 RemoteCC 分支，运维和架构文档、两个 Skill 已迁入独立项目，IaC 只留一页接口说明，`AGENTS.md` 指向新入口；PR 校验通过，其余 root 的 plan 不变。"
+covers = ["R8", "R9", "R10"]
+parts = "R8：删除前对全部移出单元的最终复核，覆盖模板和动态 include。"
+after = [
+  { epic = 2, needs = "执行器不再读取 IaC 代码根" },
+  { epic = 3, needs = "Hub 部署入口已离开 IaC" },
+]
+
+[[epic]]
+id = 5
+slug = "epic-admin-key-retirement"
+title = "退役员工 VM 上的管理员公钥"
+description = "交付给员工的 VM 上没有管理员 SSH 公钥，一次新开户和一次现有 VM 维护不经管理员 SSH 都通过，管理员仍能经 PVE CLI 或控制台维护。"
+covers = ["R14"]
+after = [
+  { epic = 2, needs = "切换已完成且零差异已证明，行为变更不混入 R2 基线" },
+  { epic = 3, needs = "Hub 防火墙代码已在独立项目内，管理访问规则要在那里改" },
+  { epic = 4, needs = "描述管理员访问的文档和 Skill 已迁入独立项目" },
+]

@@ -80,9 +80,9 @@ macOS／Firefox 首次连接后，在 Kasm 左侧 Settings 开启 `IME Input Mod
 python3 tests/employee-workspace/test-desktop-oci.py -v
 git diff --check
 # 以下仅在独立 Sandbox，指定合成 inventory/vars 和 tests/ci/fixtures/ansible.cfg：
-ansible-playbook -i /tmp/synthetic-inventory.yml playbooks/prepare-vm502-desktop.yml --syntax-check
+ansible-playbook -i /tmp/synthetic-inventory.yml playbooks/prepare-employee-desktop.yml --syntax-check
 # 实机仅父会话批准的受保护 inventory/vars；phase 必须显式选择：
-ansible-playbook -i /approved/single-vm502.yml playbooks/prepare-vm502-desktop.yml -e @/approved/presentation-vars.yml
+ansible-playbook -i /approved/single-vm502.yml playbooks/prepare-employee-desktop.yml -e employee_desktop_target=vm502 -e @/approved/presentation-vars.yml
 ```
 
 实机 activate 后，以 employee 运行 `workspace-desktop status` 应显示 stopped，按需 `workspace-browser start` 后再检查 `workspace-desktop status`、`workspace-browser status`、可信 HTTPS/WSS、HAPI 画面/输入/重连，最后 `workspace-desktop stop`。浏览器本机信任、真实 VM、个人 OAuth 及中国体验结果分别记录。

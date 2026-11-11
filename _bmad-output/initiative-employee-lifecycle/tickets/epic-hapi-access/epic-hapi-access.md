@@ -42,3 +42,4 @@ HAPI 成为员工生命周期的一部分，不再是需要单独开户和单独
 - Waits on epic-executor-platform because: HAPI 管理凭据并入执行器 VM。
 - Waits on epic-paid-through-enforcement because: HAPI 停用挂在 5 分钟到期任务上。
 - Open question: VM500 上 hapi-health 与现有 `hapi-admin` 的 Sandbox 绑定如何迁移、何时撤销，细化本 epic 时再定。
+- Decision: 2026-11-06 本 epic 的部分内容已被 `epic-hapi-release-and-roster` 取代：`wsctl access --method` 和“停用其中一种接入”不做，HAPI 没有单独开关；“不改部署方式”和“不改 VM502”两条边界作废，VM502 已转为普通员工 VM；`hapi-admin` 已退役，上面的 Open question 不再成立。到期停用的“5 分钟内”以下一次成功的 `enforce` 为准。

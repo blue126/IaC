@@ -1,0 +1,59 @@
+# Stories of epic-iac-static-config, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "静态参数进一份变量文件，wsctl 能只读取到"
+description = "把 AD-2 列出的静态网络和主机配置放进一份不含插值的变量文件，role 和 wsctl 读同一份；每个值判断公开或进 Vault。"
+verify = "wsctl 读到的每项值等于线上 boundary.json 和 settings；公开文件不含应进 Vault 的值。"
+covers = ["R1"]
+after = ["1.7"]
+hitl = true
+risk = "high"
+notes = ["比对线上值要只读访问两台主机的 boundary.json，WILL-106 时未执行"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "settings 不再保存静态参数，运行中不换 IaC 代码"
+description = "wsctl 改从变量文件读取，settings 删除这些字段；iac.git 钩子持 wsctl 运行锁，计划摘要包含 IaC commit。"
+verify = "删除字段后 provision --plan-only 的资源和动作不变，只多 IaC commit；运行中推送 IaC 代码会等待。"
+covers = ["R1", "R3"]
+after = [1]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Portal 密钥和配对令牌进 Vault"
+description = "Portal 的 4 个密钥迁入 Ansible Vault，并生成配对接口的只读令牌（11.4、11.6 使用）。和 9.1 共用 vault.yml，所以排在其后。"
+verify = "Vault 里 5 项都能读到，线上 Portal 密钥没有变化。"
+covers = ["R2"]
+after = ["1.7", 1]
+hitl = true
+risk = "high"
+unknown = "是否授权本次凭据改动（AD-31 要求单独授权）？"
+plan_checkpoint = true
+
+[[entry]]
+id = 4
+type = "story"
+title = "role 生成 portal.yaml 和 executor.json"
+description = "静态设置进 role 和 inventory，role 按现有字段生成两个文件，可随时重跑。"
+verify = "role 的 --check --diff 对两个线上文件没有差异。"
+covers = ["R2"]
+after = [1, 3]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Refactor sweep"
+description = "清理本 epic 延后的计划和审查发现，只做清理。"
+verify = "仓库检查通过，没有新增行为。"
+covers = []
+after = [1, 2, 3, 4]
+hitl = false
+risk = "low"

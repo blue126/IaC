@@ -163,6 +163,7 @@ handle /ga2-metrics {
 - 2026-11-11（本地功能测试后，用户决定，重新协商了冻结区）：第 3 个 IP 挤掉的从“最早创建的”改成“最久没放行或续期的”（按 `expires_at` 排序，不改表结构）。原因：续期不改创建时间，员工天天续期的家里 IP 会被很少用的旧 IP 留下而挤掉。页面去掉“VPN”字样：标题“网络连接”，有租约“连接已发起，北京时间 … 到期。”，无租约“当前网络尚未发起连接。”，在线“网络已连接”。按钮仍是“连接当前网络”。KEEP：两个 IP 上限、只续期、文档地址不变。
 - 2026-11-11（codebuddy 评审后，用户决定，重新协商了冻结区）：租约 IP 超过 50 个时照常删除已结束的规则，只跳过新增，原来是整轮不改。原因：异常时过期规则会一直放行。规则归属从“描述以 `ga2-lease` 开头”改成“描述正好是 `ga2-lease`”，避免误删 `ga2-lease-xxx` 这样的手工规则。`/admin/ga2/leases` 的注释写清楚：员工失去资格时规则下一轮就删，D1 里的记录留到到期。评审另报的代理出口、提前删规则属于既定设计；员工 ID 格式、`statistics:` 缺失两条不成立或只在理论上存在。
 - 2026-11-11（用户决定）：`ga2-sync` 不再每分钟列出整个 BWS 项目（含全部设备私钥）。settings 的 `bws_materialize.actions` 列出动作需要的记录，这些记录带 BWS `id`，`wsctl-secrets.py` 逐条 `bws secret get`，并校验返回的 key。其他动作不变。代价：每分钟 3 次请求。
+- 2026-11-11（rebase 到 main 时）：main 已删除 `configure-oci-hub-portal-public.yml`，Portal 公网配置并入 `oci-hub` role 和 `deploy-oci-hub.yml`。改动随之迁移：采集间隔由 role 默认值写进 `portal.yaml.j2`，不再用 `lineinfile`；`/ga2-metrics` 路由放进 role 的 Caddy 任务，Vault 没有哈希时不加路由（不再断言失败，dry run 不受阻）；两项 verify 移到 `deploy-oci-hub.yml`。下面任务列表和验证里提到的旧 playbook 是当时的记录。
 
 ## Review Triage Log
 

@@ -1,0 +1,38 @@
+# Stories of epic-hub-recovery, in build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "wsctl 按 D1 双向对账"
+description = "新命令按 D1 补登记备份之后开户的员工，清掉备份之后退役或改址的身份，并推送 paid_through 快照；报告回退的用量、基线和 Portal 人工原因。使用 11.7 上线的配对拉取，对账后由 wireguardusrmgr.py 填入 set。"
+verify = "人为制造少登记和多身份后，命令报告差异并修复，第二次运行无差异。"
+covers = ["R1"]
+after = ["2.1", "11.7"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 2
+type = "story"
+title = "OCI Hub 恢复演练通过"
+description = "打开隔离开关，在同一实例替换启动卷，确认服务版本兼容，对账通过后解除隔离。恢复后按 AD-27 顺序升级，重跑 oci-hub role，确认 set 已填入。"
+verify = "替换后公网 IP 不变；对账通过前 WireGuard 入站保持关闭；恢复报告齐全。terraform plan 无漂移且备份策略绑定仍有效。"
+covers = ["R1"]
+after = [1, "8.1", "8.3"]
+hitl = true
+risk = "high"
+plan_checkpoint = true
+notes = ["会中断同机服务，演练时间由 will 决定"]
+unknown = "AD-32 的隔离要覆盖哪些入口（story-spine-revision-before-vm-records）？"
+
+[[entry]]
+id = 3
+type = "story"
+title = "全量切换 endpoint"
+description = "增加按新 endpoint 重建设备包的命令，支持批量；增加批量重跑 oci-hub-spoke 的入口；列全 DNS 记录写入运行手册。"
+verify = "用测试员工和测试 endpoint 跑一次，设备包和 VM 配置都指向新地址，恢复原值后无残留；不给真实员工发信，不改真实 VM。"
+covers = ["R2"]
+after = ["3.5", "9.2", "11.2"]
+hitl = true
+risk = "high"
+notes = ["2026-11-07 用户要求放进 backlog：IP 预案所需的全量切换 endpoint"]

@@ -46,6 +46,11 @@
     group: root
     mode: '0755'
 
+- name: Give the workspace a UTF-8 native locale for mosh-server
+  ansible.builtin.include_role:
+    name: employee-workspace
+    tasks_from: locale
+
 - name: Read the current native Mosh SSH drop-in
   ansible.builtin.slurp:
     src: /etc/ssh/sshd_config.d/10-mosh.conf
@@ -98,4 +103,7 @@
       - >-
         ('setenv MOSH_SERVER_NETWORK_TMOUT=' ~ oci_hub_mosh_network_timeout)
         in oci_hub_mosh_sshd_effective.stdout_lines
+      - "'setenv LC_CTYPE=C.UTF-8' in oci_hub_mosh_sshd_effective.stdout_lines"
+      - "'acceptenv LANG' in oci_hub_mosh_sshd_effective.stdout_lines"
+      - "'acceptenv LC_*' in oci_hub_mosh_sshd_effective.stdout_lines"
   when: not ansible_check_mode

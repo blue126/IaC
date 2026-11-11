@@ -3,7 +3,7 @@ title: '一条命令登录（服务端）：系统 mosh-server 与整段端口'
 type: 'feature'
 ticket: '10'
 created: '2026-11-02'
-status: 'built'
+status: done
 baseline_revision: 'IaC de62b750a236c8d38e132b8d1212372c9cc0e2d4; employee-admin 8268f9180cb12e37e609a509892f90076a5518ed'
 route: 'full'
 route_source: 'auto'

@@ -61,3 +61,4 @@ risk: high
 - Decision: 2026-10-31 执行器凭据放 BWS default 项目；BWS token 本地保留，由 Ansible 从 IaC Vault 部署；邮件 OAuth 缓存留本地加密。
 - Decision: 2026-10-31 拆为 9 个 story；第一个 story（tracer bullet）为 #1"ws-executor VM 上线并只对局域网与 Tailscale 开放"；#2、#3 与 #1、#4 并行；保留收尾的 Refactor sweep（#9）。
 - Unknown: settings 中 BWS 程序为 macOS 版（Linux 版此前已删除），`terraform_secret_vars_file` 仍指向旧 Sandbox 路径，迁移时须修正。
+- Decision: 2026-11-07 R12 的缺口已补：`wsctl renew`、`wsctl retire` 的 Semaphore 模板已部署，都不定时（WILL-114，IaC PR #280）。线上还没有运行过这两个模板。

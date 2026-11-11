@@ -32,7 +32,7 @@
 | 旧后端 | 用户确认无人使用后，VM500 六个旧入口服务已停用并屏蔽；主机、管理 SSH 和防火墙保留，旧 role/组合入口已移除，旧写入口直接拒绝 |
 | 专项验收 | 用户明确跳过本次第4项专项验收；VM509 正式设备包标记 acceptance_waived，不能记作通过。无人测试时没有活动 Mosh 会话属于正常状态 |
 
-本轮完成正式编排和常规开户接管；专项验收依用户要求跳过，稳定性/延迟排查留后续。隔离、停用原因和配额继续执行。新入口与验收状态见[原生 Mosh 开户](../deployment/oci-hub-native-provisioning.md)。员工 UDP51824 允许任意 IPv4 动态来源；Spoke UDP51825 仍只限家中出口。
+本轮完成正式编排和常规开户接管；专项验收依用户要求跳过，稳定性/延迟排查留后续。隔离、停用原因和配额继续执行。新入口与验收状态见[员工开户与管理](../deployment/oci-hub-provision.md)。员工 UDP51824 允许任意 IPv4 动态来源；Spoke UDP51825 仍只限家中出口。
 
 实施记录：[VM509 部署](../deployment/mosh-oci-hub-vm509.md)；网络证据：[端到端 RTT 报告](../learningnotes/2026-10-30-vm509-oci-hub-rtt.md)。旧 [VM502 过渡方案](mosh-oci-hub-transition.md)及其申请已被替代，不作为当前部署入口。本文更新位于任务工作树，尚未完成提交/PR/合并。
 
@@ -412,7 +412,7 @@ VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对
 → 上传到 cc.willfan.me、管理接口核对 SHA-256、按既有审批范围发邮件（员工登录「我的工作区」下载，邮件不带链接）
 ```
 
-员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作使用执行器上的 `wsctl`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-native-provisioning.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
+员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作使用执行器上的 `wsctl`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-provision.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。
 
 bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM overlay 和相应模式的 host pin；当前统一设备包同时包含终端 Mosh 与 VM 浏览器入口，manifest 必须带 `desktop_url` 和 `tls_certificate_sha256`（证书 pin）；现有生成逻辑和已发包保持。包 manifest、输出目录、SSH alias、隧道标识、交付回执及邮件均标明方案，员工 Agent 不覆盖另一套配置；同一设备上的路由范围不得冲突。复用交付/邮件模板和一句话引导，不自动给现有用户重发或替换包。邮件 API 接受和实际收件分别记录，不因 Portal 登记成功就宣告开户交付完成。
 
@@ -430,7 +430,7 @@ bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM ov
 4. **专项验收**：用户明确跳过，按设备记录 acceptance_waived；不记作已通过安全、恢复或真实 Mosh 验收。
 5. **旧管理代码退役**：用户已确认无人使用并批准，旧员工入口服务已屏蔽，旧 role/组合入口及 VM500 专用配置已退出；历史分配与永久退役保护保留。VM500 继续承担 HAPI 控制面职责。
 
-当前查询已读回 VM509 running、正式设备登记启用及月账；没有员工连接时无握手/会话属于正常状态。详见[原生开户运行说明](../deployment/oci-hub-native-provisioning.md)。
+当前查询已读回 VM509 running、正式设备登记启用及月账；没有员工连接时无握手/会话属于正常状态。详见[原生开户运行说明](../deployment/oci-hub-provision.md)。
 
 ## 12. 上线门槛
 
@@ -487,7 +487,7 @@ bundle 生成器增加独立 `oci-hub` 后端，输出新方案 OCI peer、VM ov
 
 ## 15. 原型实现契约（2026-10-29）
 
-本轮已增加 Terraform 独立 schema、默认兼容模块输入、PVE/OCI/Spoke 角色、OCI SQLite/执行器原型和 v2 bootstrap。部署与恢复的实际字段、文件及命令见 [原型 runbook](../deployment/oci-hub-workspace-prototype.md)，合成环境入口见 [验证说明](../../tests/oci-hub/README.md)。当前终端自动开户入口已接通，VM509 已配置并导出；真实员工完整交付和 H-01～H-16 专项验收不能从源码完成推定。管理员源码以独立私有仓库为准，不复制到公开 IaC；当前维护基线为 `ce10d14`。
+本轮已增加 Terraform 独立 schema、默认兼容模块输入、PVE/OCI/Spoke 角色、OCI SQLite/执行器原型和 v2 bootstrap。部署与恢复的实际字段、文件及命令见 [部署契约](../deployment/oci-hub-deployment-contract.md)，合成环境入口见 [验证说明](../../tests/oci-hub/README.md)。当前终端自动开户入口已接通，VM509 已配置并导出；真实员工完整交付和 H-01～H-16 专项验收不能从源码完成推定。管理员源码以独立私有仓库为准，不复制到公开 IaC；当前维护基线为 `ce10d14`。
 
 执行器 action 固定携带 `profile=oci-hub`、action_id、generation；支持 register/reason/bonus/sample/reconcile/resolve_gap。register 的公开请求引用独立 BWS portal_refs，仅在受保护执行通道物化 WG 私钥。来源/归属/URL-body ID 校验在 Portal 写入前完成，整对象更新保留固定 API 的 ConfigOption 与私钥字段；SQLite 只存公开映射引用、用量、基线、摘要和审计，不保存重复启停状态。跨月不确定区间按明确估算规则累计并记录；普通开户重跑仅释放本次新建身份的初始原因。
 
@@ -495,4 +495,4 @@ PVE SDN 采用 API 全局锁拒绝无关 pending changes；内核规则 JSON 和
 
 ## 旧角色源码收口
 
-旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 永久退役端口 guard（retired-workspace-boundary）已由一次性拆除剧本 `remove-retired-workspace-boundary.yml` 取代，旧 Terraform 原分配、状态迁移和退役防重用测试一并移除，VMID 503 可重新分配。历史设备关联移至管理员私有记录。HAPI 及其他业务角色不在本次清理范围。
+旧 employee-access 不再作为活动角色维护；其专属 bootstrap/deploy/disable/auth/Mosh/router 入口与旧运行测试退出。新工作区继续使用 employee-workspace 的原生授权、CLI、登录及浏览器能力，共享管理员公钥由 admin-ssh-keys 独立维护。PVE 永久退役端口 guard（retired-workspace-boundary）已由一次性拆除剧本清除（该剧本完成后已删除，见 Git 历史），旧 Terraform 原分配、状态迁移和退役防重用测试一并移除，VMID 503 可重新分配。历史设备关联移至管理员私有记录。HAPI 及其他业务角色不在本次清理范围。

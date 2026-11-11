@@ -21,7 +21,7 @@ wsctl remind 每日由 Semaphore 运行，给未续费员工发提醒、给管�
 - R1 (parent R11, AD-3, AD-14): `wsctl status` 为每名员工输出推导状态（正常 / 已停用 / 已到期 / 可退役 / 不到期）、到期日；输出孤儿资源（Terraform 清单或 PVE 有员工 VM 而 catalog 无员工，或反之）与待提醒人数。
 - R2 (parent R7, AD-14): `wsctl remind` 给 `paid_through` 落在 7 天内（Sydney）且未续费、非不到期的员工发一封提醒邮件（执行器 Microsoft 邮件通道），同一员工同一 `paid_through` 只发一次；Semaphore 每天运行。
 - R3 (parent R8, AD-14): 同一次 `wsctl remind` 每天给管理员 fanweiblue@gmail.com 发摘要：新申请、可退役员工、孤儿资源、3 天内到期；Semaphore 每天 08:00 Sydney 运行。
-- R4 (parent R9, AD-10): `wsctl retire` 列出所有可退役员工（`now > paid_through + 3 天`，非不到期）及每人将删除的内容，一次确认（同一 SHA）后逐个执行：执行前复查 `paid_through`，已续费跳过；删除顺序 Portal 用户与设备 → Terraform VM → BWS 员工密钥 → 网站设备包 → catalog，最后推送快照；中断后按运行记录续跑；不备份。HAPI 部分由 epic 6 补充。
+- R4 (parent R9, AD-10): `wsctl retire` 列出所有可退役员工（`now > paid_through + 3 天`，非不到期）及每人将删除的内容，一次确认（同一 SHA）后逐个执行：执行前复查 `paid_through`，有人已续费时整批拒绝（`RETIRE_REPLAN_REQUIRED`），重新计划后不含此人；删除顺序 Portal 用户与设备 → Terraform VM → BWS 员工密钥 → 网站设备包 → catalog，最后推送快照；中断后按运行记录续跑；不备份。HAPI 部分由 epic 6 补充。
 
 ## Outcome
 
@@ -30,7 +30,7 @@ wsctl remind 每日由 Semaphore 运行，给未续费员工发提醒、给管�
 ## Done when
 
 - 测试员工在到期月收到且只收到一封提醒；管理员摘要列出新申请、可退役员工与人为制造的孤儿 VM。
-- retire 一次确认删除可退役测试员工的 Portal、Terraform、BWS、网站设备包、catalog 记录，已续费者被跳过。
+- retire 一次确认删除可退役测试员工的 Portal、Terraform、BWS、网站设备包、catalog 记录；计划后有人续费时整批拒绝，重新计划后不含此人。
 - 不到期员工从不出现在提醒与可退役名单中。
 
 ## Boundaries

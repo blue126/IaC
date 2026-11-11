@@ -5,7 +5,8 @@ provider "proxmox" {
   insecure  = true
 
   ssh {
-    agent = true
+    agent    = true
+    username = "root"
   }
 }
 
