@@ -391,7 +391,7 @@ IaC 主 checkout 的 `remotecc/wsctl` 独立私有仓库提供统一入口 `wsct
 
 Portal API 凭据继续以独立记录存于新 BWS 项目供管理员恢复/轮换；不进 bundle、台账或公开仓库，也不作为管理员本机日常直写 API 凭据。固定版本的请求/响应含新方案 WG 私钥字段，标准 API 以受保护通道传输；数据库及备份限制访问，日志、动作记录和诊断不保存原始请求/响应。实施验证固定版本的鉴权和登记行为，BWS 继续承担凭据保管与恢复，Portal 不接管现有方案身份。
 
-**“我的工作区”的连接状态（2026-11-07）：** 网站经 Hub 的 `https://wgportal.willfan.me/ga2-metrics` 只读取 Portal 指标。这条 Caddy 路由只转发 `127.0.0.1:8787` 的 `/metrics`，用独立的只读令牌保护，令牌不能写入。令牌泄露时暴露员工 ID、VPN 地址、设备名和在线时间，不含私钥。`ga2-sync` 和 Worker 不使用 Portal 管理员令牌，`ga2-sync` 不访问 Portal；Portal 的写入仍然只经 OCI 执行器。
+**“我的工作区”的连接状态（2026-11-07）：** 网站经 Hub 的 `https://wgportal.willfan.me/ga2-metrics` 只读取 Portal 指标。这条 Caddy 路由只转发 `127.0.0.1:8787` 的 `/metrics`，用独立的只读令牌保护，令牌不能写入。令牌泄露时暴露员工 ID、VPN 地址、设备名和在线时间，不含私钥。Worker 不使用 Portal 管理员令牌；Portal 的写入仍然只经 OCI 执行器。（2026-11-14：GA2 放行规则改由网站自己维护，执行器的 `wsctl ga2-sync` 和 Semaphore 模板已删除。）
 
 VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对本 VM；员工有 sudo 可以读取自身秘密，不声称用来防止该员工控制自己的工作区。私有 CA 签发 key 继续仅在管理员侧。
 
