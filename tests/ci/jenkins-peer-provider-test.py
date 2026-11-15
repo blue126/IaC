@@ -127,7 +127,7 @@ def main():
         def configuration(cores):
             return '''terraform {
  required_providers {
-  proxmox = { source = "bpg/proxmox", version = "0.70.0" }
+  proxmox = { source = "bpg/proxmox", version = "0.118.1" }
   ansible = { source = "ansible/ansible", version = "1.3.0" }
  }
 }
@@ -246,7 +246,7 @@ resource "proxmox_virtual_environment_download_file" "fixture" {
         # The probe is adapted by HEAD; it must never hit the privileged PVE endpoint.
         assert not any('query-url-metadata' in path for path in FakePVE.reads)
         assert FakePVE.heads>0,'fixed-image HEAD adapter was not exercised'
-        print('PASS: Terraform1.14.4 / bpg0.70.0 bridge/snippet/VM/LXC refresh predicts CPU 2→3; data list filtered; fixed-image HEAD; upstream writes=0')
+        print('PASS: Terraform1.14.4 / bpg0.118.1 bridge/snippet/VM/LXC refresh predicts CPU 2→3; data list filtered; fixed-image HEAD; upstream writes=0')
         broker.shutdown();upstream.shutdown()
 
 
