@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Report · remotecc</title>
+<style>
+:root{--bg:#f6f1e7;--card:#fffdf8;--ink:#2a241c;--muted:#6f6556;--line:#e2d8c6;--seal:#9b1c1c;--seal2:#c53030;--ok:#2f6b3a;--warn:#9a5b00;--kill:#7a2e2e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1814;--card:#24201b;--ink:#ece4d6;--muted:#a89c89;--line:#3a332a;--seal:#c53030;--seal2:#e05252;--ok:#7cc48a;--warn:#e0a449;--kill:#e08a8a}}
+:root[data-theme="dark"]{--bg:#1b1814;--card:#24201b;--ink:#ece4d6;--muted:#a89c89;--line:#3a332a;--seal:#c53030;--seal2:#e05252;--ok:#7cc48a;--warn:#e0a449;--kill:#e08a8a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"PingFang SC","Noto Sans SC",system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 16px 64px}
+header{display:flex;gap:28px;align-items:center;flex-wrap:wrap;margin-bottom:28px}
+header .t{flex:1;min-width:260px}
+h1{font:600 30px/1.25 Georgia,"Songti SC",serif;margin:0 0 8px}
+h2{font:600 19px/1.3 Georgia,"Songti SC",serif;margin:0 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sub{color:var(--muted);margin:0}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}
+ul{margin:0;padding-left:20px}li{margin:6px 0}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid currentColor;margin-right:6px;vertical-align:1px}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.kill{color:var(--kill)}
+code{font:14px ui-monospace,Menlo,monospace;background:color-mix(in srgb,var(--line) 55%,transparent);padding:1px 5px;border-radius:4px}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:6px}
+.flow div{border:1px dashed var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
+.flow b{display:block;font-size:13px;color:var(--muted);font-weight:500}
+.cast{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.cast div{border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px}
+.cast span{color:var(--muted);display:block;font-size:13px}
+.seal{flex:0 0 auto}
+footer{color:var(--muted);font-size:13px;text-align:center;margin-top:30px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <svg class="seal" width="168" height="168" viewBox="0 0 200 200" role="img" aria-label="HARDENED 印章">
+    <defs><path id="arc" d="M100,100 m-70,0 a70,70 0 1,1 140,0 a70,70 0 1,1 -140,0"/></defs>
+    <path fill="var(--seal)" d="M100 8c10 0 14 9 23 11s17-4 24 3 2 15 6 23 13 10 14 20-7 14-7 23 8 14 5 24-12 9-17 16-4 17-13 21-15-3-24-1-14 10-24 9-12-9-21-11-16 5-23-1-3-15-8-22-14-9-15-19 7-14 6-23-9-13-5-22 13-9 18-16 3-16 12-20 15 4 24 1 12-10 22-10z"/>
+    <circle cx="100" cy="100" r="80" fill="none" stroke="var(--seal2)" stroke-width="2" opacity=".7"/>
+    <circle cx="100" cy="100" r="54" fill="none" stroke="#fff" stroke-width="1.5" opacity=".55"/>
+    <text font-family="Georgia,serif" font-size="13" letter-spacing="3" fill="#fff" opacity=".85"><textPath href="#arc" startOffset="2%">BMAD FORGE · REMOTECC · 2026-11-15 ·</textPath></text>
+    <text x="100" y="96" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="22" fill="#fff" letter-spacing="1">HARDENED</text>
+    <text x="100" y="118" text-anchor="middle" font-family="PingFang SC,sans-serif" font-size="13" fill="#fff" opacity=".9">已锻成</text>
+  </svg>
+  <div class="t">
+    <h1>remotecc 员工客户端</h1>
+    <p class="sub">起点：用免 sudo/UAC 的用户态 WireGuard 代理替代系统隧道。<br>终点：<b>特权守护进程 + TUI</b>，安装时授权一次，之后日常免提权。最初的“完全免 sudo”形态已被否决，演化后的想法锻成。</p>
+  </div>
+</header>
+
+<section>
+  <h2>结论</h2>
+  <p>真正的目标不是“免 sudo”，而是<b>让员工安装和日常使用都尽量容易</b>。一旦安装时授权一次可以接受，用户态代理的核心优势就缩水了，它要付出的代价却还在：127.0.0.1 转发、改 nginx、证书名称不匹配、mosh 整段端口。因此改用一次授权的特权守护进程，访问方式完全不变，再加一个 TUI 作为每天的入口。</p>
+  <div class="flow">
+    <div><b>1 · 首次送达</b><code>brew install</code> / curl / PowerShell 一行命令</div>
+    <div><b>2 · 唯一一次提权</b><code>sudo remotecc install 设备包</code></div>
+    <div><b>3 · 每天</b><code>remotecc</code>，回车进入工作区</div>
+  </div>
+</section>
+
+<section>
+  <h2>锁定的决定</h2>
+  <ul>
+    <li><span class="tag ok">形态</span>守护进程内嵌 wireguard-go，自己管理网卡和 /32 路由，不依赖 wg-quick、wireguard-tools 或 bash 4；10.234.0.2、desktop_url、nginx、ssh 配置都不变。</li>
+    <li><span class="tag ok">仓库</span>新建公开仓库 remotecc-client 放客户端，另建 homebrew-tap；workspace-onboarding 过渡期继续负责接入新员工；私有 remotecc 不变，两边靠设备包 schema、Releases 格式和验签公钥衔接。</li>
+    <li><span class="tag ok">平台</span>第一期 Mac、Linux、Windows 一起做，最后只保留一条接入路径。</li>
+    <li><span class="tag ok">安装</span>不再需要 bootstrap。remotecc 负责校验、安装和 verify；README 只告诉 Agent 运行哪几步。分发以 Homebrew tap 为主，curl 兜底。</li>
+    <li><span class="tag ok">提权防线</span>只运行 root 拥有的副本；控制通道只认安装时记录的员工身份，只接受白名单命令，客户端不能传路径或二进制；私钥只放在 root 目录。</li>
+    <li><span class="tag ok">重新安装</span>换发设备包或换账号，都按重新安装处理，再授权一次。</li>
+    <li><span class="tag ok">TUI</span>同一屏看状态、换线路、确认更新、打开 VM 桌面；<code>mosh &lt;id&gt;-vm</code> 仍可直接用。</li>
+    <li><span class="tag ok">更新</span>默认自动检查，安装前由员工确认，也可以关掉；签名私钥放在 GitHub Actions secret，公钥写死在二进制里；本地保留上一个版本，自检失败就自动退回。</li>
+    <li><span class="tag ok">Windows</span>先不签名上线：PowerShell 分发不带网络来源标记，SmartScreen 一般不弹；install 检测到 Smart App Control 开着时提示员工关掉。同时把客户端开源，申请 SignPath Foundation 的免费签名，批下来后切换。</li>
+    <li><span class="tag ok">迁移</span>签发新设备包（新密钥）→ install 拆掉旧隧道、装上新隧道、运行 verify → 通过后在 Hub 撤销旧密钥。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>否决的方案</h2>
+  <ul>
+    <li><span class="tag kill">KILLED</span><b>完全免 sudo 的用户态代理</b>：一次授权可以接受之后，它为免授权要改的访问方式不值得。原型证明它<i>做得到</i>，但不是<i>该做</i>。</li>
+    <li><span class="tag kill">KILLED</span><b>Docker</b>：在 Mac 上和用户态代理有同样的访问方式代价，还要额外装 Docker Desktop 并常驻一个虚拟机。</li>
+    <li><span class="tag kill">否决</span>用 Homebrew 负责更新（要员工手动 upgrade）；静默自动更新；在 /me 页面下载未签名的 CLI；付费 Windows 签名（云签名按月订阅，个人资格可能已暂停；传统证书每年几百美元，都太贵）；沿用旧私钥迁移；让员工手动卸载旧隧道。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>仍未解决的风险</h2>
+  <ul>
+    <li><span class="tag warn">信任根</span>GitHub 或 CI 被攻破后，攻击者可以很快把恶意版本推给所有员工。缓解办法是受保护 Environment 加人工审批，并且只对受保护的 tag 签名。这需要单独授权。</li>
+    <li><span class="tag warn">前置依赖</span>没装 Homebrew 的 Mac，以及 Linux 和 Windows 上的 mosh，仍然要提权或额外安装。</li>
+    <li><span class="tag warn">环境差异</span>测试覆盖不到各种员工环境。本地自动回退只兜住了“更新后起不来”这一种情况。</li>
+    <li><span class="tag warn">SignPath</span>条款要求项目先以待签名的形式发布过，可执行程序还要有“可验证的声誉”，审核也不一定批，所以不签名的时期可能会很长；批下来后显示的发布者是 SignPath Foundation。在那之前，开着 Smart App Control 的员工必须一直关着它。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>参与锻造的声音</h2>
+  <div class="cast">
+    <div>🏗️ Winston<span>System Architect：平台实现与架构代价</span></div>
+    <div>💻 Amelia<span>Senior Engineer：迁移与路由冲突</span></div>
+    <div>🎨 Sally<span>UX Designer：员工每天的入口</span></div>
+    <div>🔒 Vex<span>Security Engineer：本机提权与回滚风险</span></div>
+    <div>🃏 Wildcard<span>Option Generator：tap 只管首次送达</span></div>
+    <div>🚢 Dana<span>The Pragmatist：先做最小可用</span></div>
+    <div>😤 Grumbal<span>The Adversary：攻击核心论点</span></div>
+    <div>🪵 Splinter<span>Consensus Challenger：拆掉过早的共识</span></div>
+    <div>📏 Level<span>Claim Checker：核对原型和文档中的说法</span></div>
+    <div>🌶️ Boundary<span>Edge-Case Hunter：边界与故障场景</span></div>
+    <div>🧑‍💼 周敏<span>员工视角：只想点一下下载</span></div>
+    <div>🧪 Kenji<span>外部视角：用户态网络栈的实践经验</span></div>
+    <div>💼 陈律<span>财务与合规：签名成本与资格</span></div>
+    <div>🙋‍♀️ 方姐<span>员工代表：只想做一次</span></div>
+    <div>🧰 老谭<span>支持同事：员工必须一眼看出自己走哪条路径</span></div>
+  </div>
+</section>
+
+<footer>BMad Forge · 会话日志 <code>.memlog.md</code>（35 条）· Forged idea：<code>forge-userspace-wireguard-agent.md</code></footer>
+</main>
+</body>
+</html>
