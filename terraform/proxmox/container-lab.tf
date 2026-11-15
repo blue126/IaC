@@ -22,7 +22,7 @@ resource "proxmox_virtual_environment_vm" "containerlab" {
   }
 
   cpu {
-    cores   = 4
+    cores   = 12
     sockets = 1
     type    = "host"
   }

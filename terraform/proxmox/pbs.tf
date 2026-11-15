@@ -76,11 +76,13 @@ resource "proxmox_virtual_environment_vm" "pbs" {
     rombar = true
   }
 
-  # host 0000:0a:00.0 (Samsung SM963) -> guest 0000:03:00.0
+  # host 0000:0c:00.0 (Samsung SM963) -> guest 0000:03:00.0
   # -> serial S34ENY0J112117 / nvme-eui.002538c171009240.
+  # Enumerated as 0000:0a:00.0 before; re-verified on 2026-11-16 from the live
+  # VM100 config and the serial seen inside the guest.
   hostpci {
     device = "hostpci2"
-    id     = "0000:0a:00.0"
+    id     = "0000:0c:00.0"
     pcie   = true
     rombar = true
   }
