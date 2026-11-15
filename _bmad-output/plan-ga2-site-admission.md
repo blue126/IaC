@@ -214,3 +214,7 @@ handle /ga2-metrics {
 
 **Manual checks (if no CLI):**
 - 上线不在本计划内，需单独授权：CAM 子账号、BWS 密钥、IaC Vault 哈希、Hub Caddy 和 Portal 配置、Worker Secret、设置、部署站点、Semaphore 同步。本次不访问 Hub，不改 Vault，不部署。
+
+## 后续（2026-11-14）
+
+GA2 规则改由网站 Worker 自己增删和每分钟核对（私有仓库 `docs/2026-11-11-site-direct-ga2-plan.md`）。`wsctl ga2-sync`、`hub-ga2.py`、settings 的 `ga2` 段、`bws_materialize.actions` 和 Semaphore 模板 `wsctl ga2-sync` 已删除；上文写 `ga2-sync` 的部分只作历史记录。
