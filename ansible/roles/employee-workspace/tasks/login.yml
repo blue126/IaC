@@ -13,7 +13,24 @@
     group: root
     mode: '0755'
 
+# prepare-desktop.py activate replaces employee-browser.service with the KasmVNC
+# browser-service.py unit and records mode=kasmvnc here. Rewriting either would
+# drop that mode and restore the legacy auth-browser.py unit, which the desktop
+# drop-in's browser-check then refuses.
+- name: Read the current browser backend selection
+  ansible.builtin.slurp:
+    src: /etc/employee-workspace-browser.json
+  register: employee_workspace_browser_current
+  failed_when: false
+
+- name: Detect whether the KasmVNC desktop owns the browser service
+  ansible.builtin.set_fact:
+    employee_workspace_browser_kasm: >-
+      {{ employee_workspace_browser_current.content is defined
+         and (employee_workspace_browser_current.content | b64decode | from_json).get('mode') == 'kasmvnc' }}
+
 - name: Configure the VM-owned authorization viewer
+  when: not employee_workspace_browser_kasm | bool
   ansible.builtin.copy:
     dest: /etc/employee-workspace-browser.json
     owner: root
@@ -38,6 +55,7 @@
     mode: '0755'
 
 - name: Install the employee browser service without restarting personal sessions
+  when: not employee_workspace_browser_kasm | bool
   ansible.builtin.copy:
     dest: /etc/systemd/system/employee-browser.service
     owner: root
