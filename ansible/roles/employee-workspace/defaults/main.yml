@@ -4,6 +4,26 @@ employee_workspace_disabled: false
 employee_workspace_claude_binary_url: ''
 employee_workspace_claude_sha256: ''
 employee_workspace_packages: [git, curl, ca-certificates, sudo, openssh-server, python3, tmux, unzip]
+# Baked so the kasmvnc role can add claude-desktop without upgrading anything already in
+# the image: the Depends of claude-desktop 4.4212.0 (Ubuntu 26.04 names, alternatives as apt
+# picks them) plus gnome-keyring. Update together with the claude-desktop pin in kasmvnc.
+employee_workspace_desktop_dependencies:
+  - libgtk-3-0t64
+  - libnotify4
+  - libnss3
+  - xdg-utils
+  - libatspi2.0-0t64
+  - libdrm2
+  - libgbm1
+  - libxcb-dri3-0
+  - libsecret-1-0
+  - libglib2.0-bin
+  - libxtst6
+  - libuuid1
+  - libpipewire-0.3-0t64
+  - xdg-desktop-portal
+  - xdg-desktop-portal-gtk
+  - gnome-keyring
 
 employee_workspace_baseline_id: ""
 employee_workspace_baseline_ready: false

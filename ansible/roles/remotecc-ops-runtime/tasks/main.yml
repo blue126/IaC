@@ -7,6 +7,17 @@
     update_cache: true
     cache_valid_time: 3600
 
+# Proxmox derives the NoCloud instance-id from the cloud-init data, which includes the admin key
+# list; any change there makes the next boot a "new instance", and cloud-init would then replace
+# the SSH host keys that administrators and pushes to this executor have pinned.
+- name: Keep the executor SSH host keys across cloud-init instance changes
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/90-remotecc-keep-ssh-host-keys.cfg
+    content: "ssh_deletekeys: false\n"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Create versioned tool directories
   ansible.builtin.file:
     path: "/usr/local/lib/ws-executor/{{ item }}"
