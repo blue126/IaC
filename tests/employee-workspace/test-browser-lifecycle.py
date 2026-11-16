@@ -227,5 +227,96 @@ class BrowserTests(unittest.TestCase):
         self.assertNotIn('employee-browser', (FILES / 'employee-desktop.service').read_text())
 
 
+class ProfileTests(unittest.TestCase):
+    """Daily profile directory guard on a real temporary filesystem."""
+    def setUp(self):
+        # Resolve so macOS /var -> /private/var is not mistaken for a planted link.
+        temp = tempfile.TemporaryDirectory(prefix='s4-profile-')
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name).resolve()
+        self.profile = self.home / '.local/share/employee-workspace/firefox'
+        employee = Mock(pw_uid=os.getuid())
+        for target in (patch.object(browser.service, 'PROFILE', str(self.profile)),
+                       patch.object(browser.pwd, 'getpwnam', return_value=employee)):
+            target.start()
+            self.addCleanup(target.stop)
+
+    def test_missing_profile_is_created_private_for_employee(self):
+        browser.ensure_profile()
+        info = self.profile.lstat()
+        self.assertTrue(browser.stat.S_ISDIR(info.st_mode))
+        self.assertEqual(browser.stat.S_IMODE(info.st_mode), 0o700)
+        self.assertEqual(info.st_uid, os.getuid())
+
+    def test_existing_profile_and_locks_are_preserved_and_mode_tightened(self):
+        self.profile.mkdir(parents=True)
+        self.profile.chmod(0o755)
+        (self.profile / 'prefs.js').write_text('user_pref("x", 1);\n')
+        (self.profile / '.parentlock').write_text('')
+        (self.profile / 'lock').symlink_to('127.0.0.1:+123')
+        browser.ensure_profile()
+        self.assertEqual(browser.stat.S_IMODE(self.profile.stat().st_mode), 0o700)
+        self.assertEqual((self.profile / 'prefs.js').read_text(), 'user_pref("x", 1);\n')
+        self.assertTrue((self.profile / '.parentlock').exists())
+        self.assertEqual(os.readlink(self.profile / 'lock'), '127.0.0.1:+123')
+
+    def test_profile_owned_by_another_user_is_refused_unchanged(self):
+        self.profile.mkdir(parents=True)
+        self.profile.chmod(0o755)
+        real = os.fstat
+        def foreign(fd):
+            values = list(real(fd))
+            values[4] = os.getuid() + 1000
+            return os.stat_result(values)
+        with patch.object(browser.os, 'fstat', side_effect=foreign), self.assertRaises(browser.service.Refused) as caught:
+            browser.ensure_profile()
+        self.assertIn('another user', str(caught.exception))
+        self.assertEqual(browser.stat.S_IMODE(self.profile.stat().st_mode), 0o755)
+
+    def test_symlinked_profile_or_ancestor_is_refused_without_writing_through(self):
+        outside = self.home / 'outside'
+        outside.mkdir()
+        self.profile.parent.parent.mkdir(parents=True)
+        # An ancestor is a symlink to a real directory.
+        self.profile.parent.symlink_to(outside, target_is_directory=True)
+        (outside / 'firefox').mkdir()
+        with self.assertRaises(browser.service.Refused):
+            browser.ensure_profile()
+        self.profile.parent.unlink()
+        # Profile path is a dangling symlink.
+        self.profile.parent.mkdir()
+        self.profile.symlink_to(self.home / 'missing')
+        with self.assertRaises(browser.service.Refused):
+            browser.ensure_profile()
+        self.assertFalse((self.home / 'missing').exists())
+        self.profile.unlink()
+        # Profile itself is a symlink to an existing directory.
+        self.profile.symlink_to(outside / 'firefox', target_is_directory=True)
+        with self.assertRaises(browser.service.Refused):
+            browser.ensure_profile()
+        self.assertEqual(sorted(p.name for p in outside.iterdir()), ['firefox'])
+
+    def test_other_identity_is_refused_before_touching_filesystem(self):
+        with patch.object(browser.os, 'geteuid', return_value=os.getuid() + 1000), self.assertRaises(browser.service.Refused):
+            browser.ensure_profile()
+        self.assertFalse(self.profile.parent.exists())
+
+    def test_supervise_prepares_profile_after_preflight_and_before_firefox(self):
+        order = []
+        class Stop(Exception):
+            pass
+        def popen(argv, **kwargs):
+            order.append(argv[0])
+            raise Stop
+        with patch.object(browser.service, 'startup_lock', contextlib.nullcontext), patch.object(browser.service, 'load_config', return_value={}), patch.object(browser.service, 'preflight', side_effect=lambda *a, **k: order.append('preflight')), patch.object(browser, 'ensure_profile', side_effect=lambda: order.append('profile')), patch.object(browser, 'environment', return_value={}), patch.object(browser, 'retire'), patch.object(browser.subprocess, 'Popen', side_effect=popen), patch.object(browser.signal, 'signal'):
+            with self.assertRaises(Stop):
+                browser.supervise()
+        self.assertEqual(order, ['preflight', 'profile', 'firefox'])
+        with patch.object(browser.service, 'startup_lock', contextlib.nullcontext), patch.object(browser.service, 'load_config', return_value={}), patch.object(browser.service, 'preflight'), patch.object(browser, 'ensure_profile', side_effect=browser.service.Refused('Unsafe browser profile path')), patch.object(browser, 'retire'), patch.object(browser.subprocess, 'Popen') as started, patch.object(browser.signal, 'signal'):
+            with self.assertRaises(browser.service.Refused):
+                browser.supervise()
+        started.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

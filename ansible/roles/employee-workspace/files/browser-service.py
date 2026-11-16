@@ -4,9 +4,11 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -28,6 +30,32 @@ def environment():
            'GNUPGHOME': '/home/employee/.gnupg', 'MOZ_ENABLE_WAYLAND': '0'}
     env.update(service.live_session())
     return env
+
+
+def ensure_profile():
+    """Create the daily profile directory when absent; never reset its contents or locks."""
+    # Firefox refuses a missing --profile path ("Profile Missing"); only the
+    # workspace-login supervisor used to create it.
+    employee = pwd.getpwnam('employee').pw_uid
+    if os.geteuid() != employee:
+        raise service.Refused('Browser profile requires the employee identity')
+    profile = Path(service.PROFILE)
+    # Match secure_file: a symlinked profile or ancestor could redirect writes.
+    if any(p.is_symlink() for p in (profile, *profile.parents)):
+        raise service.Refused('Unsafe browser profile path')
+    try:
+        profile.mkdir(parents=True, mode=0o700, exist_ok=True)
+        fd = os.open(profile, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError:
+        raise service.Refused('Browser profile unavailable') from None
+    try:
+        info = os.fstat(fd)
+        if info.st_uid != employee:
+            raise service.Refused('Browser profile owned by another user')
+        if stat.S_IMODE(info.st_mode) != 0o700:
+            os.fchmod(fd, 0o700)
+    finally:
+        os.close(fd)
 
 
 def firefox_ready(child, env):
@@ -115,6 +143,7 @@ def supervise():
     try:
         with service.startup_lock():
             service.preflight(service.load_config(), running=True)
+            ensure_profile()
             env = environment()
             # RuntimeDirectory is owned by this unit; stale endpoints cannot be used.
             retire()
