@@ -31,6 +31,13 @@
     cache_valid_time: 3600
   when: not employee_workspace_baseline_ready | bool
 
+- name: Install the Claude Desktop dependency stack without recommended packages
+  ansible.builtin.apt:
+    name: "{{ employee_workspace_desktop_dependencies }}"
+    state: present
+    install_recommends: false
+  when: not employee_workspace_baseline_ready | bool
+
 - name: Create persistent employee account with sudo
   ansible.builtin.user:
     name: "{{ employee_workspace_user }}"
