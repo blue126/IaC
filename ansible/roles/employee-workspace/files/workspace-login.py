@@ -107,7 +107,8 @@ def browser_worker(value, url):
             (runtime / "browser-error").touch(mode=0o600)
             return 1
         # The browser service belongs to the employee, not this authorization flow.
-        lines = [line for line in result.stdout.splitlines() if line.startswith("http://")]
+        # KasmVNC desktops report an https:// viewer; legacy noVNC reports http://.
+        lines = [line for line in result.stdout.splitlines() if line.startswith(("http://", "https://"))]
         if not lines:
             (runtime / "browser-error").touch(mode=0o600)
             return 1

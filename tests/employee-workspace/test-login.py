@@ -69,7 +69,7 @@ if not (p/"browser-pid").exists():
 if os.environ["LOGIN_SCENARIO"]=="success":
     time.sleep(.4)
     (p/"authenticated").write_text("yes")
-print("http://10.230.0.1:8443/vnc.html",flush=True)
+print(os.environ.get("LOGIN_VIEWER","http://10.230.0.1:8443/vnc.html"),flush=True)
 '''
 
 
@@ -188,6 +188,16 @@ class LoginFlow(unittest.TestCase):
             ("若页面给出授权码，回本终端粘贴后按回车。".encode(), b"fixture-code\n"),
         ])
         self.assertEqual(rc, 0)
+        self.assert_clean()
+
+    def test_kasmvnc_https_viewer_is_shown_and_login_completes(self):
+        self.env["LOGIN_VIEWER"] = "https://10.234.0.9:8443/"
+        rc, output = self.drive("manual", [
+            ("若页面给出授权码，回本终端粘贴后按回车。".encode(), b"fixture-code\n"),
+        ])
+        self.assertEqual(rc, 0)
+        self.assertIn(b"https://10.234.0.9:8443/", output)
+        self.assertNotIn("无法自动打开本次授权页面".encode(), output)
         self.assert_clean()
 
     def test_detach_cancels_and_preserves_another_tmux_server(self):
