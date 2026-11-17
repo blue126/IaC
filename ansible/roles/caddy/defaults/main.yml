@@ -20,6 +20,8 @@ caddy_systemd_override_dir: /etc/systemd/system/caddy.service.d
 caddy_reverse_proxy_name: ""
 caddy_reverse_proxy_domain: ""
 caddy_reverse_proxy_upstream: ""
+# Access log file for the site; empty disables access logging
+caddy_reverse_proxy_access_log: ""
 # Cloudflare API token for DNS challenge (vault indirect reference)
 cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
 # WebDAV basic auth bcrypt hash, precomputed and stored in the vault so the
