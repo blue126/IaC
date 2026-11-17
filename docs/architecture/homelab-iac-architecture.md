@@ -751,6 +751,13 @@ CT111 根盘为 pve0 `vmdata:subvol-111-disk-0`（8GiB），数据盘为 `local-
 
 2026-10-27 读取 `/etc/pve/jobs.cfg`：pve0 snapshot 作业成员为 `100,101,102,103,104,105,106,107,109,112,113,114,115,117,118`，00:00，**enabled=0**；pve1 的 all 作业也为 **enabled=0**。108 按用户决定免备份；111 的迁后 T1/verify 已取消，不列入该 snapshot 作业。这里记录当前配置，不代表周期备份正在执行；此次仅恢复 Jenkins，未启用备份作业。
 
+**2026-11-17 只读现场核对**（补充上文，未做任何变更）：
+
+- **pve0 硬件**：Lenovo ThinkStation P330 Tiny（机型号 30CE），业务口为 ConnectX-3 万兆 `enp1s0`（`mlx4_core`，承载 `vmbr1` `.50`）。板载千兆 `eno1`（`e1000e`）未接线，所以挂在其上的 `vmbr0` `.20` 当前没有链路，与[备份规范 5.4 节](backup-architecture-consolidation-spec.md)记录的"电口未接线"一致。
+- **pve0 存储**：`mainpool` 为 990 PRO 2TB ×2 镜像；`rpool`（`local-zfs`）是**单块** WD Blue SA510 1TB，没有冗余。Time Machine 数据卷的 800GiB reservation 落在这块盘上：池实际写入约 458G / 928G，但 PVE 按预留计算，`local-zfs` 显示已占约 91%。
+- **PBS `tank`**（pve2 VM100 客机内）：共 13.0T，已用 1.01T，含三组镜像——`mirror-0` HITACHI 8TB ×2、`mirror-2` WD Red Plus 6TB ×2（原 pve1 `tank` 的两块盘）、`special mirror-1` SM963 256G ×2。v1.14 记录的"仅 8TB 镜像、无 special vdev"已过时；`roles/pbs/defaults` 已与现场一致。
+- **备份作业**：pve0 与 pve1 的作业仍为 `enabled=0`，目前没有周期备份。
+
 Jenkins `IaC-Homelab-Pipeline` 已恢复启用，跟踪 `main`，未主动触发构建；HCP state serial104，完整 live refresh plan 全部 PVE 资源 NoOp。全部迁移收尾和用户豁免见[执行记录](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/plan-proxmox-consolidation-execution.md)。pve1 关机前后检查见[关机说明](../guides/proxmox-pve1-shutdown.md)。
 
 #### 历史备份拓扑（2026-09-21 配置快照）

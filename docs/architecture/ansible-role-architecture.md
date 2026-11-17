@@ -252,8 +252,9 @@ role defaults (优先级 2)          → 可覆盖的默认值
 | `pbs_zfs_pool_name` | `"tank"` | ZFS 池名称（客机内） |
 | `pbs_zfs_mount_point` | `"/mnt/datastore/tank"` | 池挂载点，同时即 datastore 路径 |
 | `pbs_datastore_name` | `"backup"` | PBS datastore 名称 |
-| `pbs_zfs_hdd_devices` | 两个 `/dev/disk/by-id/wwn-*` 路径 | 已有 HITACHI 8TB 镜像盘；见 defaults |
-| `pbs_zfs_nvme_devices` | `[]` | NVMe 设备列表（special vdev） |
+| `pbs_zfs_hdd_devices` | 两个 `wwn-*` 与两个 `ata-WDC_*` by-id 路径 | 两组数据镜像：HITACHI 8TB ×2、WD Red Plus 6TB ×2；见 defaults |
+| `pbs_zfs_nvme_devices` | 两个 `nvme-eui.*` 路径 | SM963 ×2，组成 special vdev 镜像 |
+| `pbs_zfs_use_special_vdev` | `true` | 与现场池一致（2026-11-17 核对） |
 | `pbs_zfs_compression` | `"on"` | 已有池的实测配置 |
 | `pbs_zfs_atime` | `"on"` | 已有池属性；挂载选项含 relatime |
 | *(另有 10+ ZFS 配置变量)* | | 详见 `roles/pbs/defaults/main.yml` |
