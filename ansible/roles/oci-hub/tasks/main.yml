@@ -37,6 +37,16 @@
     mode: '0700'
   loop: [/etc/oci-hub, /var/lib/oci-hub, /opt/oci-hub, /var/lib/oci-hub/portal]
 
+# The root executor writes the monthly usage snapshot here; setgid keeps it in the caddy
+# group so Caddy can read but not write it. /var/lib/oci-hub stays root-only.
+- name: Create the usage snapshot directory readable by Caddy
+  ansible.builtin.file:
+    path: /var/lib/oci-hub-usage
+    state: directory
+    owner: root
+    group: caddy
+    mode: '2750'
+
 - name: Deploy scoped boundary verifier
   ansible.builtin.copy:
     src: '{{ playbook_dir }}/../../scripts/oci-hub/boundary.py'
@@ -95,7 +105,7 @@
 
 - name: Deploy executor protected configuration
   ansible.builtin.copy:
-    content: '{{ oci_hub_executor_config | to_nice_json }}'
+    content: "{{ oci_hub_executor_config | combine({'usage_file': '/var/lib/oci-hub-usage/ga2-usage.json'}) | to_nice_json }}"
     dest: /etc/oci-hub/executor.json
     owner: root
     group: root
@@ -145,7 +155,8 @@
     caddy_reverse_proxy_domain: "{{ oci_hub_portal_external_url | urlsplit('hostname') }}"
     caddy_reverse_proxy_upstream: 127.0.0.1:8888
     # The site's read-only view of the Portal's metrics; the Portal's other 8787 paths stay private.
-    caddy_reverse_proxy_pre_directives: "{{ oci_hub_ga2_metrics_route if oci_hub_portal_metrics_password_hash | length > 0 else '' }}"
+    # /ga2-usage serves the executor's monthly usage snapshot with the same read-only token.
+    caddy_reverse_proxy_pre_directives: "{{ (oci_hub_ga2_metrics_route ~ oci_hub_ga2_usage_route) if oci_hub_portal_metrics_password_hash | length > 0 else '' }}"
     oci_hub_ga2_metrics_route: |
       handle /ga2-metrics {
           basic_auth {
@@ -153,5 +164,15 @@
           }
           rewrite * /metrics
           reverse_proxy 127.0.0.1:8787
+      }
+    oci_hub_ga2_usage_route: |
+      handle /ga2-usage {
+          basic_auth {
+              ga2-site {{ oci_hub_portal_metrics_password_hash }}
+          }
+          header Cache-Control no-store
+          root * /var/lib/oci-hub-usage
+          rewrite * /ga2-usage.json
+          file_server
       }
   when: oci_hub_portal_external_url is match('^https://')
