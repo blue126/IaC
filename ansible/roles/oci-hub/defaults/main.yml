@@ -6,3 +6,15 @@ oci_hub_ignored_interfaces: []
 oci_hub_portal_data_collection_interval: 15s
 # bcrypt hash guarding /ga2-metrics; empty leaves the route out.
 oci_hub_portal_metrics_password_hash: ""
+# Pinned upstream release asset wg-portal_linux_arm64 and its published checksum.
+oci_hub_portal_version: '2.3.1'
+oci_hub_portal_sha256: 73b524f7427c1975d1b0744a4c1ad82418ad07589df48f850d7a66935d9952e7
+oci_hub_portal_admin_user: admin@wgportal.local
+# The executor's protected configuration; the Portal secrets come from the Vault.
+oci_hub_executor_config:
+  profile: "{{ oci_hub_profile }}"
+  database: /var/lib/oci-hub/ledger.sqlite
+  portal_url: http://127.0.0.1:8888
+  portal_username: "{{ oci_hub_portal_admin_user }}"
+  portal_token: "{{ oci_hub_portal_api_token }}"
+  usage_file: /var/lib/oci-hub-usage/ga2-usage.json

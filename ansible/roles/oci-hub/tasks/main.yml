@@ -3,7 +3,6 @@
   ansible.builtin.assert:
     that:
       - oci_hub_profile == 'oci-hub'
-      - oci_hub_boundary.kind == 'hub'
       - oci_hub_portal_version == '2.3.1'
       - oci_hub_portal_sha256 is match('^[a-f0-9]{64}$')
       - oci_hub_portal_admin_password | length >= 16
@@ -55,13 +54,27 @@
     group: root
     mode: '0755'
 
-- name: Deploy explicit Hub ACL policy
+# wsctl owns the live policy once a Hub runs (it carries the employee pairs), so the
+# role seeds it only on a new host and never overwrites it.
+- name: Check for an existing Hub ACL policy
+  ansible.builtin.stat:
+    path: /etc/oci-hub/boundary.json
+  register: oci_hub_boundary_file
+
+- name: Require an explicit Hub ACL policy on a new host
+  ansible.builtin.assert:
+    that: oci_hub_boundary.kind == 'hub'
+    fail_msg: A new Hub needs oci_hub_boundary with kind hub.
+  when: not oci_hub_boundary_file.stat.exists
+
+- name: Seed the explicit Hub ACL policy on a new host
   ansible.builtin.copy:
     content: '{{ oci_hub_boundary | to_nice_json }}'
     dest: /etc/oci-hub/boundary.json
     owner: root
     group: root
     mode: '0600'
+  when: not oci_hub_boundary_file.stat.exists
 
 - name: Persist approved IPv4 forwarding for this routed gateway
   ansible.builtin.copy:
@@ -75,23 +88,15 @@
   ansible.builtin.command: /usr/local/lib/oci-hub-boundary.py apply
   changed_when: true
 
-- name: Deploy approved prebuilt Portal executable
-  ansible.builtin.copy:
-    src: '{{ oci_hub_portal_binary }}'
+# get_url skips the download when the existing file already has this checksum.
+- name: Download the pinned upstream Portal release
+  ansible.builtin.get_url:
+    url: 'https://github.com/h44z/wg-portal/releases/download/v{{ oci_hub_portal_version }}/wg-portal_linux_arm64'
+    checksum: 'sha256:{{ oci_hub_portal_sha256 }}'
     dest: /opt/oci-hub/wg-portal
     owner: root
     group: root
     mode: '0700'
-
-- name: Read deployed Portal checksum
-  ansible.builtin.stat:
-    path: /opt/oci-hub/wg-portal
-    checksum_algorithm: sha256
-  register: oci_hub_portal_stat
-
-- name: Assert Portal checksum matches approved version
-  ansible.builtin.assert:
-    that: oci_hub_portal_stat.stat.checksum == oci_hub_portal_sha256
 
 - name: Deploy protected Portal configuration
   ansible.builtin.template:
@@ -105,7 +110,7 @@
 
 - name: Deploy executor protected configuration
   ansible.builtin.copy:
-    content: "{{ oci_hub_executor_config | combine({'usage_file': '/var/lib/oci-hub-usage/ga2-usage.json'}) | to_nice_json }}"
+    content: "{{ oci_hub_executor_config | to_nice_json }}"
     dest: /etc/oci-hub/executor.json
     owner: root
     group: root
