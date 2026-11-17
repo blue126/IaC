@@ -1,0 +1,741 @@
+<title>Roseville Homelab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: fluid poster (max 1680px). Networks strip → internet/gateway row → 10G switch → LAN bus → pve0 | pve1 | pve2 (symmetric grid so the bus lines up) → control, CI/CD, access, ingress, backup panels. Stacks to one column below 1100px. Single dark look by choice. */
+:root {
+  color-scheme: dark;
+  --bg: #0a1019;
+  --panel: #0f1724;
+  --panel-2: #131e2e;
+  --line: #22324a;
+  --line-strong: #34496a;
+  --fg: #dbe5f2;
+  --muted: #7e91aa;
+  --faint: #52657f;
+  --wire: #8fa3bf;
+  --tf: #3fd0c4;
+  --rcc: #ec7fb5;
+  --op: #e9b44c;
+  --lab: #6aa8ff;
+  --ok: #4ad38a;
+  --warn: #f2a33a;
+  --bad: #f06b6b;
+  --cf: #f6894a;
+  --wg: #b08cff;
+  --hdd: #8a7a5c;
+  --ssd: #4f86c6;
+  --nvme: #3fb7a8;
+  --mid: 200px;
+  --gap: 20px;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 12px; line-height: 1.45; }
+.page {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.poster { max-width: 1680px; margin: 0 auto; display: flex; flex-direction: column; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.brand { display: flex; gap: 16px; align-items: center; min-width: 0; }
+.mark { width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--panel-2); display: grid; place-items: center; flex: none; }
+.brand h1 { font-size: clamp(22px, 2.4vw, 30px); font-weight: 700; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.meta { color: var(--muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px; text-align: right; }
+.meta b { color: var(--fg); font-weight: 600; }
+
+/* panels */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; min-width: 0; }
+.panel > h2, .ph { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.panel > h2 small, .ph small { font-family: var(--font-body); font-weight: 400; font-size: 11px; color: var(--muted); }
+.eyebrow { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin: 12px 0 6px; }
+
+/* networks strip */
+.nets { margin-bottom: 22px; }
+.nets-hd { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; margin-bottom: 10px; }
+.nets-hd .ph { margin: 0; }
+.netgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.net { display: grid; grid-template-columns: 4px 1fr auto; gap: 0 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px 7px 0; overflow: hidden; min-width: 0; }
+.net .sw { grid-row: span 2; background: var(--c, var(--wire)); }
+.net .nm { font-weight: 600; }
+.net .cidr { font-family: var(--font-mono); font-size: 11px; text-align: right; }
+.net .ds { grid-column: 2 / 4; font-size: 10.5px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--muted); }
+.legend > span { display: flex; align-items: center; gap: 7px; }
+.lg-id { font-family: var(--font-mono); font-size: 10px; font-weight: 500; padding: 1px 5px; border-radius: 4px; color: var(--bg); background: var(--c); }
+.lg-id.tpl { background: transparent; color: var(--muted); border: 1px dashed var(--line-strong); }
+.lg-line { width: 24px; border-top: 2px solid var(--wire); }
+.lg-line.wg { border-top-style: dashed; border-top-color: var(--wg); }
+.lg-line.cf { border-top-style: dotted; border-top-color: var(--cf); }
+
+/* row 1 */
+.row1 { display: grid; grid-template-columns: 1fr minmax(420px, 1.25fr) 1fr; gap: 24px; align-items: stretch; }
+.ext { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.svc { padding: 11px 13px; }
+.svc .hd { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.svc .dot { width: 9px; height: 9px; border-radius: 3px; background: var(--c); flex: none; }
+.svc h3 { font-size: 13px; font-weight: 600; }
+.svc .tag { margin-left: auto; font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+.svc ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.svc li { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: var(--muted); }
+.svc li b { color: var(--fg); font-weight: 500; white-space: nowrap; }
+.svc li .mono { font-size: 10.5px; text-align: right; min-width: 0; }
+
+.edge { display: flex; flex-direction: column; align-items: center; position: relative; min-width: 0; }
+.cloud { position: relative; width: 280px; max-width: 100%; height: 104px; display: grid; place-items: center; text-align: center; z-index: 1; }
+.cloud svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cloud h3 { font-size: 20px; font-weight: 600; position: relative; }
+.cloud p { margin: 0; font-size: 11px; color: var(--muted); position: relative; }
+.cloud-link, .cloud-link-l { position: absolute; top: 52px; border-top: 2px dashed var(--line-strong); }
+.cloud-link { left: calc(50% + 140px); right: -24px; }
+.cloud-link-l { right: calc(50% + 140px); left: -24px; }
+.vwire { width: 0; border-left: 2px solid var(--wire); }
+.vwire.grow { flex: 1; min-height: 22px; }
+.wlabel { font-size: 10.5px; color: var(--muted); font-family: var(--font-mono); padding: 3px 0; }
+.gw { width: 100%; max-width: 560px; border-color: #5a3a3a; background: linear-gradient(180deg, #1a1416, var(--panel)); }
+.gw .hd { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.ic { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; flex: none; background: #2a1a1c; }
+.gw h3 { font-size: 15px; }
+.ports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
+.port { border: 1px solid var(--line); background: var(--panel-2); border-radius: 5px; padding: 5px 6px; text-align: center; }
+.port b { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.port span { font-size: 10px; color: var(--muted); }
+.port.wan { border-color: #6b2f33; }
+.port.hot { border-color: var(--line-strong); }
+.port.down { opacity: 0.45; border-style: dashed; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-size: 11px; padding: 3px 8px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); display: inline-flex; gap: 6px; align-items: center; }
+.chip .mono { color: var(--muted); font-size: 10.5px; }
+
+/* switch row */
+.swrow { display: grid; grid-template-columns: 1fr minmax(420px, 1.25fr) 1fr; gap: 24px; align-items: center; }
+.switch { position: relative; border: 1px solid var(--line-strong); background: var(--panel-2); border-radius: 8px; padding: 9px 12px; display: flex; align-items: center; gap: 12px; }
+.switch .leds { display: flex; gap: 3px; flex: none; }
+.switch .leds i { width: 13px; height: 10px; border-radius: 2px; background: #1b2a3f; border: 1px solid var(--line-strong); }
+.switch .leds i.on { background: #1d4a37; border-color: var(--ok); }
+.switch b { font-family: var(--font-display); font-size: 13px; }
+.switch span { font-size: 10.5px; color: var(--muted); }
+.clients { display: flex; gap: 10px; align-items: center; }
+.clients .panel { padding: 9px 12px; flex: 1; }
+.clients .stub { width: 30px; border-top: 2px solid var(--wire); flex: none; }
+.clients b { font-size: 12px; }
+.clients p { margin: 2px 0 0; font-size: 10.5px; color: var(--muted); }
+
+/* LAN bus — symmetric host grid keeps pve1 at 50% */
+.bus { position: relative; height: 56px; }
+.bus .stem { position: absolute; left: calc(50% - 1px); top: 0; height: 29px; border-left: 2px solid var(--wire); }
+.bus .rail { position: absolute; top: 28px; left: calc((100% - var(--mid) - 2 * var(--gap)) / 4); right: calc((100% - var(--mid) - 2 * var(--gap)) / 4); border-top: 2px solid var(--wire); }
+.bus .drop { position: absolute; top: 28px; height: 28px; border-left: 2px solid var(--wire); }
+.bus .d0 { left: calc((100% - var(--mid) - 2 * var(--gap)) / 4 - 1px); }
+.bus .d1 { left: calc(50% - 1px); border-left-style: dashed; border-left-color: var(--faint); }
+.bus .d2 { right: calc((100% - var(--mid) - 2 * var(--gap)) / 4 - 1px); }
+.bus .lbl { position: absolute; top: 33px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.bus .l0 { left: calc((100% - var(--mid) - 2 * var(--gap)) / 4 + 8px); }
+.bus .l2 { right: calc((100% - var(--mid) - 2 * var(--gap)) / 4 + 8px); }
+
+/* hosts */
+.hosts { display: grid; grid-template-columns: 1fr var(--mid) 1fr; gap: var(--gap); align-items: start; }
+.host { padding: 14px 14px 16px; }
+.host > .hd { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.host > .hd .ic { width: 40px; height: 40px; background: #2a1d10; }
+.host h3 { font-size: 17px; }
+.host h3 small { font-family: var(--font-body); font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+.host > .hd p { margin: 1px 0 0; font-size: 11px; color: var(--muted); }
+.host .ip { font-family: var(--font-mono); color: var(--tf); }
+.hw { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.hw > div { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+.hw .k { font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--faint); }
+.hw .v { font-size: 11.5px; font-weight: 600; }
+.hw .s { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+
+/* pools with disk glyphs */
+.pools { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; }
+.pool { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px 8px; min-width: 0; }
+.pool .t { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.pool .t b { font-size: 11.5px; }
+.pool .t .mono { font-size: 10.5px; color: var(--muted); }
+.pool .track { height: 5px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; margin: 5px 0 6px; }
+.pool .fill { height: 100%; background: var(--tf); }
+.pool .fill.hi { background: var(--warn); }
+.vdev { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.vdev .lab { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); min-width: 52px; }
+.disk { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+.disk i { width: 16px; height: 11px; border-radius: 2px; border: 1px solid var(--c); background: color-mix(in srgb, var(--c) 22%, transparent); display: inline-block; }
+.disk.hdd { --c: var(--hdd); }
+.disk.ssd { --c: var(--ssd); }
+.disk.nvme { --c: var(--nvme); }
+.pool .use { font-size: 10px; color: var(--muted); margin-top: 5px; }
+
+/* guests */
+.grp { margin-top: 12px; }
+.grp-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.grp-hd h4 { font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; }
+.grp-hd span { font-size: 10.5px; color: var(--muted); }
+.grp-hd .pill { margin-left: auto; font-family: var(--font-mono); font-size: 10px; padding: 1px 7px; border-radius: 9px; border: 1px solid var(--line-strong); color: var(--muted); }
+.guests { display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); gap: 6px; }
+.guests.tight { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.g { display: grid; grid-template-columns: auto 1fr auto; gap: 1px 8px; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+.g .id { grid-row: span 2; font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; min-width: 34px; text-align: center; padding: 3px 4px; border-radius: 4px; color: var(--bg); background: var(--o, var(--tf)); }
+.g.op { --o: var(--op); }
+.g.rcc { --o: var(--rcc); }
+.g.off { opacity: 0.55; }
+.g.tpl .id { background: transparent; color: var(--muted); border: 1px dashed var(--line-strong); }
+.g .n { font-weight: 600; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.g .n i { font-style: normal; font-weight: 400; color: var(--faint); font-size: 10px; margin-left: 4px; }
+.g .d { grid-column: 2 / 3; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.g .r { grid-row: span 2; text-align: right; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.g .r .ipx { color: var(--fg); }
+.st { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--ok); }
+.st.stop { background: var(--faint); }
+.boxed { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.boxed.rcc-box { border-color: #5a2f47; }
+.ws-strip { display: flex; gap: 4px; margin-top: 6px; }
+.ws-strip span { flex: 1; text-align: center; font-family: var(--font-mono); font-size: 10.5px; padding: 4px 0; border-radius: 4px; background: #2a1622; border: 1px solid #5a2f47; color: var(--rcc); }
+.pbs { margin-top: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px; background: rgba(63, 208, 196, 0.03); }
+.pbs .top2 { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.pbs .top2 b { font-size: 12px; }
+
+.offline { border-style: dashed; border-color: var(--line-strong); background: transparent; }
+.badge { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 10px; border: 1px solid; white-space: nowrap; }
+.badge.bad { color: var(--bad); border-color: #6b2f33; background: #2a1517; }
+.badge.warn { color: var(--warn); border-color: #6a4a1d; background: #2a1e10; }
+.kv { display: flex; flex-direction: column; gap: 6px; }
+.kv > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.kv > div > span:first-child { color: var(--muted); }
+.kv > div > span:last-child { text-align: right; }
+
+/* bottom */
+.bottom { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-top: 24px; align-items: start; }
+.tfrow { display: grid; grid-template-columns: minmax(120px, 0.9fr) minmax(100px, 0.8fr) 2fr; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; }
+.tfrow .mono { font-size: 10.5px; }
+.tfrow .ws { color: var(--tf); }
+.tfrow.rc .ws { color: var(--rcc); }
+.tfrow.hist { opacity: 0.55; }
+.flow { display: flex; flex-direction: column; gap: 6px; }
+.note { font-size: 10.5px; color: var(--muted); margin-top: 8px; display: flex; gap: 8px; align-items: flex-start; }
+.note .badge { flex: none; }
+
+.steps { display: flex; flex-direction: column; }
+.step { display: grid; grid-template-columns: 22px 1fr; gap: 10px; position: relative; padding-bottom: 10px; }
+.step:last-child { padding-bottom: 0; }
+.step::before { content: ""; position: absolute; left: 10px; top: 20px; bottom: 0; border-left: 2px solid var(--line-strong); }
+.step:last-child::before { display: none; }
+.step .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 10px; background: var(--panel-2); border: 1px solid var(--line-strong); color: var(--fg); position: relative; }
+.step.gate .n { border-color: var(--warn); color: var(--warn); }
+.step b { font-size: 11.5px; }
+.step p { margin: 1px 0 0; font-size: 10.5px; color: var(--muted); }
+
+.path { display: grid; grid-template-columns: 1fr 44px 1fr 44px 1fr; align-items: center; }
+.node { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; min-width: 0; }
+.node b { display: block; font-size: 11.5px; }
+.node span { font-size: 10px; color: var(--muted); }
+.arrow { position: relative; height: 30px; display: grid; place-items: center; }
+.arrow::before { content: ""; position: absolute; left: 2px; right: 2px; top: 50%; border-top: 2px dashed var(--wg); }
+.arrow.cf::before { border-top: 2px dotted var(--cf); }
+.arrow.lan::before { border-top: 2px solid var(--wire); }
+.arrow i { position: relative; font-style: normal; font-family: var(--font-mono); font-size: 9px; color: var(--muted); background: var(--panel); padding: 0 2px; line-height: 1.2; text-align: center; }
+.path-t { font-size: 10px; color: var(--faint); letter-spacing: 0.07em; text-transform: uppercase; margin: 12px 0 6px; }
+.path-t.first { margin-top: 0; }
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+.tbl td { padding: 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl td:first-child { font-family: var(--font-mono); font-size: 10.5px; padding-right: 10px; white-space: nowrap; }
+.tbl td:last-child { color: var(--muted); text-align: right; }
+.via { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.proto { display: inline-block; font-family: var(--font-mono); font-size: 9.5px; padding: 0 5px; border-radius: 3px; border: 1px solid var(--line-strong); color: var(--muted); margin-right: 6px; }
+
+.foot { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; color: var(--faint); font-size: 10.5px; border-top: 1px solid var(--line); padding-top: 12px; }
+:focus-visible { outline: 2px solid var(--tf); outline-offset: 2px; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .row1, .swrow { grid-template-columns: 1fr; gap: 12px; }
+  .row1 .ext { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .row1 .edge { order: 1; }
+  .row1 .ext.left { order: 2; }
+  .row1 .ext.right { order: 3; }
+  .cloud-link, .cloud-link-l, .vwire.grow, .bus, .clients .stub { display: none; }
+  .swrow { margin-block: 12px; }
+  .swrow > .spacer { display: none; }
+  .hosts { grid-template-columns: 1fr; }
+  .host.offline .kv-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .meta { text-align: left; }
+}
+@media (max-width: 560px) {
+  .ports { grid-template-columns: repeat(2, 1fr); }
+  .path { grid-template-columns: 1fr; }
+  .arrow { height: 24px; }
+  .arrow::before { left: 50%; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 2px dashed var(--wg); }
+  .arrow.cf::before { border-left-style: dotted; border-left-color: var(--cf); }
+  .arrow.lan::before { border-left-style: solid; border-left-color: var(--wire); }
+  .tfrow { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+
+<div class="page">
+<div class="poster">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3fd0c4" stroke-width="1.6"><rect x="3" y="4" width="18" height="5" rx="1.5"/><rect x="3" y="11" width="18" height="5" rx="1.5"/><path d="M7 6.5h.01M7 13.5h.01M12 16v4M8 20h8" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <h1>Roseville Homelab</h1>
+        <p>blue126/IaC 管理的家庭实验室：网关、10G 交换、Proxmox ×3、Oracle Cloud、Cloudflare 与 RemoteCC</p>
+      </div>
+    </div>
+    <div class="meta">
+      <span><b>2026-11-17</b> 线上快照</span>
+      <span>pve0 · pve2 · PBS · 网关只读采集，对照 Terraform 与 Ansible</span>
+      <span>HCP Terraform 组织 <span class="mono">homelab-roseville</span></span>
+    </div>
+  </header>
+
+  <!-- networks -->
+  <section class="panel nets">
+    <div class="nets-hd">
+      <h2 class="ph">网络 <small>地址规划</small></h2>
+      <div class="legend">
+        <span><span class="lg-id" style="--c:var(--tf)">TF</span>Terraform + Ansible</span>
+        <span><span class="lg-id" style="--c:var(--rcc)">RC</span>RemoteCC · wsctl</span>
+        <span><span class="lg-id" style="--c:var(--op)">手</span>手工维护</span>
+        <span><span class="lg-id tpl">模</span>模板</span>
+        <span><span class="st"></span>运行 <span class="st stop"></span>停止</span>
+        <span><span class="lg-line"></span>有线</span>
+        <span><span class="lg-line wg"></span>WireGuard</span>
+        <span><span class="lg-line cf"></span>CF Tunnel</span>
+        <span><span class="disk hdd"><i></i></span>HDD <span class="disk ssd"><i></i></span>SATA/SAS SSD <span class="disk nvme"><i></i></span>NVMe</span>
+      </div>
+    </div>
+    <div class="netgrid">
+      <div class="net" style="--c: var(--bad)"><span class="sw"></span><span class="nm">WAN</span><span class="cidr">DHCP · 1G</span><span class="ds">网关 eth0；家宽动态公网 IPv4</span></div>
+      <div class="net" style="--c: var(--wire)"><span class="sw"></span><span class="nm">LAN</span><span class="cidr">192.168.1.0/24</span><span class="ds">br-lan = eth1 2.5G + eth2 10G；单一网段</span></div>
+      <div class="net" style="--c: var(--faint)"><span class="sw"></span><span class="nm">静态 · 基础设施</span><span class="cidr">.1 – .99</span><span class="ds">pve0 .20/.50 · pve1 .21/.51 · pve2 .52 · qnetd .53</span></div>
+      <div class="net" style="--c: var(--tf)"><span class="sw"></span><span class="nm">静态 · VM / LXC</span><span class="cidr">.100 – .199</span><span class="ds">pve0 客机惯例：IP 末段 = VMID；VM500 用 .140</span></div>
+      <div class="net" style="--c: var(--faint)"><span class="sw"></span><span class="nm">DHCP</span><span class="cidr">.200 – .254</span><span class="ds">客户端与动态设备</span></div>
+      <div class="net" style="--c: var(--muted)"><span class="sw"></span><span class="nm">pve0 vmbr2</span><span class="cidr">172.16.0.0/16</span><span class="ds">pve0 内部桥，无物理口</span></div>
+      <div class="net" style="--c: var(--rcc)"><span class="sw"></span><span class="nm">员工 VM 底层</span><span class="cidr">10.236.0.0/16</span><span class="ds">pve2 SDN zone ocihub，每台 /30；网关静态路由 → .52</span></div>
+      <div class="net" style="--c: var(--wg)"><span class="sw"></span><span class="nm">wg-workspaces</span><span class="cidr">10.234.0.0/24</span><span class="ds">员工 VM ↔ OCI Hub · UDP 51825</span></div>
+      <div class="net" style="--c: var(--wg)"><span class="sw"></span><span class="nm">wg-users</span><span class="cidr">10.235.0.0/24</span><span class="ds">员工设备 ↔ OCI Hub · UDP 51824</span></div>
+      <div class="net" style="--c: var(--lab)"><span class="sw"></span><span class="nm">Tailscale</span><span class="cidr">100.64.0.0/10</span><span class="ds">tailnet wyrm-wall.ts.net，MagicDNS</span></div>
+    </div>
+  </section>
+
+  <!-- row 1 -->
+  <section class="row1">
+    <div class="ext left">
+      <div class="panel svc" style="--c: var(--cf)">
+        <div class="hd"><span class="dot"></span><h3>Cloudflare</h3><span class="tag">willfan.me</span></div>
+        <ul>
+          <li><b>DNS</b><span class="mono">*.willfan.me</span></li>
+          <li><b>Tunnel</b><span class="mono">jenkins CT107 · VM500</span></li>
+          <li><b>Access</b><span class="mono">hapi.willfan.me 前置认证</span></li>
+          <li><b>员工网站</b><span class="mono">cc.willfan.me · D1 员工表</span></li>
+        </ul>
+      </div>
+      <div class="panel svc" style="--c: var(--lab)">
+        <div class="hd"><span class="dot"></span><h3>Tailscale</h3><span class="tag">wyrm-wall.ts.net</span></div>
+        <ul>
+          <li><b>节点</b><span class="mono">各服务客机 + PVE 主机</span></li>
+          <li><b>Exit / Subnet router</b><span class="mono">未启用</span></li>
+        </ul>
+      </div>
+      <div class="panel svc" style="--c: var(--bad)">
+        <div class="hd"><span class="dot"></span><h3>家宽入站</h3><span class="tag">网关端口转发</span></div>
+        <ul>
+          <li><b><span class="proto">UDP</span>51820</b><span class="mono">→ VM500 .140 · Employee-WireGuard</span></li>
+          <li><b>其余服务</b><span class="mono">走 CF Tunnel 出站，无入站口</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="edge">
+      <span class="cloud-link-l" aria-hidden="true"></span>
+      <span class="cloud-link" aria-hidden="true"></span>
+      <div class="cloud">
+        <svg viewBox="0 0 300 112" preserveAspectRatio="none" aria-hidden="true"><path d="M70 96 C34 96 22 70 40 54 C34 30 64 18 86 30 C96 10 132 4 152 22 C170 4 214 8 222 34 C254 30 280 52 266 76 C276 92 258 100 240 96 Z" fill="#131e2e" stroke="#34496a" stroke-width="1.5"/></svg>
+        <div><h3>Internet</h3><p>家宽 · 动态公网 IPv4</p></div>
+      </div>
+      <div class="vwire" style="height: 14px"></div>
+      <div class="wlabel">eth0 · WAN · 1G</div>
+      <div class="vwire" style="height: 12px"></div>
+      <div class="panel gw">
+        <div class="hd">
+          <div class="ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f06b6b" stroke-width="1.6"><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 16.5h.01M11 16.5h.01M8 13V9M16 13V9M5 7a10 10 0 0 1 14 0" stroke-linecap="round"/></svg></div>
+          <div>
+            <h3>网关 · iStoreOS 24.10.8</h3>
+            <div class="muted"><span class="mono" style="color:var(--fg)">192.168.1.1</span> · Intel N100 · 8 GB · 改动需先授权</div>
+          </div>
+        </div>
+        <div class="ports">
+          <div class="port wan"><b>eth0</b><span>WAN · 1G</span></div>
+          <div class="port"><b>eth1</b><span>LAN · 2.5G</span></div>
+          <div class="port hot"><b>eth2</b><span>LAN · 10G</span></div>
+          <div class="port down"><b>eth3</b><span>未接</span></div>
+        </div>
+        <div class="chips">
+          <span class="chip">路由 / NAT · DHCP · DNS</span>
+          <span class="chip">静态路由 <span class="mono">10.236.0.0/16 → .52</span></span>
+          <span class="chip">端口转发 <span class="mono">UDP 51820 → .140</span></span>
+        </div>
+        <div class="eyebrow">网关上的 Docker 容器 · 11 个</div>
+        <div class="chips">
+          <span class="chip">qnetd-witness <span class="mono">.53 · QDevice</span></span>
+          <span class="chip">xiaozhi ×5 <span class="mono">server · web · mqtt · mysql · redis</span></span>
+          <span class="chip">hermes + webui</span>
+          <span class="chip">open-webui</span>
+          <span class="chip">codex-proxy</span>
+          <span class="chip">cn-proxy <span class="mono">sing-box</span></span>
+        </div>
+      </div>
+      <div class="vwire grow"></div>
+    </div>
+
+    <div class="ext right">
+      <div class="panel svc" style="--c: var(--wg)">
+        <div class="hd"><span class="dot"></span><h3>Oracle Cloud · 悉尼</h3><span class="tag">iac-oci</span></div>
+        <ul>
+          <li><b>实例</b><span class="mono">A1.Flex · 2 OCPU · 12 GB</span></li>
+          <li><b>OCI Hub</b><span class="mono">WireGuard · ACL · 每人月额度</span></li>
+          <li><b>unified-proxy</b><span class="mono">proxy.willfan.me</span></li>
+          <li><b>wg Portal</b><span class="mono">wgportal.willfan.me</span></li>
+          <li><b>Anki Writer · BookOrbit</b><span class="mono">ankiwriter · bookorbit</span></li>
+        </ul>
+      </div>
+      <div class="panel svc" style="--c: var(--wg)">
+        <div class="hd"><span class="dot"></span><h3>OCI 入站</h3><span class="tag">NSG</span></div>
+        <ul>
+          <li><b><span class="proto">TCP</span>80 · 443</b><span class="mono">任意来源 → Caddy</span></li>
+          <li><b><span class="proto">UDP</span>51824</b><span class="mono">登记来源 → wg-users</span></li>
+          <li><b><span class="proto">UDP</span>51825</b><span class="mono">家宽来源 → wg-workspaces</span></li>
+        </ul>
+      </div>
+      <div class="panel svc" style="--c: var(--tf)">
+        <div class="hd"><span class="dot"></span><h3>SaaS 依赖</h3></div>
+        <ul>
+          <li><b>HCP Terraform</b><span class="mono">只存 state，本机执行</span></li>
+          <li><b>Bitwarden SM</b><span class="mono">项目 remotecc</span></li>
+          <li><b>Resend</b><span class="mono">网站 /admin/mail 发信</span></li>
+          <li><b>GitHub</b><span class="mono">blue126/IaC · Actions 校验</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- switch row -->
+  <section class="swrow">
+    <div class="clients">
+      <div class="panel">
+        <b>客户端 · 无线</b>
+        <p>网关 eth1 2.5G 下学到 13 个 MAC。MacBook 用 Time Machine 备份到 CT111，Windows 主机用 Veeam Agent。</p>
+      </div>
+      <span class="stub" aria-hidden="true"></span>
+    </div>
+    <div class="switch">
+      <div class="leds" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+      <div>
+        <b>10GbE 交换机</b>
+        <span> · 接网关 eth2 · 型号未在仓库登记</span><br>
+        <span>eth2 下学到 27 个 MAC，pve0 与 pve2 都在这一侧</span>
+      </div>
+    </div>
+    <div class="spacer"></div>
+  </section>
+
+  <div class="bus" aria-hidden="true">
+    <span class="stem"></span><span class="rail"></span>
+    <span class="drop d0"></span><span class="drop d1"></span><span class="drop d2"></span>
+    <span class="lbl l0">10G · ConnectX-3</span>
+    <span class="lbl l2">10G · ConnectX (mlx5)</span>
+  </div>
+
+  <!-- hosts -->
+  <section class="hosts">
+
+    <!-- pve0 -->
+    <article class="panel host">
+      <div class="hd">
+        <div class="ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e57000" stroke-width="2"><path d="M4 4l16 16M20 4L4 20"/></svg></div>
+        <div>
+          <h3>pve0 <small>HomePVECluster · 主力节点</small></h3>
+          <p><span class="ip">192.168.1.50</span> vmbr1 OVS · PVE 9.0.3 · 17 台客机运行中</p>
+        </div>
+      </div>
+      <div class="hw">
+        <div><div class="k">机型</div><div class="v">ThinkStation P330 Tiny</div><div class="s">Lenovo 30CE</div></div>
+        <div><div class="k">CPU</div><div class="v">i5-8500T</div><div class="s">6C / 6T · UHD 630</div></div>
+        <div><div class="k">内存</div><div class="v">63 GiB</div><div class="s">客机分配约 73 GiB</div></div>
+        <div><div class="k">网络</div><div class="v">ConnectX-3 10G</div><div class="s">enp1s0 · eno1 1G 未接</div></div>
+      </div>
+      <div class="eyebrow">存储</div>
+      <div class="pools">
+        <div class="pool">
+          <div class="t"><b>mainpool <span class="faint">→ vmdata</span></b><span class="mono">1.26 / 1.76 TiB</span></div>
+          <div class="track"><div class="fill" style="width:72%"></div></div>
+          <div class="vdev"><span class="lab">mirror-0</span><span class="disk nvme"><i></i>990 PRO 2T</span><span class="disk nvme"><i></i>990 PRO 2T</span></div>
+          <div class="use">VM 与 LXC 根盘</div>
+        </div>
+        <div class="pool">
+          <div class="t"><b>rpool <span class="faint">→ local-zfs</span></b><span class="mono">0.78 / 0.86 TiB</span></div>
+          <div class="track"><div class="fill hi" style="width:91%"></div></div>
+          <div class="vdev"><span class="lab">单盘</span><span class="disk ssd"><i></i>WD Blue SA510 1T</span></div>
+          <div class="use">系统盘 + Time Machine 800G（无冗余）</div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-hd"><h4>应用服务</h4><span>家庭和个人使用</span></div>
+        <div class="guests">
+          <div class="g"><span class="id">101</span><span class="n">immich<i>VM</i></span><span class="r"><span class="ipx">.101</span><span class="st"></span></span><span class="d">照片库 + ML · 2C 8G 500G</span></div>
+          <div class="g"><span class="id">106</span><span class="n">n8n<i>VM</i></span><span class="r"><span class="ipx">.106</span><span class="st"></span></span><span class="d">工作流 · n8n.willfan.me</span></div>
+          <div class="g"><span class="id">102</span><span class="n">rustdesk<i>VM</i></span><span class="r"><span class="ipx">.102</span><span class="st"></span></span><span class="d">远程桌面中继 · rustdesk.willfan.me</span></div>
+          <div class="g"><span class="id">100</span><span class="n">anki-sync-server<i>CT</i></span><span class="r"><span class="ipx">.100</span><span class="st"></span></span><span class="d">Anki 同步 · systemd</span></div>
+          <div class="g"><span class="id">111</span><span class="n">fileserver<i>CT</i></span><span class="r"><span class="ipx">.111</span><span class="st"></span></span><span class="d">SMB · Time Machine · webdav</span></div>
+          <div class="g"><span class="id">103</span><span class="n">homepage<i>CT</i></span><span class="r"><span class="ipx">.103</span><span class="st"></span></span><span class="d">服务导航面板</span></div>
+          <div class="g op"><span class="id">114</span><span class="n">home-assistant<i>VM</i></span><span class="r"><span class="ipx">.114</span><span class="st"></span></span><span class="d">HAOS · 2C 4G 64G</span></div>
+          <div class="g op"><span class="id">118</span><span class="n">hindsight<i>CT</i></span><span class="r"><span class="ipx">.118</span><span class="st"></span></span><span class="d">Agent 记忆 · :9077 · 6C 8G</span></div>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-hd"><h4>平台与运维</h4><span>入口、CI、管理面</span></div>
+        <div class="guests">
+          <div class="g"><span class="id">105</span><span class="n">caddy<i>CT</i></span><span class="r"><span class="ipx">.105</span><span class="st"></span></span><span class="d">内网反代 · TLS · *.willfan.me</span></div>
+          <div class="g"><span class="id">107</span><span class="n">jenkins<i>CT</i></span><span class="r"><span class="ipx">.107</span><span class="st"></span></span><span class="d">CI · cloudflared webhook</span></div>
+          <div class="g"><span class="id">104</span><span class="n">netbox<i>VM</i></span><span class="r"><span class="ipx">.104</span><span class="st"></span></span><span class="d">IPAM / DCIM · netbox.willfan.me</span></div>
+          <div class="g"><span class="id">109</span><span class="n">mcp-gateway<i>VM</i></span><span class="r"><span class="ipx">.109</span><span class="st"></span></span><span class="d">MCP 网关 · mcp.willfan.me</span></div>
+          <div class="g"><span class="id">117</span><span class="n">datacenter-manager<i>VM</i></span><span class="r"><span class="ipx">.117</span><span class="st"></span></span><span class="d">PDM · :8443</span></div>
+          <div class="g rcc"><span class="id">116</span><span class="n">remotecc-ops<i>VM</i></span><span class="r"><span class="ipx">.116</span><span class="st"></span></span><span class="d">执行器 · Semaphore · wsctl</span></div>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-hd"><h4>测试</h4><span>临时或评估中</span></div>
+        <div class="guests">
+          <div class="g"><span class="id">112</span><span class="n">openbao-testbed-bao<i>VM</i></span><span class="r"><span class="ipx">.112</span><span class="st"></span></span><span class="d">OpenBao · test-only</span></div>
+          <div class="g"><span class="id">113</span><span class="n">openbao-testbed-control<i>VM</i></span><span class="r"><span class="ipx">.113</span><span class="st"></span></span><span class="d">OpenBao 控制端 · test-only</span></div>
+          <div class="g op"><span class="id">115</span><span class="n">funasr<i>VM</i></span><span class="r"><span class="ipx">—</span><span class="st"></span></span><span class="d">语音识别 · xiaozhi · 4C 12G</span></div>
+          <div class="g tpl"><span class="id">9000</span><span class="n">ubuntu-24.04-template</span><span class="r"><span>模板</span></span><span class="d">clone 源 · 2C 8G 20G</span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- pve1 -->
+    <article class="panel host offline">
+      <div class="hd">
+        <div class="ic" aria-hidden="true" style="background:var(--panel-2)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#52657f" stroke-width="2"><path d="M4 4l16 16M20 4L4 20"/></svg></div>
+        <div><h3 style="color:var(--muted)">pve1</h3><p class="mono">.51 · .21</p></div>
+      </div>
+      <span class="badge bad">离线 · 已关机</span>
+      <div class="kv-wrap">
+        <div class="kv" style="margin-top: 12px">
+          <div><span>硬件</span><span>M920Q</span></div>
+          <div><span>客机</span><span>无</span></div>
+          <div><span>存储</span><span>local-lvm · nvme-lvm</span></div>
+        </div>
+        <div>
+          <div class="eyebrow">仲裁 · 现在</div>
+          <div class="kv">
+            <div><span>pve0</span><span class="mono">1 票</span></div>
+            <div><span>QDevice .53</span><span class="mono">1 票</span></div>
+            <div><span>合计</span><span class="mono" style="color:var(--ok)">2 / 2</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:10.5px; margin: 12px 0 0">10 月整合后客机全部迁到 pve0。集群仍叫 HomePVECluster，现由 pve0 加网关上的 qnetd 维持法定票数。</p>
+    </article>
+
+    <!-- pve2 -->
+    <article class="panel host">
+      <div class="hd">
+        <div class="ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e57000" stroke-width="2"><path d="M4 4l16 16M20 4L4 20"/></svg></div>
+        <div>
+          <h3>pve2 <small>独立节点，不在集群</small></h3>
+          <p><span class="ip">192.168.1.52</span> vmbr0 · PVE 9.2.2 · SDN zone ocihub</p>
+        </div>
+      </div>
+      <div class="hw">
+        <div><div class="k">机型</div><div class="v">Dell Precision T7910</div><div class="s">塔式工作站</div></div>
+        <div><div class="k">CPU</div><div class="v">2× E5-2686 v4</div><div class="s">36C / 72T</div></div>
+        <div><div class="k">内存</div><div class="v">378 GiB</div><div class="s">PVE 报告值</div></div>
+        <div><div class="k">网络</div><div class="v">ConnectX 10G</div><div class="s">nic2 · 另 3 口未接</div></div>
+        <div><div class="k">HBA</div><div class="v">LSI SAS3008 · SAS2308</div><div class="s">3008 直通给 PBS</div></div>
+      </div>
+      <div class="eyebrow">存储</div>
+      <div class="pools">
+        <div class="pool">
+          <div class="t"><b>mainpool</b><span class="mono">0.47 / 0.88 TiB</span></div>
+          <div class="track"><div class="fill" style="width:53%"></div></div>
+          <div class="vdev"><span class="lab">mirror-0</span><span class="disk ssd"><i></i>870 EVO 1T</span><span class="disk ssd"><i></i>870 EVO 1T</span></div>
+          <div class="use">客机盘 · CT120 llm-data</div>
+        </div>
+        <div class="pool">
+          <div class="t"><b>pve2-ssd <span class="faint">ext4</span></b><span class="mono">0.34 / 0.72 TiB</span></div>
+          <div class="track"><div class="fill" style="width:47%"></div></div>
+          <div class="vdev"><span class="lab">单盘</span><span class="disk ssd"><i></i>Intel DC S3500 800G</span></div>
+          <div class="use">目录存储</div>
+        </div>
+        <div class="pool">
+          <div class="t"><b>系统盘 <span class="faint">LVM</span></b><span class="mono">73.6 GiB</span></div>
+          <div class="track"><div class="fill" style="width:31%"></div></div>
+          <div class="vdev"><span class="lab">SAS LV</span><span class="disk ssd"><i></i>SAS2308 逻辑卷</span></div>
+          <div class="use">root 28G · local-lvm 26G</div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-hd"><h4>RemoteCC 员工工作区</h4><span>iac-remotecc · wsctl 驱动</span><span class="pill">7 运行 · 1 停止</span></div>
+        <div class="boxed rcc-box">
+          <div class="guests">
+            <div class="g rcc"><span class="id">500</span><span class="n">employee-access<i>VM</i></span><span class="r"><span class="ipx">.140</span><span class="st"></span></span><span class="d">HAPI 控制面 · hapi.willfan.me</span></div>
+            <div class="g rcc"><span class="id">502</span><span class="n">oci-hub-control<i>VM</i></span><span class="r"><span class="ipx">oh502</span><span class="st"></span></span><span class="d">对照组工作区 · 2C 8G</span></div>
+          </div>
+          <div class="ws-strip" aria-label="员工工作区 VMID"><span>504</span><span>506</span><span>507</span><span>508</span><span>509</span></div>
+          <div class="muted" style="font-size:10.5px; margin-top:5px; display:flex; flex-wrap:wrap; gap:4px 10px; justify-content:space-between">
+            <span>员工工作区 ×5 · 每台 2C 8G 50G · 各自 /30 + WireGuard Spoke</span><span>503 demo 已停止</span>
+          </div>
+          <div class="guests tight" style="margin-top: 6px">
+            <div class="g tpl"><span class="id">9000</span><span class="n">ubuntu-2604</span><span class="d">员工模板</span></div>
+            <div class="g tpl"><span class="id">9001</span><span class="n">baseline</span><span class="d">2026-10-22</span></div>
+            <div class="g tpl"><span class="id">9003</span><span class="n">baseline</span><span class="d">2026-11-16</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-hd"><h4>备份</h4><span>VM100 · 4C 16G · HBA 与 2 块 NVMe 直通</span></div>
+        <div class="pbs">
+          <div class="top2">
+            <b>proxmox-backup-server <span class="mono muted">.249:8007</span></b>
+            <span class="mono muted">datastore backup · 1.01 / 13.0 TiB</span>
+          </div>
+          <div class="pool" style="background:transparent; border:0; padding:0">
+            <div class="track"><div class="fill" style="width:8%"></div></div>
+            <div class="vdev"><span class="lab">mirror-0</span><span class="disk hdd"><i></i>HGST He8 8T</span><span class="disk hdd"><i></i>HGST He8 8T</span><span class="faint mono" style="font-size:9.5px">701G 已用</span></div>
+            <div class="vdev"><span class="lab">mirror-2</span><span class="disk hdd"><i></i>WD Red Plus 6T</span><span class="disk hdd"><i></i>WD Red Plus 6T</span><span class="faint mono" style="font-size:9.5px">332G 已用</span></div>
+            <div class="vdev"><span class="lab">special</span><span class="disk nvme"><i></i>SM961 256G</span><span class="disk nvme"><i></i>SM961 256G</span><span class="faint mono" style="font-size:9.5px">元数据</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-hd"><h4>算力与网络实验室</h4><span>Cisco / RoCE / containerlab</span><span class="pill">4 运行 · 6 停止</span></div>
+        <div class="guests">
+          <div class="g"><span class="id">108</span><span class="n">containerlab<i>VM</i></span><span class="r"><span class="ipx">.108</span><span class="st"></span></span><span class="d">Ubuntu 26.04 · 12C 32G</span></div>
+          <div class="g op"><span class="id">610</span><span class="n">roce-s1 · s2 · r<i>VM ×3</i></span><span class="r"><span class="ipx">610–612</span><span class="st"></span></span><span class="d">RoCE 实验 · 每台 4C 8G</span></div>
+          <div class="g op off"><span class="id">120</span><span class="n">LLM<i>CT</i></span><span class="r"><span class="ipx">—</span><span class="st stop"></span></span><span class="d">72C 128G · 映射 2 个 NVIDIA 设备</span></div>
+          <div class="g op off"><span class="id">932</span><span class="n">Catalyst-Center-3.2.3<i>VM</i></span><span class="r"><span class="ipx">—</span><span class="st stop"></span></span><span class="d">32C 256G</span></div>
+          <div class="g op off"><span class="id">251</span><span class="n">pnetlab-c9k-lab<i>VM</i></span><span class="r"><span class="ipx">—</span><span class="st stop"></span></span><span class="d">C9KV 实验 · 26C 140G</span></div>
+          <div class="g op off"><span class="id">102</span><span class="n">Cisco-ISE<i>VM</i></span><span class="r"><span class="ipx">—</span><span class="st stop"></span></span><span class="d">8C 32G 300G</span></div>
+          <div class="g op off"><span class="id">101</span><span class="n">Cat9800-WLC<i>VM</i></span><span class="r"><span class="ipx">—</span><span class="st stop"></span></span><span class="d">无线控制器 · 2C 6G</span></div>
+          <div class="g op off"><span class="id">103</span><span class="n">laas-local-controller<i>VM</i></span><span class="r"><span class="ipx">—</span><span class="st stop"></span></span><span class="d">2C 4G</span></div>
+          <div class="g tpl"><span class="id">250</span><span class="n">laas-pnetlab-50g</span><span class="r"><span>模板</span></span><span class="d">PNETLab 模板</span></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- bottom -->
+  <section class="bottom">
+
+    <div class="panel">
+      <h2>IaC 控制面 <small>谁管哪一块</small></h2>
+      <div class="flow">
+        <div class="tfrow"><span class="mono">terraform/proxmox</span><span class="mono ws">iac-proxmox-lab</span><span>pve0 应用与平台客机；pve2 的 PBS、containerlab、CT120 根盘；PVE 主机 inventory</span></div>
+        <div class="tfrow rc"><span class="mono">terraform/remotecc</span><span class="mono ws">iac-remotecc</span><span>VM500、员工模板、员工工作区、remotecc-ops；只由 wsctl 调用</span></div>
+        <div class="tfrow"><span class="mono">terraform/oci</span><span class="mono ws">iac-oci</span><span>OCI 实例、unified-proxy 与 oci-hub 安全组</span></div>
+        <div class="tfrow"><span class="mono">netbox-integration</span><span class="mono muted">本地 state</span><span>NetBox 里的主机、VM、服务记录</span></div>
+        <div class="tfrow hist"><span class="mono">terraform/esxi</span><span class="mono muted">已退役</span><span>历史代码，workspace 已删除</span></div>
+      </div>
+      <div class="eyebrow">配置与凭据</div>
+      <div class="chips">
+        <span class="chip">Ansible · 34 个 playbook <span class="mono">Deploy + Verify</span></span>
+        <span class="chip">动态 inventory <span class="mono">cloud.terraform</span></span>
+        <span class="chip">Ansible Vault <span class="mono">→ get-secrets.sh → *.auto.tfvars</span></span>
+        <span class="chip">Bitwarden SM <span class="mono">RemoteCC 专用</span></span>
+      </div>
+      <div class="note"><span class="badge warn">漂移</span><span>代码声明了 CT110 jenkins-agent，线上没有这台。VM108 代码写 4 核、停机，线上是 12 核、运行中。</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>部署流水线 <small>Jenkinsfile · IaC-Homelab-Pipeline</small></h2>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><div><b>PR 校验</b><p>GitHub Actions 按改动分类：fmt / validate、ansible-lint、syntax-check、文档构建</p></div></div>
+        <div class="step"><span class="n">2</span><div><b>合并 main → webhook</b><p>经 Cloudflare Tunnel 进 CT107，webhook-router 分发</p></div></div>
+        <div class="step"><span class="n">3</span><div><b>Check Changes · Setup · Validate</b><p>按 diff 选目录；get-secrets.sh 生成 tfvars</p></div></div>
+        <div class="step"><span class="n">4</span><div><b>Terraform Plan</b><p>保存 tfplan，-detailed-exitcode 判断有无变更</p></div></div>
+        <div class="step gate"><span class="n">5</span><div><b>人工批准 → Apply</b><p>审阅 plan 后执行，随后 Refresh Inventory</p></div></div>
+        <div class="step gate"><span class="n">6</span><div><b>人工批准 → Ansible Deploy</b><p>只跑受影响的 playbook，最后同步到 Notion</p></div></div>
+      </div>
+      <div class="note"><span class="badge warn">另一条线</span><span>RemoteCC 不走 Jenkins：Semaphore 在 remotecc-ops 上调用 wsctl。</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>员工访问路径 <small>同一台 VM 的两种入口</small></h2>
+      <div class="path-t first">终端 · WireGuard</div>
+      <div class="path">
+        <div class="node"><b>员工设备</b><span>独立设备密钥</span></div>
+        <div class="arrow"><i>UDP<br>51824</i></div>
+        <div class="node" style="border-color:#4a3a7a"><b>OCI Hub</b><span>ACL · 每人月额度</span></div>
+        <div class="arrow"><i>UDP<br>51825</i></div>
+        <div class="node" style="border-color:#5a2f47"><b>员工 VM</b><span>pve2 · 经网关 NAT 外连</span></div>
+      </div>
+      <div class="path-t">浏览器 · HAPI</div>
+      <div class="path">
+        <div class="node"><b>浏览器</b><span>Cloudflare Access</span></div>
+        <div class="arrow cf"><i>Tunnel</i></div>
+        <div class="node" style="border-color:#5a2f47"><b>VM500</b><span>hapi.willfan.me</span></div>
+        <div class="arrow lan"><i>LAN</i></div>
+        <div class="node" style="border-color:#5a2f47"><b>工作区 HAPI</b><span>每台独立令牌</span></div>
+      </div>
+      <div class="path-t">管理</div>
+      <div class="kv">
+        <div><span>开户与生命周期</span><span>wsctl，只在 remotecc-ops 上写</span></div>
+        <div><span>设备包下载</span><span>cc.willfan.me「我的工作区」</span></div>
+        <div><span>凭据</span><span>Bitwarden SM → 运行时临时 Vault</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>对外域名</h2>
+      <table class="tbl">
+        <tr><td><span class="via" style="background:var(--cf)"></span>hapi.willfan.me</td><td>VM500 · Tunnel + Access</td></tr>
+        <tr><td><span class="via" style="background:var(--cf)"></span>cc.willfan.me</td><td>员工网站 · Cloudflare</td></tr>
+        <tr><td><span class="via" style="background:var(--cf)"></span>Jenkins webhook</td><td>CT107 cloudflared</td></tr>
+        <tr><td><span class="via" style="background:var(--wg)"></span>proxy · wgportal</td><td>OCI Caddy</td></tr>
+        <tr><td><span class="via" style="background:var(--wg)"></span>ankiwriter · bookorbit</td><td>OCI Caddy</td></tr>
+        <tr><td><span class="via" style="background:var(--tf)"></span>n8n · mcp · rustdesk</td><td>pve0 客机</td></tr>
+        <tr><td><span class="via" style="background:var(--tf)"></span>netbox · webdav · 其他</td><td>Caddy CT105 · 内网</td></tr>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>备份</h2>
+      <div class="kv">
+        <div><span>目标</span><span>pve2 VM100 PBS · backup</span></div>
+        <div><span>容量</span><span class="mono">1.01 / 13.0 TiB · 两组镜像</span></div>
+        <div><span>pve0 作业</span><span class="mono">00:00 · 16 台 · snapshot · zstd</span></div>
+        <div><span>保留</span><span class="mono">last 3 · 7d · 4w · 3m</span></div>
+        <div><span>Mac</span><span>Time Machine → CT111（rpool 单盘）</span></div>
+      </div>
+      <div class="note"><span class="badge bad">已停用</span><span>pve0 与 pve1 的定时作业都是 enabled 0，目前没有周期备份；也没有第二份副本。</span></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Roseville Homelab · 由 Terraform、Ansible 与 PVE / PBS / 网关只读采集生成</span>
+    <span>员工身份信息已隐去，仅保留 VMID</span>
+  </footer>
+</div>
+</div>
