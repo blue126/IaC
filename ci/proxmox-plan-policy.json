@@ -3,9 +3,9 @@
   "root": "proxmox",
   "source_files": {
     "proxmox/anki.tf": "e123868227540c0f0ed75e1556399bbbb5b3e69cd3befb5322b80cbcfcefb504",
-    "proxmox/caddy.tf": "66469c440dabfb513a76f20d3bfa36733eeb38ef0321d552d08c9c86f1fc1448",
+    "proxmox/caddy.tf": "efcd0babb222286c23d5d9dd7ff68986222a7fe60d2aec87b6f06fd432b464ad",
     "proxmox/cloud-init-snippet.tf": "d1172c2373829a044bd9c6baa28fc8618e2eb2f56860c1f2d12a62fd85e035eb",
-    "proxmox/container-lab.tf": "c2c50a8d14952e7fcdecdaf5e4c1e048681d1e7a402560ea7558a59d6c0931b1",
+    "proxmox/container-lab.tf": "fd3fa193de4d8429888868b121f7c70d9c0345437c0ccd47b0c88fe612e67c16",
     "proxmox/ct120.tf": "8877bf8e6a6151c83452cede2b802166a022212d3ef8d63a5720846f7daabbe5",
     "proxmox/fileserver.tf": "e6b2d3650f58232d009a4b3679c2e594f5a0a4492156b98ae60351afe231b8a8",
     "proxmox/homepage.tf": "b3f10f7868ff94cbcdcca3988395ab5a28f4b6014fa5888da2485828677c1cd9",
