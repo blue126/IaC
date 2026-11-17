@@ -1,4 +1,13 @@
 {{ caddy_reverse_proxy_domain }} {
+{% if caddy_reverse_proxy_access_log | length > 0 %}
+    log {
+        output file {{ caddy_reverse_proxy_access_log }} {
+            roll_size 50MiB
+            roll_keep 10
+        }
+    }
+
+{% endif %}
 {% if caddy_reverse_proxy_pre_directives | default('') | length > 0 %}
 {{ caddy_reverse_proxy_pre_directives | indent(4, first=true) }}
 {% endif %}
