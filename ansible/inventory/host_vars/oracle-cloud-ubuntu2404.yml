@@ -24,6 +24,11 @@ proxy_domain: "proxy.willfan.me"   # TODO: set to your public domain, e.g. proxy
 oci_hub_portal_external_url: https://wgportal.remotecc.net
 # The site's read-only Portal metrics route (/ga2-metrics); absent from the Vault, the route stays off.
 oci_hub_portal_metrics_password_hash: "{{ vault_oci_hub_portal_metrics_password_hash | default('') }}"
+# OCI Hub Portal secrets (AD-31); BWS keeps the recovery copy, so rotate both together.
+oci_hub_portal_admin_password: "{{ vault_oci_hub_portal_admin_password }}"
+oci_hub_portal_api_token: "{{ vault_oci_hub_portal_api_token }}"
+oci_hub_portal_session_secret: "{{ vault_oci_hub_portal_session_secret }}"
+oci_hub_portal_csrf_secret: "{{ vault_oci_hub_portal_csrf_secret }}"
 
 # Public BookOrbit library; credentials come from the bookorbit role's Vault aliases.
 bookorbit_public_domain: bookorbit.willfan.me

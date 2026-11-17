@@ -278,6 +278,7 @@ AD-25 至 AD-32 是 2026-11 更新确定的目标状态，落地前以现有代�
 - **Binds:** `oci-hub` role、`portal.yaml`、`wireguardusrmgr.json`、Ansible Vault
 - **Prevents:** 线上文件成为唯一副本；role 无法重跑
 - **Rule:** 静态配置放 role 和 inventory，`wireguardusrmgr.json` 由 role 生成，字段固定为现有的 `profile`、`database`、`portal_url`、`portal_username`、`portal_token`，加 AD-27 的 `interfaces`、`pairs_url`、`pairs_token`。Portal 的 4 个密钥（管理员密码、API 令牌、session、CSRF）和配对接口的只读令牌放 Ansible Vault，role 可随时重跑。密钥迁移属于凭据改动，需单独授权
+- **落地（2026-11-17，用户授权）：** 4 个 Portal 密钥原样从线上 `portal.yaml` 复制进 IaC Vault（`vault_oci_hub_portal_*`，未轮换，BWS 仍有恢复副本，轮换时两边一起改）；`executor.json` 由 role 用现有字段加 `usage_file` 生成；Portal 程序改为从上游 Release 下载并校验固定 sha256；`boundary.json` 只在新主机上写入，已有主机由 `wsctl` 维护。文件名仍是 `executor.json`，AD-27 的 `interfaces`、`pairs_url`、`pairs_token` 等 AD-27 落地再加
 
 ### AD-32 — Hub 备份与恢复 [ADOPTED]
 

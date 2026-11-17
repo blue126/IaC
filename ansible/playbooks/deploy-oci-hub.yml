@@ -104,3 +104,31 @@
       ansible.builtin.assert:
         that: oci_hub_metrics_http.stdout == '401'
       when: oci_hub_portal_metrics_password_hash | default('') | length > 0 and oci_hub_portal_external_url | default('') is match('^https://')
+    - name: Request the usage route without its token
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --noproxy
+          - '*'
+          - --silent
+          - --show-error
+          - --max-time
+          - '20'
+          - --resolve
+          - "{{ oci_hub_portal_external_url | urlsplit('hostname') }}:443:127.0.0.1"
+          - --output
+          - /dev/null
+          - --write-out
+          - '%{http_code}'
+          - "{{ oci_hub_portal_external_url }}/ga2-usage"
+      register: oci_hub_usage_http
+      changed_when: false
+      check_mode: false
+      retries: 6
+      delay: 5
+      until: oci_hub_usage_http.rc == 0
+      when: oci_hub_portal_metrics_password_hash | default('') | length > 0 and oci_hub_portal_external_url | default('') is match('^https://')
+    - name: Require the usage route to refuse a request without its token
+      ansible.builtin.assert:
+        that: oci_hub_usage_http.stdout == '401'
+      when: oci_hub_portal_metrics_password_hash | default('') | length > 0 and oci_hub_portal_external_url | default('') is match('^https://')
