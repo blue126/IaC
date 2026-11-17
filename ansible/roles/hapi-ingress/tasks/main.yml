@@ -5,7 +5,7 @@
     that:
       - hapi_ingress_mode == 'gateway'
       - hapi_ingress_vmid | int == 500
-      - hapi_ingress_origin == 'https://hapi.willfan.me'
+      - hapi_ingress_origin == 'https://hapi.remotecc.net'
 
 - name: Check the existing proxy runtime
   ansible.builtin.command: /usr/sbin/nginx -v

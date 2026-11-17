@@ -70,7 +70,7 @@ VM500 例外由原完整 firewall controller 管理；systemd drop-in 在普通�
 
 候选包只有经过独立批准的真实验收后才能交付。Mosh 模式的验收保留 via_hub、native_ssh、ssh_host_pin、跨员工/管理/横向/工作区主动连接拒绝，另需 native_mosh、mosh_cross_employee_denied（2026-11-02 起替代逐设备端口隔离的 mosh_port_isolation：同一员工的设备共享本人 VM 的 UDP 60000–61000，其他员工设备到该 VM 一律拒绝）、mosh_revocation、old_access_preserved；不要求 TLS/desktop_wss。证据仍绑定真实映射代次、策略、包内外摘要，不能由客户端自报替代。
 
-设备包上传（当时为 Temp.sh，现为 `cc.willfan.me`）和微软通知继续分别按既有交付范围审批；邮件使用终端模式模板，最上方给出含实际链接的加粗 Agent 提示词，明确跳过 Claude 登录。没有实际验收时输出 awaiting_e2e_verification，保持上传/通知阻止。
+设备包上传（当时为 Temp.sh，现为 `remotecc.net`）和微软通知继续分别按既有交付范围审批；邮件使用终端模式模板，最上方给出含实际链接的加粗 Agent 提示词，明确跳过 Claude 登录。没有实际验收时输出 awaiting_e2e_verification，保持上传/通知阻止。
 
 ## 已验证范围
 

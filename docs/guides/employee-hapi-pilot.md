@@ -6,7 +6,7 @@
 
 独立HAPI开户候选已于2026-10-31撤回。HAPI和WireGuard是同一员工VM的两种接入方式，不另建VM或第二份Terraform state。员工管理入口为执行器上的`wsctl`，见[当前操作约定](../deployment/oci-hub-provision.md)；原独立HAPI开户skill已移除，撤回依据见[历史记录](../planning/2026-10-31-hapi-onboarding-withdrawal.md)。
 
-现行入口为`https://hapi.willfan.me`：Tunnel、身份网关、单共享Hub与会话数据库在VM500，VM502保留Runner、Claude与个人登录环境。登录引导已接入统一入口，详见[现行入口与维护说明](hapi-unified-entry.md)。
+现行入口为`https://hapi.remotecc.net`：Tunnel、身份网关、单共享Hub与会话数据库在VM500，VM502保留Runner、Claude与个人登录环境。登录引导已接入统一入口，详见[现行入口与维护说明](hapi-unified-entry.md)。
 
 以下保留2026-10-29的单人试点安装、验收和回滚历史。旧试点域名、直接Tunnel、令牌登录及每VM Hub布局均已被后续迁移取代；下文命令不能直接作为当前回滚或新员工开户步骤。
 

@@ -8,7 +8,7 @@
 IaC/remotecc/             # 一个私有 Git 仓库，下面的组件都不是独立仓库
 ├── apply-site/           # 员工网站（Cloudflare Worker + D1），部署见 wsctl apply-site
 │   ├── design/           # 网站和文档共用的文案、配色和字体
-│   └── docs/             # 员工文档站（Hugo），发布到 cc.willfan.me/docs/
+│   └── docs/             # 员工文档站（Hugo），发布到 remotecc.net/docs/
 ├── employee-miniprogram/ # 员工小程序
 ├── hapi-control/         # VM500 上的 HAPI 应用代码与 hapi-ctl，部署见 wsctl hapi-release
 ├── wsctl/                # 管理员工具

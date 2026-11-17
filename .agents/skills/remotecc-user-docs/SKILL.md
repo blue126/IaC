@@ -1,11 +1,11 @@
 ---
 name: remotecc-user-docs
-description: "编写、更新或评审 RemoteCC 员工网站（cc.willfan.me）/docs 板块的面向员工的用户文档。读者是员工，不是管理员。不用于管理员手册、IaC 技术文档、学习笔记或开户操作本身。"
+description: "编写、更新或评审 RemoteCC 员工网站（remotecc.net）/docs 板块的面向员工的用户文档。读者是员工，不是管理员。不用于管理员手册、IaC 技术文档、学习笔记或开户操作本身。"
 ---
 
 # RemoteCC 用户文档
 
-为 `cc.willfan.me/docs` 写面向员工的文档。读者会 Linux 基本操作，没有任何内部背景，通常是遇到问题才来看。每页只回答一类问题，读完能做成一件事或弄懂一件事。
+为 `remotecc.net/docs` 写面向员工的文档。读者会 Linux 基本操作，没有任何内部背景，通常是遇到问题才来看。每页只回答一类问题，读完能做成一件事或弄懂一件事。
 
 站点源文件在 `remotecc/apply-site/docs/`。页面清单、分组和各页分工以该目录的 `ARCHITECTURE.md` 为准，本 skill 不重复。
 

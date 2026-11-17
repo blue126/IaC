@@ -5,7 +5,7 @@ hapi_workspace_id: ''            # route/credential id on VM500, e.g. the employ
 hapi_bind_address: ''            # this VM's private /30 address that VM500 reaches on 9443
 hapi_desktop_address: ''         # this VM's overlay address serving the KasmVNC entry on 8443
 hapi_control_address: 192.168.1.140
-hapi_origin: https://hapi.willfan.me
+hapi_origin: https://hapi.remotecc.net
 hapi_api_token: "{{ vault_hapi_api_token | default('') }}"
 hapi_web_archive: ''             # controller path of the approved automatic-login frontend
 hapi_web_sha256: ''

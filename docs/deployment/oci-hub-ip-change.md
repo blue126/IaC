@@ -16,7 +16,7 @@ OCI Hub 用的是临时公网 IP（AD-32）。Oracle 文档写明，停机不会
 | `endpoint` | AD-25 落地前：settings 的 `pool.endpoint` 和 PVE 线上的 `boundary.json`，两处都要改。落地后：一个 IaC 变量 | 改值 |
 | Ansible inventory | `ansible/inventory/oci/hosts.yml` 的 `ansible_host` | 改地址 |
 | Homepage | `ansible/roles/homepage/templates/services.yaml.j2` | 改地址 |
-| 公网 DNS | `proxy.willfan.me`、`ankiwriter.willfan.me`、`wgportal.willfan.me`、`bookorbit.willfan.me` 及其他指向 OCI Hub 的记录，不在本仓库 | 手工改 |
+| 公网 DNS | `proxy.willfan.me`、`ankiwriter.willfan.me`、`wgportal.remotecc.net`、`bookorbit.willfan.me` 及其他指向 OCI Hub 的记录，不在本仓库 | 手工改 |
 | PVE 防火墙 | 放行 OCI Hub 地址的 UDP 51825 | 落地前 apply，落地后跑 `oci-hub-pve` role |
 | 员工 VM 的 WireGuard | `oci-hub-spoke` 写入的 `wg-workspace.conf`（`oci_hub_spoke_endpoint`） | 每台 VM 重跑配置 |
 | 设备包 | 每台设备的 `wireguard_endpoint` | 重建并发送 |
