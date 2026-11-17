@@ -6,9 +6,11 @@
 
 > **2026-10-27 现行状态**：pve1 来宾已迁至 pve0，全部旧源业务卷已获准清理；108 位于独立 pve2，按用户决定不加入备份。pve0/PVE snapshot 与 pve1/all 两个既有作业当前均 `enabled=0`；pve0 当前成员为 `100,101,102,103,104,105,106,107,109,112,113,114,115,117,118`。CT111 已在 pve0 使用800GiB ZFS数据卷，迁后T1/verify按用户决定取消；Jenkins 已恢复。以下版本记录保留其历史日期，不能代替[当前拓扑](homelab-iac-architecture.md)及[执行记录](https://github.com/blue126/IaC/blob/751f7b6da8c4bf92cfa62c8fc77f7c61626ce146/_bmad-output/plan-proxmox-consolidation-execution.md)。
 
-> **版本**: 1.15
-> **日期**: 2026-10-02
-> **状态**: 阶段一完成（步骤 1–9）；**PBS 已迁至 pve2 并重建 datastore**，D16 的 zvol 方案被 [D18](#d18--pbs-回到直通盘客机内-zfs推翻-d16) 推翻；108/109 已进入生产备份作业
+> **版本**: 1.16
+> **日期**: 2026-11-17
+> **状态**: 阶段一完成（步骤 1–9）；**PBS 已迁至 pve2 并重建 datastore**，D16 的 zvol 方案被 [D18](#d18--pbs-回到直通盘客机内-zfs推翻-d16) 推翻；现有备份作业均 `enabled=0`
+>
+> **v1.16 变更（2026-11-17，只读现场核对）**：PBS `tank` 现为 13.0T（已用 1.01T），共三组镜像：`mirror-0` HITACHI 8TB ×2（原 WWN）、`mirror-2` WD Red Plus 6TB ×2（`WD60EFPX`，原 pve1 `tank` 的两块盘）、`special mirror-1` SM963 256G ×2（`nvme-eui.002538c171009240` / `…c2710104e2`）。v1.14 中"仅 HITACHI 8TB mirror、无 special vdev"一句已过时，`ansible/roles/pbs/defaults/main.yml` 已与现场一致。pve0 为 ThinkStation P330 Tiny，`eno1` 仍未接线，`rpool` 仍是单块 SA510 并承载 CT111 的 800GiB Time Machine 卷。pve0 与 pve1 的作业仍为 `enabled=0`。详见[当前拓扑](homelab-iac-architecture.md)。本次只核对、记录，没有改动任何配置。
 >
 > **v1.15 变更（2026-10-02，外部见证已实施）**：`HomePVECluster` 改为 pve0/pve1 各 1 票，加 N100 独立 qnetd `.53` 的 1 票，总票数 3、quorum 2、`config_version 11`；双方在线且 TLS 客户端证书验证通过。历史 3/1 方案由 [D19](#d19--n100-外部-qdevice取代-31-投票) 取代。未做节点故障、断网或重启测试，也未改变备份作业/保留/GC/verify；pve0 磁盘错误与 PBS 问题仍需分别处理。
 >
