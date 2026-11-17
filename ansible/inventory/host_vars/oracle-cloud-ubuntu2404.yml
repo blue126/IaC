@@ -21,7 +21,7 @@ proxy_domain: "proxy.willfan.me"   # TODO: set to your public domain, e.g. proxy
 # vault_proxy_api_key and vault_auth_json must be added to vault
 
 # OCI Hub browser administration through the existing HTTPS reverse proxy.
-oci_hub_portal_external_url: https://wgportal.willfan.me
+oci_hub_portal_external_url: https://wgportal.remotecc.net
 # The site's read-only Portal metrics route (/ga2-metrics); absent from the Vault, the route stays off.
 oci_hub_portal_metrics_password_hash: "{{ vault_oci_hub_portal_metrics_password_hash | default('') }}"
 

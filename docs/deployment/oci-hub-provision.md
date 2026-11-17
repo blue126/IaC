@@ -63,7 +63,7 @@ wsctl export --device alice
 
 执行时先建立回执目录、上传并经管理接口校验（SHA-256 一致且网站仍保存该包），返回verified；校验不通过就停止，不发信。发信前再核一次当前subject和邮件正文摘要，与批准时的预览不一致则拒绝。上传成功后发信失败，用同一批准码重跑即可接着跑：不重新上传；网站明确拒绝发信时只补发一次，结果不明时停在notifying、不再重发。
 
-设备包上传到 `cc.willfan.me`（D1 存储），员工登录「我的工作区」下载，不限次数；包保存到员工退役或被同设备的新包替换为止，不按时间过期。开通邮件不带下载链接；通知邮件经网站 `/admin/mail`（Resend，发件人 hello@willfan.me）发出。上传后执行器经管理接口核对 SHA-256 与"网站仍保存该包"，不计下载。Temp.sh 已退役。上传或发信结果不明时不自动重试；上传成功但校验失败可恢复原校验，不重新上传。平台5xx、请求限频和包已不在网站分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
+设备包上传到 `remotecc.net`（D1 存储），员工登录「我的工作区」下载，不限次数；包保存到员工退役或被同设备的新包替换为止，不按时间过期。开通邮件不带下载链接；通知邮件经网站 `/admin/mail`（Resend，发件人 hello@remotecc.net）发出。上传后执行器经管理接口核对 SHA-256 与"网站仍保存该包"，不计下载。Temp.sh 已退役。上传或发信结果不明时不自动重试；上传成功但校验失败可恢复原校验，不重新上传。平台5xx、请求限频和包已不在网站分别报告，渠道故障请用户决定，单次邮件附件补发不代表全局授权。
 
 确需重新交付时，取得该员工/设备的新授权，复用原包并使用新的回执子目录重新plan，不覆盖旧回执、不重新开户。completed只表示API已接受原通知，重跑不会重复发送；员工是否收到与bootstrap成功要另行确认。
 
@@ -84,7 +84,7 @@ OCI 仅员工 WG UDP51824 接受任意 IPv4 动态来源；VM Spoke UDP51825 仍
 
 ## Portal 浏览器管理入口
 
-2026-10-30 已部署 **https://wgportal.willfan.me/**，无需本地 SSH 转发或员工 VPN。Cloudflare DNS 的 A 记录直接指向 OCI，现有 Caddy 负责公网 HTTPS/证书，反代到 `127.0.0.1:8888`；Portal 后端端口仍不公开。Portal 使用已有管理员认证，未另外新增 Access 应用。运行下面的维护 playbook 后，Caddy 还提供只读路由 `/ga2-metrics`：用独立令牌保护，只转发 `127.0.0.1:8787` 的 `/metrics`，供“我的工作区”读取连接状态。
+2026-10-30 已部署 **https://wgportal.remotecc.net/**，无需本地 SSH 转发或员工 VPN。Cloudflare DNS 的 A 记录直接指向 OCI，现有 Caddy 负责公网 HTTPS/证书，反代到 `127.0.0.1:8888`；Portal 后端端口仍不公开。Portal 使用已有管理员认证，未另外新增 Access 应用。运行下面的维护 playbook 后，Caddy 还提供只读路由 `/ga2-metrics`：用独立令牌保护，只转发 `127.0.0.1:8787` 的 `/metrics`，供“我的工作区”读取连接状态。
 
 账号为 `admin@wgportal.local`，密码在 BWS 项目 `remotecc`（原名 EmployeeWorkspace-OCIHub）的 `OCI_HUB_PORTAL_ADMIN_V1` 记录 `secrets.admin_password`；不要将密码或 API token 贴入文档、聊天或 URL。界面可查看接口、设备及流量；启用/停用可以直接在 Portal 操作；开户、VM/地址分配及增额继续使用管理员入口，两者共用 Portal 接入状态。
 

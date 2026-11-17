@@ -21,7 +21,7 @@
 | 内容 | 当前证据与状态 |
 | --- | --- |
 | OCI Hub | WG Portal v2.3.1、两个 WG 接口、受控执行器及配额定时器已部署；接口/API/登记/启停已有实测 |
-| Portal 管理页面 | https://wgportal.willfan.me/ 经既有 Caddy HTTPS 访问；后台仍仅监听 loopback，采用已有管理员认证，日常写入继续通过受控管理员入口 |
+| Portal 管理页面 | https://wgportal.remotecc.net/ 经既有 Caddy HTTPS 访问；后台仍仅监听 loopback，采用已有管理员认证，日常写入继续通过受控管理员入口 |
 | 私钥 | BWS 项目 `remotecc`（2026-11-04 由 EmployeeWorkspace-OCIHub 改名，并入执行器凭据）；Hub、VM、设备及 Portal 凭据分记录保管 |
 | VM509 | pve2、2 核 host、4 GiB、pve2-ssd 50 GiB、q35；已创建并绑定启动 hook，目前运行，已配置 WG Spoke 和安装 Mosh |
 | VM508 一次性接管 | 原盘/2核host/4GiB/自启保留，oh508/10.236.8.0/30，Spoke10.234.0.8；原生终端及原noVNC已恢复，新包已私密上传校验，员工本机更新待执行 |
@@ -101,7 +101,7 @@ OCI 终止的是两段 WireGuard 加密，不终止里面的 SSH/TLS。Hub 在�
 | PVE | 每员工独立 VNet/子网、三层网关和路由；在虚拟交换网络及其转发边界统一隔离，不依赖客户机或逐 VM 网卡防火墙 |
 | OpenWrt | 一条员工聚合网段回程路由经 PVE；现有 WAN NAT/转发覆盖该网段，不承担逐员工隔离 |
 | VM500 | 保留 HAPI 控制面、管理 SSH 和自身主机防护；旧员工接入、转发/NAT 与隔离职责已退役，新路径无依赖 |
-| 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、cc.willfan.me 交付（员工登录「我的工作区」下载，包保存到退役或被替换）和分方案配额/维护操作 |
+| 私有管理员工程 | 员工/设备/VM 配置权威、BWS、开户、bundle、remotecc.net 交付（员工登录「我的工作区」下载，包保存到退役或被替换）和分方案配额/维护操作 |
 
 OCI 上原有管理 SSH、Docker、Tailscale 和其他应用不属于员工服务。员工接口本机 input 默认拒绝，诊断/管理只走独立受管通道；不把它改成大家可登录的 SSH 跳板机。
 
@@ -342,7 +342,7 @@ WG Portal 稳定版 v2.3.1 的模型已有用户归属、`Disabled`、`DisabledR
 
 开户、撤销与增额经执行器上的 `wsctl` 和 OCI 执行器的 profile/对象归属/action_id/锁及回读。Portal 页面负责日常人工状态，执行器负责自动化与配额；两者调用同一个 Portal API。Portal API 不提供跨页面/脚本的事务或 CAS，因此不声称并发编辑是原子操作。
 
-管理员 HTTPS 入口为 https://wgportal.willfan.me/，后台仍监听 loopback，并要求现有管理员认证。API 凭据不交给员工或公开客户端。新员工、VM/地址分配、BWS 凭据和设备包仍由既有开户工作流生成；不通过页面添加未分配 VM/ACL 的未知 peer。旧入口已退役，旧 BWS 项目已删除。
+管理员 HTTPS 入口为 https://wgportal.remotecc.net/，后台仍监听 loopback，并要求现有管理员认证。API 凭据不交给员工或公开客户端。新员工、VM/地址分配、BWS 凭据和设备包仍由既有开户工作流生成；不通过页面添加未分配 VM/ACL 的未知 peer。旧入口已退役，旧 BWS 项目已删除。
 
 ## 9. 费用与来源保护
 
@@ -354,11 +354,11 @@ OCI 云侧与本机分别允许批准的设备来源到 UDP51824、家中出口�
 
 ### 管理员工程与 WG Portal 的分工
 
-IaC 主 checkout 的 `remotecc/wsctl` 独立私有仓库提供统一入口 `wsctl`（在 remotecc-ops 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 cc.willfan.me，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传与通知邮件（经网站 `/admin/mail` 发出）仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
+IaC 主 checkout 的 `remotecc/wsctl` 独立私有仓库提供统一入口 `wsctl`（在 remotecc-ops 上运行），相邻 `remotecc/employee-data` 保存不进 Git 的运行数据（旧 `~/Projects/employee-workspace-admin` 仅为兼容链接），复用现有 preflight/plan/apply、BWS、请求/检查点、用户—VM 台账、设备包和邮件交付（交付通道已由 Temp.sh 换为 remotecc.net，员工登录「我的工作区」下载）。增加显式 profile 分派：历史 `existing` 的网关配置/peer 写入流程已退役；活动 `oci-hub` 通过 OCI 执行器/Portal 管理 peer。共用入口和底层组件，不把原流程改成 Portal，也不用面板替代 VM provisioning。统一入口已增加原生终端 provision：邮箱/可选规格生成计划，已有冷创建流程负责 VM，资源池和台账生成分配与登记/包输入；查询和导出已在 VM509 实测，设备包上传与通知邮件（经网站 `/admin/mail` 发出）仍经独立交付审批。本轮没有实际上传/发信，公开客户端待发布。
 
 | 所有者 | 内容 |
 | --- | --- |
-| 私有管理员工程 | 唯一员工/设备/VM 归属、overlay 分配、Portal API 适配、启用/撤销和额度操作编排、分方案开户事务、cc.willfan.me 设备包与邮件交付；配额任务源码也归此工程 |
+| 私有管理员工程 | 唯一员工/设备/VM 归属、overlay 分配、Portal API 适配、启用/撤销和额度操作编排、分方案开户事务、remotecc.net 设备包与邮件交付；配额任务源码也归此工程 |
 | WG Portal（OCI） | 私有台账的用户/设备映射、新方案 OCI 端指定 WireGuard 接口与 peer 的配置、启停和恢复；页面和管理员脚本共用同一 API 与启停状态，唯一写入其范围内的 WireGuard 配置 |
 | BWS 项目 | `remotecc`（原 `EmployeeWorkspace-OCIHub`，2026-11-04 改名并并入执行器凭据）分别保存设备、VM Spoke、Hub key、Portal API 及工作区 HAPI 凭据；旧 `EmployeeWorkspace` 项目已于 2026-10-30 删除 |
 | 配额组件（OCI） | 采样任务和持锁命令执行器常驻；SQLite 保存唯一月账、基线、审计和待执行动作；接入状态从 Portal 读取，管理员电脑离线仍工作 |
@@ -391,7 +391,7 @@ IaC 主 checkout 的 `remotecc/wsctl` 独立私有仓库提供统一入口 `wsct
 
 Portal API 凭据继续以独立记录存于新 BWS 项目供管理员恢复/轮换；不进 bundle、台账或公开仓库，也不作为管理员本机日常直写 API 凭据。固定版本的请求/响应含新方案 WG 私钥字段，标准 API 以受保护通道传输；数据库及备份限制访问，日志、动作记录和诊断不保存原始请求/响应。实施验证固定版本的鉴权和登记行为，BWS 继续承担凭据保管与恢复，Portal 不接管现有方案身份。
 
-**“我的工作区”的连接状态（2026-11-07）：** 网站经 Hub 的 `https://wgportal.willfan.me/ga2-metrics` 只读取 Portal 指标。这条 Caddy 路由只转发 `127.0.0.1:8787` 的 `/metrics`，用独立的只读令牌保护，令牌不能写入。令牌泄露时暴露员工 ID、VPN 地址、设备名和在线时间，不含私钥。Worker 不使用 Portal 管理员令牌；Portal 的写入仍然只经 OCI 执行器。（2026-11-14：GA2 放行规则改由网站自己维护，执行器的 `wsctl ga2-sync` 和 Semaphore 模板已删除。）
+**“我的工作区”的连接状态（2026-11-07）：** 网站经 Hub 的 `https://wgportal.remotecc.net/ga2-metrics` 只读取 Portal 指标。这条 Caddy 路由只转发 `127.0.0.1:8787` 的 `/metrics`，用独立的只读令牌保护，令牌不能写入。令牌泄露时暴露员工 ID、VPN 地址、设备名和在线时间，不含私钥。Worker 不使用 Portal 管理员令牌；Portal 的写入仍然只经 OCI 执行器。（2026-11-14：GA2 放行规则改由网站自己维护，执行器的 `wsctl ga2-sync` 和 Semaphore 模板已删除。）
 
 VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对本 VM；员工有 sudo 可以读取自身秘密，不声称用来防止该员工控制自己的工作区。私有 CA 签发 key 继续仅在管理员侧。
 
@@ -409,7 +409,7 @@ VM 内 native SSH 授权、自己的 TLS 叶证书及桌面呈现秘密只针对
 → 发布新方案用户—设备—VM 映射及额度策略到 OCI，核对代次
 → 核对 OCI 路由、用户状态及剩余额度，验证本人访问与隔离
 → 生成匹配新 OCI Hub 的 bundle
-→ 上传到 cc.willfan.me、管理接口核对 SHA-256、按既有审批范围发邮件（员工登录「我的工作区」下载，邮件不带链接）
+→ 上传到 remotecc.net、管理接口核对 SHA-256、按既有审批范围发邮件（员工登录「我的工作区」下载，邮件不带链接）
 ```
 
 员工仍只需提供邮箱；由管理员显式选择方案，VM 规格使用默认值或原有规划中的参数。活动操作使用执行器上的 `wsctl`；默认/explicit existing 写操作及旧 online 查询已拒绝。当前参数以[原生开户说明](../deployment/oci-hub-provision.md)为准。员工无需 GitHub 账号。步骤复用同一事务与检查点：中断后继续缺失步骤，不重新分配身份，不重置月账；只有通过验证的配置才可交付。交付前重新检查撤销和额度状态，不能用新包恢复已停用设备。

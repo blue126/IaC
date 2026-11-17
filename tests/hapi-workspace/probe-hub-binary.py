@@ -32,7 +32,7 @@ def probe(binary, digest):
         environment = {'PATH': '/usr/bin:/bin', 'HOME': scratch, 'HAPI_HOME': scratch,
                        'CLI_API_TOKEN': master, 'HAPI_TENANT_CREDENTIALS_FILE': str(registry),
                        'HAPI_LISTEN_HOST': '127.0.0.1', 'HAPI_LISTEN_PORT': str(port),
-                       'HAPI_PUBLIC_URL': 'https://hapi.willfan.me',
+                       'HAPI_PUBLIC_URL': 'https://hapi.remotecc.net',
                        'HAPI_IOS_PUSH': 'off', 'HAPI_ANDROID_PUSH': 'off', 'HAPI_DISABLE_PEER_TOOLS': '1'}
         process = subprocess.Popen([binary, '--no-relay'], cwd=scratch, env=environment,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

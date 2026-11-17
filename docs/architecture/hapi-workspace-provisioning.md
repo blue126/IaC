@@ -10,7 +10,7 @@
 
 网络阶段已补充独立计划、VM外边界角色、停止创建的VM模块与pre-start门禁，见[网络开户自动化](../guides/hapi-network-automation.md)。按用户要求直接在pve2新建两台测试VM，现有vmbr0端口ACL的35项真实通信与11项生命周期验收通过，详见[两VM验收记录](../planning/2026-10-30-hapi-two-vm-pve2.md)。两台QA VM随后已按原Terraform state回收，关联测试接入和pve2巡检已退役，见[回收记录](../planning/2026-10-31-hapi-qa-retirement.md)；组件和验收证据继续保留。VLAN后端仍未实测；私有开户执行器、正式分配／state绑定、新员工HAPI／Cloudflare身份绑定及全新VM个人首次授权验收仍待补齐，此进展不表示已能自动交付员工VM。
 
-以下各节记录已撤回的独立开户草案：其中“独立于WireGuard开户”“独立VM／state”等旧约束不再作为当前执行依据。草案当时拟定员工统一访问 `https://hapi.willfan.me`，身份验证后进入本人独立 VM。VM500 明确承担 HAPI 控制面与统一公网接入，Cloudflare Tunnel 连接器终结在 VM500。本文不是部署记录，不授权创建基础设施、申请新凭据、发送邮件或迁移既有工作区。
+以下各节记录已撤回的独立开户草案：其中“独立于WireGuard开户”“独立VM／state”等旧约束不再作为当前执行依据。草案当时拟定员工统一访问 `https://hapi.remotecc.net`，身份验证后进入本人独立 VM。VM500 明确承担 HAPI 控制面与统一公网接入，Cloudflare Tunnel 连接器终结在 VM500。本文不是部署记录，不授权创建基础设施、申请新凭据、发送邮件或迁移既有工作区。
 
 ## 1. 边界与现有基线
 
