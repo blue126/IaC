@@ -22,7 +22,7 @@ resource "proxmox_virtual_environment_vm" "containerlab" {
   }
 
   cpu {
-    cores   = 4
+    cores   = 12
     sockets = 1
     type    = "host"
   }
@@ -57,7 +57,6 @@ resource "proxmox_virtual_environment_vm" "containerlab" {
 
   # Preserve the original NoCloud seed as a regular CD-ROM; never regenerate it.
   cdrom {
-    enabled   = true
     file_id   = "local:iso/containerlab-108-frozen-seed-20261026.iso"
     interface = "ide2"
   }
