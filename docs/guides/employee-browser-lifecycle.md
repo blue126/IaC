@@ -69,6 +69,4 @@ openssl x509 -in public-ca.pem -outform DER | sha256sum
 
 ## 离线合成核验的边界
 
-运行 `python3 tests/oci-hub/test-desktop-trust.py -v` 可用临时 CA、叶证书和合成设备/目标演练指纹、证书链、IP SAN 及 URL 正反例。测试不访问实际服务、设备包、profile、Vault 或 BWS，不导入系统信任；合成私钥只存在于测试临时目录，不作为交付材料。
-
-通过仅表示这组说明核验规则通过，不代表真实 WireGuard 连通、浏览器信任、设备撤销或本人 UAT 通过。缺少真实资料只阻塞真实信任确认与后续本人 UAT，文档和离线合成核验可独立完成。
+原离线演练脚本 `tests/oci-hub/test-desktop-trust.py` 只核验本说明自身的规则，已于 2026-11-18 退役。核验以本节规则和真实设备记录为准；合成演练从未代表真实 WireGuard 连通、浏览器信任、设备撤销或本人 UAT 通过。缺少真实资料只阻塞真实信任确认与后续本人 UAT，文档和离线合成核验可独立完成。

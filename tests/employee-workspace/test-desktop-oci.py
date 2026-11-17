@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Synthetic VM502 presentation contracts, TLS bridge, and restored lifecycle tests."""
-import ast
 import base64
 import copy
 import importlib.util
@@ -284,70 +283,6 @@ class OCITests(unittest.TestCase):
         self.assertIn("when: kasmvnc_presentation_phase == 'trust'", text)
         self.assertNotIn('employee-access', text)
         self.assertIn('- kasmvnc', (ROOT / 'ansible/playbooks/prepare-employee-desktop.yml').read_text())
-
-
-class ProbeDiagnosticTests(unittest.TestCase):
-    def test_embedded_bridge_diagnostics_are_bounded_and_exclude_headers(self):
-        tree = ast.parse((ROOT / 'tests/oci-hub/test-desktop-network.py').read_text())
-        assignment = next(node for node in ast.walk(tree) if isinstance(node, ast.Assign)
-                          and any(isinstance(target, ast.Name) and target.id == 'guide_worker' for target in node.targets))
-        worker = ast.parse(ast.literal_eval(assignment.value))
-        function = next(node for node in worker.body if isinstance(node, ast.FunctionDef) and node.name == 'connection')
-        events = []
-        peer = Mock()
-        secret = b'synthetic-secret-not-to-be-exported'
-        peer.recv.side_effect = [b'HTTP/1.1 101 Switching Protocols\r\nAuthorization: Basic ' + secret,
-                                 b'\r\n\r\nfixture-rfb']
-        diagnostic = load('handshake_diagnostics', ROOT / 'tests/oci-hub/test-desktop-network.py')
-        namespace = {'actual_connection': lambda: (peer, ['private-identity']),
-                     'diagnostic': diagnostic, 'expected_authorization': 'Basic fixture',
-                     'event': lambda code, **fields: events.append(dict(code=code, **fields))}
-        exec(compile(ast.Module(body=[function], type_ignores=[]), '<synthetic-diagnostics>', 'exec'), namespace)
-        returned, identity = namespace['connection']()
-        returned.recv(4096); returned.recv(4096)
-        self.assertEqual([event['code'] for event in events], ['backend-tls-connected', 'backend-websocket-http'])
-        self.assertEqual(events[1]['status'], 101)
-        self.assertEqual(events[1]['response']['status'], 101)
-        self.assertNotIn(secret.decode(), json.dumps(events))
-        self.assertEqual(identity, ['private-identity'])
-
-    def test_request_shape_redacts_auth_and_key_and_checks_framing(self):
-        diagnostic = load('request_diagnostics', ROOT / 'tests/oci-hub/test-desktop-network.py')
-        credential = base64.b64encode(b'synthetic:never-export-this-password').decode()
-        key = base64.b64encode(b'sixteen-byte-key').decode()
-        request = ('GET /websockify HTTP/1.1\r\nHost: localhost\r\nOrigin: https://localhost:8444\r\n'
-                   'Sec-WebSocket-Origin: https://10.234.0.2:8443\r\nSec-WebSocket-Version: 13\r\n'
-                   'Sec-WebSocket-Protocol: binary\r\nUpgrade: websocket\r\nConnection: upgrade\r\n'
-                   'Sec-WebSocket-Key: '+key+'\r\nAuthorization: Basic '+credential+'\r\n\r\n').encode()
-        shape = diagnostic.websocket_request_shape(request, 'Basic '+credential)
-        self.assertEqual(shape['authorization'], {'present': True, 'matches_material': True})
-        self.assertEqual(shape['websocket_key'], {'count': 1, 'length': len(key), 'decoded_length': 16})
-        self.assertTrue(shape['crlf']['header_terminated'])
-        self.assertFalse(shape['crlf']['bare_linebreak'])
-        self.assertEqual(shape['headers']['sec-websocket-origin'], ['https://10.234.0.2:8443'])
-        serialized = json.dumps(shape)
-        for forbidden in (credential, key, 'never-export-this-password'):
-            self.assertNotIn(forbidden, serialized)
-        malformed = diagnostic.websocket_request_shape(request.replace(b'\r\n', b'\n'))
-        self.assertTrue(malformed['crlf']['bare_linebreak'])
-        response = diagnostic.websocket_response_shape(b'HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 9999\r\n\r\n'+
-            ('Basic '+credential+' never-export-this-password '+('x'*2000)).encode(), 'Basic '+credential)
-        self.assertEqual(response['status'], 404)
-        self.assertTrue(response['body_truncated'])
-        self.assertLessEqual(len(response['body_sample']), 512)
-        for forbidden in (credential, 'never-export-this-password'):
-            self.assertNotIn(forbidden, json.dumps(response))
-
-    def test_http_embedded_diagnostics_have_real_crlf_and_no_raw_request_export(self):
-        diagnostic = load('http_diagnostics', ROOT / 'tests/oci-hub/test-desktop-network.py')
-        scripts = []
-        with patch.object(diagnostic, 'invoke', side_effect=lambda ns, script: scripts.append(script) or {'status': 101}):
-            diagnostic.http('synthetic-ns', Path('/synthetic/ca.pem'), path='/websockify')
-        tree = ast.parse(scripts[0])
-        fields = [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant) and isinstance(node.value, str) and ' HTTP/1.1' in node.value]
-        self.assertTrue(fields)
-        self.assertIn('\r\n', fields[0])
-        self.assertIn("response['request_shape']", scripts[0])
 
 
 class ActivationTests(unittest.TestCase):

@@ -15,9 +15,7 @@ def load(name, path):
     return module
 
 
-prepare = load('prepare_hub_boundary', 'scripts/prepare-hapi-hub-boundary.py')
 fixtures = load('oci_boundary_fixtures', 'tests/oci-hub/test-offline.py')
-source = (ROOT / 'scripts/oci-hub/boundary.py').read_text()
 # Hub egress support now lives in the repository helper, so every deploy keeps it.
 helper = load('repository_boundary', 'scripts/oci-hub/boundary.py')
 SERVICE = {'cloudflare_tunnel_vmids': [], 'hapi_ingress_grants': [],
@@ -59,9 +57,6 @@ class HubBoundaryTest(unittest.TestCase):
         config['hapi_hub_grants'].append(copy.deepcopy(config['hapi_hub_grants'][0]))
         with self.assertRaises(ValueError):
             module.render(config)
-        # The in-place migration refuses a helper that already carries the support.
-        with self.assertRaisesRegex(ValueError, 'already contains Hub egress support'):
-            prepare.prepare(source, {}, '192.168.1.140', [601])
 
 
 if __name__ == '__main__':

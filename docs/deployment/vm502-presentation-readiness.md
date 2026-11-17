@@ -87,4 +87,4 @@ ansible-playbook -i /approved/single-vm502.yml playbooks/prepare-employee-deskto
 
 实机 activate 后，以 employee 运行 `workspace-desktop status` 应显示 stopped，按需 `workspace-browser start` 后再检查 `workspace-desktop status`、`workspace-browser status`、可信 HTTPS/WSS、HAPI 画面/输入/重连，最后 `workspace-desktop stop`。浏览器本机信任、真实 VM、个人 OAuth 及中国体验结果分别记录。
 
-实际 Kasm/nginx/Firefox/发行版 noVNC 协议实验沿用 `tests/oci-hub/test-desktop-network.py` 的显式 `--execute` 入口、固定 Story10 helper、独立 netns 和合成 HOME；新增 HAPI 分支执行生产 Guide 桥和四控制 API 的合成身份检查。没有实际执行结果时保持“未执行”。
+原 Story10 协议实验入口 `tests/oci-hub/test-desktop-network.py` 已于 2026-11-18 退役；实际 Kasm/nginx/Firefox/noVNC 协议与 HAPI 桥须在实机另行验收，没有实际执行结果时保持“未执行”。

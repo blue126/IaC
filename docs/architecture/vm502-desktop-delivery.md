@@ -13,7 +13,7 @@
 | Story／历史提交 | 当前有效成果 | 验证及处理 |
 |---|---|---|
 | 1 安装兼容性，`3a9b2d5` | 固定 Ubuntu 26.04／amd64、KasmVNC 1.5.0-1；`presentation.yml` 和 `desktop-service.py` 检查平台、已装版本和图形命令 | 本人在现有 VM502 授权安装和图形启动已完成；版本拒绝由 `test-desktop-lifecycle.py` 覆盖。旧兼容性试验脚本与结果依赖本地输出，保留历史；资产和依赖准备见下文 |
-| 2 后端契约和隔离纵向样例，`138a082` | workspace 内的 `desktop-contract.py`、不可变代次引用和真实 TLS 纵向样例；基础 VM 和身份由主线 OCI provisioning 负责 | `test-desktop-oci.py` 和 `tests/oci-hub/test-desktop-network.py` 验证材料、目标、证书和桥接；私有 helper 仅供既有批准的隔离入口使用 |
+| 2 后端契约和隔离纵向样例，`138a082` | workspace 内的 `desktop-contract.py`、不可变代次引用和真实 TLS 纵向样例；基础 VM 和身份由主线 OCI provisioning 负责 | `test-desktop-oci.py` 验证材料、目标和证书；原桥接演练入口 `tests/oci-hub/test-desktop-network.py` 已于 2026-11-18 退役 |
 | 3 桌面生命周期，`c5381b1` | `desktop-service.py`、`workspace-desktop.py`、desktop unit、共享 session/锁及 fixture | `test-desktop-lifecycle.py`；原 `desktop.yml` 和 `test-desktop-config.py` 依赖退役 gateway inventory，当前安装选择与平台守卫由 presentation 入口承接；日常操作见生命周期指南 |
 | 4 独立浏览器及个人授权接缝，`a5c6fd8` | browser service/unit、`workspace-browser`、默认浏览器与桌面快捷方式；保留主线登录 helper 和 HAPI URL | `test-browser-lifecycle.py`、`test-desktop-oci.py`、主线 `test-login.py`；个人账号/MFA不进入测试 |
 | 5 HTTPS及统一网关 writer，`c55f975` | 当前 TLS/认证/Host/Origin 策略来自主线 `oci-hub-spoke/templates/desktop.conf.j2`；桌面维护在共享锁内执行 | 旧 `employee-access/gateway-policy.py` 及共享 8080/8443 入口已由主线 `50b614d` 退役，不重新恢复。当前 HTTPS/WSS 策略由 OCI 协议矩阵验证 |
@@ -24,7 +24,7 @@
 | 10 当前 OCI 隔离集成，`5a954e7` | 直接 overlay HTTPS/WSS、目标隔离、失败关闭及 HAPI 合成桥演练 | 既有隔离入口、临时资源和清理证据；后续测试修复隔离 nginx 临时目录，防止污染生产缓存权限 |
 | 11 旧共享网关迁移 | 已由 OCI Hub 迁移取代 | 不恢复 VM500 网关和旧入口；不据此宣称所有员工桌面已切换 |
 | 12 本人验收及桌面就绪 | presentation 三阶段、当前受管桌面／浏览器／HAPI桥；本人澳洲基本体验 | 相关离线套件 57 项通过，实际合成协议矩阵 25 项通过且清理／非任务元数据检查通过；本人确认中文、画面、双向剪贴板、刷新保留会话及 Claude App 基本体验。中国侧体验、完整个人授权流程、Code/Cowork任务未单独验收 |
-| 13 OCI 信任差量，`b5b625d` | `employee-browser-lifecycle.md`、三平台说明、`test-desktop-trust.py` | 使用目标 overlay URL、IP SAN和独立指纹来源；合成通过不能填写其他真实设备已信任 |
+| 13 OCI 信任差量，`b5b625d` | `employee-browser-lifecycle.md`、三平台说明（离线演练 `test-desktop-trust.py` 已于 2026-11-18 退役） | 使用目标 overlay URL、IP SAN和独立指纹来源；合成通过不能填写其他真实设备已信任 |
 
 上述历史提交不全是当前主线祖先，部分实现经后续独立提交进入主线或被替代；不能通过整批 cherry-pick 旧分支恢复，亦不能只按祖先关系判断功能遗漏。总 PR 以当前有效源码及可执行验证为准。
 
