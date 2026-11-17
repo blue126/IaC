@@ -7,6 +7,7 @@ CLASSIFIER_BIN="${CLASSIFIER_BIN:-${REPOSITORY_ROOT}/scripts/ci/classify-pr.sh}"
 TERRAFORM_VALIDATOR_BIN="${TERRAFORM_VALIDATOR_BIN:-${REPOSITORY_ROOT}/scripts/ci/validate-terraform.sh}"
 ANSIBLE_VALIDATOR_BIN="${ANSIBLE_VALIDATOR_BIN:-${REPOSITORY_ROOT}/scripts/ci/validate-ansible.sh}"
 DOCUMENTATION_VALIDATOR_BIN="${DOCUMENTATION_VALIDATOR_BIN:-${REPOSITORY_ROOT}/scripts/ci/validate-documentation.sh}"
+TEST_SUITES_VALIDATOR_BIN="${TEST_SUITES_VALIDATOR_BIN:-${REPOSITORY_ROOT}/scripts/ci/validate-test-suites.sh}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if [[ "$#" -ne 2 ]]; then
@@ -26,6 +27,7 @@ docs_applicable=""
 hugo_applicable=""
 shell_applicable=""
 python_applicable=""
+test_suites=""
 governance_sensitive=""
 
 while IFS='=' read -r key value; do
@@ -38,6 +40,7 @@ while IFS='=' read -r key value; do
     hugo_applicable) hugo_applicable="${value}" ;;
     shell_applicable) shell_applicable="${value}" ;;
     python_applicable) python_applicable="${value}" ;;
+    test_suites) test_suites="${value}" ;;
     governance_sensitive) governance_sensitive="${value}" ;;
   esac
 done <<<"${classification}"
@@ -94,6 +97,13 @@ if [[ "${docs_applicable}" == true ]]; then
 else
   echo "documentation_status=not_applicable reason=no_documentation_changes"
   echo "hugo_status=not_applicable reason=no_site_inputs_changed"
+fi
+
+if [[ -n "${test_suites}" ]]; then
+  IFS=',' read -r -a suites <<<"${test_suites}"
+  "${TEST_SUITES_VALIDATOR_BIN}" "${suites[@]}"
+else
+  echo "test_suites_status=not_applicable reason=no_test_suite_inputs_changed"
 fi
 
 if [[ "${shell_applicable}" == true ]]; then

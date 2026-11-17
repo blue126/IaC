@@ -44,7 +44,7 @@ ansible-playbook playbooks/<service>.yml --tags verify     # health check
 ./scripts/get-secrets.sh
 ```
 
-PR validation is `.github/workflows/repo-validation.yml`: it classifies the changed files, then runs `scripts/ci/validate-repository.sh`, which applies only the relevant checks (`terraform fmt -check` / `validate` with `init -backend=false`, `ansible-lint` and `--syntax-check`, documentation and Hugo builds) plus the contract tests under `tests/ci/`. There is no Makefile or general-purpose test framework; deployment behavior is still validated manually. Jenkins pipelines and the GitHub Pages workflow deploy or publish. Never treat a deploy, publish, apply, release, image-push, or other external-write pipeline as PR validation.
+PR validation is `.github/workflows/repo-validation.yml`: it classifies the changed files, then runs `scripts/ci/validate-repository.sh`, which applies only the relevant checks (`terraform fmt -check` / `validate` with `init -backend=false`, `ansible-lint` and `--syntax-check`, documentation and Hugo builds, and the hermetic suites in `tests/employee-workspace/`, `tests/oci-hub/`, `tests/hapi-workspace/` and `tests/gateway-backup/` via `scripts/ci/validate-test-suites.sh` when their inputs change) plus the contract tests under `tests/ci/`. The suites use the checkout `.venv`; run them locally with `scripts/ci/validate-test-suites.sh <suite>...` (missing tools or root-only tests are reported as `NOT RUN`). There is no Makefile or general-purpose test framework; deployment behavior is still validated manually. Jenkins pipelines and the GitHub Pages workflow deploy or publish. Never treat a deploy, publish, apply, release, image-push, or other external-write pipeline as PR validation.
 
 ## Code Style Guidelines
 

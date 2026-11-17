@@ -249,6 +249,8 @@ class OCITests(unittest.TestCase):
                         '-addext', 'basicConstraints=critical,CA:FALSE',
                         '-addext', 'subjectAltName=IP:198.18.53.10',
                         '-keyout', str(key), '-out', str(cert)], check=True, capture_output=True)
+        # The validator rejects group-writable material, so do not inherit the caller's umask.
+        cert.chmod(0o644)
         key.chmod(0o600)
         pin = preparation.run(['openssl', 'x509', '-in', str(cert), '-noout', '-fingerprint', '-sha256']).split('=', 1)[1].replace(':', '').lower()
         config = dict(address='198.18.53.10', certificate=str(cert), private_key=str(key), ca=str(cert), pinned_sha256=pin)

@@ -2,17 +2,22 @@
 
 仅使用合成地址、密钥、临时 SQLite 与 backend-free Terraform root。不得复制真实 `settings.json`、Vault、BWS 令牌、requests/runs/state/bundles 到验证环境。
 
+PR 校验在相关路径变化时经下面的入口运行本目录的回归测试，本地用同一入口：
+
 ```bash
-python3 tests/oci-hub/test-offline.py -v
-python3 tests/oci-hub/test-native-authorization.py
-python3 tests/oci-hub/test-native-mosh.py
-sudo /opt/iac-venv/bin/python3 tests/oci-hub/test-spoke-reconcile.py
+scripts/ci/validate-test-suites.sh oci-hub
+# 需要 root 的 test-spoke-reconcile.py 与 test-network.py 只在一次性 Linux 主机上运行：
+REPO_VALIDATION_ALLOW_ROOT=1 scripts/ci/validate-test-suites.sh oci-hub
+```
+
+`test-native-authorization.py` 依赖 Linux 的同名用户组，macOS 上报 `NOT RUN`。Terraform mock-provider 测试暂不在 PR 校验内，手工运行：
+
+```bash
 python3 tests/oci-hub/prepare-terraform.py
 # 在输出的临时 root 中运行；provider 固定 bpg 0.70.0，不加载 HCP。
 terraform init -backend=false -input=false
 terraform validate
 terraform test
-sudo python3 tests/oci-hub/test-network.py
 ```
 
 Ansible lint/syntax 由 PR 校验用 `tests/ci/fixtures/` 的配置与 inventory 统一执行；不运行 deploy/publish 流水线。网络测试创建唯一命名的 namespace/veth/bridge，结束时只移除本次 namespace；正向验证本人 TCP22/TCP8443 可达、PVE 保留私有源地址的纯路由，负向验证跨用户、管理端口、Hub input、PVE 伪造源、受保护 OCI 服务与 IPv6。移除 ACL 后再验证拒启和负向对照的连通性。内核缺少 VLAN 支持时明确打印 `NOT RUN`，不将该场景标通过。此测试不使用真实 WireGuard peer，不证明 cryptokey routing、Portal 恢复、PVE SDN Apply 或真实桌面已通过。

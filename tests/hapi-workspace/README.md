@@ -4,12 +4,10 @@
 
 ## 回归测试
 
-从仓库根执行：
+PR 校验在相关路径变化时运行；本地从仓库根用同一入口：
 
 ```bash
-python3 tests/hapi-workspace/test-login-agent.py
-python3 tests/hapi-workspace/test-hub-config.py
-python3 tests/hapi-workspace/test-hub-boundary.py
+scripts/ci/validate-test-suites.sh hapi-workspace
 ```
 
 - `test-login-agent.py`：登录代理只暴露固定的认证代理操作；手工码、取消、超时与浏览器保留用真实 tmux/PTY 和 `tests/employee-workspace/test-login.py` 的合成 CLI 夹具验证。缺少 tmux 时这些用例跳过，不能算通过。

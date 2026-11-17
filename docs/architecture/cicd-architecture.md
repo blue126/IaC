@@ -113,6 +113,7 @@ flowchart LR
 - 对 Terraform、Ansible、文档、Hugo 与 Shell 变更运行适用检查；不适用项输出原因明确的 `not_applicable`。
 - 先做一次变更分类，再据此决定安装哪些工具链：Terraform、Go 与 Hugo 仅在对应变更适用时才初始化，Ansible collections 以 `ansible/requirements.yml` 的内容哈希为 key 缓存，Python 依赖使用 pip 缓存。因此 `ansible/requirements.yml` 中每个 collection 都必须锁定版本，否则缓存会一直复用首次解析到的快照。
 - 只执行 Terraform `fmt`、禁用 backend 的 `init` 和 `validate`，不执行 `plan` 或 `apply`。
+- 当 `tests/employee-workspace/`、`tests/oci-hub/`、`tests/hapi-workspace/`、`tests/gateway-backup/` 或它们测试的代码变化时，分类器输出 `test_suites`，`scripts/ci/validate-test-suites.sh` 用 `scripts/setup-dev-env.sh` 建出的 `.venv` 运行对应的 hermetic 测试。CI 安装 tmux、openssh-server、wireguard-tools、nftables，并设 `REPO_VALIDATION_REQUIRE_ALL=1`（任何 `NOT RUN` 都算失败）和 `REPO_VALIDATION_ALLOW_ROOT=1`（需要 root 的网络命名空间测试只在一次性 runner 上运行）。
 - 使用 CI-only Ansible inventory，不读取 Vault、Terraform state 或 SSH 身份，不连接 live hosts。
 - 对 workflow、Jenkinsfile、validation scripts、secret bridge 与部署审批相关变更仅报告 `human_required`；Phase 1 不自动修复或合并。
 - 不上传 Pages、不部署、不发布 artifact、不刷新生产 state，也不写入任何外部系统。
