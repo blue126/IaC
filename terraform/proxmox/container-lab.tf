@@ -4,7 +4,7 @@ resource "proxmox_virtual_environment_vm" "containerlab" {
   name      = "containerlab"
   node_name = "pve2"
   vm_id     = 108
-  started   = false
+  started   = true
   on_boot   = false
 
   bios            = "ovmf"
