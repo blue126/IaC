@@ -13,4 +13,4 @@
 
 新 Hub 的原生授权、Mosh、Spoke 和边界测试见 `tests/oci-hub/README.md`。管理员公钥维护由 `admin-ssh-keys` 共享 role 承担。
 
-所有 Terraform/Ansible 检查在已批准验证 Sandbox 中执行，不携带生产 Vault/BWS/状态；个人 Claude 登录不属于自动验证。
+PR 校验在相关路径变化时经 `scripts/ci/validate-test-suites.sh employee-workspace` 运行这些测试（`test-desktop-oci.py` 同时加载两个生命周期测试），使用本 checkout 的 `.venv`，不携带生产 Vault/BWS/状态；本地同样用这个入口，缺少 tmux 等工具时报 `NOT RUN`。个人 Claude 登录不属于自动验证。

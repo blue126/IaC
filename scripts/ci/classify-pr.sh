@@ -34,6 +34,10 @@ hugo_applicable=false
 shell_applicable=false
 python_applicable=false
 governance_sensitive=false
+suite_employee_workspace=false
+suite_oci_hub=false
+suite_hapi_workspace=false
+suite_gateway_backup=false
 changed_files_count=0
 changed_files_path="$(mktemp)"
 trap 'rm -f "${changed_files_path}"' EXIT
@@ -112,6 +116,45 @@ while IFS= read -r -d '' changed_file; do
       ;;
   esac
 
+  # Hermetic test suites: each runs when its tests or the code they exercise change.
+  case "${changed_file}" in
+    scripts/ci/validate-test-suites.sh | scripts/setup-dev-env.sh | requirements.txt | \
+      tests/ci/fixtures/ansible.cfg)
+      suite_employee_workspace=true
+      suite_oci_hub=true
+      suite_hapi_workspace=true
+      suite_gateway_backup=true
+      ;;
+  esac
+
+  case "${changed_file}" in
+    ansible/roles/employee-workspace/* | ansible/roles/kasmvnc/* | ansible/roles/oci-hub-mosh/* | \
+      ansible/playbooks/prepare-employee-desktop.yml | tests/employee-workspace/*)
+      suite_employee_workspace=true
+      ;;
+  esac
+
+  case "${changed_file}" in
+    scripts/oci-hub/* | ansible/roles/employee-workspace/* | ansible/roles/oci-hub-mosh/* | \
+      ansible/roles/oci-hub-spoke/* | tests/oci-hub/*)
+      suite_oci_hub=true
+      ;;
+  esac
+
+  case "${changed_file}" in
+    ansible/roles/hapi/* | ansible/roles/hapi-shared-hub/* | ansible/roles/employee-workspace/files/* | \
+      scripts/oci-hub/* | tests/hapi-workspace/* | tests/employee-workspace/test-login.py | \
+      tests/oci-hub/test-offline.py)
+      suite_hapi_workspace=true
+      ;;
+  esac
+
+  case "${changed_file}" in
+    scripts/gateway-backup/* | tests/gateway-backup/*)
+      suite_gateway_backup=true
+      ;;
+  esac
+
   case "${changed_file}" in
     .github/workflows/* | .github/actions/* | .github/CODEOWNERS | AGENTS.md | Jenkinsfile* | \
       scripts/ci/* | tests/ci/* | scripts/get-secrets.sh | scripts/refresh-terraform-state.sh | \
@@ -127,6 +170,17 @@ terraform_roots=()
 [[ "${terraform_oci}" == true ]] && terraform_roots+=("terraform/oci")
 [[ "${terraform_netbox}" == true ]] && terraform_roots+=("terraform/netbox-integration")
 
+test_suites=()
+[[ "${suite_employee_workspace}" == true ]] && test_suites+=("employee-workspace")
+[[ "${suite_oci_hub}" == true ]] && test_suites+=("oci-hub")
+[[ "${suite_hapi_workspace}" == true ]] && test_suites+=("hapi-workspace")
+[[ "${suite_gateway_backup}" == true ]] && test_suites+=("gateway-backup")
+
+test_suites_csv=""
+if [[ "${#test_suites[@]}" -gt 0 ]]; then
+  test_suites_csv="$(IFS=,; echo "${test_suites[*]}")"
+fi
+
 terraform_roots_csv=""
 if [[ "${#terraform_roots[@]}" -gt 0 ]]; then
   terraform_roots_csv="$(IFS=,; echo "${terraform_roots[*]}")"
@@ -140,4 +194,5 @@ printf 'docs_applicable=%s\n' "${docs_applicable}"
 printf 'hugo_applicable=%s\n' "${hugo_applicable}"
 printf 'shell_applicable=%s\n' "${shell_applicable}"
 printf 'python_applicable=%s\n' "${python_applicable}"
+printf 'test_suites=%s\n' "${test_suites_csv}"
 printf 'governance_sensitive=%s\n' "${governance_sensitive}"

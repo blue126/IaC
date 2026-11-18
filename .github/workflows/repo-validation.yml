@@ -84,8 +84,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ansible-collections-
 
+      # The hermetic test suites use the same pinned .venv toolchain as local runs.
+      - name: Set up uv
+        if: steps.classify.outputs.test_suites != ''
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Install test suite system tools
+        if: steps.classify.outputs.test_suites != ''
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends tmux openssh-server wireguard-tools nftables
+
+      - name: Build pinned toolchain
+        if: steps.classify.outputs.test_suites != ''
+        run: scripts/setup-dev-env.sh
+
+      # Suites must run every selected test: a missing prerequisite fails the job.
+      # Root-only tests create network namespaces on this disposable runner.
       - name: Validate repository
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO_VALIDATION_REQUIRE_ALL: '1'
+          REPO_VALIDATION_ALLOW_ROOT: '1'
         run: scripts/ci/validate-repository.sh "${BASE_SHA}" "${HEAD_SHA}"

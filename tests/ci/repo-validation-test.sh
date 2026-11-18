@@ -8,6 +8,7 @@ TERRAFORM_VALIDATOR="${REPOSITORY_ROOT}/scripts/ci/validate-terraform.sh"
 ANSIBLE_VALIDATOR="${REPOSITORY_ROOT}/scripts/ci/validate-ansible.sh"
 DOCUMENTATION_VALIDATOR="${REPOSITORY_ROOT}/scripts/ci/validate-documentation.sh"
 REPOSITORY_VALIDATOR="${REPOSITORY_ROOT}/scripts/ci/validate-repository.sh"
+SUITES_VALIDATOR="${REPOSITORY_ROOT}/scripts/ci/validate-test-suites.sh"
 FIXTURE_REPOSITORY="$(mktemp -d)"
 MOCK_BIN="$(mktemp -d)"
 MOCK_LOG="${MOCK_BIN}/commands.log"
@@ -63,6 +64,7 @@ assert_output "${output}" "docs_applicable=true"
 assert_output "${output}" "hugo_applicable=true"
 assert_output "${output}" "shell_applicable=false"
 assert_output "${output}" "python_applicable=false"
+assert_output "${output}" "test_suites="
 assert_output "${output}" "governance_sensitive=false"
 
 base_sha="${head_sha}"
@@ -146,6 +148,32 @@ output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sh
 assert_output "${output}" "docs_applicable=true"
 assert_output "${output}" "hugo_applicable=true"
 
+# Each hermetic test suite runs when its tests or the code they exercise change.
+while IFS='|' read -r suite_path expected_suites; do
+  base_sha="${head_sha}"
+  commit_fixture "${suite_path}" "# suite trigger fixture"
+  head_sha="$(git -C "${FIXTURE_REPOSITORY}" rev-parse HEAD)"
+  output="$(cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "${base_sha}" "${head_sha}")"
+  assert_output "${output}" "test_suites=${expected_suites}"
+done <<'SUITES'
+ansible/roles/kasmvnc/tasks/presentation.yml|employee-workspace
+ansible/playbooks/prepare-employee-desktop.yml|employee-workspace
+ansible/roles/employee-workspace/tasks/locale.yml|employee-workspace,oci-hub
+ansible/roles/employee-workspace/files/workspace-login.py|employee-workspace,oci-hub,hapi-workspace
+ansible/roles/oci-hub-mosh/templates/sshd-mosh.conf.j2|employee-workspace,oci-hub
+ansible/roles/oci-hub-spoke/tasks/vpn.yml|oci-hub
+scripts/oci-hub/boundary.py|oci-hub,hapi-workspace
+tests/oci-hub/test-offline.py|oci-hub,hapi-workspace
+ansible/roles/hapi/files/claude-login-agent.py|hapi-workspace
+ansible/roles/hapi-shared-hub/files/hapi-hub-config.py|hapi-workspace
+tests/employee-workspace/test-login.py|employee-workspace,hapi-workspace
+scripts/gateway-backup/gateway-backup.sh|gateway-backup
+tests/gateway-backup/gateway-backup-test.sh|gateway-backup
+scripts/ci/validate-test-suites.sh|employee-workspace,oci-hub,hapi-workspace,gateway-backup
+requirements.txt|employee-workspace,oci-hub,hapi-workspace,gateway-backup
+ansible/roles/netbox/tasks/main.yml|
+SUITES
+
 if (cd "${FIXTURE_REPOSITORY}" && "${CLASSIFIER}" "not-a-commit" "${head_sha}") >/dev/null 2>&1; then
   fail "invalid base SHA must fail"
 fi
@@ -168,6 +196,13 @@ if [[ "${tool}" == ansible-* && -n "${MOCK_EXPECT_CI_ROOT:-}" ]]; then
   [[ -z "${ANSIBLE_VAULT_PASSWORD_FILE+x}" ]]
   [[ -z "${ANSIBLE_VAULT_IDENTITY_LIST+x}" ]]
 fi
+if [[ "${tool}" == python3 && -n "${MOCK_EXPECT_SUITE_ENV:-}" ]]; then
+  [[ "${ANSIBLE_HOME}" == "${TMPDIR}/.ansible" ]]
+  [[ "${ANSIBLE_LOCAL_TEMP}" == "${ANSIBLE_HOME}/tmp" ]]
+  [[ "${ANSIBLE_REMOTE_TEMP}" == "${ANSIBLE_HOME}/remote-tmp" ]]
+  [[ -z "${ANSIBLE_CONFIG+x}" && -z "${ANSIBLE_VAULT_PASSWORD_FILE+x}" ]]
+  [[ "$(umask)" == 0022 ]]
+fi
 if [[ -n "${MOCK_FAIL_MATCH:-}" && "${tool} $*" == *"${MOCK_FAIL_MATCH}"* ]]; then
   exit 9
 fi
@@ -176,7 +211,7 @@ chmod +x "${MOCK_BIN}/mock-tool"
 for tool in terraform python3 ansible-galaxy ansible-lint ansible-playbook; do
   ln -s "${MOCK_BIN}/mock-tool" "${MOCK_BIN}/${tool}"
 done
-for tool in terraform-validator ansible-validator documentation-validator; do
+for tool in terraform-validator ansible-validator documentation-validator test-suites-validator; do
   ln -s "${MOCK_BIN}/mock-tool" "${MOCK_BIN}/${tool}"
 done
 
@@ -262,6 +297,64 @@ if PYTHON_BIN="${MOCK_BIN}/missing-python" \
   fail "missing Python must fail documentation validation"
 fi
 
+mock_venv="${MOCK_BIN}/venv"
+mock_tools="${MOCK_BIN}/tools"
+mock_tools_without_tmux="${MOCK_BIN}/tools-without-tmux"
+mkdir -p "${mock_venv}" "${mock_tools}" "${mock_tools_without_tmux}"
+for tool in python3 ansible-playbook; do
+  ln -s "${MOCK_BIN}/mock-tool" "${mock_venv}/${tool}"
+done
+for tool in openssl sshd ssh-keygen tmux wg-quick ip nft iptables setsid flock; do
+  ln -s "${MOCK_BIN}/mock-tool" "${mock_tools}/${tool}"
+  [[ "${tool}" == tmux ]] || ln -s "${MOCK_BIN}/mock-tool" "${mock_tools_without_tmux}/${tool}"
+done
+
+: >"${MOCK_LOG}"
+output="$(
+  MOCK_EXPECT_SUITE_ENV=1 \
+  ANSIBLE_CONFIG="/ci-test/deployment.cfg" \
+  ANSIBLE_VAULT_PASSWORD_FILE="/ci-test/must-not-read-vault" \
+  TEST_SUITES_VENV_BIN="${mock_venv}" \
+  TEST_SUITES_TOOL_PATH="${mock_tools}" \
+    "${SUITES_VALIDATOR}" hapi-workspace employee-workspace
+)"
+for suite_test in hapi-workspace/test-login-agent.py hapi-workspace/test-hub-config.py \
+  hapi-workspace/test-hub-boundary.py employee-workspace/test-desktop-oci.py \
+  employee-workspace/test-locale.py employee-workspace/test-login.py; do
+  grep -Fxq "python3 tests/${suite_test}" "${MOCK_LOG}" || fail "suite validator did not run ${suite_test}"
+done
+assert_output "${output}" "test_suite_status=passed suite=hapi-workspace passed=3 not_run=0"
+assert_output "${output}" "test_suites_status=passed suites=hapi-workspace,employee-workspace not_run=0"
+
+output="$(TEST_SUITES_VENV_BIN="${mock_venv}" TEST_SUITES_TOOL_PATH="${mock_tools_without_tmux}" \
+  "${SUITES_VALIDATOR}" hapi-workspace)"
+assert_output "${output}" "NOT RUN: tests/hapi-workspace/test-login-agent.py (needs tmux)"
+if REPO_VALIDATION_REQUIRE_ALL=1 TEST_SUITES_VENV_BIN="${mock_venv}" \
+  TEST_SUITES_TOOL_PATH="${mock_tools_without_tmux}" "${SUITES_VALIDATOR}" hapi-workspace >/dev/null 2>&1; then
+  fail "a NOT RUN test must fail when REPO_VALIDATION_REQUIRE_ALL=1"
+fi
+
+# Root-only tests never run unless explicitly allowed on a disposable host.
+output="$(TEST_SUITES_VENV_BIN="${mock_venv}" TEST_SUITES_TOOL_PATH="${mock_tools}" \
+  REPO_VALIDATION_ALLOW_ROOT=0 "${SUITES_VALIDATOR}" oci-hub)"
+grep -Eq '^NOT RUN: tests/oci-hub/test-network\.py \(needs (Linux|root; set REPO_VALIDATION_ALLOW_ROOT=1)' <<<"${output}" || \
+  fail "root-only network test must be reported NOT RUN without REPO_VALIDATION_ALLOW_ROOT=1"
+if REPO_VALIDATION_REQUIRE_ALL=1 REPO_VALIDATION_ALLOW_ROOT=0 TEST_SUITES_VENV_BIN="${mock_venv}" \
+  TEST_SUITES_TOOL_PATH="${mock_tools}" "${SUITES_VALIDATOR}" oci-hub >/dev/null 2>&1; then
+  fail "skipped root-only tests must fail when REPO_VALIDATION_REQUIRE_ALL=1"
+fi
+
+if MOCK_FAIL_MATCH="test-hub-config.py" TEST_SUITES_VENV_BIN="${mock_venv}" \
+  TEST_SUITES_TOOL_PATH="${mock_tools}" "${SUITES_VALIDATOR}" hapi-workspace >/dev/null 2>&1; then
+  fail "suite test failure must propagate"
+fi
+status=0
+TEST_SUITES_VENV_BIN="${mock_venv}" "${SUITES_VALIDATOR}" unknown-suite >/dev/null 2>&1 || status=$?
+[[ "${status}" -eq 2 ]] || fail "unknown test suite must be rejected"
+if TEST_SUITES_VENV_BIN="${MOCK_BIN}/missing-venv" "${SUITES_VALIDATOR}" hapi-workspace >/dev/null 2>&1; then
+  fail "missing .venv toolchain must fail suite validation"
+fi
+
 mock_classification="$(printf '%s\n' \
   'changed_files_count=2' \
   'terraform_applicable=true' \
@@ -271,6 +364,7 @@ mock_classification="$(printf '%s\n' \
   'hugo_applicable=false' \
   'shell_applicable=false' \
   'python_applicable=false' \
+  'test_suites=employee-workspace,gateway-backup' \
   'governance_sensitive=true')"
 : >"${MOCK_LOG}"
 output="$(
@@ -279,6 +373,7 @@ output="$(
   TERRAFORM_VALIDATOR_BIN="${MOCK_BIN}/terraform-validator" \
   ANSIBLE_VALIDATOR_BIN="${MOCK_BIN}/ansible-validator" \
   DOCUMENTATION_VALIDATOR_BIN="${MOCK_BIN}/documentation-validator" \
+  TEST_SUITES_VALIDATOR_BIN="${MOCK_BIN}/test-suites-validator" \
   GITHUB_OUTPUT="" \
   GITHUB_STEP_SUMMARY="${MOCK_BIN}/summary.md" \
     "${REPOSITORY_VALIDATOR}" base-sha head-sha
@@ -291,6 +386,8 @@ grep -Fxq "ansible-validator " "${MOCK_LOG}" || \
   fail "Repository validator did not run Ansible validation"
 grep -Fq "documentation-validator false" "${MOCK_LOG}" || \
   fail "Repository validator did not forward Hugo applicability"
+grep -Fxq "test-suites-validator employee-workspace gateway-backup" "${MOCK_LOG}" || \
+  fail "Repository validator did not forward selected test suites"
 grep -Fq "Governance-sensitive change" "${MOCK_BIN}/summary.md" || \
   fail "Governance-sensitive changes must be visible in the job summary"
 
@@ -299,6 +396,7 @@ if MOCK_CLASSIFICATION="${mock_classification}" \
   TERRAFORM_VALIDATOR_BIN="${MOCK_BIN}/terraform-validator" \
   ANSIBLE_VALIDATOR_BIN="${MOCK_BIN}/ansible-validator" \
   DOCUMENTATION_VALIDATOR_BIN="${MOCK_BIN}/documentation-validator" \
+  TEST_SUITES_VALIDATOR_BIN="${MOCK_BIN}/test-suites-validator" \
   MOCK_FAIL_MATCH="terraform-validator" \
   GITHUB_OUTPUT="" \
   "${REPOSITORY_VALIDATOR}" base-sha head-sha >/dev/null 2>&1; then
@@ -326,6 +424,7 @@ python_classification="${mock_classification/terraform_applicable=true/terraform
 python_classification="${python_classification/ansible_applicable=true/ansible_applicable=false}"
 python_classification="${python_classification/docs_applicable=true/docs_applicable=false}"
 python_classification="${python_classification/python_applicable=false/python_applicable=true}"
+python_classification="${python_classification/test_suites=employee-workspace,gateway-backup/test_suites=}"
 real_git="$(command -v git)"
 cat >"${MOCK_BIN}/git" <<EOF
 #!/bin/bash
@@ -374,6 +473,10 @@ assert_file_contains "${workflow}" "if: steps.classify.outputs.terraform_applica
 assert_file_contains "${workflow}" "if: steps.classify.outputs.hugo_applicable == 'true'"
 assert_file_contains "${workflow}" "if: steps.classify.outputs.ansible_applicable == 'true'"
 assert_file_contains "${workflow}" "path: ansible/collections"
+assert_file_contains "${workflow}" "if: steps.classify.outputs.test_suites != ''"
+assert_file_contains "${workflow}" "run: scripts/setup-dev-env.sh"
+assert_file_contains "${workflow}" "REPO_VALIDATION_REQUIRE_ALL: '1'"
+assert_file_contains "${workflow}" "REPO_VALIDATION_ALLOW_ROOT: '1'"
 assert_file_contains "${workflow}" "key: \${{ runner.os }}-ansible-collections-\${{ hashFiles('ansible/requirements.yml') }}"
 grep -Fxq '        run: tests/ci/review-policy-gate-test.sh' "${workflow}" || {
   fail "repository validation must run the local review policy gate contract test without arguments"

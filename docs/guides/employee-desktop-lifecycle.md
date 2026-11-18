@@ -43,4 +43,4 @@ Mac／Firefox 的当前已验证组合：Kasm 设置开启 `IME Input Mode`，Ma
 
 ## 验证范围
 
-当前源码的 `test-desktop-oci.py` 汇集桌面、浏览器、真实 OpenSSL/TLS、真实 POSIX 锁及维护失败续跑回归。`tests/oci-hub/test-desktop-network.py` 的显式隔离执行入口负责合成 HTTPS/WSS 和 HAPI 桥；生产元数据必须保持，详见其 README。个人 OAuth、真实设备撤销、Code/Cowork 任务和中国侧体验均不能由这些合成结果推断。
+当前源码的 `test-desktop-oci.py` 汇集桌面、浏览器、真实 OpenSSL/TLS、真实 POSIX 锁及维护失败续跑回归。原负责合成 HTTPS/WSS 和 HAPI 桥的 `tests/oci-hub/test-desktop-network.py` 已于 2026-11-18 退役，这部分须实机验收。个人 OAuth、真实设备撤销、Code/Cowork 任务和中国侧体验均不能由这些合成结果推断。
