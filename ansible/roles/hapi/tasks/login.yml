@@ -1,11 +1,35 @@
 ---
-# The login browser, its viewer and workspace-login come with the KasmVNC desktop
-# (employee-workspace); this only adds the fixed API the VM500 login page calls.
-- name: Require the desktop login helper this API drives
+# The login browser and its viewer come with the KasmVNC desktop. workspace-login and its
+# opener are installed here too, from employee-workspace's own files: a new workspace stops
+# provisioning at hook_bound and never runs that role, so it would otherwise keep the copy
+# baked into its template, however old (VM505 kept one that refused the https viewer).
+- name: Require the desktop browser control the login helper drives
   ansible.builtin.stat:
-    path: /usr/local/bin/workspace-login
-  register: hapi_workspace_login
-  failed_when: not hapi_workspace_login.stat.exists
+    path: /usr/local/bin/workspace-browser
+  register: hapi_workspace_browser
+  failed_when: not hapi_workspace_browser.stat.exists
+
+- name: Install the current employee login helper
+  ansible.builtin.copy:
+    src: '{{ role_path }}/../employee-workspace/files/workspace-login.py'
+    dest: /usr/local/bin/workspace-login
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the VM browser authorization opener
+  ansible.builtin.copy:
+    src: '{{ role_path }}/../employee-workspace/files/open-auth-browser.sh'
+    dest: /usr/local/lib/employee-workspace/open-auth-browser
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Check the login helper installation without reading credentials
+  ansible.builtin.command: /usr/local/bin/workspace-login --check
+  become: true
+  become_user: employee
+  changed_when: false
 
 - name: Install the VM-local login flow and fixed execution API
   ansible.builtin.copy:
