@@ -49,3 +49,6 @@ tmp/
 
 # WorkBuddy local state
 .workbuddy/
+
+# Homelab topology poster (published as a claude.ai artifact, not versioned)
+/homelab-map.html
