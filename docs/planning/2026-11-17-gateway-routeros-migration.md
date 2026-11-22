@@ -70,10 +70,17 @@ N100 (PVE 宿主，LAN 固定管理地址)
 4. **CHR 授权**由用户自行购买（免费版每接口上传限速 1 Mbps）。
 5. **没有第二块盘的空间**。回滚只能把 USB 上的整盘镜像写回 NVMe：256 GB 在 USB 3 上约需 25–45 分钟，要计入停机窗口。切换前在 pve0 上用 loop 挂载镜像中的各分区，确认镜像可读。
 
+## 补充盘点（2026-11-22，只读）
+
+- **Tailscale**：节点 `roseville-homegateway` 只广播 `192.168.1.0/24`，以 userspace-networking 模式运行。实际由 `/etc/init.d/tailscale-observer` 以独立 socket 启动，与 `uci show tailscale` 中的 `port=41641`、`fw_mode=nftables` 不一致，另有 `tailscale`、`tailscaler` 两个 init 脚本；迁移时不沿用这套启动方式。新网关上的 Tailscale 容器是新节点：在管理后台批准子网路由后，删除旧节点。
+- **AdGuard Home**：配置 `/etc/adguardhome.yaml`，工作目录 `/var/lib/adguardhome`；上游为 Cloudflare、Quad9、NextDNS 三个 DoH（load_balance），bootstrap 为 `1.1.1.1`、`9.9.9.10` 和运营商 DNS；没有 fallback，私有 PTR 解析关闭。迁移时原样复制配置，只把监听改为 `0.0.0.0:53`。
+- **静态租约**：13 条。迁移 11 条；不迁 `ax3000t-ap1`（`.2`，地址转给 N100 宿主）和 `qnetd-witness`（`.53`，随 QDevice 退役）。MAC 不写入仓库，实施时在路由器上填写。
+- **本地域名**：dnsmasq 有 6 条记录（pve0/1/2、gateway、`ise.ccie.local`、KMS 的 `_vlmcs._tcp` SRV），已写入 `.rsc` 草稿。
+- **物理拓扑**（用户 2026-11-22 确认）：N100 `eth2` → ONTi SKS8300 万兆交换机（`.5`，支持 802.1Q）→ pve0、pve1、pve2；AP（GL-MT3000）直接接 N100 `eth1`。mercuryswitch（`.4`，水星 SE106 Pro）和 MikroTik CRS509（`.6`）不在 VLAN 路径上，保持 VLAN 1 不动；以后如果它们下面有设备要进 GUEST/IOT，再单独配置。
+- **MAC 克隆**：CHR 的 LAN 网卡克隆 `br-lan` 的 MAC（与旧 `eth1` 相同），WAN 网卡克隆旧 `eth0` 的 MAC。具体值不写入仓库。
+
 ## 待核实
 
-- AdGuard Home 配置文件位置与上游设置：`uci show adguardhome`。
-- tailscale 状态与子网路由。
 - **外网暴露**：用手机流量测试公网地址的 7890、1883、9119、8787、445、7681。smbd 当前监听在 WAN 地址；Docker 发布到 `0.0.0.0` 的端口可能绕过 fw4。
 - AGH TCP 3053 盘点时 `Recv-Q 22`，确认 TCP DNS 是否正常。
 
@@ -121,7 +128,8 @@ VM500 与员工 VM 之间的 9443 流量（控制面 → VM、Runner → Hub）�
 
 ### 物理与主机配置
 
-- **交换机**：连接 N100、pve0、pve2（以及 LaaS 节点）的端口配成 trunk，放行 VLAN 1 untagged 以及 20、30、40、50 tagged；家庭终端口配成 access VLAN 1；AP 上联口配成 trunk。实验 VLAN 3001–3099 不放行。
+- **ONTi 交换机**：接 N100 `eth2` 的端口配成 trunk（VLAN 1 untagged，20、30、40、50 tagged）；接 pve2 的端口放行 1、20、30；接 pve0、pve1 的端口目前只需 VLAN 1，以后有 DMZ 主机再放行；接 mercuryswitch、CRS509 和其它终端的端口配成 access VLAN 1。
+- **N100 端口**（`vmbr0` VLAN-aware，在各端口的 stanza 里限定 VLAN）：`eth2`（到 ONTi）放行 1 untagged 和 20、30、40、50；`eth1`（到 AP）放行 1 untagged 和 40、50；`eth3` 只放行 VLAN 1。
 - **N100**：`vmbr0` 开启 VLAN-aware，宿主管理地址走 untagged；CHR 的 LAN 网卡作为 trunk，在 ROS 内建 `vlan20/30/40/50` 接口。
 - **pve2**：`vmbr0` 开启 VLAN-aware，宿主 `.52` 保持 untagged，新增 `vmbr0.20`，地址 `192.168.20.52`。员工 VNet 的出站加策略路由：`ip rule from 10.236.0.0/16 lookup remotecc`，**优先级要高于 main 表**，`remotecc` 表只有一条默认路由指向 `192.168.20.1`。否则 main 表里直连的 `192.168.1.0/24` 会让员工流量绕过 CHR 直达 HOME。保留现有 nft ACL 作为第一道防线，并检查 `rp_filter`。
 - **VM500**：网卡加 tag 20，地址改为 `192.168.20.140`、网关 `192.168.20.1`。`terraform/remotecc` 已有 `uplink_address` 和 `uplink_gateway` 变量，但要新增 VLAN tag 支持。Cloudflare Tunnel 是出站连接，不受影响。员工 VM 访问的 resolver 如果是 `.1`，要改为 CHR 在 VLAN 20 上的地址，并同步更新 pve2 的 nft ACL。

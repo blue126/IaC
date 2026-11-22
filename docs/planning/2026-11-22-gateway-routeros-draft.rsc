@@ -93,15 +93,23 @@ add address=192.168.40.0/24 gateway=192.168.40.1 dns-server=192.168.40.1
 add address=192.168.50.0/24 gateway=192.168.50.1 dns-server=192.168.50.1 ntp-server=192.168.50.1
 # REMOTECC, LAAS and SVC use static addressing only.
 
-# Static leases: migrate the 11 live entries from `uci show dhcp` (12 minus
-# the retired ax3000t-ap1). Example:
+# Static leases: 13 in `uci show dhcp` (2026-11-22). Migrate 11; drop ax3000t-ap1 (.2,
+# retired; .2 becomes the N100 PVE host) and qnetd-witness (.53, retired with QDevice).
+# MAC values stay out of Git: fill them on the router from the inventory. Example:
 # /ip dhcp-server lease add server=dhcp-home mac-address=<MAC_AP> address=192.168.1.3 comment=GL-MT3000
 
 # ---------------------------------------------------------------- DNS
 # Clients -> RouterOS DNS (cache + local names) -> AdGuard Home container.
 /ip dns set servers=172.17.0.2 allow-remote-requests=yes cache-size=4096KiB
-# Local names previously served by dnsmasq (expandhosts, domain willfan.me):
-# /ip dns static add name=pve0.willfan.me address=192.168.1.50
+# Local names previously served by dnsmasq `domain` entries (2026-11-22 inventory).
+/ip dns static
+add name=pve0.willfan.me address=192.168.1.50
+add name=pve1.willfan.me address=192.168.1.51
+add name=pve2.willfan.me address=192.168.1.52
+add name=gateway.willfan.me address=192.168.1.1
+add name=ise.ccie.local address=192.168.1.221
+# KMS auto-discovery; copy priority/weight from the old srvhost entry.
+add name=_vlmcs._tcp.willfan.me type=SRV srv-target=gateway.willfan.me srv-port=1688 srv-priority=0 srv-weight=100
 
 # Register HOME DHCP hostnames as <host>.willfan.me (replaces dnsmasq expandhosts).
 /system script add name=dhcp-dns-sync policy=read,write source={
@@ -147,8 +155,9 @@ add name=tailscale-state src=/disk1/tailscale dst=/var/lib/tailscale
     start-on-boot=yes logging=yes hostname=adguard comment=adguard
 /container add remote-image=<KMS_IMAGE> interface=veth-kms root-dir=disk1/images/kms \
     start-on-boot=yes logging=yes hostname=kms comment=kms
-# Tailscale in userspace mode (no /dev/net/tun needed). Confirm the routes the old
-# gateway advertised before filling TS_ROUTES.
+# Tailscale in userspace mode (no /dev/net/tun needed). The old gateway node
+# (roseville-homegateway) advertises only 192.168.1.0/24, also in userspace mode.
+# This creates a new node: approve its route in the admin console, then remove the old node.
 /container envs
 add name=tailscale key=TS_AUTHKEY value=<TS_AUTHKEY>
 add name=tailscale key=TS_STATE_DIR value=/var/lib/tailscale
