@@ -12,7 +12,7 @@
     "proxmox/immich.tf": "2b746443ba3dfdf3e81b26fccdcdbcadf5e6beaf32083c8c3e52a6717cb042e9",
     "proxmox/jenkins-agent.tf": "c72d4b556023ea83b39e558c0fd6d83743ecf679523fd5ed9d8b42ceb6b4c321",
     "proxmox/jenkins.tf": "797d536b04d0bf3a57f2ad779e333811147cfc3e1f95b23c0c4faf7250729bdc",
-    "proxmox/laas-sdn.tf": "a6c7b5dfe623dbed3c9dd8c45f83fb5270d3b4b1e9e2e8cc968576035f722fa9",
+    "proxmox/laas-sdn.tf": "46c9ca3d2d76229aaf09389ae5d1aa6a8efa15f9f46095efc64955781f9e7c02",
     "proxmox/main.tf": "2d18e6f35f736123d4036ff284b3281e5fe1ef3424f795c4fdfadd1b20ede0e7",
     "proxmox/mcp-gateway.tf": "6e2ed85582dbf7eaf7a9f8191ef3ee09c6662465d0c148cd3857b9d7fa6ab9a4",
     "proxmox/n8n.tf": "5c4adfbb3d483c1d780e84e3debce509453da6c5e4bcbffef9b19683839c16bc",

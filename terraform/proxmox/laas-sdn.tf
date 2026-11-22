@@ -113,7 +113,10 @@ resource "proxmox_sdn_applier" "laas" {
   lifecycle {
     replace_triggered_by = [
       proxmox_sdn_zone_simple.laas,
-      proxmox_sdn_vnet.laas,
+      proxmox_sdn_vnet.laas["laasam"],
+      proxmox_sdn_vnet.laas["laasal"],
+      proxmox_sdn_vnet.laas["laasbm"],
+      proxmox_sdn_vnet.laas["laasbl"],
       proxmox_sdn_subnet.laasam,
       proxmox_sdn_subnet.laasal,
       proxmox_sdn_subnet.laasbm,
