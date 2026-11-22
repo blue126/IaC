@@ -88,9 +88,9 @@ add name=dhcp-home interface=br-lan address-pool=pool-home lease-time=1d lease-s
 add name=dhcp-guest interface=vlan40-guest address-pool=pool-guest lease-time=4h
 add name=dhcp-iot interface=vlan50-iot address-pool=pool-iot lease-time=1d
 /ip dhcp-server network
-add address=192.168.1.0/24 gateway=192.168.1.1 dns-server=192.168.1.1 domain=willfan.me ntp-server=192.168.1.1
-add address=192.168.40.0/24 gateway=192.168.40.1 dns-server=192.168.40.1
-add address=192.168.50.0/24 gateway=192.168.50.1 dns-server=192.168.50.1 ntp-server=192.168.50.1
+add address=192.168.1.0/24 gateway=192.168.1.1 dns-server=192.168.1.53 domain=willfan.me ntp-server=192.168.1.1
+add address=192.168.40.0/24 gateway=192.168.40.1 dns-server=192.168.1.53
+add address=192.168.50.0/24 gateway=192.168.50.1 dns-server=192.168.1.53 ntp-server=192.168.50.1
 # REMOTECC, LAAS and SVC use static addressing only.
 
 # Static leases: 13 in `uci show dhcp` (2026-11-22). Migrate 11; drop ax3000t-ap1 (.2,
@@ -99,19 +99,19 @@ add address=192.168.50.0/24 gateway=192.168.50.1 dns-server=192.168.50.1 ntp-ser
 # /ip dhcp-server lease add server=dhcp-home mac-address=<MAC_AP> address=192.168.1.3 comment=GL-MT3000
 
 # ---------------------------------------------------------------- DNS
-# Clients -> RouterOS DNS (cache + local names) -> AdGuard Home container.
-/ip dns set servers=172.17.0.2 allow-remote-requests=yes cache-size=4096KiB
-# Local names previously served by dnsmasq `domain` entries (2026-11-22 inventory).
-/ip dns static
-add name=pve0.willfan.me address=192.168.1.50
-add name=pve1.willfan.me address=192.168.1.51
-add name=pve2.willfan.me address=192.168.1.52
-add name=gateway.willfan.me address=192.168.1.1
-add name=ise.ccie.local address=192.168.1.221
-# KMS auto-discovery; copy priority/weight from the old srvhost entry.
-add name=_vlmcs._tcp.willfan.me type=SRV srv-target=gateway.willfan.me srv-port=1688 srv-priority=0 srv-weight=100
+# Clients use AdGuard Home (192.168.1.53) directly; DHCP hands out only .53.
+# RouterOS DNS keeps four jobs: its own lookups, DHCP hostnames under willfan.me,
+# hosts that hard-code 192.168.1.1, and failover when AdGuard is down.
+# Manual records (pve0/pve1/pve2/gateway, ise.ccie.local, _vlmcs._tcp SRV) live in
+# AdGuard DNS rewrites, not here. AdGuard upstreams must include:
+#   [/willfan.me/]192.168.1.1     and private reverse DNS -> 192.168.1.1
+/ip dns set servers=192.168.1.53 allow-remote-requests=yes cache-size=4096KiB
+# willfan.me names RouterOS does not know go straight to public DNS, never back to
+# AdGuard, which prevents a forwarding loop. Must stay the LAST willfan.me entry.
+/ip dns static add name=willfan.me match-subdomain=yes type=FWD forward-to=1.1.1.1 comment="willfan.me catch-all"
 
-# Register HOME DHCP hostnames as <host>.willfan.me (replaces dnsmasq expandhosts).
+# Register HOME DHCP hostnames as <host>.willfan.me (replaces dnsmasq expandhosts),
+# inserted before the catch-all so they win.
 /system script add name=dhcp-dns-sync policy=read,write source={
     :local domain "willfan.me"
     :local host [:pick $"lease-hostname" 0 63]
@@ -119,14 +119,16 @@ add name=_vlmcs._tcp.willfan.me type=SRV srv-target=gateway.willfan.me srv-port=
     :local fqdn ($host . "." . $domain)
     /ip dns static remove [find comment="dhcp" name=$fqdn]
     :if ($leaseBound = "1") do={
-        /ip dns static add name=$fqdn address=$leaseActIP ttl=5m comment="dhcp"
+        /ip dns static add name=$fqdn address=$leaseActIP ttl=5m comment="dhcp" \
+            place-before=[find comment="willfan.me catch-all"]
     }
 }
 
-# AdGuard Home failover: fall back to public resolvers when the container stops answering.
-/tool netwatch add host=172.17.0.2 type=tcp-conn port=53 interval=10s \
+# AdGuard failover for RouterOS itself and for hosts using 192.168.1.1. Clients that
+# use .53 directly have no fallback (accepted single point, 2026-11-22 decision).
+/tool netwatch add host=192.168.1.53 type=tcp-conn port=53 interval=10s \
     down-script="/ip dns set servers=1.1.1.1,9.9.9.9" \
-    up-script="/ip dns set servers=172.17.0.2" comment="adguard failover"
+    up-script="/ip dns set servers=192.168.1.53" comment="adguard failover"
 
 # ---------------------------------------------------------------- containers
 # Requires the container package and a one-time confirmation:
@@ -135,11 +137,12 @@ add name=_vlmcs._tcp.willfan.me type=SRV srv-target=gateway.willfan.me srv-port=
 /container config set registry-url=https://registry-1.docker.io tmpdir=disk1/tmp
 
 /interface veth
-add name=veth-adguard address=172.17.0.2/24 gateway=172.17.0.1
+# AdGuard sits on HOME (VLAN 1) with its own LAN address so clients reach it directly.
+add name=veth-adguard address=192.168.1.53/24 gateway=192.168.1.1
 add name=veth-kms address=172.17.0.3/24 gateway=172.17.0.1
 add name=veth-tailscale address=172.17.0.4/24 gateway=172.17.0.1
 /interface bridge port
-add bridge=br-containers interface=veth-adguard
+add bridge=br-lan interface=veth-adguard pvid=1
 add bridge=br-containers interface=veth-kms
 add bridge=br-containers interface=veth-tailscale
 
@@ -149,7 +152,9 @@ add name=adguard-work src=/disk1/adguard/work dst=/opt/adguardhome/work
 add name=tailscale-state src=/disk1/tailscale dst=/var/lib/tailscale
 
 # AdGuard Home: copy the old adguardhome.yaml + work/data into /disk1/adguard first;
-# set its DNS listener to 0.0.0.0:53 and keep the existing upstreams and AAAA policy.
+# set its DNS listener to 0.0.0.0:53, keep the existing DoH upstreams and AAAA policy,
+# add [/willfan.me/]192.168.1.1 and private reverse DNS 192.168.1.1, and move the
+# old dnsmasq domain records and the _vlmcs._tcp SRV record into DNS rewrites.
 /container add remote-image=adguard/adguardhome:v0.107.57 interface=veth-adguard \
     root-dir=disk1/images/adguard mounts=adguard-conf,adguard-work \
     start-on-boot=yes logging=yes hostname=adguard comment=adguard
@@ -196,6 +201,10 @@ add chain=forward action=drop connection-state=invalid comment="fwd: invalid"
 add chain=forward action=drop log=yes log-prefix="fwd-vnet-internal" src-address-list=employee-vnets dst-address-list=rfc1918 comment="fwd: employee vnets to internal"
 add chain=forward action=accept in-interface-list=HOME comment="fwd: HOME to anywhere"
 add chain=forward action=accept connection-nat-state=dstnat in-interface-list=IOT dst-address-list=svc-vm comment="fwd: IOT to xiaozhi ports"
+add chain=forward action=accept dst-address=192.168.1.53 protocol=udp dst-port=53 in-interface-list=GUEST comment="fwd: GUEST dns udp to AdGuard"
+add chain=forward action=accept dst-address=192.168.1.53 protocol=tcp dst-port=53 in-interface-list=GUEST comment="fwd: GUEST dns tcp to AdGuard"
+add chain=forward action=accept dst-address=192.168.1.53 protocol=udp dst-port=53 in-interface-list=IOT comment="fwd: IOT dns udp to AdGuard"
+add chain=forward action=accept dst-address=192.168.1.53 protocol=tcp dst-port=53 in-interface-list=IOT comment="fwd: IOT dns tcp to AdGuard"
 add chain=forward action=accept src-address-list=laas-controller dst-address-list=pve2 protocol=tcp dst-port=8006 comment="fwd: LaaS controller to pve2 API"
 add chain=forward action=accept in-interface=br-containers src-address=172.17.0.4 dst-address=192.168.1.0/24 comment="fwd: tailscale subnet router to HOME"
 add chain=forward action=drop log=yes log-prefix="fwd-to-internal" dst-address-list=rfc1918 in-interface-list=!HOME comment="fwd: non-HOME zones to any internal net"

@@ -27,7 +27,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 | 现状 | 去向 |
 |---|---|
 | dnsmasq：`.1:53`，本地域 `willfan.me`（含 rebind_domain），12 条静态租约，`filter_aaaa=1`，上游 `127.0.0.1#3053` | ROS 原生 DHCP/DNS；静态租约逐条迁移；DHCP 池 `.150–.246`、租期 1d |
-| AdGuard Home 0.107.57：DNS `:3053`，Web `:3000` | ROS container；链路保持“客户端 → ROS DNS(.1) → AGH”；netwatch 检测 AGH 失败时切换公共 DNS |
+| AdGuard Home 0.107.57：DNS `:3053`，Web `:3000` | ROS container，接入 HOME，地址 `192.168.1.53`，**直接服务客户端**（见下方 DNS 决定） |
 | vlmcsd（KMS）`:1688` | ROS container，dst-nat `.1:1688`；仅 LAN 可达 |
 | miniupnpd | ROS `/ip upnp` |
 | tailscale（tailscaler） | **待确认**是否仍需要、是否广播子网路由 |
@@ -73,11 +73,20 @@ N100 (PVE 宿主，LAN 固定管理地址)
 ## 补充盘点（2026-11-22，只读）
 
 - **Tailscale**：节点 `roseville-homegateway` 只广播 `192.168.1.0/24`，以 userspace-networking 模式运行。实际由 `/etc/init.d/tailscale-observer` 以独立 socket 启动，与 `uci show tailscale` 中的 `port=41641`、`fw_mode=nftables` 不一致，另有 `tailscale`、`tailscaler` 两个 init 脚本；迁移时不沿用这套启动方式。新网关上的 Tailscale 容器是新节点：在管理后台批准子网路由后，删除旧节点。
-- **AdGuard Home**：配置 `/etc/adguardhome.yaml`，工作目录 `/var/lib/adguardhome`；上游为 Cloudflare、Quad9、NextDNS 三个 DoH（load_balance），bootstrap 为 `1.1.1.1`、`9.9.9.10` 和运营商 DNS；没有 fallback，私有 PTR 解析关闭。迁移时原样复制配置，只把监听改为 `0.0.0.0:53`。
+- **AdGuard Home**：配置 `/etc/adguardhome.yaml`，工作目录 `/var/lib/adguardhome`；上游为 Cloudflare、Quad9、NextDNS 三个 DoH（load_balance），bootstrap 为 `1.1.1.1`、`9.9.9.10` 和运营商 DNS；没有 fallback，私有 PTR 解析关闭。迁移时原样复制配置，只把监听改为 `0.0.0.0:53`。用户日常使用 AdGuard 界面，并在其中维护静态 DNS 记录（DNS 重写或自定义规则），因此**保留 AdGuard，不改用 ROS adlist**。迁移前导出 `filtering.rewrites` 和 `user_rules`，核对三件事：与 ROS 静态记录是否重名；是否有记录指向迁移后会变化的地址（如 VM500 改到 `192.168.20.140`）；`willfan.me` 下的名称由谁负责，避免 ROS 与 AdGuard 互相转发形成环路。
 - **静态租约**：13 条。迁移 11 条；不迁 `ax3000t-ap1`（`.2`，地址转给 N100 宿主）和 `qnetd-witness`（`.53`，随 QDevice 退役）。MAC 不写入仓库，实施时在路由器上填写。
 - **本地域名**：dnsmasq 有 6 条记录（pve0/1/2、gateway、`ise.ccie.local`、KMS 的 `_vlmcs._tcp` SRV），已写入 `.rsc` 草稿。
 - **物理拓扑**（用户 2026-11-22 确认）：N100 `eth2` → ONTi SKS8300 万兆交换机（`.5`，支持 802.1Q）→ pve0、pve1、pve2；AP（GL-MT3000）直接接 N100 `eth1`。mercuryswitch（`.4`，水星 SE106 Pro）和 MikroTik CRS509（`.6`）不在 VLAN 路径上，保持 VLAN 1 不动；以后如果它们下面有设备要进 GUEST/IOT，再单独配置。
 - **MAC 克隆**：CHR 的 LAN 网卡克隆 `br-lan` 的 MAC（与旧 `eth1` 相同），WAN 网卡克隆旧 `eth0` 的 MAC。具体值不写入仓库。
+
+## DNS 决定（用户 2026-11-22）
+
+- **AdGuard 直接服务客户端**：容器接入 HOME 网桥，地址 `192.168.1.53`（qnetd 退役后空出）。HOME、GUEST、IOT 的 DHCP **只下发 `.53`**，统计面板能看到每台设备。接受代价：AdGuard 宕机时这些客户端没有 DNS，不设第二个 DNS，避免查询绕过过滤。
+- **DHCP 留在 ROS**：AdGuard 的 DHCP 只能服务一个网段、不支持中继，且放在容器里会降低可靠性。
+- **ROS DNS 的职责**：路由器自身解析；登记 DHCP 主机名；服务写死 `192.168.1.1` 的主机（转给 AdGuard）；AdGuard 宕机时 netwatch 把 ROS 上游切到公共 DNS。
+- **主机名继续用 `willfan.me`**：AdGuard 把 `willfan.me` 和局域网反向查询转给 ROS；ROS 回答 DHCP 主机名，查不到的 `willfan.me` 名字经 `type=FWD` 兜底规则直接转公网 DNS，不转回 AdGuard，避免循环；`cc.willfan.me` 等公网子域名照常解析。lease-script 用 `place-before` 把主机名插在兜底规则之前。
+- **手工记录集中在 AdGuard**：原 dnsmasq 的域名记录和 KMS 的 `_vlmcs._tcp` SRV 记录改为 AdGuard DNS 重写。迁移前导出现有重写规则，核对重名和会变化的地址。
+- 演练时验证：`type=FWD` 与 `match-subdomain` 的支持、静态记录的匹配顺序、ROS 对 DHCP 主机名的反向查询回答。
 
 ## 待核实
 
