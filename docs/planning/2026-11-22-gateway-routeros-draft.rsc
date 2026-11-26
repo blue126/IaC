@@ -12,7 +12,6 @@
 # PVE side (not RouterOS):
 #   net0 virtio -> vmbr_wan, MAC cloned from old eth0       => ether1
 #   net1 virtio -> vmbr0 (VLAN-aware, trunk: 1u,20,30,40,50) => ether2
-#   net2 virtio -> vmbr_svc (internal, business VM)          => ether3
 #   scsi1       -> data disk for containers (ext4)           => disk1
 
 # ---------------------------------------------------------------- identity
@@ -21,7 +20,6 @@
 /interface ethernet
 set [find default-name=ether1] name=ether1-wan
 set [find default-name=ether2] name=ether2-trunk
-set [find default-name=ether3] name=ether3-svc
 
 # ---------------------------------------------------------------- bridge / VLANs
 # HOME is untagged VLAN 1 on the trunk; other zones are tagged.
@@ -45,7 +43,6 @@ add name=REMOTECC
 add name=LAAS
 add name=GUEST
 add name=IOT
-add name=SVC
 add name=CONTAINERS
 /interface list member
 add list=WAN interface=ether1-wan
@@ -54,7 +51,6 @@ add list=REMOTECC interface=vlan20-remotecc
 add list=LAAS interface=vlan30-laas
 add list=GUEST interface=vlan40-guest
 add list=IOT interface=vlan50-iot
-add list=SVC interface=ether3-svc
 add list=CONTAINERS interface=br-containers
 
 # ---------------------------------------------------------------- addressing
@@ -64,7 +60,6 @@ add interface=vlan20-remotecc address=192.168.20.1/24 comment=REMOTECC
 add interface=vlan30-laas address=192.168.30.1/24 comment=LAAS
 add interface=vlan40-guest address=192.168.40.1/24 comment=GUEST
 add interface=vlan50-iot address=192.168.50.1/24 comment=IOT
-add interface=ether3-svc address=192.168.10.1/24 comment=SVC
 add interface=br-containers address=172.17.0.1/24 comment=CONTAINERS
 
 /ip dhcp-client add interface=ether1-wan use-peer-dns=no use-peer-ntp=no add-default-route=yes
@@ -74,6 +69,10 @@ add interface=br-containers address=172.17.0.1/24 comment=CONTAINERS
 # ---------------------------------------------------------------- routes
 # Phase 1: OCI hub return path via pve2 on HOME.
 /ip route add dst-address=10.236.0.0/16 gateway=192.168.1.52 comment="oci-hub return (phase 1)"
+# LaaS: tenants and controllers sit behind the FortiGate (outside 192.168.30.2, fixed).
+# RouterOS routes both /18s to it and is the only NAT point for them.
+/ip route add dst-address=172.30.0.0/18 gateway=192.168.30.2 comment="laas behind fortigate"
+/ip route add dst-address=172.30.64.0/18 gateway=192.168.30.2 comment="laas behind fortigate"
 # Phase 3 (REMOTECC VLAN live): replace with
 # /ip route set [find comment~"oci-hub"] gateway=192.168.20.52 comment="oci-hub return (remotecc vlan)"
 
@@ -90,7 +89,7 @@ add name=dhcp-iot interface=vlan50-iot address-pool=pool-iot lease-time=1d
 add address=192.168.1.0/24 gateway=192.168.1.1 dns-server=192.168.1.53 domain=willfan.me ntp-server=192.168.1.1
 add address=192.168.40.0/24 gateway=192.168.40.1 dns-server=192.168.1.53
 add address=192.168.50.0/24 gateway=192.168.50.1 dns-server=192.168.1.53 ntp-server=192.168.50.1
-# REMOTECC, LAAS and SVC use static addressing only.
+# REMOTECC and LAAS use static addressing only.
 
 # Static leases: 13 in `uci show dhcp` (2026-11-22). Migrate 11; drop ax3000t-ap1 (.2,
 # retired; .2 becomes the N100 PVE host) and qnetd-witness (.53, retired with QDevice).
@@ -159,9 +158,13 @@ add name=adguard-work src=/disk1/adguard/work dst=/opt/adguardhome/work
 
 # ---------------------------------------------------------------- firewall: address lists
 /ip firewall address-list
-add list=svc-vm address=192.168.10.10 comment="business VM (xiaozhi, hermes, codex-proxy, cn-proxy)"
+add list=svc-vm address=192.168.1.121 comment="business VM 121 on HOME (xiaozhi, hermes, codex-proxy, cn-proxy)"
 add list=pve2 address=192.168.1.52
-add list=laas-controller address=192.168.30.10 comment="placeholder, set at LaaS M0"
+add list=laas-controller address=172.30.0.2 comment="LaaS controller"
+add list=laas-controller address=172.30.100.2 comment="LaaS controller"
+add list=laas-nets address=172.30.0.0/18
+add list=laas-nets address=172.30.64.0/18
+add list=fortigate address=192.168.30.2 comment="FortiGate outside, static"
 add list=employee-vnets address=10.236.0.0/16
 add list=rfc1918 address=10.0.0.0/8
 add list=rfc1918 address=172.16.0.0/12
@@ -173,6 +176,7 @@ add chain=input action=accept connection-state=established,related,untracked com
 add chain=input action=drop connection-state=invalid comment="in: invalid"
 add chain=input action=accept protocol=icmp comment="in: icmp"
 add chain=input action=accept in-interface-list=HOME comment="in: HOME manages router"
+# Includes the FortiGate, which uses 192.168.30.1 for DNS and NTP so VLAN 30 never needs HOME.
 add chain=input action=accept protocol=udp dst-port=53,67,123 in-interface-list=!WAN comment="in: dns/dhcp/ntp from internal zones"
 add chain=input action=accept protocol=tcp dst-port=53 in-interface-list=!WAN comment="in: dns tcp from internal zones"
 add chain=input action=drop log=yes log-prefix="in-drop" comment="in: drop rest"
@@ -183,26 +187,23 @@ add chain=forward action=accept connection-state=established,related,untracked c
 add chain=forward action=drop connection-state=invalid comment="fwd: invalid"
 # Employee VNets arrive on br-lan (HOME) during phase 1, so drop them before the HOME accept.
 add chain=forward action=drop log=yes log-prefix="fwd-vnet-internal" src-address-list=employee-vnets dst-address-list=rfc1918 comment="fwd: employee vnets to internal"
+add chain=forward action=drop log=yes log-prefix="fwd-home-laas" in-interface-list=HOME dst-address-list=laas-nets comment="fwd: HOME may not open connections to LaaS"
 add chain=forward action=accept in-interface-list=HOME comment="fwd: HOME to anywhere"
-add chain=forward action=accept connection-nat-state=dstnat in-interface-list=IOT dst-address-list=svc-vm comment="fwd: IOT to xiaozhi ports"
+# Business VM is on HOME; clients connect to 192.168.1.121 directly (no .1 port forwards).
+add chain=forward action=accept in-interface-list=IOT dst-address-list=svc-vm protocol=tcp dst-port=8000,8003,1883,8007 comment="fwd: IOT to xiaozhi tcp"
+add chain=forward action=accept in-interface-list=IOT dst-address-list=svc-vm protocol=udp dst-port=8884 comment="fwd: IOT to xiaozhi udp"
 add chain=forward action=accept dst-address=192.168.1.53 protocol=udp dst-port=53 in-interface-list=GUEST comment="fwd: GUEST dns udp to AdGuard"
 add chain=forward action=accept dst-address=192.168.1.53 protocol=tcp dst-port=53 in-interface-list=GUEST comment="fwd: GUEST dns tcp to AdGuard"
 add chain=forward action=accept dst-address=192.168.1.53 protocol=udp dst-port=53 in-interface-list=IOT comment="fwd: IOT dns udp to AdGuard"
 add chain=forward action=accept dst-address=192.168.1.53 protocol=tcp dst-port=53 in-interface-list=IOT comment="fwd: IOT dns tcp to AdGuard"
-add chain=forward action=accept src-address-list=laas-controller dst-address-list=pve2 protocol=tcp dst-port=8006 comment="fwd: LaaS controller to pve2 API"
+add chain=forward action=accept in-interface=vlan30-laas src-address-list=laas-controller dst-address-list=pve2 protocol=tcp dst-port=8006 comment="fwd: LaaS controllers to pve2 API (only exception into HOME)"
 add chain=forward action=drop log=yes log-prefix="fwd-to-internal" dst-address-list=rfc1918 in-interface-list=!HOME comment="fwd: non-HOME zones to any internal net"
 add chain=forward action=accept out-interface-list=WAN comment="fwd: internal zones to internet"
 add chain=forward action=drop log=yes log-prefix="fwd-drop" comment="fwd: drop rest"
 
 # ---------------------------------------------------------------- NAT
 /ip firewall nat
-add chain=srcnat action=masquerade out-interface-list=WAN comment="masquerade (covers employee vnets)"
-# Keep clients and ESP32 devices pointed at 192.168.1.1; forward to the business VM.
-# Only HOME and IOT may use these; nothing is published on WAN.
-add chain=dstnat action=dst-nat dst-address=192.168.1.1 protocol=tcp dst-port=8000,8002,8003,8642,9900,9119,8787,1883,8007,7890 in-interface-list=HOME to-addresses=192.168.10.10 comment="svc-vm (HOME)"
-add chain=dstnat action=dst-nat dst-address=192.168.1.1 protocol=udp dst-port=8884 in-interface-list=HOME to-addresses=192.168.10.10 comment="svc-vm mqtt udp (HOME)"
-add chain=dstnat action=dst-nat dst-address=192.168.1.1 protocol=tcp dst-port=8000,8003,1883,8007 in-interface-list=IOT to-addresses=192.168.10.10 comment="xiaozhi (IOT)"
-add chain=dstnat action=dst-nat dst-address=192.168.1.1 protocol=udp dst-port=8884 in-interface-list=IOT to-addresses=192.168.10.10 comment="xiaozhi udp (IOT)"
+add chain=srcnat action=masquerade out-interface-list=WAN comment="masquerade (covers employee vnets and LaaS 172.30.0.0/18, 172.30.64.0/18)"
 add chain=dstnat action=dst-nat dst-address=192.168.1.1 protocol=tcp dst-port=1688 in-interface-list=HOME to-addresses=172.17.0.3 comment="kms (HOME)"
 
 # ---------------------------------------------------------------- services

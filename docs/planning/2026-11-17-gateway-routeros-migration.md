@@ -55,7 +55,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 | ~~open-webui~~ | 退役 | — |
 
 - 退役 open-webui 后合计约 2.5 GB 内存。VM 内保留 `/mnt/data` 路径与原 Compose 文件，`gateway-backup.sh` 与 HA 控制器的强制命令随之迁移。
-- 客户端和 ESP32 设备当前连接 `192.168.1.1` 上的端口。过渡期由 ROS 对这些端口 dst-nat 到 VM；VM 与客户端同在 LAN，需配套 hairpin srcnat。长期逐步把客户端改为 VM 地址。
+- **业务 VM 放在 HOME**（用户 2026-11-26 决定）：VMID 121，地址 `192.168.1.121`，接 `vmbr0` 的 VLAN 1，与其它 homelab 服务一致；创建前在 pve0 用 `qm list`/`pct list` 和 ping 确认 121 与 `.121` 空闲。**不做 `.1` 端口转发**：切换当晚把客户端改为直连 `.121`——cn-proxy 的代理地址、小智服务端下发给设备的地址（OTA/WebSocket/MQTT）等。IoT 网设备跨网段直连 `.121`，CHR 只放行小智端口。
 - 清理遗留：未运行的 `docker-compose.household-bill-assistant.yml`、网络 `open-webui_default`、匿名卷 `52da62…`（删除前单独确认）。
 - **qnetd-witness 不迁移**：N100 入集群后 QDevice 移除，见证退役。
 
@@ -65,7 +65,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
    - 效果：N100 单独在线也有 quorum，CHR 可以开机自启。
    - 代价：**N100 离线时（含 PVE 宿主升级重启），pve0 和 pve1 合计 2 票，失去 quorum**。已运行的 guest 继续运行，但不能启停、迁移、改配置，备份等需要写 `/etc/pve` 的操作会失败。**如果 pve0/pve1 上配置了 HA 资源，节点会被 watchdog 自我隔离（fence）**，切换前必须核实 `ha-manager status` 为空，或者先移除 HA 资源。
    - 存储：N100 只有本地 LVM-thin。集群存储定义中的 pve0/pve1 专用存储要限定 `nodes`，不能对 N100 可见。
-2. **业务 VM 留在 N100 本地**。不用 ZFS（ARC 会吃内存），安装时用 ext4/LVM-thin。内存预算：宿主约 1.5–2 GB，CHR 1.5 GB，业务 VM 固定 4 GB（关闭 ballooning），合计接近 8 GB，余量很小。建议业务 VM 接在 CHR 后面的独立内网桥（如 `vmbr_svc`），由 CHR 路由和 dst-nat：不需要 hairpin NAT，也把 hermes 和 LAN 隔开。
+2. **业务 VM 留在 N100 本地**。不用 ZFS（ARC 会吃内存），安装时用 ext4/LVM-thin。内存预算：宿主约 1.5–2 GB，CHR 1.5 GB，业务 VM 固定 4 GB（关闭 ballooning），合计接近 8 GB，余量很小。业务 VM 接 HOME（见上方“业务 VM 放在 HOME”）。
 3. **tailscale 退役**（2026-11-17 原定保留，用户 2026-11-26 改为不再使用）。
 4. **CHR 授权**由用户自行购买（免费版每接口上传限速 1 Mbps）。
 5. **没有第二块盘的空间**。回滚只能把 USB 上的整盘镜像写回 NVMe：256 GB 在 USB 3 上约需 25–45 分钟，要计入停机窗口。切换前在 pve0 上用 loop 挂载镜像中的各分区，确认镜像可读。
@@ -76,7 +76,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 - **AdGuard Home**：配置 `/etc/adguardhome.yaml`，工作目录 `/var/lib/adguardhome`；上游为 Cloudflare、Quad9、NextDNS 三个 DoH（load_balance），bootstrap 为 `1.1.1.1`、`9.9.9.10` 和运营商 DNS；没有 fallback，私有 PTR 解析关闭。迁移时原样复制配置，只把监听改为 `0.0.0.0:53`。用户日常使用 AdGuard 界面，并在其中维护静态 DNS 记录（DNS 重写或自定义规则），因此**保留 AdGuard，不改用 ROS adlist**。迁移前导出 `filtering.rewrites` 和 `user_rules`，核对三件事：与 ROS 静态记录是否重名；是否有记录指向迁移后会变化的地址（如 VM500 改到 `192.168.20.140`）；`willfan.me` 下的名称由谁负责，避免 ROS 与 AdGuard 互相转发形成环路。
 - **静态租约**：13 条。迁移 11 条；不迁 `ax3000t-ap1`（`.2`，地址转给 N100 宿主）和 `qnetd-witness`（`.53`，随 QDevice 退役）。MAC 不写入仓库，实施时在路由器上填写。
 - **本地域名**：dnsmasq 有 6 条记录（pve0/1/2、gateway、`ise.ccie.local`、KMS 的 `_vlmcs._tcp` SRV），已写入 `.rsc` 草稿。
-- **物理拓扑**（用户 2026-11-22 确认）：N100 `eth2` → ONTi SKS8300 万兆交换机（`.5`，支持 802.1Q）→ pve0、pve1、pve2；AP（GL-MT3000）直接接 N100 `eth1`。mercuryswitch（`.4`，水星 SE106 Pro）和 MikroTik CRS509（`.6`）不在 VLAN 路径上，保持 VLAN 1 不动；以后如果它们下面有设备要进 GUEST/IOT，再单独配置。
+- **物理拓扑**（用户 2026-11-22、11-26 确认）：N100 `eth2` → ONTi SKS8300 万兆交换机（`.5`，支持 802.1Q）→ pve0、pve1、pve2；AP（GL-MT3000）直接接 N100 `eth1`；N100 `eth3` → 水星 SE106 Pro（`.4`）→ 家里的有线终端。水星和 MikroTik CRS509（`.6`）只走 VLAN 1；以后如果它们下面有设备要进 GUEST/IOT，再单独配置。
 - **MAC 克隆**：CHR 的 LAN 网卡克隆 `br-lan` 的 MAC（与旧 `eth1` 相同），WAN 网卡克隆旧 `eth0` 的 MAC。具体值不写入仓库。
 
 ## DNS 决定（用户 2026-11-22）
@@ -117,11 +117,10 @@ N100 (PVE 宿主，LAN 固定管理地址)
 | 1（untagged） | HOME | `192.168.1.0/24`（不变） | 家庭终端、PVE 宿主/PBS/NetBox 等内部服务、业务 VM、**remotecc-ops** |
 | 20 | REMOTECC | `192.168.20.0/24` | VM500；pve2 新增接口 `192.168.20.52`，作为员工 VNet 的上联 |
 | — | 员工 VNet | `10.236.0.0/16`（不变） | CHR 路由下一跳从 `192.168.1.52` 改为 `192.168.20.52` |
-| 30 | LAAS | `192.168.30.0/24` | 只放 LaaS 控制器 VM 的上联网卡（Cloudflare Tunnel、Worker、pve2 API）。LaaS v2 定在 pve2（用户 2026-11-22 确认） |
-| — | LaaS 管理网与实验网 | `10.240.x.0/24` | 由 LaaS 1.4/1.5 在 pve2 上用 PVE SDN simple zone `laas` 声明（IaC PR #303），**无上联、不走交换机、CHR 不路由**。本方案不另设实验 VLAN |
+| 30 | LAAS | `192.168.30.0/24` | 只有 FortiGate 外侧（`192.168.30.2`，固定地址）。LaaS v2 定在 pve2，controller 和租户都在 FortiGate 后面 |
+| — | LaaS 内部网 | `172.30.0.0/18`、`172.30.64.0/18` | FortiGate 内侧直连 pve2 `nic1`（`vmbrlaas`，每槽位一个 tag）。CHR 把两段路由到 `192.168.30.2` 并做 NAT；HOME 不能主动访问 |
 | 40 | GUEST | `192.168.40.0/24` | 访客 Wi-Fi，只能上外网 |
 | 50 | IOT | `192.168.50.0/24` | ESP32 等设备，只开放到业务 VM 上小智服务所需的端口 |
-| —（N100 内部桥 `vmbr_svc`） | SVC | `192.168.10.0/24` | 业务 VM（`192.168.10.10`），由 CHR 路由，`.1` 上的原端口经 dst-nat 转到这里 |
 
 - RemoteCC 和 LaaS 分成两个 VLAN：两者服务不同的外部用户，互相之间也要隔离。
 - **remotecc-ops 留在 HOME**：它持有管理员凭据。公开文档显示，它只接受 LAN 和 tailnet 的入站；网站申请由它主动拉取（`wsctl request`），`hapi-sync` 也是由它主动连接 VM500、PVE 和 Cloudflare。2026-11-22 在执行器上只读复核：只监听 SSH(22) 和 Semaphore(3000，明文 HTTP，监听所有网卡)，UFW 只放行 `192.168.1.0/24` 和 `tailscale0`；没有 Tailscale serve/funnel，Semaphore 没有任何 webhook 集成，`/srv/remotecc` 中也没有对外监听配置。**确认没有 DMZ 需要主动连接它**。改造后，它的主机防火墙放行的 `192.168.1.0/24` 天然不包含 DMZ。
@@ -132,7 +131,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 |---|---|
 | HOME → REMOTECC、LAAS | 允许（管理） |
 | REMOTECC、员工 VNet → HOME | 拒绝 |
-| LAAS → HOME | 拒绝，只放行 LaaS 控制器 → pve2 TCP 8006（专用受限 API token） |
+| LAAS → HOME | 拒绝，只放行 `172.30.0.2`、`172.30.100.2`（两个 controller）→ pve2 TCP 8006 |
 | REMOTECC ↔ LAAS | 拒绝 |
 | REMOTECC、员工 VNet、LAAS → Internet | 允许并 NAT |
 | GUEST → 任何内网 | 拒绝；只能上外网 |
@@ -144,12 +143,12 @@ VM500 与员工 VM 之间的 9443 流量（控制面 → VM、Runner → Hub）�
 
 ### 物理与主机配置
 
-- **ONTi 交换机**：接 N100 `eth2` 的端口配成 trunk（VLAN 1 untagged，20、30、40、50 tagged）；接 pve2 的端口放行 1、20、30；接 pve0、pve1 的端口目前只需 VLAN 1，以后有 DMZ 主机再放行；接 mercuryswitch、CRS509 和其它终端的端口配成 access VLAN 1。
-- **N100 端口**（`vmbr0` VLAN-aware，在各端口的 stanza 里限定 VLAN）：`eth2`（到 ONTi）放行 1 untagged 和 20、30、40、50；`eth1`（到 AP）放行 1 untagged 和 40、50；`eth3` 只放行 VLAN 1。
+- **ONTi 交换机**：接 N100 `eth2` 的端口配成 trunk（VLAN 1 untagged，20、30、40、50 tagged）；接 pve2 的端口只放行 1、20（不放行 30）；接 FortiGate 外侧的端口配成 access VLAN 30；接 pve0、pve1 的端口目前只需 VLAN 1，以后有 DMZ 主机再放行；其它终端口配成 access VLAN 1。
+- **N100 端口**（`vmbr0` VLAN-aware，在各端口的 stanza 里限定 VLAN）：`eth2`（到 ONTi）放行 1 untagged 和 20、30、40、50；`eth1`（到 AP）放行 1 untagged 和 40、50；`eth3`（到水星 SE106 Pro，下接有线终端）只放行 VLAN 1。N100 没有空闲网口；VLAN 配错时，把电脑接到 ONTi 或水星上任一 VLAN 1 的口，访问 `192.168.1.2` 应急管理。
 - **N100**：`vmbr0` 开启 VLAN-aware，宿主管理地址走 untagged；CHR 的 LAN 网卡作为 trunk，在 ROS 内建 `vlan20/30/40/50` 接口。
 - **pve2**：`vmbr0` 开启 VLAN-aware，宿主 `.52` 保持 untagged，新增 `vmbr0.20`，地址 `192.168.20.52`。员工 VNet 的出站加策略路由：`ip rule from 10.236.0.0/16 lookup remotecc`，**优先级要高于 main 表**，`remotecc` 表只有一条默认路由指向 `192.168.20.1`。否则 main 表里直连的 `192.168.1.0/24` 会让员工流量绕过 CHR 直达 HOME。保留现有 nft ACL 作为第一道防线，并检查 `rp_filter`。
 - **VM500**：网卡加 tag 20，地址改为 `192.168.20.140`、网关 `192.168.20.1`。`terraform/remotecc` 已有 `uplink_address` 和 `uplink_gateway` 变量，但要新增 VLAN tag 支持。Cloudflare Tunnel 是出站连接，不受影响。员工 VM 访问的 resolver 如果是 `.1`，要改为 CHR 在 VLAN 20 上的地址，并同步更新 pve2 的 nft ACL。
-- **LaaS（pve2）**：EVE 的管理和实验接口留在 LaaS 自己的 SDN `laas` 区域（无上联，隔离由 SDN 和 laas 专用 nftables 表负责）。控制器 VM 另加一张 tag 30 的上联网卡。**pve2 不在 VLAN 30 上配地址**，控制器访问 pve2 API 必须经过 CHR 的单一放行规则，不能在宿主上绕过。2026-11-22 已把本方案通知 LaaS 会话。
+- **LaaS（pve2）**：采用 FortiGate 方案（LaaS 1.4/1.5 会话，2026-11-26；IaC PR #303 的 SDN 方案已关闭）。FortiGate 内侧直连 pve2 `nic1`，外侧接 ONTi 上一个只走 VLAN 30 的口，地址固定为 `192.168.30.2`；它的 DNS 和 NTP 用 CHR 在 VLAN 30 上的 `192.168.30.1`，因此 VLAN 30 不需要进入 HOME。**pve2 的上联只放行 VLAN 1 和 20**，不放行 30，避免 `vmbr0` 上打了 tag 30 的 VM 绕过 FortiGate 直接到 CHR。CHR 上：`172.30.0.0/18`、`172.30.64.0/18` 下一跳 `192.168.30.2`，出网 NAT；HOME 不能主动访问 172.30；只有 `172.30.0.2`、`172.30.100.2` 能访问 pve2:8006。
 - `terraform/modules/proxmox-vm` 目前没有 VLAN tag 参数，需要先补上。
 - Corosync、PBS 和 PVE 管理流量只走 HOME。
 
@@ -207,7 +206,7 @@ config interface 'iot'
 0. **演练**：在 pve0 建隔离网桥中的测试 CHR，导入 `.rsc`（DHCP/DNS/AGH/KMS/NAT/路由/UPnP）验证；在业务 VM 中用 PBS 归档恢复各业务。
 1. **冷备**：按 gateway-backup.md 将整盘 NVMe 保存到 USB（或另装 SSD、保留原盘）。
 2. **切换（午夜窗口）**：核实无 HA 资源 → 最后一次业务备份 → 安装 PVE（停网期间没有外网，CHR 镜像、ISO 和容器镜像 tar 都要事先放在 USB 或 pve0 上）→ `pvecm qdevice remove` → N100 以空节点 `pvecm add` → 设置 3 票 → CHR 上线（克隆 MAC）→ 业务 VM 恢复。
-3. **验收**：DHCP/DNS/外网；AGH 故障切换；`10.236.x` 出网与回程；`.1` 端口 dst-nat 到业务；`pvecm status` 显示 Total votes 5、Quorum 3；关闭 CHR 时 pve0/pve1/PBS 仍互通；宿主断电重启后全部自动恢复；pve0/pve1 都关机时 N100 仍 quorate、CHR 能自启。
+3. **验收**：DHCP/DNS/外网；AGH 故障切换；`10.236.x` 出网与回程；客户端直连业务 VM `.121`；`pvecm status` 显示 Total votes 5、Quorum 3；关闭 CHR 时 pve0/pve1/PBS 仍互通；宿主断电重启后全部自动恢复；pve0/pve1 都关机时 N100 仍 quorate、CHR 能自启。
 4. **回滚**：写回 USB 镜像（约 25–45 分钟）；集群侧需先移除 N100 节点，再按 qdevice 文档恢复 QDevice。
 
 ## 停机窗口分步清单
@@ -256,14 +255,13 @@ config interface 'iot'
 4. 配置 `/etc/network/interfaces`：
    - `vmbr0`：桥接三个 LAN 口，`bridge-vlan-aware yes`，`bridge-vids 1 20 30 40 50`，宿主地址走 untagged。
    - `vmbr_wan`：桥接 WAN 口，不配地址；对它设置 `accept_ra=0`、`autoconf=0`、`disable_ipv6=1`。
-   - `vmbr_svc`：不接物理口。
    - 执行 `ifreload -a`，确认能从 Mac 访问 `https://192.168.1.2:8006`。
 5. N100 执行 `pvecm add 192.168.1.50`；然后在 `/etc/pve/corosync.conf` 中把 N100 的 `quorum_votes` 设为 3，并递增 `config_version`。确认 `pvecm status` 显示 Total votes 5、Quorum 3；集群存储定义中 pve0/pve1 专用的存储限定 `nodes`。
 6. 在 N100 上从 PBS 恢复 CHR 到 `local-lvm`：
-   - `net0`：`vmbr_wan`，MAC 设为旧 eth0 的 MAC；`net1`：`vmbr0`，不设 tag，MAC 设为旧 `br-lan` 的 MAC；`net2`：`vmbr_svc`。
+   - `net0`：`vmbr_wan`，MAC 设为旧 eth0 的 MAC；`net1`：`vmbr0`，不设 tag，MAC 设为旧 `br-lan` 的 MAC。
    - `onboot=1`，`startup order=1`。开机。
 7. 验证：WAN 拿到地址；客户端 DHCP 续租成功；`nslookup` 经 AdGuard 解析正常；能访问外网；`10.236.x` 员工 VM 出网正常。**断网结束**。
-8. **（不断网）** 在 N100 上从 PBS 恢复业务 VM：接 `vmbr_svc`，地址 `192.168.10.10`，`startup order=2`；补上最终数据，启动 Compose；从 HOME 客户端和一台 ESP32 验证 `.1` 上的端口转发；把 HA 备份控制器改为指向业务 VM。
+8. **（不断网）** 在 N100 上从 PBS 恢复业务 VM（VMID 121）：接 `vmbr0` VLAN 1，地址 `192.168.1.121`，`startup order=2`；补上最终数据，启动 Compose；按清单把 cn-proxy 代理地址、小智服务端下发地址改为 `.121`，从 HOME 客户端和一台 ESP32 验证直连可用；把 HA 备份控制器改为指向业务 VM。
 9. **（短暂断网约 5 分钟，建议当晚完成）** 重启 N100 宿主，确认 CHR 和业务 VM 自动启动、网络恢复。
 
 **回滚**
