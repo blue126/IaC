@@ -1,6 +1,6 @@
 # 网关备份：范围、调用与恢复
 
-`scripts/gateway-backup/gateway-backup.sh backup all` 由脚本顺序执行五项常规业务，外部控制器只需调用一次。每项记录原运行状态，按依赖顺序停服，直接调用官方 `proxmox-backup-client backup`，最后尝试启动原先运行的容器并清理临时元数据。某项失败时，该项仍完成自己的启动尝试和清理，批次随后继续下一项；收到 INT/TERM 时取消当前项并停止整批。保留 `backup <business>` 单业务入口。按用户要求，业务数据生成未加密的原生 pxar 归档，明确使用 `--crypt-mode none`；停机时间包含整个上传过程。PBS 登录认证和 HTTPS 传输保留。
+`scripts/gateway-backup/gateway-backup.sh backup all` 由脚本顺序执行四项常规业务（旧网关上的版本为五项），外部控制器只需调用一次。每项记录原运行状态，按依赖顺序停服，直接调用官方 `proxmox-backup-client backup`，最后尝试启动原先运行的容器并清理临时元数据。某项失败时，该项仍完成自己的启动尝试和清理，批次随后继续下一项；收到 INT/TERM 时取消当前项并停止整批。保留 `backup <business>` 单业务入口。按用户要求，业务数据生成未加密的原生 pxar 归档，明确使用 `--crypt-mode none`；停机时间包含整个上传过程。PBS 登录认证和 HTTPS 传输保留。
 
 > **仓库版本已按网关迁移后的状态修改（2026-11-26）**：业务迁到 N100 上的业务 VM 121（`192.168.1.121`，见[网关迁移规划](../planning/2026-11-17-gateway-routeros-migration.md)）。仓库里的脚本已去掉退役的 open-webui 和 qnetd-witness，`backup all` 为四项：小智 → Hermes → Codex Proxy → CN Proxy；HA 侧连接目标改为 `root@192.168.1.121`，强制命令改用 OpenSSH（root 的 `authorized_keys`，sshd 设 `PermitRootLogin forced-commands-only`），迁移后要重新采集 known_hosts。**迁移完成前，旧网关上运行的仍是旧版本（五项、Dropbear）**，下文的现状描述指旧网关。
 
@@ -258,7 +258,7 @@ proxmox-backup-client restore "${snapshot}" metadata.pxar "${restore_root}/metad
 
 正常重启或元数据清理期间首次收到 INT/TERM 时，完成当前清理后退出，停止剩余队列。重复信号不会中断清理，已有错误码保留。强制杀进程或主机掉电无法执行 EXIT 清理，需人工核对并恢复服务。还原后的切换、重建和回退由操作者明确执行。
 
-批次结束时的汇总列出失败业务及其退出码，其余业务的快照照常生成。先核对失败业务的容器启动状态，并用原生 `snapshot list` 确认它是否已经生成快照，再用 `backup <business>` 单独补做。批次被取消时，汇总列出未运行的业务，同样逐项补做。直接重跑 `backup all` 会再次备份全部五项。
+批次结束时的汇总列出失败业务及其退出码，其余业务的快照照常生成。先核对失败业务的容器启动状态，并用原生 `snapshot list` 确认它是否已经生成快照，再用 `backup <business>` 单独补做。批次被取消时，汇总列出未运行的业务，同样逐项补做。直接重跑 `backup all` 会再次备份全部四项。
 
 ```bash
 for file in scripts/gateway-backup/gateway-backup.sh scripts/gateway-backup/gateway-backup-ctl.sh \
@@ -274,6 +274,6 @@ docker run --rm --init -v "$PWD":/src:ro python:3.13-alpine sh -c \
     'apk add -q bash && cp -r /src /w && cd /w && CTL_TEST_BUSYBOX=1 bash tests/gateway-backup/gateway-backup-ctl-test.sh'
 ```
 
-离线测试使用临时虚构目录和针对本适配器的 Docker/PBS 命令替身，验证六组原生参数、本机 Docker 固定、两种卷解析、停启顺序、youtube-mcp 子目录排除、锁覆盖、容器与镜像元数据权限及错误清理。批次场景实际执行五项，检查每项清理完成后才进入下一项、qnetd 排除、中途各类失败后继续剩余业务并保留首个错误码、只向批次进程发送 INT/TERM 时转发给当前业务并停止整批，以及批次/单业务并发拒绝。取消场景覆盖客户端延迟退出并返回 `0`、PID 登记窗口、清理期间重复 TERM 和正常清理阶段首次取消；数据库场景独立覆盖非 OOM 异常退出和 OOM 标记。无加密测试验证适配器传入 `--crypt-mode none`、不检查或传入密钥的命令契约，并验证每次备份都使用 metadata 变更检测。控制器测试用替身批次覆盖：`start` 立即返回且批次脱离调用方会话，token 只经环境变量传递、不出现在命令行或文件中，运行中再次 `start`、run_id 复用和手动批次持锁都被拒绝，退出码与批次汇总的报告、`cancel` 的 TERM 转发，Dropbear 强制命令下的输入白名单，孤儿批次与丢失运行的如实报告，以及 HA 辅助脚本只经标准输入发送 token。测试所用 Python 仅在开发机运行；不连接真实 Docker daemon、PBS 或读取真实凭证，也不证明实际归档的加密状态、真实数据库恢复或应用可用性。
+离线测试使用临时虚构目录和针对本适配器的 Docker/PBS 命令替身，验证六组原生参数、本机 Docker 固定、两种卷解析、停启顺序、youtube-mcp 子目录排除、锁覆盖、容器与镜像元数据权限及错误清理。批次场景实际执行四项，检查每项清理完成后才进入下一项、已退役的 open-webui 和 qnetd-witness 在加锁前即被拒绝、中途各类失败后继续剩余业务并保留首个错误码、只向批次进程发送 INT/TERM 时转发给当前业务并停止整批，以及批次/单业务并发拒绝。取消场景覆盖客户端延迟退出并返回 `0`、PID 登记窗口、清理期间重复 TERM 和正常清理阶段首次取消；数据库场景独立覆盖非 OOM 异常退出和 OOM 标记。无加密测试验证适配器传入 `--crypt-mode none`、不检查或传入密钥的命令契约，并验证每次备份都使用 metadata 变更检测。控制器测试用替身批次覆盖：`start` 立即返回且批次脱离调用方会话，token 只经环境变量传递、不出现在命令行或文件中，运行中再次 `start`、run_id 复用和手动批次持锁都被拒绝，退出码与批次汇总的报告、`cancel` 的 TERM 转发，Dropbear 强制命令下的输入白名单，孤儿批次与丢失运行的如实报告，以及 HA 辅助脚本只经标准输入发送 token。测试所用 Python 仅在开发机运行；不连接真实 Docker daemon、PBS 或读取真实凭证，也不证明实际归档的加密状态、真实数据库恢复或应用可用性。
 
 参考：[PBS 客户端用法](https://pbs.proxmox.com/docs/backup-client.html)、[原生命令手册](https://pbs.proxmox.com/docs/proxmox-backup-client/man1.html)。
