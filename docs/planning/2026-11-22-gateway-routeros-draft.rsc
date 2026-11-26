@@ -12,6 +12,7 @@
 # PVE side (not RouterOS):
 #   net0 virtio -> vmbr_wan, MAC cloned from old eth0       => ether1
 #   net1 virtio -> vmbr0 (VLAN-aware, trunk: 1u,20,30,40,50) => ether2
+#                  new MAC; never clone old br-lan, which is eth1's own MAC
 #   scsi1       -> data disk for containers (ext4)           => disk1
 
 # ---------------------------------------------------------------- identity

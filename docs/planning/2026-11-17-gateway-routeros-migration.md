@@ -77,7 +77,8 @@ N100 (PVE 宿主，LAN 固定管理地址)
 - **静态租约**：13 条。迁移 11 条；不迁 `ax3000t-ap1`（`.2`，地址转给 N100 宿主）和 `qnetd-witness`（`.53`，随 QDevice 退役）。MAC 不写入仓库，实施时在路由器上填写。
 - **本地域名**：dnsmasq 有 6 条记录（pve0/1/2、gateway、`ise.ccie.local`、KMS 的 `_vlmcs._tcp` SRV），已写入 `.rsc` 草稿。
 - **物理拓扑**（用户 2026-11-22、11-26 确认）：N100 `eth2` → ONTi SKS8300 万兆交换机（`.5`，支持 802.1Q）→ pve0、pve1、pve2；AP（GL-MT3000）直接接 N100 `eth1`；N100 `eth3` → 水星 SE106 Pro（`.4`）→ 家里的有线终端。水星和 MikroTik CRS509（`.6`）只走 VLAN 1；以后如果它们下面有设备要进 GUEST/IOT，再单独配置。
-- **MAC 克隆**：CHR 的 LAN 网卡克隆 `br-lan` 的 MAC（与旧 `eth1` 相同），WAN 网卡克隆旧 `eth0` 的 MAC。具体值不写入仓库。
+- **网卡**（2026-11-26 只读核对）：`eth0` Intel I226-V（当前协商 1G，WAN）；`eth1` Intel I226-V（2.5G，接 AP）；`eth2` Intel 82599ES SFP+（10G，接 ONTi）；`eth3` Intel 82599ES SFP+（当前链路 down：缺光模块，到货后接水星 SE106 Pro，用户 2026-11-26 说明）。装 PVE 后按 MAC 认口，MAC 不写入仓库。
+- **MAC 克隆**：CHR 的 WAN 网卡克隆旧 `eth0` 的 MAC（防止运营商按 MAC 绑定）。**LAN 网卡不克隆旧 `br-lan` 的 MAC**：旧 `br-lan` 用的就是物理口 `eth1` 的 MAC，而 `eth1` 迁移后仍是 `vmbr0` 的端口，克隆会让 CHR 与 PVE 网桥出现重复 MAC。CHR LAN 网卡用新 MAC；切换后客户端的 ARP 缓存会在几分钟内更新，必要时让客户端重连或续租。`vmbr0` 用 `hwaddress` 固定为 `eth2` 的 MAC，避免网桥 MAC 随端口变化。
 
 ## DNS 决定（用户 2026-11-22）
 
@@ -86,7 +87,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 - **ROS DNS 的职责**：路由器自身解析；登记 DHCP 主机名；服务写死 `192.168.1.1` 的主机（转给 AdGuard）；AdGuard 宕机时 netwatch 把 ROS 上游切到公共 DNS。
 - **主机名继续用 `willfan.me`**：AdGuard 把 `willfan.me` 和局域网反向查询转给 ROS；ROS 回答 DHCP 主机名，查不到的 `willfan.me` 名字经 `type=FWD` 兜底规则直接转公网 DNS，不转回 AdGuard，避免循环；`cc.willfan.me` 等公网子域名照常解析。lease-script 用 `place-before` 把主机名插在兜底规则之前。
 - **手工记录集中在 AdGuard**：原 dnsmasq 的域名记录和 KMS 的 `_vlmcs._tcp` SRV 记录改为 AdGuard DNS 重写。迁移前导出现有重写规则，核对重名和会变化的地址。
-- 演练时验证：`type=FWD` 与 `match-subdomain` 的支持、静态记录的匹配顺序、ROS 对 DHCP 主机名的反向查询回答。
+- 用户 2026-11-26 决定不做演练，以下几点改在切换当晚验收：`type=FWD` 与 `match-subdomain` 的支持、静态记录的匹配顺序、ROS 对 DHCP 主机名的反向查询回答。
 
 ## AdGuard Home 现有配置（2026-11-26 只读导出）
 
@@ -97,7 +98,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 
 ## 待核实
 
-- ~~外网暴露~~ **已测（2026-11-26，从 OCI 主机只读探测）**：公网只能连上 **1688/tcp（KMS）**，来自旧网关防火墙规则 `kms`；7890、1883、9119、8787、8007、445、139、7681、22、80、443、3000、8080、8642、9900、8000、8002、8003、111 均不可达，8884/udp 结果不可靠。新网关的 KMS 只对 HOME 做 dst-nat，WAN 默认拒绝，迁移后自然关闭；**现网的 1688 是否提前关闭由用户决定**（需单独授权修改旧网关）。
+- ~~外网暴露~~ **已测（2026-11-26，从 OCI 主机只读探测）**：公网只能连上 **1688/tcp（KMS）**，来自旧网关防火墙规则 `kms`；7890、1883、9119、8787、8007、445、139、7681、22、80、443、3000、8080、8642、9900、8000、8002、8003、111 均不可达，8884/udp 结果不可靠。新网关的 KMS 只对 HOME 做 dst-nat，WAN 默认拒绝，迁移后自然关闭；**2026-11-26 已在旧网关上禁用规则 `firewall.kms` 并重载防火墙**（用户授权；备份 `/etc/config/firewall.bak-20261126-kms`），验证：`qnetd_guard` 表仍在、公网 1688 不通、内网 1688 仍通。
 - AGH TCP 3053 盘点时 `Recv-Q 22`，确认 TCP DNS 是否正常。
 
 ## VLAN 规划：家庭网络与对外服务隔离
@@ -203,7 +204,7 @@ config interface 'iot'
 
 ## 实施阶段（每步单独授权）
 
-0. **演练**：在 pve0 建隔离网桥中的测试 CHR，导入 `.rsc`（DHCP/DNS/AGH/KMS/NAT/路由/UPnP）验证；在业务 VM 中用 PBS 归档恢复各业务。
+0. **不做演练**（用户 2026-11-26 决定）。为缩短停机，CHR 和业务 VM 仍事先在 pve0 上**配置好**（不做隔离功能测试），备份到 PBS，切换当晚在 N100 上恢复；功能验证全部放在切换当晚的验收。
 1. **冷备**：按 gateway-backup.md 将整盘 NVMe 保存到 USB（或另装 SSD、保留原盘）。
 2. **切换（午夜窗口）**：核实无 HA 资源 → 最后一次业务备份 → 安装 PVE（停网期间没有外网，CHR 镜像、ISO 和容器镜像 tar 都要事先放在 USB 或 pve0 上）→ `pvecm qdevice remove` → N100 以空节点 `pvecm add` → 设置 3 票 → CHR 上线（克隆 MAC）→ 业务 VM 恢复。
 3. **验收**：DHCP/DNS/外网；AGH 故障切换；`10.236.x` 出网与回程；客户端直连业务 VM `.121`；`pvecm status` 显示 Total votes 5、Quorum 3；关闭 CHR 时 pve0/pve1/PBS 仍互通；宿主断电重启后全部自动恢复；pve0/pve1 都关机时 N100 仍 quorate、CHR 能自启。
@@ -211,7 +212,7 @@ config interface 'iot'
 
 ## 停机窗口分步清单
 
-时间是估算值，以演练实测为准。每个窗口开始前都要取得用户授权。两个窗口期间员工 VM 的外网和 OCI hub 回程都会中断，要提前通知员工。
+时间是估算值，没有演练，以实际为准。每个窗口开始前都要取得用户授权。两个窗口期间员工 VM 的外网和 OCI hub 回程都会中断，要提前通知员工。
 
 ### 窗口 A：整盘冷备（单独一晚，断网约 30–45 分钟）
 
@@ -220,7 +221,7 @@ config interface 'iot'
 - [ ] 500 GB USB 盘：ext4 或 exFAT（不能用 FAT32），空闲空间 ≥ 256060514304 字节加余量；Ubuntu 24.04 Live U 盘。
 - [ ] Mac 有线 `en9` 接交换机，配一个已核实空闲的静态地址；确认通过 IP 能访问 pve0/pve1。
 - [ ] 从网关导出 `sysupgrade -b`、`uci export`、AdGuard 配置，拷到 Mac（不提交到仓库）。
-- [ ] 记录 eth0（WAN）和 `br-lan` 的 MAC：`ip -br link`。
+- [ ] 记录 eth0（WAN）的 MAC（四个口的 MAC 已在 2026-11-26 核对过）：`ip -br link`。
 
 **步骤**
 1. 网关上执行 `poweroff`，**断网开始**。
@@ -239,8 +240,8 @@ config interface 'iot'
 
 **事前准备（T-7 天到 T-1 天）**
 - [ ] CHR 授权或试用账号就绪。
-- [ ] 在 pve0 的隔离网桥中完成测试 CHR：导入 `.rsc`，填好静态租约，AdGuard、KMS 容器镜像已经拉进数据盘；完成后备份到 PBS。
-- [ ] 业务 VM 在 pve0 演练完成：Compose、数据、`gateway-backup.sh` 都已迁好；备份到 PBS。提前做一次 `/mnt/data` 全量同步。
+- [ ] 在 pve0 上预先建好 CHR（不接生产网络，不做功能测试）：导入 `.rsc`，填好静态租约，AdGuard、KMS 容器镜像已经拉进数据盘；完成后备份到 PBS。
+- [ ] 在 pve0 上预先建好业务 VM 121（不接生产网络）：Compose、数据、`gateway-backup.sh` 都已就位；备份到 PBS。提前做一次 `/mnt/data` 全量同步。
 - [ ] PVE 安装 ISO 的版本与集群一致（集群为 PVE 9，`pve-cluster 9.0.6`），写入 U 盘。停网期间没有外网，所有安装介质和镜像都要事先备好。
 - [ ] 在 pve0 上确认 `ha-manager status` 为空。
 - [ ] 确认 N100 宿主地址（建议 `192.168.1.2`，原 `ax3000t-ap1` 的地址已释放）和节点名；确认集群中 VMID 不冲突。
@@ -253,12 +254,12 @@ config interface 'iot'
 2. **（未断网）** 在 pve0 上执行 `pvecm qdevice remove`（两节点都 quorate 时只执行一次，不加 `force`）；确认 Total votes 2、Quorum 2。
 3. 网关 `poweroff`，**断网开始**。从 PVE U 盘启动并安装：目标盘 NVMe，文件系统 ext4/LVM-thin（不用 ZFS），管理网卡选接交换机的那个口（按 MAC 识别），地址 `192.168.1.2/24`，网关 `192.168.1.1`。
 4. 配置 `/etc/network/interfaces`：
-   - `vmbr0`：桥接三个 LAN 口，`bridge-vlan-aware yes`，`bridge-vids 1 20 30 40 50`，宿主地址走 untagged。
+   - `vmbr0`：桥接三个 LAN 口，`bridge-vlan-aware yes`，`bridge-vids 1 20 30 40 50`，宿主地址走 untagged，`hwaddress` 固定为 `eth2` 的 MAC。
    - `vmbr_wan`：桥接 WAN 口，不配地址；对它设置 `accept_ra=0`、`autoconf=0`、`disable_ipv6=1`。
    - 执行 `ifreload -a`，确认能从 Mac 访问 `https://192.168.1.2:8006`。
 5. N100 执行 `pvecm add 192.168.1.50`；然后在 `/etc/pve/corosync.conf` 中把 N100 的 `quorum_votes` 设为 3，并递增 `config_version`。确认 `pvecm status` 显示 Total votes 5、Quorum 3；集群存储定义中 pve0/pve1 专用的存储限定 `nodes`。
 6. 在 N100 上从 PBS 恢复 CHR 到 `local-lvm`：
-   - `net0`：`vmbr_wan`，MAC 设为旧 eth0 的 MAC；`net1`：`vmbr0`，不设 tag，MAC 设为旧 `br-lan` 的 MAC。
+   - `net0`：`vmbr_wan`，MAC 设为旧 eth0 的 MAC；`net1`：`vmbr0`，不设 tag，使用新生成的 MAC（不要克隆旧 `br-lan`/`eth1` 的 MAC）。
    - `onboot=1`，`startup order=1`。开机。
 7. 验证：WAN 拿到地址；客户端 DHCP 续租成功；`nslookup` 经 AdGuard 解析正常；能访问外网；`10.236.x` 员工 VM 出网正常。**断网结束**。
 8. **（不断网）** 在 N100 上从 PBS 恢复业务 VM（VMID 121）：接 `vmbr0` VLAN 1，地址 `192.168.1.121`，`startup order=2`；补上最终数据，启动 Compose；按清单把 cn-proxy 代理地址、小智服务端下发地址改为 `.121`，从 HOME 客户端和一台 ESP32 验证直连可用；把 HA 备份控制器改为指向业务 VM。
