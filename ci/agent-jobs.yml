@@ -22,7 +22,7 @@ jobs:
     profile: deploy
     pipeline: Jenkinsfile-peer
     branch: main
-    scope: ['root:proxmox', 'service:n8n-rental']
+    scope: ['root:proxmox', 'service:n8n']
     credentials_by_stage:
       terraform: [hcp-proxmox-deploy, proxmox-deploy]
       ansible: [ansible-approved-scope]
@@ -45,7 +45,7 @@ jobs:
     profile: apps-publish
     repository: private-owner-managed
     source_baseline: a1fd564534a7ec991b5b7fb0c0a13e71bad3fe8a
-    scope: ['service:n8n-rental']
+    scope: ['service:n8n']
     patch_contract: docs/guides/jenkins-private-app-ci-contract.md
     credentials_by_stage:
       publish: [ct106-publish-ssh]
@@ -57,7 +57,7 @@ jobs:
     unix_user: iac-apps
     profile: apps-validation
     source: retain-inline-repair-bundle-and-test-sha
-    scope: ['service:n8n-rental']
+    scope: ['service:n8n']
     patch_contract: docs/guides/jenkins-private-app-ci-contract.md
     secrets: []
     enabled: false

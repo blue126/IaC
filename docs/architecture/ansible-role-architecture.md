@@ -62,7 +62,7 @@ ansible/
 | `homepage` | Homepage 仪表板 | 源码构建（Node.js/pnpm + systemd） | homepage (LXC) |
 | `immich` | Immich 照片管理 | Docker Compose（官方 compose 文件） | immich (VM) |
 | `caddy` | Caddy 反向代理 + WebDAV | 自定义二进制（Alpine + systemd） | caddy (LXC) |
-| `n8n` | n8n 工作流自动化 | Docker Compose（n8n-rental + LXC override） | n8n (LXC) |
+| `n8n` | n8n 工作流自动化 | Docker Compose（`/opt/n8n`，n8n-rental 仓库的 Compose + IaC override） | n8n (VM) |
 | `anki` | Anki 同步服务 | pip venv 安装 + systemd | anki (LXC) |
 | `rustdesk` | RustDesk 远程桌面 | Docker Compose | rustdesk (VM) |
 | `pbs` | Proxmox Backup Server + ZFS 存储 | 系统包 + ZFS 命令 + API 配置 | pbs (VM) |

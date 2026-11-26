@@ -51,13 +51,13 @@
     - name: Validate the merged Compose configuration
       ansible.builtin.command:
         cmd: docker compose config --quiet
-        chdir: /opt/n8n-rental
+        chdir: /opt/n8n
       changed_when: false
 
     - name: List running n8n Compose services
       ansible.builtin.command:
         cmd: docker compose ps --status running --services
-        chdir: /opt/n8n-rental
+        chdir: /opt/n8n
       register: n8n_running_services
       changed_when: false
       check_mode: false
@@ -69,10 +69,35 @@
         success_msg: "✅ n8n Compose service is running"
         fail_msg: "❌ n8n Compose service is not running"
 
+    # Filters only print the container ID, so no container environment
+    # (secrets included) reaches the Ansible output.
+    - name: Find the running n8n container of the n8n Compose project
+      ansible.builtin.command:
+        argv:
+          - docker
+          - ps
+          - --quiet
+          - --filter
+          - name=^n8n$
+          - --filter
+          - label=com.docker.compose.project=n8n
+          - --filter
+          - status=running
+      register: n8n_named_container
+      changed_when: false
+      check_mode: false
+
+    - name: Assert the container is named n8n
+      ansible.builtin.assert:
+        that:
+          - n8n_named_container.stdout | length > 0
+        success_msg: "✅ Container n8n of Compose project n8n is running"
+        fail_msg: "❌ No running container named n8n in Compose project n8n"
+
     - name: Get n8n version from the container
       ansible.builtin.command:
         cmd: docker compose exec -T n8n n8n --version
-        chdir: /opt/n8n-rental
+        chdir: /opt/n8n
       register: n8n_installed_version
       changed_when: false
       check_mode: false
