@@ -1,8 +1,6 @@
 # Existing VM on the standalone node; never create a replacement backup server.
-# Raw hostpci IDs have API-token write limitations in bpg 0.70.0. Import/plan
-# is not proof that subsequent apply is supported; review that boundary first.
-# bpg 0.70.0 can reboot a running VM after agent/boot/keyboard changes even when
-# reboot=false. Treat any such update as maintenance, not state-only adoption.
+# Proxmox lets only root@pam (not an API token) write raw hostpci IDs, so a
+# plan that changes hostpci cannot be applied with the Terraform token.
 import {
   to = proxmox_virtual_environment_vm.pbs
   id = "pve2/100"
@@ -19,6 +17,13 @@ resource "proxmox_virtual_environment_vm" "pbs" {
   boot_order = ["scsi0"]
   on_boot    = true
   started    = true
+
+  # Never let the provider restart this VM. For reboot-required changes it
+  # issues a shutdown and an immediate separate start; on 2026-11-27 the start's
+  # pre-start reset of the hostpci1 SM963 overlapped the old QEMU teardown and
+  # the drive came back unresponsive. Restart manually with `qm reboot 100`,
+  # which starts only after Proxmox has finished its stop cleanup.
+  reboot_after_update = false
 
   agent {
     enabled = true
