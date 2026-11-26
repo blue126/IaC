@@ -2,7 +2,7 @@
 n8n_version: "2.39.5"
 n8n_app_repo: "https://github.com/blue126/n8n-rental.git"
 n8n_app_ref: "main"
-n8n_install_dir: "/opt/n8n-rental"
+n8n_install_dir: "/opt/n8n"
 n8n_data_dir: "{{ n8n_install_dir }}/n8n-data"
 n8n_scraper_data_dir: "{{ n8n_install_dir }}/data"
 n8n_legacy_data_dir: "/root/.n8n"

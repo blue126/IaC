@@ -21,7 +21,7 @@ validation 作业保留原 bundle 和测试 SHA；它的输入不是 main。测�
 2. 给两个作业分别配置固定 profile `apps-publish`、`apps-validation`，禁止任意 ref/命令/环境参数。发布保留 main SHA；validation 保留原 repair SHA 和 bundle 摘要。profile 的 executable 固定为本库 root-owned `job-entry.py`，它先执行 `isolation-probe.py` 并等待 root 准入，再分派到所有者提供的 `/opt/jenkins-agent/apps/publish.py` 或 `validation.py`。两个包装器必须 root-owned，源码摘要写入公共 trust policy 的 `application_wrappers`，lease/审批校验沿用 `transaction.py` 的签名契约。profile 默认关闭。
 3. 继续使用锁定 Node `22.23.3`、clasp `2.4.2` 和 `ci/agent-toolchain.lock.json` 中的完整 npm 锁。调用预装 `clasp`，Google stage 的运行时 `npx --yes` 改为预装路径。依赖只从已验证的离线 kit 提供。
 4. 保留现有发布逻辑：本地 Python、rsync、SSH；Docker 在 CT106 执行。CT110 禁止安装 Docker 或接入 Docker/socket。Gitea SCM 只读身份与 CT106 发布身份分别保存。
-5. 发布 scope 与 IaC `deploy-n8n.yml` 同时声明 `service:n8n-rental`。三个 Unix 身份在任何秘密绑定前共用 peer 全局锁；锁覆盖计划、发布、验证和清理。
+5. 发布 scope 与 IaC `deploy-n8n.yml` 同时声明 `service:n8n`。三个 Unix 身份在任何秘密绑定前共用 peer 全局锁；锁覆盖计划、发布、验证和清理。
 6. 发布 SSH 与 Google clasp 凭据分别由 root admission 的对应批准 stage 发放；validation 不接收发布秘密。应用 stage 的签名授权由所有者接入受信 controller 服务，不能将作业自报 stage 或 Boolean 当授权。本库 admission 仅接受实际 Jenkins input 中 `APPS-PUBLISH-<digest>` 或 `APPS-GOOGLE-<digest>` 的 `iac-approvers` 审批；未接入这些输入与签名校验的作业无法取到秘密。
 7. 每次 run 独立 HOME/TMPDIR/workspace。使用相同 root cleanup 顺序；abort、失联、二次运行、清理残留均需验收。任何残留隔离 node，流水线不能清 quarantine。
 

@@ -354,6 +354,14 @@
         - "{{ n8n_data_dir }}"
         - "{{ n8n_scraper_data_dir }}"
 
+    - name: Render the Docker host override on the VM
+      ansible.builtin.template:
+        src: docker-compose.override.yml.j2
+        dest: "{{ n8n_install_dir }}/docker-compose.override.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
     - name: Validate the VM Compose configuration
       ansible.builtin.command:
         cmd: docker compose config --quiet
@@ -377,3 +385,4 @@
       until: n8n_vm_readiness.status == 200
       retries: 12
       delay: 10
+
