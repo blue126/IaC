@@ -16,7 +16,7 @@
     "proxmox/n8n.tf": "5c4adfbb3d483c1d780e84e3debce509453da6c5e4bcbffef9b19683839c16bc",
     "proxmox/netbox.tf": "49731864a8fcad019a0589259f72f8b9ce8400522d38aa0e27e64bfb31b751d9",
     "proxmox/openbao-testbed.tf": "1e721a6b5e18646274cb3de20f7df5c5303bc257388e2cc1d4b9e5dc9b98a301",
-    "proxmox/pbs.tf": "ed727789e7c1dcdcbe6a5166d74ebe69cd10ffcf4f30d608b7b7455ba24fe507",
+    "proxmox/pbs.tf": "0cbe24135e06899db34586ade3697d6d4beb308a130498d8843ca07e10e8ba2e",
     "proxmox/pdm.tf": "4ff58fed3064f5392acd1bc2bca44c167670ad96b9f5c7c3f7c94454371b6f5a",
     "proxmox/provider.tf": "941d8910ef3b1df12e4a9343f627060ff0b8c627412c7ace315ffa2a63e59889",
     "proxmox/provisioning.tf": "140e48213de616af6646e3f8979380f18871f44592b4e9b9b9d70e43740f7189",

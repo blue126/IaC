@@ -24,9 +24,12 @@ resource "proxmox_virtual_environment_vm" "pbs" {
     enabled = true
   }
 
+  # Standalone node with PCI passthrough, so live migration is not a concern;
+  # host exposes AES-NI and AVX2 to PBS.
   cpu {
-    cores   = 4
+    cores   = 8
     sockets = 1
+    type    = "host"
   }
 
   memory {
