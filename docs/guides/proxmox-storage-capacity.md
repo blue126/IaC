@@ -15,11 +15,3 @@ After import, verify the state identity and disk capacity, then review a read-on
 ## Capacity terms
 
 `refquota` limits data stored in a filesystem. `refreservation` reserves pool space for a volume. Removing a reservation makes that space available to other guests, while actual writes still depend on available pool capacity. Check pool health and available space before planning further growth.
-
-## Offline checks
-
-```bash
-python3 terraform/proxmox/tests/ct120-storage-check.py --provider /path/to/existing/terraform-provider-proxmox_v0.70.0
-```
-
-The checks use fake commands, synthetic state, and a local GET-only API fixture. They do not read production state or connect to infrastructure.
