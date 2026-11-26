@@ -97,6 +97,12 @@ variable "network_bridge" {
   default     = "vmbr1"
 }
 
+variable "network_vlan_id" {
+  description = "VLAN tag for the network device; null leaves the port untagged"
+  type        = number
+  default     = null
+}
+
 variable "ciuser" {
   description = "Cloud-Init User"
   type        = string

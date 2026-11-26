@@ -15,6 +15,7 @@ variable "employee_access" {
     boundary_ready         = optional(bool, false)
     legacy_gateway_retired = optional(bool, false)
     snippet_datastore      = optional(string, "local")
+    uplink_vlan_id         = optional(number)
   })
   default = null
 }
@@ -46,6 +47,7 @@ resource "proxmox_virtual_environment_vm" "employee_access" {
   }
   network_device {
     bridge      = var.employee_access.uplink_bridge
+    vlan_id     = var.employee_access.uplink_vlan_id
     mac_address = var.employee_access.uplink_mac
     firewall    = false
   }

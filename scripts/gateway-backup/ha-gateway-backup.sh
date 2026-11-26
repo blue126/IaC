@@ -5,7 +5,7 @@
 # A templated shell_command runs without a shell, so the token redirection lives here.
 set -eu
 
-gateway=root@192.168.1.1
+gateway=root@192.168.1.121
 key=/config/.ssh/gateway_backup_ed25519
 known_hosts=/config/.ssh/gateway_backup_known_hosts
 token_file=/config/.secrets/gateway_backup_pbs_token

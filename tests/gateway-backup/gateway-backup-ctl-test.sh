@@ -203,7 +203,7 @@ def ha(*args):
     env = dict(os.environ, PATH=str(h / 'bin') + ':' + path)
     return subprocess.run(['sh', str(h / 'ha-gateway-backup.sh'), *args], capture_output=True, text=True, timeout=10, env=env)
 options = ['-i', str(h / 'key'), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-           '-o', 'StrictHostKeyChecking=yes', '-o', f'UserKnownHostsFile={h / "known_hosts"}', 'root@192.168.1.1']
+           '-o', 'StrictHostKeyChecking=yes', '-o', f'UserKnownHostsFile={h / "known_hosts"}', 'root@192.168.1.121']
 for action in ('start', 'status', 'cancel'):
     result = ha(action, '20261008T234500')
     assert result.returncode == 0 and result.stdout == 'fake-ok\n', result

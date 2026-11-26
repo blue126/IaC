@@ -126,6 +126,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   network_device {
     model       = "virtio"
     bridge      = var.network_bridge
+    vlan_id     = var.network_vlan_id
     mac_address = var.network_mac_address
     firewall    = var.network_firewall
   }

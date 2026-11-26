@@ -1,6 +1,7 @@
 #!/bin/bash
 # Controller entry for the gateway batch backup: start it detached, report it, cancel it.
-# Install as a Dropbear forced command so the controller key can do nothing else:
+# Install as an SSH forced command in root's authorized_keys on business VM 121
+# (sshd needs PermitRootLogin forced-commands-only) so the controller key can do nothing else:
 #   command="/mnt/data/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
 set -eo pipefail
 umask 077

@@ -28,9 +28,9 @@
     "modules/proxmox-lxc/main.tf": "33be1cd645e9eb9d2b5d0ba9989597b43446ca668bb6d3d3c42b759a6bcbeb0e",
     "modules/proxmox-lxc/outputs.tf": "f772a16fc1e4fbc7787e001058ec59b7fd70ec09d587d1d284ed7deb47f01c62",
     "modules/proxmox-lxc/variables.tf": "d0016cde144e69645757231c1a73dea1873df9534565aeae523332e941204c45",
-    "modules/proxmox-vm/main.tf": "2e16a831e53fdb55a9529b491bc4ba5055236222376326e4a548e3e7df5f9a79",
+    "modules/proxmox-vm/main.tf": "c816cac00079c800ec54bed01b48d8d20bf6507af598f404d9ae710d5e84a662",
     "modules/proxmox-vm/outputs.tf": "a7d3e874dbf8a186f5f707faf860fc98274ea3a0c11cda21704571747ef010d1",
-    "modules/proxmox-vm/variables.tf": "d80aaac5251c72f05829f01b208602b806c3032800d77f400c8092dc21358f11",
+    "modules/proxmox-vm/variables.tf": "21ffcc95f7bf47300af8a86a222260ccc3d25d65d1900bd645e2e0976a8a3f3e",
     "proxmox/provisioning.auto.tfvars.json": "78586dc8feb160a1364bcd5c84250438dc84420edd277b3ea4b87e9e77d341ad",
     "proxmox/terraform.auto.tfvars": "4b9895ed31b546447e004f2880a5cd080366d70cce668bce5b0a6dccd7b0d911"
   },
