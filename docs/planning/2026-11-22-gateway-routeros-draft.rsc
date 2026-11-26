@@ -6,7 +6,6 @@
 # veth syntax changed across 7.x releases). Rehearse on an isolated test CHR.
 #
 # Placeholders (never commit real values):
-#   <TS_AUTHKEY>     Tailscale auth key, enter on the router only
 #   <MAC_*>          static lease MAC addresses, copy from `uci show dhcp`
 #   <KMS_IMAGE>      vlmcsd image, pinned by digest after review
 #
@@ -140,16 +139,13 @@ add address=192.168.50.0/24 gateway=192.168.50.1 dns-server=192.168.1.53 ntp-ser
 # AdGuard sits on HOME (VLAN 1) with its own LAN address so clients reach it directly.
 add name=veth-adguard address=192.168.1.53/24 gateway=192.168.1.1
 add name=veth-kms address=172.17.0.3/24 gateway=172.17.0.1
-add name=veth-tailscale address=172.17.0.4/24 gateway=172.17.0.1
 /interface bridge port
 add bridge=br-lan interface=veth-adguard pvid=1
 add bridge=br-containers interface=veth-kms
-add bridge=br-containers interface=veth-tailscale
 
 /container mounts
 add name=adguard-conf src=/disk1/adguard/conf dst=/opt/adguardhome/conf
 add name=adguard-work src=/disk1/adguard/work dst=/opt/adguardhome/work
-add name=tailscale-state src=/disk1/tailscale dst=/var/lib/tailscale
 
 # AdGuard Home: copy the old adguardhome.yaml + work/data into /disk1/adguard first;
 # set its DNS listener to 0.0.0.0:53, keep the existing DoH upstreams and AAAA policy,
@@ -160,18 +156,6 @@ add name=tailscale-state src=/disk1/tailscale dst=/var/lib/tailscale
     start-on-boot=yes logging=yes hostname=adguard comment=adguard
 /container add remote-image=<KMS_IMAGE> interface=veth-kms root-dir=disk1/images/kms \
     start-on-boot=yes logging=yes hostname=kms comment=kms
-# Tailscale in userspace mode (no /dev/net/tun needed). The old gateway node
-# (roseville-homegateway) advertises only 192.168.1.0/24, also in userspace mode.
-# This creates a new node: approve its route in the admin console, then remove the old node.
-/container envs
-add name=tailscale key=TS_AUTHKEY value=<TS_AUTHKEY>
-add name=tailscale key=TS_STATE_DIR value=/var/lib/tailscale
-add name=tailscale key=TS_USERSPACE value=true
-add name=tailscale key=TS_HOSTNAME value=gateway
-add name=tailscale key=TS_ROUTES value=192.168.1.0/24
-/container add remote-image=tailscale/tailscale:stable interface=veth-tailscale \
-    root-dir=disk1/images/tailscale mounts=tailscale-state envs=tailscale \
-    start-on-boot=yes logging=yes hostname=gateway-ts comment=tailscale
 
 # ---------------------------------------------------------------- firewall: address lists
 /ip firewall address-list
@@ -206,7 +190,6 @@ add chain=forward action=accept dst-address=192.168.1.53 protocol=tcp dst-port=5
 add chain=forward action=accept dst-address=192.168.1.53 protocol=udp dst-port=53 in-interface-list=IOT comment="fwd: IOT dns udp to AdGuard"
 add chain=forward action=accept dst-address=192.168.1.53 protocol=tcp dst-port=53 in-interface-list=IOT comment="fwd: IOT dns tcp to AdGuard"
 add chain=forward action=accept src-address-list=laas-controller dst-address-list=pve2 protocol=tcp dst-port=8006 comment="fwd: LaaS controller to pve2 API"
-add chain=forward action=accept in-interface=br-containers src-address=172.17.0.4 dst-address=192.168.1.0/24 comment="fwd: tailscale subnet router to HOME"
 add chain=forward action=drop log=yes log-prefix="fwd-to-internal" dst-address-list=rfc1918 in-interface-list=!HOME comment="fwd: non-HOME zones to any internal net"
 add chain=forward action=accept out-interface-list=WAN comment="fwd: internal zones to internet"
 add chain=forward action=drop log=yes log-prefix="fwd-drop" comment="fwd: drop rest"

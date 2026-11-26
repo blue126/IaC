@@ -30,7 +30,7 @@ N100 (PVE 宿主，LAN 固定管理地址)
 | AdGuard Home 0.107.57：DNS `:3053`，Web `:3000` | ROS container，接入 HOME，地址 `192.168.1.53`，**直接服务客户端**（见下方 DNS 决定） |
 | vlmcsd（KMS）`:1688` | ROS container，dst-nat `.1:1688`；仅 LAN 可达 |
 | miniupnpd | ROS `/ip upnp` |
-| tailscale（tailscaler） | **待确认**是否仍需要、是否广播子网路由 |
+| tailscale（tailscaler） | **退役**（用户 2026-11-26 决定）：不迁移；切换后在 Tailscale 管理后台删除节点 `roseville-homegateway` |
 | ddns-scripts（服务未启用）、ddnsto（已禁用）、linkease、samba4/nfsd/wsdd2/avahi | 退役（用户 2026-11-17 确认） |
 | ttyd、openwrt-mcp、unetd、radius、relayd、appfilter、adb、modemmanager、istore/quickstart/unishare/webdav2 | 退役（iStoreOS 自带或 OpenWrt 专用） |
 
@@ -66,13 +66,13 @@ N100 (PVE 宿主，LAN 固定管理地址)
    - 代价：**N100 离线时（含 PVE 宿主升级重启），pve0 和 pve1 合计 2 票，失去 quorum**。已运行的 guest 继续运行，但不能启停、迁移、改配置，备份等需要写 `/etc/pve` 的操作会失败。**如果 pve0/pve1 上配置了 HA 资源，节点会被 watchdog 自我隔离（fence）**，切换前必须核实 `ha-manager status` 为空，或者先移除 HA 资源。
    - 存储：N100 只有本地 LVM-thin。集群存储定义中的 pve0/pve1 专用存储要限定 `nodes`，不能对 N100 可见。
 2. **业务 VM 留在 N100 本地**。不用 ZFS（ARC 会吃内存），安装时用 ext4/LVM-thin。内存预算：宿主约 1.5–2 GB，CHR 1.5 GB，业务 VM 固定 4 GB（关闭 ballooning），合计接近 8 GB，余量很小。建议业务 VM 接在 CHR 后面的独立内网桥（如 `vmbr_svc`），由 CHR 路由和 dst-nat：不需要 hairpin NAT，也把 hermes 和 LAN 隔开。
-3. **tailscale 保留**，迁为 ROS container。子网路由和 exit node 设置待核实。
+3. **tailscale 退役**（2026-11-17 原定保留，用户 2026-11-26 改为不再使用）。
 4. **CHR 授权**由用户自行购买（免费版每接口上传限速 1 Mbps）。
 5. **没有第二块盘的空间**。回滚只能把 USB 上的整盘镜像写回 NVMe：256 GB 在 USB 3 上约需 25–45 分钟，要计入停机窗口。切换前在 pve0 上用 loop 挂载镜像中的各分区，确认镜像可读。
 
 ## 补充盘点（2026-11-22，只读）
 
-- **Tailscale**：节点 `roseville-homegateway` 只广播 `192.168.1.0/24`，以 userspace-networking 模式运行。实际由 `/etc/init.d/tailscale-observer` 以独立 socket 启动，与 `uci show tailscale` 中的 `port=41641`、`fw_mode=nftables` 不一致，另有 `tailscale`、`tailscaler` 两个 init 脚本；迁移时不沿用这套启动方式。新网关上的 Tailscale 容器是新节点：在管理后台批准子网路由后，删除旧节点。
+- **Tailscale**：节点 `roseville-homegateway` 原先广播 `192.168.1.0/24`。用户 2026-11-26 决定**不再保留**，新网关不部署 Tailscale；切换后在管理后台删除该节点。经它访问家里的远程路径随之消失，其它主机（如 remotecc-ops）上的 Tailscale 不受影响。
 - **AdGuard Home**：配置 `/etc/adguardhome.yaml`，工作目录 `/var/lib/adguardhome`；上游为 Cloudflare、Quad9、NextDNS 三个 DoH（load_balance），bootstrap 为 `1.1.1.1`、`9.9.9.10` 和运营商 DNS；没有 fallback，私有 PTR 解析关闭。迁移时原样复制配置，只把监听改为 `0.0.0.0:53`。用户日常使用 AdGuard 界面，并在其中维护静态 DNS 记录（DNS 重写或自定义规则），因此**保留 AdGuard，不改用 ROS adlist**。迁移前导出 `filtering.rewrites` 和 `user_rules`，核对三件事：与 ROS 静态记录是否重名；是否有记录指向迁移后会变化的地址（如 VM500 改到 `192.168.20.140`）；`willfan.me` 下的名称由谁负责，避免 ROS 与 AdGuard 互相转发形成环路。
 - **静态租约**：13 条。迁移 11 条；不迁 `ax3000t-ap1`（`.2`，地址转给 N100 宿主）和 `qnetd-witness`（`.53`，随 QDevice 退役）。MAC 不写入仓库，实施时在路由器上填写。
 - **本地域名**：dnsmasq 有 6 条记录（pve0/1/2、gateway、`ise.ccie.local`、KMS 的 `_vlmcs._tcp` SRV），已写入 `.rsc` 草稿。
@@ -88,9 +88,16 @@ N100 (PVE 宿主，LAN 固定管理地址)
 - **手工记录集中在 AdGuard**：原 dnsmasq 的域名记录和 KMS 的 `_vlmcs._tcp` SRV 记录改为 AdGuard DNS 重写。迁移前导出现有重写规则，核对重名和会变化的地址。
 - 演练时验证：`type=FWD` 与 `match-subdomain` 的支持、静态记录的匹配顺序、ROS 对 DHCP 主机名的反向查询回答。
 
+## AdGuard Home 现有配置（2026-11-26 只读导出）
+
+- 监听 `0.0.0.0:3053`；上游 Cloudflare、Quad9、NextDNS 三个 DoH，`load_balance`；bootstrap `1.1.1.1`、`9.9.9.10` 及两个疑似运营商 DNS（`198.142.152.164/165`，未核实）；无 fallback；私有 PTR 解析关闭；`refuse_any`、限速 20。
+- **DNS 重写 10 条**（即内网直连清单）：`webdav`、`homepage`、`proxmox`、`immich`、`netbox`、`n8n`、`tts` 七个 `.willfan.me` → `192.168.1.105`（Caddy）；`rustdesk` → `.102`；`vc` → `.250`；`mcp` → `.109`。目标全部在 HOME，VLAN 改造后不需要改；访客网和 IoT 网能解析到这些地址，但会被防火墙拦下，这是预期行为。
+- 自定义规则 1 条：`||api.tailscale.com^$dnstype=AAAA`。Tailscale 退役后可删可留，留着无害。
+- 迁移时要改的：监听改为 `0.0.0.0:53`（地址 `.53`）；加 `[/willfan.me/]192.168.1.1`；开启私有反向 DNS 指向 `192.168.1.1`；把 dnsmasq 的 6 条域名记录和 `_vlmcs._tcp` SRV 记录加进重写。现有 10 条与这 6 条没有重名。
+
 ## 待核实
 
-- **外网暴露**：用手机流量测试公网地址的 7890、1883、9119、8787、445、7681。smbd 当前监听在 WAN 地址；Docker 发布到 `0.0.0.0` 的端口可能绕过 fw4。
+- ~~外网暴露~~ **已测（2026-11-26，从 OCI 主机只读探测）**：公网只能连上 **1688/tcp（KMS）**，来自旧网关防火墙规则 `kms`；7890、1883、9119、8787、8007、445、139、7681、22、80、443、3000、8080、8642、9900、8000、8002、8003、111 均不可达，8884/udp 结果不可靠。新网关的 KMS 只对 HOME 做 dst-nat，WAN 默认拒绝，迁移后自然关闭；**现网的 1688 是否提前关闭由用户决定**（需单独授权修改旧网关）。
 - AGH TCP 3053 盘点时 `Recv-Q 22`，确认 TCP DNS 是否正常。
 
 ## VLAN 规划：家庭网络与对外服务隔离
@@ -233,7 +240,7 @@ config interface 'iot'
 
 **事前准备（T-7 天到 T-1 天）**
 - [ ] CHR 授权或试用账号就绪。
-- [ ] 在 pve0 的隔离网桥中完成测试 CHR：导入 `.rsc`，填好静态租约，AdGuard、KMS、Tailscale 容器镜像已经拉进数据盘；完成后备份到 PBS。
+- [ ] 在 pve0 的隔离网桥中完成测试 CHR：导入 `.rsc`，填好静态租约，AdGuard、KMS 容器镜像已经拉进数据盘；完成后备份到 PBS。
 - [ ] 业务 VM 在 pve0 演练完成：Compose、数据、`gateway-backup.sh` 都已迁好；备份到 PBS。提前做一次 `/mnt/data` 全量同步。
 - [ ] PVE 安装 ISO 的版本与集群一致（集群为 PVE 9，`pve-cluster 9.0.6`），写入 U 盘。停网期间没有外网，所有安装介质和镜像都要事先备好。
 - [ ] 在 pve0 上确认 `ha-manager status` 为空。
