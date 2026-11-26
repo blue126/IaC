@@ -20,8 +20,8 @@ if [[ $# != 2 || "$1" != backup ]]; then
 fi
 business="$2"
 case "${business}" in
-    all) businesses=(xiaozhi hermes open-webui codex-proxy cn-proxy);;
-    xiaozhi|hermes|open-webui|codex-proxy|cn-proxy|qnetd-witness) businesses=("${business}");;
+    all) businesses=(xiaozhi hermes codex-proxy cn-proxy);;
+    xiaozhi|hermes|codex-proxy|cn-proxy) businesses=("${business}");;
     *) die "Unknown business: ${business}";;
 esac
 # Set only by the all batch for each business it runs; the child reuses the batch lock.
@@ -84,8 +84,7 @@ cancel_backup() {
 }
 
 if [[ "${business}" == all ]]; then
-    printf 'Batch order: xiaozhi -> hermes -> open-webui -> codex-proxy -> cn-proxy.\n'
-    printf 'qnetd-witness is excluded from all; invoke it separately after approved quorum maintenance shutdown.\n'
+    printf 'Batch order: xiaozhi -> hermes -> codex-proxy -> cn-proxy.\n'
     printf 'A failed business does not stop the batch; INT/TERM cancels the current business and stops the batch.\n'
     # Each business runs as its own single-business invocation, so a failure there
     # (including set -e exits) completes that business's cleanup without ending the batch.
@@ -140,7 +139,6 @@ if [[ "${business}" == all ]]; then
 fi
 for business in "${businesses[@]}"; do
     containers=(); sources=(); clean_exit=(); volume_mount=(); backup_options=()
-    require_stopped=false
     running=(); stopping=0; metadata_dir=""
     backup_pid=""; cancel_signal=""; cancel_code=0; backup_rc=0
     trap 'cleanup "$?"' EXIT
@@ -160,10 +158,6 @@ for business in "${businesses[@]}"; do
             sources=(hermes.pxar:/mnt/data/hermes)
             volume_mount=(hermes-source hermes /opt/hermes)
             ;;
-        open-webui)
-            containers=(open-webui)
-            sources=(open-webui.pxar:/mnt/data/open-webui)
-            ;;
         codex-proxy)
             containers=(codex-proxy)
             sources=(codex-proxy.pxar:/mnt/data/codex-openai-proxy)
@@ -171,11 +165,6 @@ for business in "${businesses[@]}"; do
         cn-proxy)
             containers=(cn-proxy)
             sources=(cn-proxy.pxar:/etc/sing-box)
-            ;;
-        qnetd-witness)
-            containers=(qnetd-witness)
-            sources=(qnetd.pxar:/mnt/data/qnetd)
-            require_stopped=true
             ;;
     esac
     for container in "${containers[@]}"; do
@@ -186,9 +175,6 @@ for business in "${businesses[@]}"; do
             *) die "Container must be running or stopped, without pause/restart: ${container}";;
         esac
     done
-    if [[ "${require_stopped}" == true ]] && (( ${#running[@]} )); then
-        die 'qnetd-witness must already be stopped in a separately arranged quorum maintenance window; automatic stop is forbidden'
-    fi
     if (( ${#volume_mount[@]} )); then
         volume_source="$(docker inspect --format "{{range .Mounts}}{{if and (eq .Type \"volume\") (eq .Destination \"${volume_mount[2]}\")}}{{.Source}}{{end}}{{end}}" "${volume_mount[1]}")"
         [[ "${volume_source}" == /* ]] || die "Missing volume: ${volume_mount[1]} ${volume_mount[2]}"

@@ -2,6 +2,8 @@
 
 `scripts/gateway-backup/gateway-backup.sh backup all` 由脚本顺序执行五项常规业务，外部控制器只需调用一次。每项记录原运行状态，按依赖顺序停服，直接调用官方 `proxmox-backup-client backup`，最后尝试启动原先运行的容器并清理临时元数据。某项失败时，该项仍完成自己的启动尝试和清理，批次随后继续下一项；收到 INT/TERM 时取消当前项并停止整批。保留 `backup <business>` 单业务入口。按用户要求，业务数据生成未加密的原生 pxar 归档，明确使用 `--crypt-mode none`；停机时间包含整个上传过程。PBS 登录认证和 HTTPS 传输保留。
 
+> **仓库版本已按网关迁移后的状态修改（2026-11-26）**：业务迁到 N100 上的业务 VM 121（`192.168.1.121`，见[网关迁移规划](../planning/2026-11-17-gateway-routeros-migration.md)）。仓库里的脚本已去掉退役的 open-webui 和 qnetd-witness，`backup all` 为四项：小智 → Hermes → Codex Proxy → CN Proxy；HA 侧连接目标改为 `root@192.168.1.121`，强制命令改用 OpenSSH（root 的 `authorized_keys`，sshd 设 `PermitRootLogin forced-commands-only`），迁移后要重新采集 known_hosts。**迁移完成前，旧网关上运行的仍是旧版本（五项、Dropbear）**，下文的现状描述指旧网关。
+
 **当前状态（2026-11-05 只读核对网关）：脚本、控制器和官方静态 PBS 客户端（2026-10-09 记录版本 4.2.6）都部署在 `/mnt/data/gateway-backup/`，备份由 Home Assistant 经 Dropbear 强制命令触发。小智真实备份已验证成功，用户随后反馈已完成一次全部容器备份。恢复演练按用户决定暂缓，尚未验证恢复后的应用可用性。** 后续人工执行真实停服前仍需先通知用户业务影响和恢复安排。
 
 **线上与仓库的对照：** 2026-11-05 从网关取回文件与仓库比对，结果如下。把仓库版本部署到网关需用户另行授权。
@@ -98,10 +100,10 @@ P2V 整体保留现有 iStoreOS、Docker 镜像和容器记录、匿名卷及 bi
 | --- | --- | --- | --- |
 | `xiaozhi` | `host/gateway-xiaozhi` | `xiaozhi-esp32-server-db`、`xiaozhi-esp32-server-redis`、`xiaozhi-esp32-server`、`xiaozhi-esp32-server-web`、`xz-mqtt-gw` | `xiaozhi.pxar` ← `/mnt/data/xiaozhi`；`mqtt.pxar` ← `/mnt/data/xiaozhi-mqtt-gateway`；`redis.pxar` ← Redis 的 `/data` volume |
 | `hermes` | `host/gateway-hermes` | `hermes`、`hermes-webui` | `hermes.pxar` ← `/mnt/data/hermes`；`hermes-source.pxar` ← `hermes` 的 `/opt/hermes` 共享源码 volume |
-| `open-webui` | `host/gateway-open-webui` | `open-webui` | `open-webui.pxar` ← `/mnt/data/open-webui` |
+| ~~`open-webui`~~（已退役，迁移后脚本不再包含） | `host/gateway-open-webui` | `open-webui` | `open-webui.pxar` ← `/mnt/data/open-webui` |
 | `codex-proxy` | `host/gateway-codex-proxy` | `codex-proxy` | `codex-proxy.pxar` ← `/mnt/data/codex-openai-proxy` |
 | `cn-proxy` | `host/gateway-cn-proxy` | `cn-proxy` | `cn-proxy.pxar` ← `/etc/sing-box`，包含 `ts-state` 节点身份 |
-| `qnetd-witness` | `host/gateway-qnetd-witness` | `qnetd-witness` | `qnetd.pxar` ← `/mnt/data/qnetd`，包含状态、Compose 及 guard/bootstrap 脚本 |
+| ~~`qnetd-witness`~~（随 QDevice 退役，迁移后脚本不再包含） | `host/gateway-qnetd-witness` | `qnetd-witness` | `qnetd.pxar` ← `/mnt/data/qnetd`，包含状态、Compose 及 guard/bootstrap 脚本 |
 
 youtube-mcp 已退役：用户 2026-11-05 确认不再使用，数据也不再保留，容器已停止，不再备份；PBS 组 `host/gateway-youtube-mcp` 的最后一份快照是 2026-10-11。小智仍使用原生 `--exclude /youtube-mcp`（与线上一致），相对于归档根目录排除该子目录，因此 `/mnt/data/xiaozhi/youtube-mcp` 不进入任何备份。
 
@@ -109,7 +111,7 @@ Redis 和 Hermes 的卷路径只按表中明确的容器、挂载目标读取 Do
 
 CN Proxy 的 Tailscale 身份位于 `/etc/sing-box/ts-state`，依据见 [CN 出口代理指南](cn-exit-singbox-proxy.md)。它随配置目录捕获。
 
-`all` 始终排除 qnetd，并在输出中明确说明。qnetd 必须先在单独安排的 quorum 维护窗口中停止，再显式调用 `backup qnetd-witness`。工具发现 witness 运行时立即拒绝，不负责停机或维护决策；备份完成后也保持停止，由维护操作者决定恢复时间。
+（旧网关版本）`all` 始终排除 qnetd，并在输出中明确说明。qnetd 必须先在单独安排的 quorum 维护窗口中停止，再显式调用 `backup qnetd-witness`。工具发现 witness 运行时立即拒绝，不负责停机或维护决策；备份完成后也保持停止，由维护操作者决定恢复时间。
 
 ## 配置与运行
 
@@ -135,7 +137,7 @@ CN Proxy 的 Tailscale 身份位于 `/etc/sing-box/ts-state`，依据见 [CN 出
 bash scripts/gateway-backup/gateway-backup.sh backup all
 ```
 
-固定顺序为 **小智 → Hermes → Open WebUI → Codex Proxy → CN Proxy**。脚本输出每项进度和独立 PBS 组结果，不需要 cron 或外层循环。每项作为独立的单业务调用运行：某项失败时，它仍完成原容器启动尝试和元数据清理并报告自己的退出码，批次随后继续下一项；结束时输出汇总，列出失败业务及其退出码。只有五项全部完成才返回 `0`，否则返回第一个失败业务的退出码。收到 INT/TERM 时，批次把信号转发给当前业务，等它完成取消清理后停止，不再运行剩余业务，并返回 `130`/`143`；控制器只需向批次进程发送信号。`docker start` 成功仅表示启动请求被接受，应用可用性由调用方另行检查。
+固定顺序为 **小智 → Hermes → Codex Proxy → CN Proxy**（旧网关版本中 Hermes 之后还有 Open WebUI）。脚本输出每项进度和独立 PBS 组结果，不需要 cron 或外层循环。每项作为独立的单业务调用运行：某项失败时，它仍完成原容器启动尝试和元数据清理并报告自己的退出码，批次随后继续下一项；结束时输出汇总，列出失败业务及其退出码。只有五项全部完成才返回 `0`，否则返回第一个失败业务的退出码。收到 INT/TERM 时，批次把信号转发给当前业务，等它完成取消清理后停止，不再运行剩余业务，并返回 `130`/`143`；控制器只需向批次进程发送信号。`docker start` 成功仅表示启动请求被接受，应用可用性由调用方另行检查。
 
 单业务用法仍然可用：
 
@@ -183,7 +185,7 @@ Home Assistant 等外部控制器不直接执行 `gateway-backup.sh`，而是经
 
 ctl 脚本依赖 `/bin/bash`（4.4 及以上，用到 `mapfile -d`）、`setsid`、`flock` 和 `/proc`。2026-11-05 核对：网关 Bash 为 5.2.37，`setsid` 和 `flock` 由 BusyBox 提供（`/usr/bin/setsid`、`/usr/bin/flock`），因此 Dropbear 会话的 PATH 需包含 `/usr/bin`。
 
-OpenWrt 的 root 授权公钥在 `/etc/dropbear/authorized_keys`。控制器使用公钥 `ha-gateway-backup`，在该文件中对应下面一整行，这把密钥就只能执行上述三个动作。2026-11-05 确认线上确有 `command="/mnt/data/gateway-backup/gateway-backup-ctl.sh"` 这一条；该行其余选项是否与下面一致待核对：
+旧网关上，OpenWrt 的 root 授权公钥在 `/etc/dropbear/authorized_keys`；迁移后改为业务 VM 121 上 root 的 `~/.ssh/authorized_keys`，同一行内容不变。控制器使用公钥 `ha-gateway-backup`，在该文件中对应下面一整行，这把密钥就只能执行上述三个动作。2026-11-05 确认线上确有 `command="/mnt/data/gateway-backup/gateway-backup-ctl.sh"` 这一条；该行其余选项是否与下面一致待核对：
 
 ```text
 command="/mnt/data/gateway-backup/gateway-backup-ctl.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... ha-gateway-backup
