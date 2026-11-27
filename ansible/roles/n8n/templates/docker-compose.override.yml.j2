@@ -11,7 +11,6 @@ services:
     network_mode: host
     ports: !reset []
     environment:
-      HERMES_WEBHOOK_SECRET: ${HERMES_WEBHOOK_SECRET:-}
       # Host networking removes the ports mapping, so the container process must
       # receive the real port and listen address instead of relying on the
       # defaults (5678 on ::) that the base image uses.

@@ -23,12 +23,6 @@
       when the legacy state is missing.
   when: n8n_legacy_migration_enabled
 
-- name: Check the legacy n8n environment file
-  ansible.builtin.stat:
-    path: "{{ n8n_legacy_env_file }}"
-  register: n8n_legacy_env
-  when: n8n_legacy_migration_enabled
-
 - name: Check the legacy scraper cache
   ansible.builtin.stat:
     path: "{{ n8n_legacy_scraper_data_dir }}"
@@ -93,18 +87,6 @@
     - "{{ n8n_staging_data_dir }}"
     - "{{ n8n_staging_scraper_data_dir }}"
   when: n8n_legacy_migration_enabled
-
-- name: Preserve the legacy environment file for staging and cutover
-  ansible.builtin.copy:
-    src: "{{ n8n_legacy_env_file }}"
-    dest: "{{ n8n_install_dir }}/.env"
-    remote_src: true
-    owner: root
-    group: root
-    mode: "0600"
-    force: true
-  when: n8n_legacy_migration_enabled and n8n_legacy_env.stat.exists
-  no_log: true
 
 - name: Render the staging Compose environment
   ansible.builtin.include_tasks: render-env.yml
