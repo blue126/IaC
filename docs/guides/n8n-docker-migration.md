@@ -29,7 +29,7 @@ PBS 快照标识为 `ct/106/2026-11-01T13:36:25Z`；本地回滚包已按要求�
 
 这台 n8n 跑着全部工作流，不只是租房项目，所以运行时统一改叫 n8n。工作流和 `docker-compose.yml`、`Dockerfile`、`Jenkinsfile` 仍由 n8n-rental 仓库管理；IaC 的 override 模板固定顶层 `name: n8n`、`container_name: n8n` 和 `image: n8n-local:${N8N_VERSION}`。
 
-从 `/opt/n8n-rental` 迁到 `/opt/n8n` 是一次性手工操作，不写进 playbook。旧目录、旧容器和旧镜像标签保留作回退。
+从 `/opt/n8n-rental` 迁到 `/opt/n8n` 是一次性手工操作，不写进 playbook。旧目录、旧容器和旧镜像在切换期间保留作回退，已于 2026-11-27 清理（见执行记录）。
 
 前提：n8n-rental 仓库的 Jenkinsfile 发布目录已改为 `/opt/n8n` 并合并；切换和回退期间不要触发 n8n-rental 的 Jenkins 发布，否则它会往停用的目录发布并启动 Compose，与运行中的栈争用 5678。
 
@@ -66,13 +66,13 @@ cd /opt/n8n-rental && sudo docker compose start
 - 没有跑完整 `deploy-n8n.yml`：在 check mode 下它的 `common` 和 `tailscale` 会改动 106（多加 3 把公钥、sudo 免密、开 IP 转发、重新做 tailscale 认证），这些漂移和本次改名无关。实际只跑了 `n8n` role，用的是一个临时 playbook（`hosts: n8n`、`become: true`、`roles: [n8n]`），然后跑 `deploy-n8n.yml --tags verify`，断言全部通过。
 - 切换后：Compose 项目 `n8n`、数据卷在 `/opt/n8n` 下、容器 healthy、readiness 和公网 200、workflow 数量仍是 24/10。
 - 没有把 n8n-only playbook 加进仓库：按 `docs/architecture/cicd-architecture.md`，新增的 `ansible/playbooks/deploy-*.yml` 会被 IaC-Homelab-Pipeline 直接加入部署列表。需要时在仓库外临时写一个。
-- 旧目录 `/opt/n8n-rental`、已停止的容器 `n8n-rental-n8n-1` 和镜像标签 `n8n-rental-n8n:2.39.5` 仍保留作回退，等首轮定时任务验证后再清理。
+- 旧目录 `/opt/n8n-rental`（含 `n8n-db-before-rename.tgz`）、已停止的容器 `n8n-rental-n8n-1` 和镜像 `n8n-rental-n8n:2.39.5` 已于 2026-11-27 按用户要求删除。上面的手工回退步骤已不可用；剩下的备份只有改名前的 PBS 快照 `ct/106/2026-11-01T13:36:25Z`。
 
 ### 发布链路现状（2026-11-27）
 
 n8n-rental 合并到 GitHub `main` 后，由合并者把 `origin/main` 快进推送到 Gitea `admin/n8n-rental`（`git push gitea origin/main:refs/heads/main`）。Gitea 上这个仓库已从 pull mirror 转为普通仓库，不再定时拉取 GitHub；转换后用 `gitea admin regenerate hooks` 补装了 git hooks，否则推送不会触发 webhook。
 
-Gitea webhook（id=2，push，分支 `main`）调用 107 上 Jenkins 的 `n8n-rental`（Generic Webhook Trigger）。Jenkins 以 `ubuntu@192.168.1.106` 和 `jenkins@homelab` 公钥（`SHA256:pgAWCRe3BXDYIMpt+VWa+sBLVQ5BAxy5U029FU5ryt8`）发布，`sudo` 执行 rsync 和 Docker。#21、#22 成功；#23 的 n8n 部分成功，`Deploy Apps Script` 因 Jenkins 缺少 `google-apps-script-clasp-auth` 凭据失败。
+Gitea webhook（id=2，push，分支 `main`）调用 107 上 Jenkins 的 `n8n-rental`（Generic Webhook Trigger）。Jenkins 以 `ubuntu@192.168.1.106` 和 `jenkins@homelab` 公钥（`SHA256:pgAWCRe3BXDYIMpt+VWa+sBLVQ5BAxy5U029FU5ryt8`）发布，`sudo` 执行 rsync 和 Docker。#21、#22 成功；#23 的 n8n 部分成功，`Deploy Apps Script` 因 Jenkins 缺少 `google-apps-script-clasp-auth` 凭据失败。补上凭据并改为直接调用 Apps Script API 后，#25 全部成功，脚本已发布到 "AU Rental Model Maintenance" 项目的 `Code.gs`。
 
 未纳入 IaC 的手工状态：
 
