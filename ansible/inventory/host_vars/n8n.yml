@@ -7,8 +7,8 @@ n8n_checkout_app: false
 n8n_version: "2.39.5"
 # Record only: with n8n_checkout_app false the role never checks out the
 # app repo; Jenkins n8n-rental publishes the app files. This is the
-# n8n-rental main commit last deployed to /opt/n8n (Jenkins #23, 2026-11-27).
-n8n_app_ref: "358045dc5b66649d4ee2dfcaa19c9d4605a2fb81"
+# n8n-rental main commit last deployed to /opt/n8n (Jenkins #25, 2026-11-27).
+n8n_app_ref: "8879b01816acd5b45ab1442103a1a0409284a546"
 n8n_legacy_data_dir: "/root/.n8n"
 n8n_legacy_env_file: "/root/.n8n/household-bill-assistant.env"
 n8n_legacy_scraper_data_dir: "/root/n8n-rental/data"
