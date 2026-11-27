@@ -10,6 +10,5 @@ n8n_version: "2.39.5"
 # n8n-rental main commit last deployed to /opt/n8n (Jenkins #23, 2026-11-27).
 n8n_app_ref: "358045dc5b66649d4ee2dfcaa19c9d4605a2fb81"
 n8n_legacy_data_dir: "/root/.n8n"
-n8n_legacy_env_file: "/root/.n8n/household-bill-assistant.env"
 n8n_legacy_scraper_data_dir: "/root/n8n-rental/data"
 n8n_secure_cookie: false
