@@ -84,7 +84,8 @@ resource "proxmox_virtual_environment_vm" "containerlab" {
   lifecycle {
     prevent_destroy = true
 
-    # bpg 0.70 reads legacy creation metadata even without a managed seed disk.
+    # The provider reads legacy creation metadata even without a managed seed
+    # disk (seen when this VM was adopted on bpg 0.70; not rechecked since).
     # The explicit CD-ROM owns the original NoCloud seed; never recreate it.
     ignore_changes = [initialization, efi_disk[0].pre_enrolled_keys]
   }
