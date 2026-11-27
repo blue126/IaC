@@ -49,7 +49,7 @@ diff <(cd /opt/n8n-rental && sudo find n8n-data data -type f -exec sha256sum {} 
 sudo docker image tag n8n-rental-n8n:2.39.5 n8n-local:2.39.5
 ```
 
-`copy-ok` 出现后，在管理机上跑 `deploy-n8n.yml --limit n8n`：它把 `.env` 的数据目录改为 `/opt/n8n/...`、渲染 override 并启动新栈。启动后用 `sudo docker compose config` 确认项目名是 `n8n`、数据卷宿主机路径在 `/opt/n8n` 下，再跑 `--tags verify` 并确认工作流数量和迁移前一致。
+`copy-ok` 出现后，在管理机上只跑 `n8n` role（见下方执行记录；不要跑完整 `deploy-n8n.yml`，它还会执行 `common` 和 `tailscale`）：它把 `.env` 的数据目录改为 `/opt/n8n/...`、渲染 override 并启动新栈。启动后用 `sudo docker compose config` 确认项目名是 `n8n`、数据卷宿主机路径在 `/opt/n8n` 下，再跑 `--tags verify` 并确认工作流数量和迁移前一致。
 
 手工回退：
 
@@ -59,6 +59,25 @@ cd /opt/n8n-rental && sudo docker compose start
 ```
 
 回退后旧栈用的是迁移那一刻的数据；新栈期间的改动只在 `/opt/n8n/n8n-data` 里。回退期间不要重跑 `deploy-n8n.yml`，也不要触发 n8n-rental 发布，它们都会启动 `/opt/n8n` 的新栈。
+
+### 执行记录（2026-11-26）
+
+- 13:39–13:41 UTC 按上面的步骤切换。切换前 24 个 workflow、10 个 active；`copy-ok` 通过，备份在 `/opt/n8n-rental/n8n-db-before-rename.tgz`。
+- 没有跑完整 `deploy-n8n.yml`：在 check mode 下它的 `common` 和 `tailscale` 会改动 106（多加 3 把公钥、sudo 免密、开 IP 转发、重新做 tailscale 认证），这些漂移和本次改名无关。实际只跑了 `n8n` role，用的是一个临时 playbook（`hosts: n8n`、`become: true`、`roles: [n8n]`），然后跑 `deploy-n8n.yml --tags verify`，断言全部通过。
+- 切换后：Compose 项目 `n8n`、数据卷在 `/opt/n8n` 下、容器 healthy、readiness 和公网 200、workflow 数量仍是 24/10。
+- 没有把 n8n-only playbook 加进仓库：按 `docs/architecture/cicd-architecture.md`，新增的 `ansible/playbooks/deploy-*.yml` 会被 IaC-Homelab-Pipeline 直接加入部署列表。需要时在仓库外临时写一个。
+- 旧目录 `/opt/n8n-rental`、已停止的容器 `n8n-rental-n8n-1` 和镜像标签 `n8n-rental-n8n:2.39.5` 仍保留作回退，等首轮定时任务验证后再清理。
+
+### 发布链路现状（2026-11-27）
+
+n8n-rental 合并到 GitHub `main` 后，由合并者把 `origin/main` 快进推送到 Gitea `admin/n8n-rental`（`git push gitea origin/main:refs/heads/main`）。Gitea 上这个仓库已从 pull mirror 转为普通仓库，不再定时拉取 GitHub；转换后用 `gitea admin regenerate hooks` 补装了 git hooks，否则推送不会触发 webhook。
+
+Gitea webhook（id=2，push，分支 `main`）调用 107 上 Jenkins 的 `n8n-rental`（Generic Webhook Trigger）。Jenkins 以 `ubuntu@192.168.1.106` 和 `jenkins@homelab` 公钥（`SHA256:pgAWCRe3BXDYIMpt+VWa+sBLVQ5BAxy5U029FU5ryt8`）发布，`sudo` 执行 rsync 和 Docker。#21、#22 成功；#23 的 n8n 部分成功，`Deploy Apps Script` 因 Jenkins 缺少 `google-apps-script-clasp-auth` 凭据失败。
+
+未纳入 IaC 的手工状态：
+
+- 这把公钥是手工加进 106 `ubuntu` 的 `authorized_keys` 的；107 上 jenkins 用户的 `known_hosts` 也手工更新为 106 当前的主机密钥。
+- 如果要纳入 IaC，应放在 `n8n` role 或 `host_vars/n8n.yml`，不要放进 `common`，以免扩大 `common` 在 106 上的漂移。
 
 ## 迁移原则
 
